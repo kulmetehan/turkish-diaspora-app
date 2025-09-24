@@ -110,8 +110,8 @@ async def get_news(
 ):
     """Get news items with optional filters"""
     try:
-        # Build query
-        query = supabase.table('items').select('*, sources!inner(name)').eq('kind', 'news')
+        # Build query WITHOUT the problematic join
+        query = supabase.table('items').select('*').eq('kind', 'news')
         
         # Apply filters
         if region:
@@ -143,7 +143,7 @@ async def get_news(
                 'summary_nl': item.get('summary_nl'),
                 'tags': item.get('tags', []),
                 'regions': item.get('regions', []),
-                'source_name': item.get('sources', {}).get('name'),
+                'source_name': 'News',  # Generic name since we can't join
                 'lang': item.get('lang')
             }
             items.append(formatted_item)
