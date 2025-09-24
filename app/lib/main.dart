@@ -3,6 +3,9 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 
+// 👇 live backend op Render
+const apiBase = 'https://turkish-diaspora-app.onrender.com';
+
 void main() {
   runApp(const DiasporaApp());
 }
@@ -116,7 +119,7 @@ class _FeedPageState extends State<FeedPage> {
   Future<void> fetchFeed() async {
     try {
       final response = await http.get(
-        Uri.parse('http://localhost:8000/v1/feed'),
+        Uri.parse('$apiBase/v1/feed'),
       );
 
       if (response.statusCode == 200) {
@@ -184,7 +187,7 @@ class _NewsPageState extends State<NewsPage> {
     });
 
     try {
-      String url = 'http://localhost:8000/v1/news';
+      String url = '$apiBase/v1/news';
       List<String> params = [];
       
       if (selectedRegion != 'All') {
@@ -310,7 +313,7 @@ class _NewsCardState extends State<NewsCard> {
     
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8000/v1/reactions'),
+        Uri.parse('$apiBase/v1/reactions'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'item_id': itemId,
