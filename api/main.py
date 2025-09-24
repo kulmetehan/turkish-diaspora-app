@@ -60,8 +60,8 @@ async def get_feed(
 ):
     """Get mixed feed items (news, events, sports)"""
     try:
-        # Build query
-        query = supabase.table('items').select('*, sources!inner(name)')
+        # Build query without join
+        query = supabase.table('items').select('*')
         
         # Apply region filter if provided
         if region:
@@ -76,14 +76,6 @@ async def get_feed(
         # Format items
         items = []
         for item in response.data:
-            # Get reaction counts for this item
-            reactions_response = supabase.table('reactions').select('emoji').eq('item_id', item['id']).execute()
-            
-            reaction_counts = {}
-            for reaction in reactions_response.data:
-                emoji = reaction['emoji']
-                reaction_counts[emoji] = reaction_counts.get(emoji, 0) + 1
-            
             formatted_item = {
                 'id': item['id'],
                 'kind': item['kind'],
@@ -94,8 +86,8 @@ async def get_feed(
                 'summary_nl': item.get('summary_nl'),
                 'tags': item.get('tags', []),
                 'regions': item.get('regions', []),
-                'reactions': reaction_counts,
-                'source_name': item.get('sources', {}).get('name')
+                'reactions': {},  # Empty for now
+                'source_name': 'News'  # Generic name since we can't join
             }
             items.append(formatted_item)
         
