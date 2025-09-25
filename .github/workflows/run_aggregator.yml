@@ -1,0 +1,40 @@
+name: News Aggregator Cron Job
+
+on:
+  # Schedule the job to run every 15 minutes
+  schedule:
+    # This CRON expression runs every 15 minutes
+    - cron: '*/15 * * * *' 
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  run_script:
+    # Use the latest Ubuntu runner
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.x' # Use a modern Python version
+
+    - name: Install Dependencies
+      run: |
+        # Change to the correct directory if requirements.txt is not at the root
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      # Assuming requirements.txt is at the root. Adjust the path if needed.
+
+    - name: Run Aggregator Script and Write to Supabase
+      # The SUPABASE secrets are injected as environment variables
+      # Your google_news_aggregator.py script will read these via os.environ.get()
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: |
+        # Execute the script (The path is relative to the root of your repo)
+        python ingest/google_news_aggregator.py
