@@ -373,27 +373,16 @@ class NewsAggregator:
         Writes (upserts) the NewsItems to the Supabase database.
         Assumes SUPABASE_URL and SUPABASE_KEY are set as environment variables.
         """
-        # Skip write if Supabase client is not available (only applicable if running without dependency)
-        if type(create_client()) is Client and not isinstance(create_client(), Client):
-             logger.warning("[write_to_db] Skipping database write: Supabase client initialization failed.")
-             return
-
         try:
             url: str = os.environ.get("SUPABASE_URL")
             key: str = os.environ.get("SUPABASE_KEY")
             
             if not url or not key:
-                # This check ensures it runs safely even if .env isn't loaded correctly 
-                # (though it should be for a Render Cron Job)
                 logger.error("[write_to_db] SUPABASE_URL or SUPABASE_KEY not found in environment.")
                 return
 
             supabase: Client = create_client(url, key)
 
-            # NOTE: We skip writing 'original_data' as it's a raw Dict which might not 
-            # map easily to all DB columns. Assuming your 'news_items' table structure 
-            # matches the NewsItem fields *excluding* original_data, or that 
-            # Supabase handles the JSON/Dict column type.
             data_to_upsert = [asdict(i) for i in items]
 
             # Remove 'original_data' key if it's not a JSON/JSONB column type in your table
@@ -410,7 +399,6 @@ class NewsAggregator:
                 logger.info(f"[write_to_db] Successfully upserted {len(response.data)} items to Supabase.")
             else:
                  logger.info(f"[write_to_db] Supabase upsert operation executed for {len(items)} items. (Data count unknown)")
-
 
         except Exception as e:
             logger.error(f"[write_to_db] Failed to write to Supabase: {e}")
@@ -524,3 +512,4 @@ if __name__ == "__main__":
     for it in res["items"]:
         flag = "🇳🇱" if it["language"] == "nl" else "🇹🇷"
         print(f"{flag} {it['title']} [{it['source']}] -> {it['url']}")
+        
