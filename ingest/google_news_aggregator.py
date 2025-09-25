@@ -7,6 +7,9 @@ Belangrijkste wijziging:
 - Google News redirect resolver omzeilt nu de EU-consent interstitial
   via verbeterde consent-cookie en het uitlezen van de 'continue='-parameter.
 - Implementatie blijft volledig SYNC met httpx.Client (geen asyncio.run meer).
+
+NIEUWE WIJZIGING:
+- Database-schrijflogica toegevoegd via 'write_to_db' voor Supabase integratie.
 """
 
 from __future__ import annotations
@@ -15,6 +18,7 @@ import hashlib
 import json
 import logging
 import re
+import os # NEW: Added for environment variables
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from difflib import SequenceMatcher
@@ -25,6 +29,15 @@ from urllib.parse import quote, urlparse, parse_qs, unquote
 
 import feedparser
 import httpx
+# NEW: Directly import Supabase components, assuming it's installed as a dependency
+try:
+    from supabase import create_client, Client
+except ImportError:
+    # Fallback/error handling if the library is missing
+    class Client: pass 
+    def create_client(*args, **kwargs):
+        logger.error("Supabase client is not installed. Database writes will fail.")
+        return Client()
 
 
 # ---------- Logging ----------
@@ -354,6 +367,54 @@ class NewsAggregator:
             original_data=raw_item,
         )
 
+    # -------------------- Database Write --------------------
+    def write_to_db(self, items: List[NewsItem]):
+        """
+        Writes (upserts) the NewsItems to the Supabase database.
+        Assumes SUPABASE_URL and SUPABASE_KEY are set as environment variables.
+        """
+        # Skip write if Supabase client is not available (only applicable if running without dependency)
+        if type(create_client()) is Client and not isinstance(create_client(), Client):
+             logger.warning("[write_to_db] Skipping database write: Supabase client initialization failed.")
+             return
+
+        try:
+            url: str = os.environ.get("SUPABASE_URL")
+            key: str = os.environ.get("SUPABASE_KEY")
+            
+            if not url or not key:
+                # This check ensures it runs safely even if .env isn't loaded correctly 
+                # (though it should be for a Render Cron Job)
+                logger.error("[write_to_db] SUPABASE_URL or SUPABASE_KEY not found in environment.")
+                return
+
+            supabase: Client = create_client(url, key)
+
+            # NOTE: We skip writing 'original_data' as it's a raw Dict which might not 
+            # map easily to all DB columns. Assuming your 'news_items' table structure 
+            # matches the NewsItem fields *excluding* original_data, or that 
+            # Supabase handles the JSON/Dict column type.
+            data_to_upsert = [asdict(i) for i in items]
+
+            # Remove 'original_data' key if it's not a JSON/JSONB column type in your table
+            for d in data_to_upsert:
+                 d.pop('original_data', None)
+
+            # This will write the data to a 'news_items' table.
+            # 'on_conflict' ensures existing items are updated based on the 'id'.
+            response = supabase.table('news_items').upsert(data_to_upsert, on_conflict='id').execute()
+
+            # The Supabase client response structure might vary; this handles common cases
+            # Check the response data length for successful upsert count
+            if hasattr(response, 'data') and response.data is not None:
+                logger.info(f"[write_to_db] Successfully upserted {len(response.data)} items to Supabase.")
+            else:
+                 logger.info(f"[write_to_db] Supabase upsert operation executed for {len(items)} items. (Data count unknown)")
+
+
+        except Exception as e:
+            logger.error(f"[write_to_db] Failed to write to Supabase: {e}")
+
     # -------------------- Public methods --------------------
     def fetch_language_feed(self, lang: str, force_refresh: bool = False) -> List[NewsItem]:
         cache = self.cache[lang]
@@ -433,6 +494,11 @@ class NewsAggregator:
         nl = self.fetch_language_feed("nl", force_refresh=True)
         tr = self.fetch_language_feed("tr", force_refresh=True)
         merged = self.merge_and_rank(nl, tr)
+        
+        # *** NEW DATABASE WRITE STEP ***
+        self.write_to_db(merged)
+        # ******************************
+
         self.cache["merged"]["items"] = merged
         self.cache["merged"]["last_update"] = datetime.utcnow()
         return {
@@ -446,7 +512,13 @@ class NewsAggregator:
 
 if __name__ == "__main__":
     aggr = NewsAggregator()
-    print("Testing mixed feed...")
+    # To test the refresh_all (and thus the database write) in your environment, 
+    # you would need to set SUPABASE_URL and SUPABASE_KEY environment variables.
+    print("Refreshing all feeds and attempting to write to database...")
+    res = aggr.refresh_all()
+    print(f"Refresh result: {json.dumps(res, indent=2)}")
+
+    print("\nTesting mixed feed (from memory cache)...")
     res = aggr.get_feed(lang="all", limit=10)
     print(f"Total items: {res['total']}")
     for it in res["items"]:
