@@ -1,40 +1,51 @@
 name: News Aggregator Cron Job
 
 on:
-  # Schedule the job to run every 15 minutes
   schedule:
-    # This CRON expression runs every 15 minutes
-    - cron: '*/15 * * * *' 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+    - cron: "*/15 * * * *"   # elke 15 min (UTC)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
 
 jobs:
   run_script:
-    # Use the latest Ubuntu runner
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: false      # voorkom td-pages submodule-gedoe
+          clean: false
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.x' # Use a modern Python version
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: |
+            api/requirements.txt
 
-    - name: Install Dependencies
-      run: |
-        # Change to the correct directory if requirements.txt is not at the root
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-      # Assuming requirements.txt is at the root. Adjust the path if needed.
+      - name: Install dependencies (api/requirements.txt)
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          if [ -f "api/requirements.txt" ]; then
+            pip install -r api/requirements.txt
+          else
+            echo "::error file=api/requirements.txt::api/requirements.txt niet gevonden. Is dit bestand wel gecommit?"
+            exit 1
+          fi
 
-    - name: Run Aggregator Script and Write to Supabase
-      # The SUPABASE secrets are injected as environment variables
-      # Your google_news_aggregator.py script will read these via os.environ.get()
-      env:
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      run: |
-        # Execute the script (The path is relative to the root of your repo)
-        python ingest/google_news_aggregator.py
+      - name: Run aggregator
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          # DATABASE_URL: ${{ secrets.DATABASE_URL }}   # voeg toe als je DB gebruikt
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # indien nodig
+        run: |
+          set -e
+          python ingest/google_news_aggregator.py
