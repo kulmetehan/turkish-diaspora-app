@@ -2,16 +2,12 @@ name: News Aggregator Cron Job
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # elke 15 min (UTC) op default branch
-  workflow_dispatch: {}       # handmatig triggeren (bijv. op dev)
-
-permissions:
-  contents: read
+    - cron: '*/15 * * * *'     # elke 15 min
+  workflow_dispatch: {}
 
 jobs:
   ingest:
-    # Auto-run op main (via cron) EN altijd toestaan bij handmatige run
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'   # alleen op main
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
@@ -19,38 +15,15 @@ jobs:
       cancel-in-progress: true
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          fetch-depth: 0
-          submodules: false      # voorkom td-pages submodule-gedoe
-          clean: false
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-          cache-dependency-path: |
-            api/requirements.txt
-
-      - name: Install dependencies (api/requirements.txt)
-        run: |
-          set -e
-          python -m pip install --upgrade pip
-          if [ -f "api/requirements.txt" ]; then
-            pip install -r api/requirements.txt
-          else
-            echo "::error file=api/requirements.txt::api/requirements.txt niet gevonden. Is dit bestand wel gecommit?"
-            exit 1
-          fi
-
-      - name: Run ingestion (orchestrator)
+          python-version: '3.11'
+          cache: 'pip'
+      - run: pip install -r api/requirements.txt
+      - name: Run ingestion (writes to Supabase)
+        run: python -m ingest.news_ingestion_system
         env:
-          PYTHONPATH: ${{ github.workspace }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}  # nodig voor inserts
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}                  # optioneel
-        run: |
-          set -e
-          python -m ingest.news_ingestion_system
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}   # verplicht voor inserts
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}                   # optioneel
