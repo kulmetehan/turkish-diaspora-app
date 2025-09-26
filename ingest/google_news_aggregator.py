@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
 Google News RSS Aggregator for Turkish Diaspora App
-Mixed NL/TR feed with dedupe, scoring and robust fetching.
 
-Belangrijkste wijziging:
-- Google News redirect resolver omzeilt nu de EU-consent interstitial
-  via verbeterde consent-cookie en het uitlezen van de 'continue='-parameter.
-- Implementatie blijft volledig SYNC met httpx.Client (geen asyncio.run meer).
+Fixes in deze versie:
+- Headers worden opgeschoond: nooit None-waarden naar httpx (verhelpt TypeError).
+- Google News redirect resolver is uitgeschakeld om EU consent-loops te vermijden.
+- Publicatiedata worden naar naive UTC genormaliseerd (verhelpt aware/naive subtract error).
+- ETag wordt alleen gezet/gelezen als er daadwerkelijk een string-waarde is.
+- Geen directe DB-writes (runner post zelf naar 'items').
 
-NIEUWE WIJZIGING:
-- Database-schrijflogica toegevoegd via 'write_to_db' voor Supabase integratie.
+Deze module levert een NewsAggregator-klasse die door ingest/news_ingestion_system.py
+wordt gebruikt.
 """
 
 from __future__ import annotations
@@ -18,31 +19,23 @@ import hashlib
 import json
 import logging
 import re
-import os # NEW: Added for environment variables
 from dataclasses import dataclass, asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import quote, urlparse, parse_qs, unquote
+from urllib.parse import quote, urlparse
 
 import feedparser
 import httpx
-# NEW: Directly import Supabase components, assuming it's installed as a dependency
-try:
-    from supabase import create_client, Client
-except ImportError:
-    # Fallback/error handling if the library is missing
-    class Client: pass 
-    def create_client(*args, **kwargs):
-        logger.error("Supabase client is not installed. Database writes will fail.")
-        return Client()
-
 
 # ---------- Logging ----------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("news")
+
+# Minder spam van httpx
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 
 # ---------- Data Model ----------
@@ -61,45 +54,18 @@ class NewsItem:
     original_data: Dict
 
 
-# ---------- Google News helpers ----------
+# ---------- Helpers ----------
 def is_google_news_link(url: str) -> bool:
-    """
-    Herkent Google News RSS links en consent.google.com interstitials.
-    """
     return bool(url) and ("news.google.com" in url or "consent.google.com" in url)
-
-
-def _maybe_unwrap_consent(url: str) -> str:
-    """
-    Als we een consent.google.com URL krijgen met ?continue=..., haal de echte target eruit.
-    """
-    try:
-        p = urlparse(url)
-        if p.netloc.endswith("consent.google.com"):
-            q = parse_qs(p.query)
-            cont = q.get("continue", [])
-            if cont and isinstance(cont[0], str):
-                return cont[0]
-    except Exception:
-        pass
-    return url
 
 
 def resolve_google_news_link(url: str) -> str:
     """
-    TIJDELIJK UITGESCHAKELD: Volgt redirects van Google News RSS naar de uiteindelijke uitgever-URL.
-    
-    Google's consent-systeem blokkeert momenteel onze redirect resolver.
-    Voor nu geven we gewoon de originele URL terug zodat de API snel blijft werken.
-    
-    TODO: Implementeer een betere strategie (bijv. periodieke batch-resolving of proxy).
+    Resolving is bewust uitgeschakeld ivm EU consent interstitials.
+    We geven de originele Google News-link terug; runner/FE kan die gewoon openen.
     """
     if not is_google_news_link(url):
         return url
-    
-    # Voor nu: return de originele URL zonder te resolven
-    # Dit betekent dat je Google News URLs krijgt in plaats van publisher URLs,
-    # maar de API werkt wel snel.
     logger.debug(f"[resolve_google_news_link] Skipping resolution for: {url}")
     return url
 
@@ -108,7 +74,11 @@ def resolve_google_news_link(url: str) -> str:
 class NewsAggregator:
     def __init__(self, config_path: str = "news_config.json"):
         self.config = self._load_config(config_path)
-        self.cache = {
+        self.client = httpx.Client(
+            timeout=httpx.Timeout(connect=5.0, read=5.0, write=5.0, pool=5.0)
+        )
+        # Cache structuur
+        self.cache: Dict[str, Dict] = {
             "nl": {"items": [], "last_fetch": None, "etag": None},
             "tr": {"items": [], "last_fetch": None, "etag": None},
             "merged": {"items": [], "last_update": None},
@@ -177,9 +147,8 @@ class NewsAggregator:
     # -------------------- Fetching --------------------
     def fetch_feed(self, url: str, etag: Optional[str] = None) -> Tuple[List[Dict], Optional[str]]:
         """
-        Fetch RSS with a real User-Agent and strict timeouts.
-        Never blocks longer than a few seconds; returns [] on error.
-        Logs status + entry count.
+        Fetch RSS met real User-Agent en defensieve timeouts.
+        Retourneert [] bij fout en geeft (entries, etag).
         """
         headers = {
             "User-Agent": (
@@ -189,42 +158,14 @@ class NewsAggregator:
             ),
             "Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
         }
-        timeout = httpx.Timeout(connect=5.0, read=5.0, write=5.0, pool=5.0)
+        if etag:
+            headers["If-None-Match"] = str(etag)
+
+        # Opschonen: geen None/lege values naar httpx
+        headers = {k: v for k, v in headers.items() if isinstance(v, (str, bytes)) and v}
 
         try:
-            r = httpx.get(url, headers=headers, timeout=timeout, follow_redirects=True)
-            if r.status_code == 304:
-                logger.info(f"[fetch_feed] 304 Not Modified -> {url}")
-                return [], etag
-            if r.status_code != 200:
-                logger.warning(f"[fetch_feed] HTTP {r.status_code} -> {url}")
-                return [], etag
-
-            feed = feedparser.parse(r.text)
-            entries = []
-            for e in feed.entries:
-                source_title = ""
-                try:
-                    source_obj = getattr(e, "source", None)
-                    if source_obj and hasattr(source_obj, "title"):
-                        source_title = source_obj.title
-                except Exception:
-                    pass
-
-                entries.append(
-                    {
-                        "title": e.get("title", ""),
-                        "link": e.get("link", ""),
-                        "description": e.get("description", "") or e.get("summary", ""),
-                        "published": e.get("published", "") or e.get("updated", ""),
-                        "raw": e,
-                        "source": source_title,
-                    }
-                )
-
-            logger.info(f"[fetch_feed] OK {len(entries)} entries <- {url}")
-            return entries, None
-
+            r = self.client.get(url, headers=headers, follow_redirects=True)
         except httpx.TimeoutException:
             logger.warning(f"[fetch_feed] TIMEOUT -> {url}")
             return [], etag
@@ -232,7 +173,42 @@ class NewsAggregator:
             logger.error(f"[fetch_feed] ERROR {ex} -> {url}")
             return [], etag
 
-    # -------------------- Helpers --------------------
+        if r.status_code == 304:
+            logger.info(f"[fetch_feed] 304 Not Modified -> {url}")
+            return [], etag
+        if r.status_code != 200:
+            logger.warning(f"[fetch_feed] HTTP {r.status_code} -> {url}")
+            return [], etag
+
+        # ETag uit response, indien aanwezig
+        new_etag = r.headers.get("ETag") or etag
+
+        feed = feedparser.parse(r.text)
+        entries = []
+        for e in feed.entries:
+            source_title = ""
+            try:
+                source_obj = getattr(e, "source", None)
+                if source_obj and hasattr(source_obj, "title"):
+                    source_title = source_obj.title
+            except Exception:
+                pass
+
+            entries.append(
+                {
+                    "title": e.get("title", ""),
+                    "link": e.get("link", ""),
+                    "description": e.get("description", "") or e.get("summary", ""),
+                    "published": e.get("published", "") or e.get("updated", ""),
+                    "raw": e,
+                    "source": source_title,
+                }
+            )
+
+        logger.info(f"[fetch_feed] OK {len(entries)} entries <- {url}")
+        return entries, new_etag
+
+    # -------------------- Text/Language helpers --------------------
     def detect_language(self, item: Dict, feed_lang: str) -> str:
         text = f"{item.get('title','')} {item.get('description','')}".lower()
         tr_words = [" ve ", " bir ", " için ", " ile ", " bu ", " da ", " olan "]
@@ -282,23 +258,37 @@ class NewsAggregator:
     def calculate_similarity(self, a: str, b: str) -> float:
         return SequenceMatcher(None, self.clean_text(a).lower(), self.clean_text(b).lower()).ratio()
 
-    def parse_pubdate(self, published_str: str, raw: Dict) -> datetime:
+    def parse_pubdate(self, published_str: str, raw_item: Dict) -> datetime:
+        """
+        Retourneert een naive UTC datetime (zonder tzinfo) om aware/naive errors te voorkomen.
+        """
+        # 1) Probeer feedparser-struct_time
         try:
-            pp = raw.get("raw", {}).get("published_parsed") or raw.get("raw", {}).get("updated_parsed")
+            pp = raw_item.get("raw", {}).get("published_parsed") or raw_item.get("raw", {}).get("updated_parsed")
             if pp:
-                return datetime(pp.tm_year, pp.tm_mon, pp.tm_mday, pp.tm_hour, pp.tm_min, pp.tm_sec)
+                dt = datetime(pp.tm_year, pp.tm_mon, pp.tm_mday, pp.tm_hour, pp.tm_min, pp.tm_sec)
+                return dt  # struct_time is al naive
         except Exception:
             pass
+
+        # 2) Probeer email.utils parser
         try:
-            return parsedate_to_datetime(published_str)
+            dt = parsedate_to_datetime(published_str)
+            if dt is None:
+                raise ValueError("parsedate_to_datetime returned None")
+            # Normaliseer naar naive UTC
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
         except Exception:
-            pass
-        return datetime.utcnow()
+            # 3) Fallback: nu (naive)
+            return datetime.utcnow()
 
     # -------------------- Scoring & Dedup --------------------
     def calculate_score(self, raw_item: Dict, lang: str) -> float:
         w = self.config["ranking"]
         score = 0.0
+
         pub_dt = self.parse_pubdate(raw_item.get("published", ""), raw_item)
         age_h = (datetime.utcnow() - pub_dt).total_seconds() / 3600.0
         freshness = max(0.0, 1.0 - (age_h / 24.0))
@@ -346,10 +336,9 @@ class NewsAggregator:
             source_txt = urlparse(url0).netloc.replace("www.", "")
 
         pub_dt = self.parse_pubdate(raw_item.get("published", ""), raw_item)
-        pub_dt = pub_dt if pub_dt.tzinfo is None else pub_dt.replace(tzinfo=None)
-        published_at = pub_dt.isoformat() + "Z"
+        published_at = pub_dt.isoformat() + "Z"  # we houden naive -> suffix Z
 
-        # Resolve altijd de Google News link naar de echte bron (sync, geen asyncio.run)
+        # Geen redirect-resolution (EU consent-loop vermijden)
         url_raw = raw_item.get("link") or raw_item.get("url") or ""
         resolved_url = resolve_google_news_link(url_raw)
 
@@ -367,43 +356,43 @@ class NewsAggregator:
             original_data=raw_item,
         )
 
-    # -------------------- Database Write --------------------
-    def write_to_db(self, items: List[NewsItem]):
+    def to_item(self, raw_item: Dict, feed_lang: str) -> NewsItem:
         """
-        Writes (upserts) the NewsItems to the Supabase database.
-        Assumes SUPABASE_URL and SUPABASE_KEY are set as environment variables.
+        Wrapper zodat we optioneel een boost kunnen meegeven via raw_item.get("__boost").
         """
-        try:
-            url: str = os.environ.get("SUPABASE_URL")
-            key: str = os.environ.get("SUPABASE_KEY")
-            
-            if not url or not key:
-                logger.error("[write_to_db] SUPABASE_URL or SUPABASE_KEY not found in environment.")
-                return
+        item = self.normalize_item(raw_item, feed_lang)
+        boost = raw_item.get("__boost")
+        if isinstance(boost, (int, float)) and boost > 0:
+            item.score *= float(boost)
+        return item
 
-            supabase: Client = create_client(url, key)
+    # -------------------- Fetch per language --------------------
+    def fetch_language_raw(self, lang: str) -> List[Dict]:
+        """
+        Haalt 'general' + 'diaspora' feeds voor een taal op en voegt samen.
+        Diaspora-items krijgen een lichte score-boost via __boost.
+        """
+        entries: List[Dict] = []
 
-            data_to_upsert = [asdict(i) for i in items]
+        # General
+        general_url = self.build_google_news_url(lang, "general")
+        cache_entry = self.cache.get(lang, {})
+        etag_val = cache_entry.get("etag")
+        general_entries, new_etag = self.fetch_feed(general_url, etag_val)
+        if new_etag and lang in self.cache:
+            self.cache[lang]["etag"] = new_etag
+        entries.extend(general_entries)
 
-            # Remove 'original_data' key if it's not a JSON/JSONB column type in your table
-            for d in data_to_upsert:
-                 d.pop('original_data', None)
+        # Diaspora (geen etag-caching nodig)
+        diaspora_url = self.build_google_news_url(lang, "diaspora")
+        diaspora_entries, _ = self.fetch_feed(diaspora_url, None)
+        # markeer een boost
+        for e in diaspora_entries:
+            e["__boost"] = 1.2
+        entries.extend(diaspora_entries)
 
-            # This will write the data to a 'news_items' table.
-            # 'on_conflict' ensures existing items are updated based on the 'id'.
-            response = supabase.table('news_items').upsert(data_to_upsert, on_conflict='id').execute()
+        return entries
 
-            # The Supabase client response structure might vary; this handles common cases
-            # Check the response data length for successful upsert count
-            if hasattr(response, 'data') and response.data is not None:
-                logger.info(f"[write_to_db] Successfully upserted {len(response.data)} items to Supabase.")
-            else:
-                 logger.info(f"[write_to_db] Supabase upsert operation executed for {len(items)} items. (Data count unknown)")
-
-        except Exception as e:
-            logger.error(f"[write_to_db] Failed to write to Supabase: {e}")
-
-    # -------------------- Public methods --------------------
     def fetch_language_feed(self, lang: str, force_refresh: bool = False) -> List[NewsItem]:
         cache = self.cache[lang]
         if not force_refresh and cache["last_fetch"]:
@@ -412,34 +401,15 @@ class NewsAggregator:
                 logger.info(f"[fetch_language_feed] {lang} using cache ({len(cache['items'])} items)")
                 return cache["items"]
 
-        all_items: List[NewsItem] = []
+        all_raw = self.fetch_language_raw(lang)
+        items: List[NewsItem] = [self.to_item(r, lang) for r in all_raw]
 
-        # GENERAL
-        general_url = self.build_google_news_url(lang, "general")
-        logger.info(f"[fetch_language_feed] {lang} general URL: {general_url}")
-        entries, new_etag = self.fetch_feed(general_url, cache.get("etag"))
-        logger.info(f"[fetch_language_feed] {lang} general entries: {len(entries)}")
-        for e in entries:
-            item = self.normalize_item(e, lang)
-            all_items.append(item)
+        logger.info(f"[fetch_language_feed] {lang} TOTAL normalized: {len(items)}")
+        self.cache[lang]["items"] = items
+        self.cache[lang]["last_fetch"] = datetime.utcnow()
+        return items
 
-        # DIASPORA
-        diaspora_url = self.build_google_news_url(lang, "diaspora")
-        logger.info(f"[fetch_language_feed] {lang} diaspora URL: {diaspora_url}")
-        diaspora_entries, _ = self.fetch_feed(diaspora_url)
-        logger.info(f"[fetch_language_feed] {lang} diaspora entries: {len(diaspora_entries)}")
-        for e in diaspora_entries:
-            item = self.normalize_item(e, lang)
-            item.score *= 1.2
-            all_items.append(item)
-
-        cache["items"] = all_items
-        cache["last_fetch"] = datetime.utcnow()
-        cache["etag"] = new_etag
-
-        logger.info(f"[fetch_language_feed] {lang} TOTAL normalized: {len(all_items)}")
-        return all_items
-
+    # -------------------- Merge & API helpers --------------------
     def merge_and_rank(self, nl: List[NewsItem], tr: List[NewsItem]) -> List[NewsItem]:
         items = nl + tr
         items = self.deduplicate_items(items)
@@ -482,10 +452,6 @@ class NewsAggregator:
         nl = self.fetch_language_feed("nl", force_refresh=True)
         tr = self.fetch_language_feed("tr", force_refresh=True)
         merged = self.merge_and_rank(nl, tr)
-        
-        # *** NEW DATABASE WRITE STEP ***
-        self.write_to_db(merged)
-        # ******************************
 
         self.cache["merged"]["items"] = merged
         self.cache["merged"]["last_update"] = datetime.utcnow()
@@ -497,19 +463,19 @@ class NewsAggregator:
             "timestamp": datetime.utcnow().isoformat() + "Z",
         }
 
+    def __del__(self):
+        try:
+            self.client.close()
+        except Exception:
+            pass
+
 
 if __name__ == "__main__":
     aggr = NewsAggregator()
-    # To test the refresh_all (and thus the database write) in your environment, 
-    # you would need to set SUPABASE_URL and SUPABASE_KEY environment variables.
-    print("Refreshing all feeds and attempting to write to database...")
+    print("Refreshing all feeds (no DB writes from this file)...")
     res = aggr.refresh_all()
-    print(f"Refresh result: {json.dumps(res, indent=2)}")
-
-    print("\nTesting mixed feed (from memory cache)...")
-    res = aggr.get_feed(lang="all", limit=10)
-    print(f"Total items: {res['total']}")
-    for it in res["items"]:
+    print(json.dumps(res, indent=2))
+    test = aggr.get_feed(lang="all", limit=5)
+    for it in test["items"]:
         flag = "🇳🇱" if it["language"] == "nl" else "🇹🇷"
         print(f"{flag} {it['title']} [{it['source']}] -> {it['url']}")
-        
