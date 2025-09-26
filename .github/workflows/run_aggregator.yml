@@ -2,15 +2,21 @@ name: News Aggregator Cron Job
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # elke 15 min (UTC)
-  workflow_dispatch: {}
+    - cron: "*/15 * * * *"   # elke 15 min (UTC) op default branch
+  workflow_dispatch: {}       # handmatig triggeren (bijv. op dev)
 
 permissions:
   contents: read
 
 jobs:
-  run_script:
+  ingest:
+    # Auto-run op main (via cron) EN altijd toestaan bij handmatige run
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: news-ingest
+      cancel-in-progress: true
 
     steps:
       - name: Checkout repository
@@ -39,13 +45,12 @@ jobs:
             exit 1
           fi
 
-      - name: Run aggregator
+      - name: Run ingestion (orchestrator)
         env:
           PYTHONPATH: ${{ github.workspace }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          # DATABASE_URL: ${{ secrets.DATABASE_URL }}   # voeg toe als je DB gebruikt
-          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}  # indien nodig
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}  # nodig voor inserts
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}                  # optioneel
         run: |
           set -e
-          python ingest/google_news_aggregator.py
+          python -m ingest.news_ingestion_system
