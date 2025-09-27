@@ -36,6 +36,26 @@ _pool: Optional[asyncpg.Pool] = None
 
 
 # ==========
+# Helper Functions for Language/Region Mapping
+# ==========
+def _norm_lang(x: str) -> str:
+    """Normalize language string for consistent comparison"""
+    return x.strip().lower().replace('_', '-')
+
+
+def _region_to_lang(region: str) -> Optional[str]:
+    """Map region names to language codes"""
+    r = region.strip().lower()
+    nl_aliases = {"nederland", "netherlands", "hollanda", "nl"}
+    tr_aliases = {"türkiye", "turkiye", "turkey", "tr"}
+    if r in nl_aliases:
+        return "nl"
+    if r in tr_aliases:
+        return "tr"
+    return None
+
+
+# ==========
 # Models
 # ==========
 class Item(BaseModel):
@@ -193,10 +213,18 @@ async def get_news(
         filters = ["i.kind = 'news'"]
         params = []
         
-        # Simple approach - no complex filtering to avoid type conflicts
+        # Handle language filtering with tolerance for variants
         if lang:
-            params.append(lang)
-            filters.append(f"i.lang = ${len(params)}")
+            L = _norm_lang(lang)
+            params.append(L + '%')
+            filters.append(f"lower(i.lang) like ${len(params)}")
+        elif region:
+            mapped = _region_to_lang(region)
+            if mapped:
+                params.append(mapped + '%')
+                filters.append(f"lower(i.lang) like ${len(params)}")
+        
+        # Add other filters
         if q:
             params.append(f"%{q}%")
             filters.append(f"i.title ILIKE ${len(params)}")
@@ -273,6 +301,13 @@ async def get_feed(
             filters.append(f"i.kind = ${len(params)}")
         else:
             filters.append("i.kind = 'news'")  # MVP: voorlopig alleen news
+        
+        # Apply region-to-language mapping for feed as well
+        if region:
+            mapped = _region_to_lang(region)
+            if mapped:
+                params.append(mapped + '%')
+                filters.append(f"lower(i.lang) like ${len(params)}")
 
         where_sql = " AND ".join(filters) if filters else "TRUE"
 

@@ -8,6 +8,7 @@ Fixes in deze versie:
 - Publicatiedata worden naar naive UTC genormaliseerd (verhelpt aware/naive subtract error).
 - ETag wordt alleen gezet/gelezen als er daadwerkelijk een string-waarde is.
 - Geen directe DB-writes (runner post zelf naar 'items').
+- Language normalization at source: consistent language codes (nl, tr, en, etc.)
 
 Deze module levert een NewsAggregator-klasse die door ingest/news_ingestion_system.py
 wordt gebruikt.
@@ -68,6 +69,44 @@ def resolve_google_news_link(url: str) -> str:
         return url
     logger.debug(f"[resolve_google_news_link] Skipping resolution for: {url}")
     return url
+
+
+def normalize_language_code(detected_lang: str) -> str:
+    """
+    Normalize language codes to consistent format at the source.
+    Converts various language codes to standardized two-letter codes.
+    """
+    if not detected_lang:
+        return "unknown"
+    
+    lang = detected_lang.lower().strip()
+    
+    # Handle common variations and normalize to two-letter codes
+    if lang.startswith("nl") or lang in ["dutch", "nederlands", "flemish"]:
+        return "nl"
+    elif lang.startswith("tr") or lang in ["turkish", "türkçe", "turkce"]:
+        return "tr"
+    elif lang.startswith("en") or lang in ["english", "engels"]:
+        return "en"
+    elif lang.startswith("de") or lang in ["german", "deutsch", "duits"]:
+        return "de"
+    elif lang.startswith("fr") or lang in ["french", "français", "frans"]:
+        return "fr"
+    elif lang.startswith("es") or lang in ["spanish", "español", "spaans"]:
+        return "es"
+    elif lang.startswith("it") or lang in ["italian", "italiano", "italiaans"]:
+        return "it"
+    elif lang.startswith("pt") or lang in ["portuguese", "português", "portugees"]:
+        return "pt"
+    elif lang.startswith("ar") or lang in ["arabic", "عربي", "arabisch"]:
+        return "ar"
+    elif lang.startswith("ru") or lang in ["russian", "русский", "russisch"]:
+        return "ru"
+    else:
+        # For any other language, return the first two characters if valid
+        if len(lang) >= 2 and lang[:2].isalpha():
+            return lang[:2]
+        return "unknown"
 
 
 # ---------- Aggregator ----------
@@ -210,16 +249,52 @@ class NewsAggregator:
 
     # -------------------- Text/Language helpers --------------------
     def detect_language(self, item: Dict, feed_lang: str) -> str:
+        """
+        Enhanced language detection with normalization at source.
+        Returns normalized two-letter language codes.
+        """
         text = f"{item.get('title','')} {item.get('description','')}".lower()
-        tr_words = [" ve ", " bir ", " için ", " ile ", " bu ", " da ", " olan "]
-        nl_words = [" de ", " het ", " een ", " van ", " en ", " in ", " op ", " met "]
-        tr_count = sum(w in text for w in tr_words)
-        nl_count = sum(w in text for w in nl_words)
-        if tr_count > nl_count * 1.5:
-            return "tr"
-        if nl_count > tr_count * 1.5:
-            return "nl"
-        return feed_lang
+        
+        # Turkish language indicators (updated with better patterns)
+        tr_words = [" ve ", " bir ", " için ", " ile ", " bu ", " da ", " olan ", " var ", " yok ", 
+                   " ama ", " ancak ", " çok ", " daha ", " şu ", " o ", " ki ", " ne ", " nasıl "]
+        tr_chars = ["ç", "ğ", "ı", "ö", "ş", "ü"]
+        
+        # Dutch language indicators
+        nl_words = [" de ", " het ", " een ", " van ", " en ", " in ", " op ", " met ", " voor ", 
+                   " aan ", " dat ", " is ", " zijn ", " hebben ", " worden ", " ook ", " niet "]
+        nl_chars = ["ij", "oe", "ui"]
+        
+        # English language indicators
+        en_words = [" the ", " and ", " is ", " are ", " was ", " were ", " have ", " has ", 
+                   " will ", " would ", " could ", " should ", " this ", " that ", " with "]
+        
+        # Count language indicators
+        tr_word_count = sum(1 for w in tr_words if w in text)
+        tr_char_count = sum(1 for c in tr_chars if c in text)
+        
+        nl_word_count = sum(1 for w in nl_words if w in text)
+        nl_char_count = sum(1 for combo in nl_chars if combo in text)
+        
+        en_word_count = sum(1 for w in en_words if w in text)
+        
+        # Calculate weighted scores
+        tr_score = tr_word_count + (tr_char_count * 2)  # Turkish chars are strong indicators
+        nl_score = nl_word_count + nl_char_count
+        en_score = en_word_count
+        
+        # Determine language based on scores
+        detected_lang = feed_lang  # default to feed language
+        
+        if tr_score > max(nl_score, en_score) * 1.2:
+            detected_lang = "tr"
+        elif nl_score > max(tr_score, en_score) * 1.2:
+            detected_lang = "nl"
+        elif en_score > max(tr_score, nl_score) * 1.2:
+            detected_lang = "en"
+        
+        # Normalize the detected language using the new function
+        return normalize_language_code(detected_lang)
 
     def extract_image_url(self, item: Dict) -> Optional[str]:
         raw = item.get("raw", {})
@@ -326,7 +401,9 @@ class NewsAggregator:
 
     # -------------------- Normalize --------------------
     def normalize_item(self, raw_item: Dict, feed_lang: str) -> NewsItem:
+        # Language detection and normalization happens at the source
         detected_lang = self.detect_language(raw_item, feed_lang)
+        
         title = self.clean_text(raw_item.get("title", ""))
         summary = self.clean_text(raw_item.get("description", ""))[:500]
 
@@ -345,7 +422,7 @@ class NewsAggregator:
         return NewsItem(
             id=self.generate_item_id(raw_item),
             source=source_txt,
-            language=detected_lang,
+            language=detected_lang,  # Now consistently normalized
             title=title,
             summary=summary,
             url=resolved_url,
@@ -477,5 +554,5 @@ if __name__ == "__main__":
     print(json.dumps(res, indent=2))
     test = aggr.get_feed(lang="all", limit=5)
     for it in test["items"]:
-        flag = "🇳🇱" if it["language"] == "nl" else "🇹🇷"
+        flag = "🇳🇱" if it["language"] == "nl" else "🇹🇷" if it["language"] == "tr" else "🏳️"
         print(f"{flag} {it['title']} [{it['source']}] -> {it['url']}")
