@@ -428,4 +428,4 @@ async def run_ingest(authorization: Optional[str] = Header(None)):
 # Handig voor lokaal draaien zonder gunicorn
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8001"))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)``
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
