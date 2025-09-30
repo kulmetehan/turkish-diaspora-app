@@ -33,7 +33,11 @@ app = FastAPI(
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify actual frontend domains
+    allow_origins=[
+        "http://localhost:*",
+        "https://kulmetehan.github.io",
+        "https://*.onrender.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
