@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diaspora - Turkish & Dutch News</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #E30A17 0%, #C41E3A 100%);
+            color: white;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .filters {
+            background: white;
+            padding: 1rem 1.5rem;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .filter-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #E30A17;
+            background: white;
+            color: #E30A17;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            background: #FFF0F0;
+        }
+
+        .filter-btn.active {
+            background: #E30A17;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #E30A17;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .articles {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .article-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .article-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+
+        .article-card .content {
+            padding: 1.5rem;
+        }
+
+        .article-card .meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .article-card .source {
+            background: #E30A17;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .article-card .language {
+            color: #666;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .article-card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 0.75rem;
+            line-height: 1.4;
+            color: #222;
+        }
+
+        .article-card .summary {
+            color: #666;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .article-card .date {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 0.85rem;
+        }
+
+        .error {
+            background: #FEE;
+            color: #C00;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 2rem 0;
+            text-align: center;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+
+        .stats {
+            background: white;
+            padding: 1rem 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            font-size: 0.9rem;
+        }
+
+        .stats .stat {
+            text-align: center;
+        }
+
+        .stats .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #E30A17;
+        }
+
+        .stats .stat-label {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌍 Diaspora</h1>
+        <p>Stay connected with Turkish and Dutch news</p>
+    </div>
+
+    <div class="filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="nl">Dutch</button>
+        <button class="filter-btn" data-filter="tr">Turkish</button>
+    </div>
+
+    <div class="container">
+        <div class="stats" id="stats"></div>
+        <div id="content"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let currentFilter = 'all';
+
+        // Load stats
+        async function loadStats() {
+            try {
+                const response = await fetch(`${API_URL}/api/stats`);
+                const data = await response.json();
+                
+                document.getElementById('stats').innerHTML = `
+                    <div class="stat">
+                        <div class="stat-value">${data.stats.total_content}</div>
+                        <div class="stat-label">Total Articles</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${data.stats.dutch_content}</div>
+                        <div class="stat-label">Dutch</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">${data.stats.turkish_content}</div>
+                        <div class="stat-label">Turkish</div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        // Load articles
+        async function loadArticles(language = null) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading articles...</p></div>';
+
+            try {
+                let url = `${API_URL}/api/content/latest?limit=50`;
+                if (language) {
+                    url += `&language=${language}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (!data.success || data.items.length === 0) {
+                    contentDiv.innerHTML = '<div class="empty">No articles found</div>';
+                    return;
+                }
+
+                const articlesHTML = data.items.map(article => `
+                    <div class="article-card" onclick="window.open('${article.url}', '_blank')">
+                        <div class="content">
+                            <div class="meta">
+                                <span class="source">${article.source.name}</span>
+                                <span class="language">${article.language}</span>
+                            </div>
+                            <h2>${article.title}</h2>
+                            <p class="summary">${article.summary}</p>
+                            <div class="date">${new Date(article.published_at).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+                contentDiv.innerHTML = `<div class="articles">${articlesHTML}</div>`;
+
+            } catch (error) {
+                contentDiv.innerHTML = `
+                    <div class="error">
+                        <strong>Error loading articles</strong><br>
+                        Make sure the API server is running at ${API_URL}
+                    </div>
+                `;
+                console.error('Error:', error);
+            }
+        }
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                const filter = btn.dataset.filter;
+                currentFilter = filter;
+                
+                if (filter === 'all') {
+                    loadArticles();
+                } else {
+                    loadArticles(filter);
+                }
+            });
+        });
+
+        // Initial load
+        loadStats();
+        loadArticles();
+
+        // Auto-refresh every 5 minutes
+        setInterval(() => {
+            loadStats();
+            if (currentFilter === 'all') {
+                loadArticles();
+            } else {
+                loadArticles(currentFilter);
+            }
+        }, 300000);
+    </script>
+</body>
+</html>
