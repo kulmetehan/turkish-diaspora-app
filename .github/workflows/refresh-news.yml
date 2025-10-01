@@ -31,16 +31,16 @@ jobs:
           cd backend
           pip install -r requirements.txt
       
-      # Step 4: Run the orchestrator to refresh news
-      - name: Run content refresh
+      # Step 4: Run the RSS fetcher to refresh news
+      - name: Run RSS fetcher
         env:
-          # These values will come from GitHub Secrets (we'll add them next)
+          # These values will come from GitHub Secrets
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           cd backend
-          python orchestrator.py
+          python rss_fetcher.py
       
       # Step 5: Show summary of what happened
       - name: Show completion message
