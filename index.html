@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diaspora - Your Turkish Community Hub</title>
+    <title>Diaspora - Turkish Community App</title>
     <style>
         * {
             margin: 0;
@@ -17,151 +17,170 @@
             color: #333;
         }
 
-        header {
-            background: #E30A17;
-            color: white;
-            padding: 1rem 2rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        header h1 {
-            font-size: 1.5rem;
-            margin-bottom: 0.25rem;
-        }
-
-        header p {
-            font-size: 0.9rem;
-            opacity: 0.9;
-        }
-
-        .filters {
+        .header {
             background: white;
-            padding: 1rem 2rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            align-items: center;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        .filter-section {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .app-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: #E30A17;
+            margin-bottom: 5px;
+        }
+
+        .app-tagline {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .filters-container {
+            background: white;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .filters-section {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .filter-group {
+            margin-bottom: 15px;
         }
 
         .filter-label {
+            font-size: 12px;
             font-weight: 600;
             color: #666;
-            margin-right: 0.5rem;
-            display: flex;
-            align-items: center;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: block;
         }
 
-        button {
-            padding: 0.5rem 1rem;
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 8px 16px;
             border: 2px solid #ddd;
             background: white;
             border-radius: 20px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 14px;
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
-        button:hover {
+        .filter-btn:hover {
             border-color: #E30A17;
-            color: #E30A17;
+            background: #fff5f5;
         }
 
-        button.active {
+        .filter-btn.active {
             background: #E30A17;
             color: white;
             border-color: #E30A17;
         }
 
-        .translation-toggle {
-            background: #2ecc71;
-            color: white;
-            border: none;
-            padding: 0.5rem 1rem;
+        .filter-btn.active:hover {
+            background: #c00916;
+            border-color: #c00916;
+        }
+
+        .clear-filters-btn {
+            padding: 8px 16px;
+            border: 2px solid #666;
+            background: white;
             border-radius: 20px;
             cursor: pointer;
-            font-weight: 600;
+            font-size: 14px;
+            color: #666;
+            transition: all 0.2s;
         }
 
-        .translation-toggle:hover {
-            background: #27ae60;
+        .clear-filters-btn:hover {
+            background: #666;
+            color: white;
         }
 
-        .stats {
-            background: white;
-            padding: 1rem 2rem;
-            margin: 1rem 2rem;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
+        .stats-bar {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 0 20px;
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #666;
         }
 
         .stat-item {
-            text-align: center;
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
 
-        .stat-number {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #E30A17;
-        }
-
-        .stat-label {
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .feed {
-            padding: 2rem;
+        .content-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 1.5rem;
-            max-width: 1400px;
-            margin: 0 auto;
+            gap: 20px;
         }
 
         .article-card {
             background: white;
-            border-radius: 8px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
 
         .article-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
         }
 
         .article-header {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            margin-bottom: 0.75rem;
+            align-items: flex-start;
+            margin-bottom: 12px;
         }
 
-        .language-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: bold;
+        .article-badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
             text-transform: uppercase;
         }
 
         .badge-nl {
-            background: #FF6B35;
+            background: #FF9800;
             color: white;
         }
 
@@ -171,73 +190,77 @@
         }
 
         .badge-translated {
-            background: #2ecc71;
+            background: #4CAF50;
             color: white;
-            margin-left: 0.5rem;
-        }
-
-        .location-badges {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.5rem;
-        }
-
-        .location-badge {
-            padding: 0.25rem 0.5rem;
-            background: #e8f5e9;
-            color: #2e7d32;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-
-        .topic-badges {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-            margin-top: 0.5rem;
-        }
-
-        .topic-badge {
-            padding: 0.25rem 0.5rem;
-            background: #e3f2fd;
-            color: #1565c0;
-            border-radius: 12px;
-            font-size: 0.75rem;
         }
 
         .article-title {
-            font-size: 1.1rem;
+            font-size: 18px;
             font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: #222;
+            margin-bottom: 10px;
             line-height: 1.4;
         }
 
         .article-summary {
+            font-size: 14px;
             color: #666;
-            line-height: 1.5;
-            margin-bottom: 0.75rem;
-            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 12px;
         }
 
-        .article-footer {
+        .article-meta {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 0.85rem;
+            font-size: 12px;
             color: #999;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
         }
 
-        .source-name {
-            font-weight: 500;
-            color: #E30A17;
+        .article-source {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .article-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .tag-chip {
+            padding: 3px 8px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .location-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .location-badge {
+            padding: 3px 8px;
+            background: #4CAF50;
+            color: white;
+            border-radius: 12px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
         }
 
         .loading {
             text-align: center;
-            padding: 3rem;
+            padding: 60px 20px;
+            font-size: 18px;
+            color: #666;
         }
 
         .spinner {
@@ -247,7 +270,7 @@
             width: 40px;
             height: 40px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
+            margin: 20px auto;
         }
 
         @keyframes spin {
@@ -256,308 +279,371 @@
         }
 
         .error {
-            background: #fee;
-            color: #c00;
-            padding: 1rem;
-            border-radius: 8px;
-            margin: 2rem;
             text-align: center;
+            padding: 60px 20px;
+            color: #E30A17;
+            font-size: 16px;
         }
 
-        .empty {
+        .empty-state {
             text-align: center;
-            padding: 3rem;
+            padding: 60px 20px;
             color: #999;
+            font-size: 16px;
+        }
+
+        .translation-toggle {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 50;
+        }
+
+        .toggle-btn {
+            padding: 12px 24px;
+            background: #E30A17;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(227, 10, 23, 0.3);
+            transition: all 0.3s;
+        }
+
+        .toggle-btn:hover {
+            background: #c00916;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(227, 10, 23, 0.4);
+        }
+
+        .toggle-btn.active {
+            background: #4CAF50;
+        }
+
+        .toggle-btn.active:hover {
+            background: #45a049;
         }
 
         @media (max-width: 768px) {
-            .feed {
+            .content-grid {
                 grid-template-columns: 1fr;
-                padding: 1rem;
             }
             
-            .filters {
-                padding: 1rem;
+            .stats-bar {
+                flex-direction: column;
+                gap: 10px;
             }
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>🇹🇷 Diaspora</h1>
-        <p>Your bridge between Turkey and the Netherlands</p>
-    </header>
-
-    <div class="filters">
-        <div class="filter-section">
-            <span class="filter-label">Language:</span>
-            <button class="language-filter active" data-language="all">All</button>
-            <button class="language-filter" data-language="nl">Dutch</button>
-            <button class="language-filter" data-language="tr">Turkish</button>
+    <div class="header">
+        <div class="header-content">
+            <div class="app-title">Diaspora</div>
+            <div class="app-tagline">Your bridge between Turkey and the Netherlands</div>
         </div>
-        
-        <button class="translation-toggle" onclick="toggleTranslations()">
-            Show Translations: <span id="translation-status">OFF</span>
+    </div>
+
+    <div class="filters-container">
+        <div class="filters-section">
+            <div class="filter-group">
+                <span class="filter-label">Language</span>
+                <div class="filter-buttons">
+                    <button class="filter-btn language-filter active" data-language="all" onclick="filterByLanguage('all')">All</button>
+                    <button class="filter-btn language-filter" data-language="nl" onclick="filterByLanguage('nl')">Dutch</button>
+                    <button class="filter-btn language-filter" data-language="tr" onclick="filterByLanguage('tr')">Turkish</button>
+                </div>
+            </div>
+            
+            <div class="filter-group">
+                <span class="filter-label">Topics</span>
+                <div class="filter-buttons">
+                    <button class="filter-btn topic-filter" data-topic="Politics" onclick="toggleTopicFilter('Politics')">Politics</button>
+                    <button class="filter-btn topic-filter" data-topic="Economy" onclick="toggleTopicFilter('Economy')">Economy</button>
+                    <button class="filter-btn topic-filter" data-topic="Sports" onclick="toggleTopicFilter('Sports')">Sports</button>
+                    <button class="filter-btn topic-filter" data-topic="Culture" onclick="toggleTopicFilter('Culture')">Culture</button>
+                    <button class="filter-btn topic-filter" data-topic="Technology" onclick="toggleTopicFilter('Technology')">Technology</button>
+                    <button class="filter-btn topic-filter" data-topic="Health" onclick="toggleTopicFilter('Health')">Health</button>
+                    <button class="filter-btn topic-filter" data-topic="Crime" onclick="toggleTopicFilter('Crime')">Crime</button>
+                    <button class="filter-btn topic-filter" data-topic="Weather" onclick="toggleTopicFilter('Weather')">Weather</button>
+                    <button class="filter-btn topic-filter" data-topic="Education" onclick="toggleTopicFilter('Education')">Education</button>
+                    <button class="filter-btn topic-filter" data-topic="Immigration" onclick="toggleTopicFilter('Immigration')">Immigration</button>
+                    <button class="clear-filters-btn" onclick="clearAllTopicFilters()">Clear Topics</button>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">Locations</span>
+                <div class="filter-buttons" id="locationFiltersContainer">
+                    <!-- Location buttons will be dynamically generated here -->
+                    <span style="color: #999; font-size: 13px;">Loading locations...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="stats-bar" id="statsBar"></div>
+
+    <div class="content-grid" id="contentGrid"></div>
+
+    <div class="translation-toggle">
+        <button class="toggle-btn" id="translationToggle" onclick="toggleTranslations()">
+            Translations: OFF
         </button>
-
-        <div class="filter-section">
-            <span class="filter-label">Topics:</span>
-            <button class="topic-filter" data-topic="Politics">Politics</button>
-            <button class="topic-filter" data-topic="Economy">Economy</button>
-            <button class="topic-filter" data-topic="Sports">Sports</button>
-            <button class="topic-filter" data-topic="Culture">Culture</button>
-            <button class="topic-filter" data-topic="Technology">Technology</button>
-            <button class="topic-filter" data-topic="Health">Health</button>
-            <button class="topic-filter" data-topic="Crime">Crime</button>
-            <button class="topic-filter" data-topic="Weather">Weather</button>
-            <button class="topic-filter" data-topic="Education">Education</button>
-            <button class="topic-filter" data-topic="Immigration">Immigration</button>
-            <button class="clear-topics" onclick="clearTopicFilters()">Clear Topics</button>
-        </div>
-
-        <div class="filter-section">
-            <span class="filter-label">Locations:</span>
-            <button class="location-filter" data-location="all">All Locations</button>
-            <button class="location-filter" data-location="Amsterdam">Amsterdam</button>
-            <button class="location-filter" data-location="Rotterdam">Rotterdam</button>
-            <button class="location-filter" data-location="Istanbul">Istanbul</button>
-            <button class="location-filter" data-location="Ankara">Ankara</button>
-            <button class="location-filter" data-location="Venlo">Venlo</button>
-        </div>
-    </div>
-
-    <div class="stats">
-        <div class="stats-grid">
-            <div class="stat-item">
-                <div class="stat-number" id="total-count">-</div>
-                <div class="stat-label">Total Articles</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="dutch-count">-</div>
-                <div class="stat-label">Dutch Articles</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-number" id="turkish-count">-</div>
-                <div class="stat-label">Turkish Articles</div>
-            </div>
-        </div>
-    </div>
-
-    <div id="content">
-        <div class="loading">
-            <div class="spinner"></div>
-            <p>Loading your personalized feed...</p>
-        </div>
     </div>
 
     <script>
-        const API_BASE = 'http://localhost:8000';
+        const API_BASE = window.location.hostname === 'localhost' || 
+                 window.location.hostname === '127.0.0.1' ||
+                 window.location.protocol === 'file:'
+    ? 'http://127.0.0.1:8000'
+    : 'https://diaspora-backend-api.onrender.com';
         let allArticles = [];
-        let showTranslations = false;
-        let selectedLanguage = 'all';
+        let currentLanguage = 'all';
         let selectedTopics = new Set();
-        let selectedLocation = 'all';
+        let selectedLocations = new Set();
+        let translationsEnabled = false;
 
         // ============================================
-        // NEW CODE FOR TDA-18: Persistent Preferences
+        // TDA-18: localStorage for language preference
         // ============================================
-
-        // STEP 1: Save preference to localStorage when user clicks a language button
+        
         function saveLanguagePreference(language) {
             localStorage.setItem('preferredLanguage', language);
             console.log('Saved language preference:', language);
         }
 
-        // STEP 2: Read preference from localStorage when app loads
         function loadLanguagePreference() {
             const saved = localStorage.getItem('preferredLanguage');
             console.log('Loaded language preference:', saved);
-            return saved || 'all'; // Return 'all' if nothing was saved
+            return saved || 'all';
         }
 
-        // STEP 3: Apply the saved preference when app starts
         function applySavedLanguagePreference() {
             const savedLanguage = loadLanguagePreference();
+            currentLanguage = savedLanguage;
             
-            // Update the selected language
-            selectedLanguage = savedLanguage;
-            
-            // Find and click the correct button
-            const languageButtons = document.querySelectorAll('.language-filter');
-            languageButtons.forEach(btn => {
-                const btnLanguage = btn.getAttribute('data-language');
-                if (btnLanguage === savedLanguage) {
+            // Update button states
+            document.querySelectorAll('.language-filter').forEach(btn => {
+                if (btn.dataset.language === savedLanguage) {
                     btn.classList.add('active');
                 } else {
                     btn.classList.remove('active');
                 }
             });
             
-            // Filter the content
             displayArticles();
-            
             console.log('Applied saved language preference:', savedLanguage);
         }
-
+        
         // ============================================
-        // END OF NEW CODE FOR TDA-18
+        // End TDA-18 code
         // ============================================
 
-        // Modified: Language filter click handler now saves preference
-        document.querySelectorAll('.language-filter').forEach(button => {
-            button.addEventListener('click', () => {
-                document.querySelectorAll('.language-filter').forEach(btn => 
-                    btn.classList.remove('active')
-                );
-                button.classList.add('active');
-                selectedLanguage = button.getAttribute('data-language');
-                
-                // NEW: Save the preference
-                saveLanguagePreference(selectedLanguage);
-                
-                displayArticles();
+        // Load saved preferences on page load (translation toggle memory)
+        function loadPreferences() {
+            // Translation preference (already existed)
+            const savedTranslation = localStorage.getItem('translationsEnabled');
+            if (savedTranslation === 'true') {
+                translationsEnabled = true;
+                updateTranslationButton();
+            }
+        }
+
+        // Save translation preference (already existed)
+        function saveTranslationPreference(value) {
+            localStorage.setItem('translationsEnabled', value);
+        }
+
+        // Update translation button state
+        function updateTranslationButton() {
+            const btn = document.getElementById('translationToggle');
+            if (translationsEnabled) {
+                btn.textContent = 'Translations: ON';
+                btn.classList.add('active');
+            } else {
+                btn.textContent = 'Translations: OFF';
+                btn.classList.remove('active');
+            }
+        }
+
+        // Build dynamic location filter buttons
+        function buildLocationFilters() {
+            const allLocations = new Set();
+            
+            allArticles.forEach(article => {
+                if (article.location_tags && Array.isArray(article.location_tags)) {
+                    article.location_tags.forEach(loc => {
+                        if (loc && loc.trim()) {
+                            allLocations.add(loc.trim());
+                        }
+                    });
+                }
             });
-        });
 
-        // Topic filters
-        document.querySelectorAll('.topic-filter').forEach(button => {
-            button.addEventListener('click', () => {
-                const topic = button.getAttribute('data-topic');
-                if (selectedTopics.has(topic)) {
-                    selectedTopics.delete(topic);
-                    button.classList.remove('active');
-                } else {
-                    selectedTopics.add(topic);
+            const sortedLocations = Array.from(allLocations).sort();
+            const container = document.getElementById('locationFiltersContainer');
+            container.innerHTML = '';
+
+            if (sortedLocations.length === 0) {
+                container.innerHTML = '<span style="color: #999; font-size: 13px;">No locations detected in articles</span>';
+                return;
+            }
+
+            sortedLocations.forEach(location => {
+                const button = document.createElement('button');
+                button.className = 'filter-btn location-filter';
+                button.setAttribute('data-location', location);
+                button.textContent = location;
+                button.onclick = () => toggleLocationFilter(location);
+                
+                if (selectedLocations.has(location)) {
                     button.classList.add('active');
                 }
-                displayArticles();
-            });
-        });
-
-        // Location filters
-        document.querySelectorAll('.location-filter').forEach(button => {
-            button.addEventListener('click', () => {
-                document.querySelectorAll('.location-filter').forEach(btn => 
-                    btn.classList.remove('active')
-                );
-                button.classList.add('active');
-                selectedLocation = button.getAttribute('data-location');
-                displayArticles();
-            });
-        });
-
-        function clearTopicFilters() {
-            selectedTopics.clear();
-            document.querySelectorAll('.topic-filter').forEach(btn => 
-                btn.classList.remove('active')
-            );
-            displayArticles();
-        }
-
-        function toggleTranslations() {
-            showTranslations = !showTranslations;
-            document.getElementById('translation-status').textContent = 
-                showTranslations ? 'ON' : 'OFF';
-            displayArticles();
-        }
-
-        async function fetchContent() {
-            try {
-                const response = await fetch(`${API_BASE}/api/content/latest?limit=100`);
-                if (!response.ok) throw new Error('Failed to fetch content');
-                const data = await response.json();
-                allArticles = data.content || [];
                 
-                // NEW: Apply saved preference after content is loaded
+                container.appendChild(button);
+            });
+
+            const clearButton = document.createElement('button');
+            clearButton.className = 'clear-filters-btn';
+            clearButton.textContent = 'Clear Locations';
+            clearButton.onclick = clearAllLocationFilters;
+            container.appendChild(clearButton);
+
+            console.log(`Built ${sortedLocations.length} location filter buttons:`, sortedLocations);
+        }
+
+        async function loadContent() {
+            const contentGrid = document.getElementById('contentGrid');
+            contentGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading articles...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/content/latest?limit=100`, {
+                    mode: 'cors'
+                });
+                if (!response.ok) throw new Error('Failed to fetch content');
+                
+                const data = await response.json();
+                allArticles = data.items || [];
+                
+                buildLocationFilters();
+                
+                // TDA-18: Apply saved language preference after content loads
                 applySavedLanguagePreference();
                 
-                await fetchStats();
+                await loadStats();
             } catch (error) {
-                document.getElementById('content').innerHTML = `
+                console.error('Error loading content:', error);
+                contentGrid.innerHTML = `
                     <div class="error">
-                        <h3>Unable to load content</h3>
-                        <p>${error.message}</p>
-                        <p>Make sure the API server is running at ${API_BASE}</p>
+                        <p>Unable to load content</p>
+                        <p style="font-size: 14px; margin-top: 10px;">Make sure the backend is running at ${API_BASE}</p>
                     </div>
                 `;
             }
         }
 
-        async function fetchStats() {
+        async function loadStats() {
             try {
                 const response = await fetch(`${API_BASE}/api/stats`);
-                if (!response.ok) throw new Error('Failed to fetch stats');
                 const data = await response.json();
                 
-                document.getElementById('total-count').textContent = data.total_items || 0;
-                document.getElementById('dutch-count').textContent = data.dutch_items || 0;
-                document.getElementById('turkish-count').textContent = data.turkish_items || 0;
+                const stats = data.stats;
+                
+                const statsBar = document.getElementById('statsBar');
+                statsBar.innerHTML = `
+                    <div class="stat-item">
+                        <span>📰</span>
+                        <span>Total: ${stats.total_content || 0}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>🇳🇱</span>
+                        <span>Dutch: ${stats.dutch_content || 0}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span>🇹🇷</span>
+                        <span>Turkish: ${stats.turkish_content || 0}</span>
+                    </div>
+                `;
             } catch (error) {
-                console.error('Error fetching stats:', error);
+                console.error('Error loading stats:', error);
             }
         }
 
         function displayArticles() {
-            let filtered = allArticles;
+            let filtered = [...allArticles];
 
-            // Filter by language
-            if (selectedLanguage !== 'all') {
-                filtered = filtered.filter(article => 
-                    article.original_language === selectedLanguage
-                );
+            // Apply language filter
+            if (currentLanguage !== 'all') {
+                filtered = filtered.filter(article => article.language === currentLanguage);
             }
 
-            // Filter by topics
+            // Apply topic filters (multi-select with OR logic)
             if (selectedTopics.size > 0) {
                 filtered = filtered.filter(article => {
-                    if (!article.category_tags || article.category_tags.length === 0) {
-                        return false;
-                    }
+                    if (!article.category_tags || article.category_tags.length === 0) return false;
                     return article.category_tags.some(tag => selectedTopics.has(tag));
                 });
             }
 
-            // Filter by location
-            if (selectedLocation !== 'all') {
+            // Apply location filters (multi-select with OR logic)
+            if (selectedLocations.size > 0) {
                 filtered = filtered.filter(article => {
-                    if (!article.location_tags || article.location_tags.length === 0) {
-                        return false;
-                    }
-                    return article.location_tags.includes(selectedLocation);
+                    if (!article.location_tags || article.location_tags.length === 0) return false;
+                    return article.location_tags.some(loc => selectedLocations.has(loc));
                 });
             }
 
+            const contentGrid = document.getElementById('contentGrid');
+
             if (filtered.length === 0) {
-                document.getElementById('content').innerHTML = `
-                    <div class="empty">
-                        <h3>No articles match your filters</h3>
-                        <p>Try adjusting your language, topic, or location filters</p>
+                contentGrid.innerHTML = `
+                    <div class="empty-state">
+                        <p>No articles found matching your filters</p>
+                        <p style="font-size: 14px; margin-top: 10px;">Try adjusting your filters</p>
                     </div>
                 `;
                 return;
             }
 
-            const feedHTML = filtered.map(article => {
-                const title = showTranslations && article.translated_title ? 
-                    article.translated_title : article.title;
-                const summary = showTranslations && article.translated_summary ? 
-                    article.translated_summary : article.summary;
-                const displayLang = showTranslations && article.translated_language ?
-                    article.translated_language : article.original_language;
+            contentGrid.innerHTML = filtered.map(article => {
+                const displayTitle = translationsEnabled && article.translated_title 
+                    ? article.translated_title 
+                    : article.title;
                 
-                const langClass = displayLang === 'nl' ? 'badge-nl' : 'badge-tr';
-                const langText = displayLang === 'nl' ? 'NL' : 'TR';
-                
-                const translatedBadge = showTranslations && article.translated_title ? 
-                    '<span class="language-badge badge-translated">Translated</span>' : '';
+                const displaySummary = translationsEnabled && article.translated_summary 
+                    ? article.translated_summary 
+                    : article.summary;
 
-                const locationBadges = (article.location_tags || []).map(loc => 
-                    `<span class="location-badge">📍 ${loc}</span>`
-                ).join('');
+                const displayLanguage = translationsEnabled && article.translated_language
+                    ? article.translated_language
+                    : article.language;
 
-                const topicBadges = (article.category_tags || []).map(topic => 
-                    `<span class="topic-badge">${topic}</span>`
-                ).join('');
+                const languageBadge = displayLanguage === 'nl' 
+                    ? '<span class="badge badge-nl">NL</span>' 
+                    : '<span class="badge badge-tr">TR</span>';
+
+                const translatedBadge = translationsEnabled && article.translated_title
+                    ? '<span class="badge badge-translated">Translated</span>'
+                    : '';
+
+                const categoryTags = article.category_tags && article.category_tags.length > 0
+                    ? `<div class="article-tags">
+                        ${article.category_tags.map(tag => 
+                            `<span class="tag-chip">${tag}</span>`
+                        ).join('')}
+                       </div>`
+                    : '<div class="article-tags"><span class="tag-chip" style="background: #ffcccc;">No categories</span></div>';
+
+                const locationTags = article.location_tags && article.location_tags.length > 0
+                    ? `<div class="location-tags">
+                        ${article.location_tags.map(loc => 
+                            `<span class="location-badge">📍 ${loc}</span>`
+                        ).join('')}
+                       </div>`
+                    : '';
 
                 const date = new Date(article.published_at).toLocaleDateString('en-US', {
                     month: 'short',
@@ -566,33 +652,109 @@
                 });
 
                 return `
-                    <div class="article-card" onclick="window.open('${article.url}', '_blank')">
+                    <div class="article-card" onclick="openArticle('${article.url}')">
                         <div class="article-header">
-                            <div>
-                                <span class="language-badge ${langClass}">${langText}</span>
+                            <div class="article-badges">
+                                ${languageBadge}
                                 ${translatedBadge}
                             </div>
                         </div>
-                        <h3 class="article-title">${title}</h3>
-                        <p class="article-summary">${summary}</p>
-                        ${topicBadges ? `<div class="topic-badges">${topicBadges}</div>` : ''}
-                        ${locationBadges ? `<div class="location-badges">${locationBadges}</div>` : ''}
-                        <div class="article-footer">
-                            <span class="source-name">${article.source_name || 'Unknown Source'}</span>
+                        <div class="article-title">${displayTitle}</div>
+                        <div class="article-summary">${displaySummary}</div>
+                        ${categoryTags}
+                        ${locationTags}
+                        <div class="article-meta">
+                            <span class="article-source">${article.source_name || 'Unknown'}</span>
                             <span>${date}</span>
                         </div>
                     </div>
                 `;
             }).join('');
-
-            document.getElementById('content').innerHTML = `<div class="feed">${feedHTML}</div>`;
         }
 
-        // Load content when page loads
-        fetchContent();
+        function filterByLanguage(lang) {
+            currentLanguage = lang;
+            
+            // TDA-18: Save preference when user clicks
+            saveLanguagePreference(lang);
+            
+            document.querySelectorAll('.language-filter').forEach(btn => {
+                if (btn.dataset.language === lang) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            displayArticles();
+        }
 
-        // Refresh every 5 minutes
-        setInterval(fetchContent, 300000);
+        function toggleTopicFilter(topic) {
+            if (selectedTopics.has(topic)) {
+                selectedTopics.delete(topic);
+            } else {
+                selectedTopics.add(topic);
+            }
+            
+            const btn = document.querySelector(`.topic-filter[data-topic="${topic}"]`);
+            if (btn) {
+                btn.classList.toggle('active');
+            }
+            
+            displayArticles();
+        }
+
+        function clearAllTopicFilters() {
+            selectedTopics.clear();
+            document.querySelectorAll('.topic-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            displayArticles();
+        }
+
+        function toggleLocationFilter(location) {
+            if (selectedLocations.has(location)) {
+                selectedLocations.delete(location);
+            } else {
+                selectedLocations.add(location);
+            }
+            
+            const btn = document.querySelector(`.location-filter[data-location="${location}"]`);
+            if (btn) {
+                btn.classList.toggle('active');
+            }
+            
+            displayArticles();
+        }
+
+        function clearAllLocationFilters() {
+            selectedLocations.clear();
+            document.querySelectorAll('.location-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            displayArticles();
+        }
+
+        function toggleTranslations() {
+            translationsEnabled = !translationsEnabled;
+            
+            saveTranslationPreference(translationsEnabled);
+            
+            updateTranslationButton();
+            
+            displayArticles();
+        }
+
+        function openArticle(url) {
+            window.open(url, '_blank');
+        }
+
+        // Load preferences and content on page load
+        loadPreferences();
+        loadContent();
+
+        // Auto-refresh every 5 minutes
+        setInterval(loadContent, 300000);
     </script>
 </body>
 </html>
