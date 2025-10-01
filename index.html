@@ -473,15 +473,15 @@
                 const statsBar = document.getElementById('statsBar');
                 statsBar.innerHTML = `
                     <div class="stat-item">
-                        <span>📰</span>
+                        <span>ðŸ"°</span>
                         <span>Total: ${stats.total_articles || 0}</span>
                     </div>
                     <div class="stat-item">
-                        <span>🇳🇱</span>
+                        <span>ðŸ‡³ðŸ‡±</span>
                         <span>Dutch: ${stats.dutch_articles || 0}</span>
                     </div>
                     <div class="stat-item">
-                        <span>🇹🇷</span>
+                        <span>ðŸ‡¹ðŸ‡·</span>
                         <span>Turkish: ${stats.turkish_articles || 0}</span>
                     </div>
                 `;
@@ -495,7 +495,7 @@
 
             // Apply language filter
             if (currentLanguage !== 'all') {
-                filtered = filtered.filter(article => article.original_language === currentLanguage);
+                filtered = filtered.filter(article => article.language === currentLanguage);
             }
 
             // Apply topic filters (multi-select with OR logic)
@@ -537,7 +537,7 @@
 
                 const displayLanguage = translationsEnabled && article.translated_language
                     ? article.translated_language
-                    : article.original_language;
+                    : article.language;
 
                 const languageBadge = displayLanguage === 'nl' 
                     ? '<span class="badge badge-nl">NL</span>' 
@@ -558,7 +558,7 @@
                 const locationTags = article.location_tags && article.location_tags.length > 0
                     ? `<div class="location-tags">
                         ${article.location_tags.map(loc => 
-                            `<span class="location-badge">📍 ${loc}</span>`
+                            `<span class="location-badge">ðŸ" ${loc}</span>`
                         ).join('')}
                        </div>`
                     : '';
