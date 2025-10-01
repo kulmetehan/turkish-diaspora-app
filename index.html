@@ -468,21 +468,24 @@
         async function loadStats() {
             try {
                 const response = await fetch(`${API_BASE}/api/stats`);
-                const stats = await response.json();
+                const data = await response.json();
+                
+                // The API returns stats wrapped in a "stats" object
+                const stats = data.stats;
                 
                 const statsBar = document.getElementById('statsBar');
                 statsBar.innerHTML = `
                     <div class="stat-item">
                         <span>📰</span>
-                        <span>Total: ${stats.total_articles || 0}</span>
+                        <span>Total: ${stats.total_content || 0}</span>
                     </div>
                     <div class="stat-item">
                         <span>🇳🇱</span>
-                        <span>Dutch: ${stats.dutch_articles || 0}</span>
+                        <span>Dutch: ${stats.dutch_content || 0}</span>
                     </div>
                     <div class="stat-item">
                         <span>🇹🇷</span>
-                        <span>Turkish: ${stats.turkish_articles || 0}</span>
+                        <span>Turkish: ${stats.turkish_content || 0}</span>
                     </div>
                 `;
             } catch (error) {
