@@ -661,7 +661,8 @@
                 });
 
                 return `
-                    <div class="article-card" onclick="openArticle('${article.url}')">
+                    <div class="article-card" 
+                         onclick="openArticle('${article.url}', '${article.id}', '${escapeHtml(article.title)}', '${article.source_name || 'Unknown'}', '${article.language}', '${article.category_tags ? article.category_tags[0] : 'General'}', '${article.location_tags ? article.location_tags[0] : 'None'}')">
                         <div class="article-header">
                             <div class="article-badges">
                                 ${languageBadge}
@@ -681,11 +682,28 @@
             }).join('');
         }
 
+        // Helper function to escape HTML in attributes
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
         function filterByLanguage(lang) {
             currentLanguage = lang;
             
             // TDA-18: Save preference when user clicks
             saveLanguagePreference(lang);
+            
+            // TDA-19: Track language filter usage with GA4
+            gtag('event', 'language_filter', {
+                selected_language: lang
+            });
             
             document.querySelectorAll('.language-filter').forEach(btn => {
                 if (btn.dataset.language === lang) {
@@ -705,6 +723,13 @@
                 selectedTopics.add(topic);
             }
             
+            // TDA-19: Track topic filter usage with GA4
+            gtag('event', 'topic_filter', {
+                selected_topic: topic,
+                action: selectedTopics.has(topic) ? 'added' : 'removed',
+                total_topics_selected: selectedTopics.size
+            });
+            
             const btn = document.querySelector(`.topic-filter[data-topic="${topic}"]`);
             if (btn) {
                 btn.classList.toggle('active');
@@ -715,6 +740,12 @@
 
         function clearAllTopicFilters() {
             selectedTopics.clear();
+            
+            // TDA-19: Track clearing all topic filters
+            gtag('event', 'topics_cleared', {
+                action: 'clear_all_topics'
+            });
+            
             document.querySelectorAll('.topic-filter').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -728,6 +759,13 @@
                 selectedLocations.add(location);
             }
             
+            // TDA-19: Track location filter usage with GA4
+            gtag('event', 'location_filter', {
+                selected_location: location,
+                action: selectedLocations.has(location) ? 'added' : 'removed',
+                total_locations_selected: selectedLocations.size
+            });
+            
             const btn = document.querySelector(`.location-filter[data-location="${location}"]`);
             if (btn) {
                 btn.classList.toggle('active');
@@ -738,6 +776,12 @@
 
         function clearAllLocationFilters() {
             selectedLocations.clear();
+            
+            // TDA-19: Track clearing all location filters
+            gtag('event', 'locations_cleared', {
+                action: 'clear_all_locations'
+            });
+            
             document.querySelectorAll('.location-filter').forEach(btn => {
                 btn.classList.remove('active');
             });
@@ -749,12 +793,29 @@
             
             saveTranslationPreference(translationsEnabled);
             
+            // TDA-19: Track translation toggle with GA4
+            gtag('event', 'translation_toggle', {
+                translations_enabled: translationsEnabled
+            });
+            
             updateTranslationButton();
             
             displayArticles();
         }
 
-        function openArticle(url) {
+        function openArticle(url, articleId, title, source, language, category, location) {
+            // TDA-19: Track article click with GA4
+            gtag('event', 'article_click', {
+                article_id: articleId,
+                article_title: title,
+                source: source,
+                language: language,
+                category: category,
+                location: location,
+                translations_enabled: translationsEnabled
+            });
+            
+            // Open the article in a new tab
             window.open(url, '_blank');
         }
 
