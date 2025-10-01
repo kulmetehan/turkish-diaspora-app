@@ -35,10 +35,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:8000",
-        "http://localhost:*",
-        "https://kulmetehan.github.io",
-        "https://*.onrender.com"
+        "http://localhost:3000",      # Local development frontend
+        "http://localhost:8000",      # Backend itself
+        "http://127.0.0.1:3000",      # Alternative localhost
+        "http://127.0.0.1:8000",      # Alternative localhost
+        "https://kulmetehan.github.io",  # GitHub Pages
+        "https://*.onrender.com"      # Render deployment
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -119,6 +121,8 @@ def get_latest_content(
                 "translated_title": item.get('translated_title'),
                 "translated_summary": item.get('translated_summary'),
                 "translated_language": item.get('translated_language'),
+                "category_tags": item.get('category_tags', []),
+                "location_tags": item.get('location_tags', []),
                 "source": {
                     "name": source.get('name', 'Unknown'),
                     "country": source.get('country', 'Unknown')
