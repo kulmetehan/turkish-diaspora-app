@@ -410,6 +410,7 @@
     ? 'http://127.0.0.1:8000'
     : 'https://diaspora-backend-api.onrender.com';
         let allArticles = [];
+        let filteredArticles = []; // Store filtered results for click tracking
         let currentLanguage = 'all';
         let selectedTopics = new Set();
         let selectedLocations = new Set();
@@ -605,6 +606,9 @@
                 });
             }
 
+            // Store filtered results globally for click tracking
+            filteredArticles = filtered;
+
             const contentGrid = document.getElementById('contentGrid');
 
             if (filtered.length === 0) {
@@ -617,7 +621,7 @@
                 return;
             }
 
-            contentGrid.innerHTML = filtered.map(article => {
+            contentGrid.innerHTML = filtered.map((article, index) => {
                 const displayTitle = translationsEnabled && article.translated_title 
                     ? article.translated_title 
                     : article.title;
@@ -661,8 +665,7 @@
                 });
 
                 return `
-                    <div class="article-card" 
-                         onclick="openArticle('${article.url}', '${article.id}', '${escapeHtml(article.title)}', '${article.source_name || 'Unknown'}', '${article.language}', '${article.category_tags ? article.category_tags[0] : 'General'}', '${article.location_tags ? article.location_tags[0] : 'None'}')">
+                    <div class="article-card" onclick="openArticleByIndex(${index})">
                         <div class="article-header">
                             <div class="article-badges">
                                 ${languageBadge}
@@ -682,16 +685,27 @@
             }).join('');
         }
 
-        // Helper function to escape HTML in attributes
-        function escapeHtml(text) {
-            const map = {
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                '"': '&quot;',
-                "'": '&#039;'
-            };
-            return text.replace(/[&<>"']/g, m => map[m]);
+        function openArticleByIndex(index) {
+            // Look up the article from the filtered results
+            const article = filteredArticles[index];
+            if (!article) {
+                console.error('Article not found at index:', index);
+                return;
+            }
+
+            // TDA-19: Track article click with GA4
+            gtag('event', 'article_click', {
+                article_id: article.id,
+                article_title: article.title,
+                source: article.source_name || 'Unknown',
+                language: article.language,
+                category: article.category_tags && article.category_tags.length > 0 ? article.category_tags[0] : 'General',
+                location: article.location_tags && article.location_tags.length > 0 ? article.location_tags[0] : 'None',
+                translations_enabled: translationsEnabled
+            });
+            
+            // Open the article in a new tab
+            window.open(article.url, '_blank');
         }
 
         function filterByLanguage(lang) {
