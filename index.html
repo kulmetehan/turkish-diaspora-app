@@ -376,13 +376,9 @@
 
             <div class="filter-group">
                 <span class="filter-label">Locations</span>
-                <div class="filter-buttons">
-                    <button class="filter-btn location-filter" data-location="Amsterdam" onclick="toggleLocationFilter('Amsterdam')">Amsterdam</button>
-                    <button class="filter-btn location-filter" data-location="Rotterdam" onclick="toggleLocationFilter('Rotterdam')">Rotterdam</button>
-                    <button class="filter-btn location-filter" data-location="Istanbul" onclick="toggleLocationFilter('Istanbul')">Istanbul</button>
-                    <button class="filter-btn location-filter" data-location="Ankara" onclick="toggleLocationFilter('Ankara')">Ankara</button>
-                    <button class="filter-btn location-filter" data-location="Venlo" onclick="toggleLocationFilter('Venlo')">Venlo</button>
-                    <button class="clear-filters-btn" onclick="clearAllLocationFilters()">Clear Locations</button>
+                <div class="filter-buttons" id="locationFiltersContainer">
+                    <!-- Location buttons will be dynamically generated here -->
+                    <span style="color: #999; font-size: 13px;">Loading locations...</span>
                 </div>
             </div>
         </div>
@@ -417,7 +413,6 @@
 
         // Load saved preferences on page load
         function loadPreferences() {
-            // Preferences start with default values
             translationsEnabled = preferences.translationsEnabled;
             updateTranslationButton();
         }
@@ -439,6 +434,62 @@
             }
         }
 
+        // NEW FUNCTION: Build dynamic location filter buttons
+        function buildLocationFilters() {
+            // Extract all unique locations from loaded articles
+            const allLocations = new Set();
+            
+            allArticles.forEach(article => {
+                if (article.location_tags && Array.isArray(article.location_tags)) {
+                    article.location_tags.forEach(loc => {
+                        if (loc && loc.trim()) {
+                            allLocations.add(loc.trim());
+                        }
+                    });
+                }
+            });
+
+            // Convert to sorted array
+            const sortedLocations = Array.from(allLocations).sort();
+
+            // Get the container
+            const container = document.getElementById('locationFiltersContainer');
+
+            // Clear existing content
+            container.innerHTML = '';
+
+            // If no locations found, show message
+            if (sortedLocations.length === 0) {
+                container.innerHTML = '<span style="color: #999; font-size: 13px;">No locations detected in articles</span>';
+                return;
+            }
+
+            // Create button for each location
+            sortedLocations.forEach(location => {
+                const button = document.createElement('button');
+                button.className = 'filter-btn location-filter';
+                button.setAttribute('data-location', location);
+                button.textContent = location;
+                button.onclick = () => toggleLocationFilter(location);
+                
+                // Restore active state if this location was previously selected
+                if (selectedLocations.has(location)) {
+                    button.classList.add('active');
+                }
+                
+                container.appendChild(button);
+            });
+
+            // Add Clear button
+            const clearButton = document.createElement('button');
+            clearButton.className = 'clear-filters-btn';
+            clearButton.textContent = 'Clear Locations';
+            clearButton.onclick = clearAllLocationFilters;
+            container.appendChild(clearButton);
+
+            console.log(`Built ${sortedLocations.length} location filter buttons:`, sortedLocations);
+        }
+
         async function loadContent() {
             const contentGrid = document.getElementById('contentGrid');
             contentGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading articles...</div>';
@@ -451,6 +502,9 @@
                 
                 const data = await response.json();
                 allArticles = data.items || [];
+                
+                // Build location filters after articles are loaded
+                buildLocationFilters();
                 
                 await loadStats();
                 displayArticles();
@@ -470,7 +524,6 @@
                 const response = await fetch(`${API_BASE}/api/stats`);
                 const data = await response.json();
                 
-                // The API returns stats wrapped in a "stats" object
                 const stats = data.stats;
                 
                 const statsBar = document.getElementById('statsBar');
@@ -496,7 +549,7 @@
         function displayArticles() {
             let filtered = [...allArticles];
 
-            // Apply language filter - FIXED: Changed from article.original_language to article.language
+            // Apply language filter
             if (currentLanguage !== 'all') {
                 filtered = filtered.filter(article => article.language === currentLanguage);
             }
@@ -538,7 +591,6 @@
                     ? article.translated_summary 
                     : article.summary;
 
-                // FIXED: Changed from article.original_language to article.language
                 const displayLanguage = translationsEnabled && article.translated_language
                     ? article.translated_language
                     : article.language;
@@ -597,7 +649,6 @@
         function filterByLanguage(lang) {
             currentLanguage = lang;
             
-            // Update ONLY language button states (not topic or location buttons)
             document.querySelectorAll('.language-filter').forEach(btn => {
                 if (btn.dataset.language === lang) {
                     btn.classList.add('active');
@@ -616,7 +667,6 @@
                 selectedTopics.add(topic);
             }
             
-            // Update button state
             const btn = document.querySelector(`.topic-filter[data-topic="${topic}"]`);
             if (btn) {
                 btn.classList.toggle('active');
@@ -640,7 +690,6 @@
                 selectedLocations.add(location);
             }
             
-            // Update button state
             const btn = document.querySelector(`.location-filter[data-location="${location}"]`);
             if (btn) {
                 btn.classList.toggle('active');
@@ -660,13 +709,10 @@
         function toggleTranslations() {
             translationsEnabled = !translationsEnabled;
             
-            // Save preference to memory
             savePreference('translationsEnabled', translationsEnabled);
             
-            // Update button
             updateTranslationButton();
             
-            // Refresh display
             displayArticles();
         }
 
@@ -675,7 +721,7 @@
         }
 
         // Load content on page load
-        loadPreferences();  // Load saved preferences first
+        loadPreferences();
         loadContent();
 
         // Auto-refresh every 5 minutes
