@@ -59,7 +59,8 @@ async def serve_frontend():
 def get_latest_content(
     limit: int = Query(default=20, ge=1, le=100),
     language: Optional[str] = Query(default=None, pattern="^(nl|tr)$"),
-    content_type: Optional[str] = Query(default=None, pattern="^(news|music|event|sports)$")
+    content_type: Optional[str] = Query(default=None, pattern="^(news|music|event|sports)$"),
+    location: Optional[str] = Query(default=None)
 ):
     """
     Get latest content items from database
@@ -68,6 +69,7 @@ def get_latest_content(
     - limit: Number of items to return (1-100, default 20)
     - language: Filter by language ('nl' or 'tr')
     - content_type: Filter by type ('news', 'music', 'event', 'sports')
+    - location: Filter by city/location mentioned in the article
     
     Returns:
     - List of content items with title, summary, source, date, url, translations
@@ -82,6 +84,10 @@ def get_latest_content(
         
         if content_type:
             query = query.eq('content_type', content_type)
+        
+        if location:
+            # Filter for articles that mention this city
+            query = query.contains('location_tags', [location])
         
         # Order by published date and apply limit
         query = query.order('published_at', desc=True).limit(limit)

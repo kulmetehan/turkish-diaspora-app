@@ -63,6 +63,31 @@
             color: white;
         }
 
+        .location-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            background: white;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .location-filters strong {
+            width: 100%;
+            margin-bottom: 5px;
+            color: #333;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -120,6 +145,8 @@
             align-items: center;
             margin-bottom: 0.75rem;
             font-size: 0.85rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
         }
 
         .article-card .source {
@@ -218,6 +245,17 @@
         </div>
     </div>
 
+    <!-- Location filters -->
+    <div class="location-filters">
+        <strong>Filter by Location:</strong>
+        <button class="filter-btn location-filter active" onclick="filterByLocation(null)">All Locations</button>
+        <button class="filter-btn location-filter" onclick="filterByLocation('Amsterdam')">📍 Amsterdam</button>
+        <button class="filter-btn location-filter" onclick="filterByLocation('Rotterdam')">📍 Rotterdam</button>
+        <button class="filter-btn location-filter" onclick="filterByLocation('Istanbul')">📍 Istanbul</button>
+        <button class="filter-btn location-filter" onclick="filterByLocation('Ankara')">📍 Ankara</button>
+        <button class="filter-btn location-filter" onclick="filterByLocation('Venlo')">📍 Venlo</button>
+    </div>
+
     <div class="container">
         <div class="stats" id="stats"></div>
         <div id="content"></div>
@@ -230,6 +268,7 @@
             : 'https://diaspora-backend-api.onrender.com';
         
         let currentFilter = 'all';
+        let currentLocation = null;  // Add location tracking
 
         // Translation toggle state (global variable)
         window.translationEnabled = false;
@@ -269,6 +308,9 @@
                 if (language) {
                     url += `&language=${language}`;
                 }
+                if (currentLocation) {
+                    url += `&location=${currentLocation}`;
+                }
 
                 const response = await fetch(url);
                 const data = await response.json();
@@ -287,7 +329,15 @@
                     
                     // Add translation indicator if showing translated content
                     const translationBadge = showTranslation ? 
-                        '<span style="background: #4CAF50; color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">Translated</span>' : '';
+                        '<span class="badge" style="background: #4CAF50; color: white;">Translated</span>' : '';
+                    
+                    // Add location badges
+                    let locationBadges = '';
+                    if (article.location_tags && article.location_tags.length > 0) {
+                        locationBadges = article.location_tags.map(city => 
+                            `<span class="badge" style="background-color: #4CAF50; color: white;">📍 ${city}</span>`
+                        ).join('');
+                    }
                     
                     return `
                         <div class="article-card" onclick="window.open('${article.url}', '_blank')">
@@ -296,6 +346,7 @@
                                     <span class="source">${article.source.name}</span>
                                     <span class="language">${displayLanguage.toUpperCase()}</span>
                                     ${translationBadge}
+                                    ${locationBadges}
                                 </div>
                                 <h2>${displayTitle}</h2>
                                 <p class="summary">${displaySummary}</p>
@@ -324,7 +375,7 @@
             }
         }
 
-        // Filter buttons
+        // Filter buttons (language)
         document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
@@ -340,6 +391,24 @@
                 }
             });
         });
+
+        // Location filter function
+        function filterByLocation(location) {
+            currentLocation = location;
+            
+            // Reload articles with current language and location filters
+            if (currentFilter === 'all') {
+                loadArticles();
+            } else {
+                loadArticles(currentFilter);
+            }
+            
+            // Update button styles (only location buttons)
+            document.querySelectorAll('.location-filter').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
 
         // Translation toggle event listener
         document.getElementById('translationToggle').addEventListener('click', () => {

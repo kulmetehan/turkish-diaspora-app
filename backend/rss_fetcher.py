@@ -7,7 +7,7 @@ import feedparser
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime
-from curator import curate_article, translate_content
+from curator import curate_article, translate_content, tag_locations
 from dotenv import load_dotenv
 import os
 import time
@@ -210,8 +210,16 @@ def fetch_and_store_feed(feed_info):
                     content_data['relevance_score'] = curation['relevance_score']
                     content_data['category_tags'] = curation['category_tags']
                     
+                    # Detect locations
+                    print(f"  📍 Detecting locations...")
+                    location_tags = tag_locations(
+                        title=content_data['title'],
+                        summary=content_data['summary']
+                    )
+                    content_data['location_tags'] = location_tags
+                    
                     # AI translation (NL ↔ TR)
-                    print(f"  🌐 Translating article...")
+                    print(f"  🌍 Translating article...")
                     translation = translate_content(
                         title=content_data['title'],
                         summary=content_data['summary'],

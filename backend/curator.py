@@ -2,6 +2,7 @@ import os
 import time
 from openai import OpenAI
 from dotenv import load_dotenv
+from location_detector import detect_cities
 
 load_dotenv()
 
@@ -51,6 +52,34 @@ def normalize_summary(summary: str, max_words: int = 70) -> str:
     
     # Fallback if all retries failed
     return ' '.join(words[:max_words]) + "..."
+
+
+def tag_locations(title: str, summary: str) -> list:
+    """
+    Detect and tag cities mentioned in content
+    
+    Args:
+        title: Article title
+        summary: Article summary
+        
+    Returns:
+        List of city names found
+    """
+    try:
+        print("🏙️ Detecting locations...")
+        
+        cities = detect_cities(title, summary)
+        
+        if cities:
+            print(f"✓ Tagged {len(cities)} locations: {', '.join(cities)}")
+        else:
+            print("ℹ️ No locations detected")
+            
+        return cities
+        
+    except Exception as e:
+        print(f"❌ Location detection error: {e}")
+        return []  # Return empty list if detection fails
 
 
 def rate_relevance(title: str, summary: str, language: str) -> int:
