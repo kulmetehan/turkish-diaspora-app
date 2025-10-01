@@ -7,6 +7,7 @@ import feedparser
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime
+from curator import curate_article
 from dotenv import load_dotenv
 import os
 import time
@@ -194,6 +195,20 @@ def fetch_and_store_feed(feed_info):
                     'url': url,
                     'published_at': published
                 }
+                
+                # AI curation for each article
+                if content_data.get('summary'):
+                    print(f"  Curating article with AI...")
+                    curation = curate_article(
+                        title=content_data['title'],
+                        summary=content_data['summary'],
+                        language=content_data['original_language']
+                    )
+                    
+                    # Update item with curated data
+                    content_data['summary'] = curation['summary']
+                    content_data['relevance_score'] = curation['relevance_score']
+                    content_data['category_tags'] = curation['category_tags']
                 
                 # Insert into database
                 supabase.table('content_items').insert(content_data).execute()
