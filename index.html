@@ -473,15 +473,15 @@
                 const statsBar = document.getElementById('statsBar');
                 statsBar.innerHTML = `
                     <div class="stat-item">
-                        <span>ðŸ"°</span>
+                        <span>📰</span>
                         <span>Total: ${stats.total_articles || 0}</span>
                     </div>
                     <div class="stat-item">
-                        <span>ðŸ‡³ðŸ‡±</span>
+                        <span>🇳🇱</span>
                         <span>Dutch: ${stats.dutch_articles || 0}</span>
                     </div>
                     <div class="stat-item">
-                        <span>ðŸ‡¹ðŸ‡·</span>
+                        <span>🇹🇷</span>
                         <span>Turkish: ${stats.turkish_articles || 0}</span>
                     </div>
                 `;
@@ -493,7 +493,7 @@
         function displayArticles() {
             let filtered = [...allArticles];
 
-            // Apply language filter
+            // Apply language filter - FIXED: Changed from article.original_language to article.language
             if (currentLanguage !== 'all') {
                 filtered = filtered.filter(article => article.language === currentLanguage);
             }
@@ -535,6 +535,7 @@
                     ? article.translated_summary 
                     : article.summary;
 
+                // FIXED: Changed from article.original_language to article.language
                 const displayLanguage = translationsEnabled && article.translated_language
                     ? article.translated_language
                     : article.language;
@@ -558,7 +559,7 @@
                 const locationTags = article.location_tags && article.location_tags.length > 0
                     ? `<div class="location-tags">
                         ${article.location_tags.map(loc => 
-                            `<span class="location-badge">ðŸ" ${loc}</span>`
+                            `<span class="location-badge">📍 ${loc}</span>`
                         ).join('')}
                        </div>`
                     : '';
