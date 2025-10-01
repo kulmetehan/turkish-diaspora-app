@@ -351,9 +351,9 @@
             <div class="filter-group">
                 <span class="filter-label">Language</span>
                 <div class="filter-buttons">
-                    <button class="filter-btn active" onclick="filterByLanguage('all')">All</button>
-                    <button class="filter-btn" onclick="filterByLanguage('nl')">Dutch</button>
-                    <button class="filter-btn" onclick="filterByLanguage('tr')">Turkish</button>
+                    <button class="filter-btn language-filter active" data-language="all" onclick="filterByLanguage('all')">All</button>
+                    <button class="filter-btn language-filter" data-language="nl" onclick="filterByLanguage('nl')">Dutch</button>
+                    <button class="filter-btn language-filter" data-language="tr" onclick="filterByLanguage('tr')">Turkish</button>
                 </div>
             </div>
             
@@ -593,12 +593,11 @@
         function filterByLanguage(lang) {
             currentLanguage = lang;
             
-            // Update button states
-            document.querySelectorAll('.filter-buttons .filter-btn').forEach(btn => {
-                if (btn.textContent.toLowerCase().includes(lang) || 
-                    (lang === 'all' && btn.textContent === 'All')) {
+            // Update ONLY language button states (not topic or location buttons)
+            document.querySelectorAll('.language-filter').forEach(btn => {
+                if (btn.dataset.language === lang) {
                     btn.classList.add('active');
-                } else if (!btn.classList.contains('topic-filter') && !btn.classList.contains('location-filter')) {
+                } else {
                     btn.classList.remove('active');
                 }
             });
