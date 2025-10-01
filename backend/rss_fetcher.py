@@ -7,7 +7,7 @@ import feedparser
 from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime
-from curator import curate_article
+from curator import curate_article, translate_content
 from dotenv import load_dotenv
 import os
 import time
@@ -198,7 +198,7 @@ def fetch_and_store_feed(feed_info):
                 
                 # AI curation for each article
                 if content_data.get('summary'):
-                    print(f"  Curating article with AI...")
+                    print(f"  🤖 Curating article with AI...")
                     curation = curate_article(
                         title=content_data['title'],
                         summary=content_data['summary'],
@@ -209,6 +209,19 @@ def fetch_and_store_feed(feed_info):
                     content_data['summary'] = curation['summary']
                     content_data['relevance_score'] = curation['relevance_score']
                     content_data['category_tags'] = curation['category_tags']
+                    
+                    # AI translation (NL ↔ TR)
+                    print(f"  🌐 Translating article...")
+                    translation = translate_content(
+                        title=content_data['title'],
+                        summary=content_data['summary'],
+                        from_language=content_data['original_language']
+                    )
+                    
+                    # Add translation to content data
+                    content_data['translated_title'] = translation['translated_title']
+                    content_data['translated_summary'] = translation['translated_summary']
+                    content_data['translated_language'] = translation['translated_language']
                 
                 # Insert into database
                 supabase.table('content_items').insert(content_data).execute()

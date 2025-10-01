@@ -208,6 +208,14 @@
         <button class="filter-btn active" data-filter="all">All</button>
         <button class="filter-btn" data-filter="nl">Dutch</button>
         <button class="filter-btn" data-filter="tr">Turkish</button>
+        
+        <!-- Translation Toggle -->
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 0.5rem;">
+            <span style="color: #666; font-size: 0.9rem;">Show Translations:</span>
+            <button class="filter-btn" id="translationToggle" data-translation="off">
+                OFF
+            </button>
+        </div>
     </div>
 
     <div class="container">
@@ -216,8 +224,15 @@
     </div>
 
     <script>
-        const API_URL = 'https://diaspora-backend-api.onrender.com';
+        // Auto-detect environment: use localhost for local dev, production API for GitHub Pages
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:8000' 
+            : 'https://diaspora-backend-api.onrender.com';
+        
         let currentFilter = 'all';
+
+        // Translation toggle state (global variable)
+        window.translationEnabled = false;
 
         // Load stats
         async function loadStats() {
@@ -263,25 +278,38 @@
                     return;
                 }
 
-                const articlesHTML = data.items.map(article => `
-                    <div class="article-card" onclick="window.open('${article.url}', '_blank')">
-                        <div class="content">
-                            <div class="meta">
-                                <span class="source">${article.source.name}</span>
-                                <span class="language">${article.language}</span>
+                const articlesHTML = data.items.map(article => {
+                    // Determine which content to show based on translation toggle
+                    const showTranslation = window.translationEnabled && article.translated_title;
+                    const displayTitle = showTranslation ? article.translated_title : article.title;
+                    const displaySummary = showTranslation ? article.translated_summary : article.summary;
+                    const displayLanguage = showTranslation ? article.translated_language : article.language;
+                    
+                    // Add translation indicator if showing translated content
+                    const translationBadge = showTranslation ? 
+                        '<span style="background: #4CAF50; color: white; padding: 0.25rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem;">Translated</span>' : '';
+                    
+                    return `
+                        <div class="article-card" onclick="window.open('${article.url}', '_blank')">
+                            <div class="content">
+                                <div class="meta">
+                                    <span class="source">${article.source.name}</span>
+                                    <span class="language">${displayLanguage.toUpperCase()}</span>
+                                    ${translationBadge}
+                                </div>
+                                <h2>${displayTitle}</h2>
+                                <p class="summary">${displaySummary}</p>
+                                <div class="date">${new Date(article.published_at).toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                })}</div>
                             </div>
-                            <h2>${article.title}</h2>
-                            <p class="summary">${article.summary}</p>
-                            <div class="date">${new Date(article.published_at).toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            })}</div>
                         </div>
-                    </div>
-                `).join('');
+                    `;
+                }).join('');
 
                 contentDiv.innerHTML = `<div class="articles">${articlesHTML}</div>`;
 
@@ -297,9 +325,9 @@
         }
 
         // Filter buttons
-        document.querySelectorAll('.filter-btn').forEach(btn => {
+        document.querySelectorAll('.filter-btn[data-filter]').forEach(btn => {
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 
                 const filter = btn.dataset.filter;
@@ -311,6 +339,28 @@
                     loadArticles(filter);
                 }
             });
+        });
+
+        // Translation toggle event listener
+        document.getElementById('translationToggle').addEventListener('click', () => {
+            const toggleBtn = document.getElementById('translationToggle');
+            window.translationEnabled = !window.translationEnabled;
+            
+            // Update button appearance
+            if (window.translationEnabled) {
+                toggleBtn.textContent = 'ON';
+                toggleBtn.classList.add('active');
+            } else {
+                toggleBtn.textContent = 'OFF';
+                toggleBtn.classList.remove('active');
+            }
+            
+            // Reload articles with translation preference
+            if (currentFilter === 'all') {
+                loadArticles();
+            } else {
+                loadArticles(currentFilter);
+            }
         });
 
         // Initial load

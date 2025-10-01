@@ -5,6 +5,7 @@ Serves content from Supabase database
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import List, Optional
@@ -34,6 +35,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:8000",
         "http://localhost:*",
         "https://kulmetehan.github.io",
         "https://*.onrender.com"
@@ -45,13 +47,12 @@ app.add_middleware(
 
 
 @app.get("/")
-def root():
-    """Root endpoint - API health check"""
-    return {
-        "status": "healthy",
-        "message": "Diaspora App API is running",
-        "timestamp": datetime.now().isoformat()
-    }
+async def serve_frontend():
+    """Serve the web app frontend"""
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html_path = os.path.join(base_dir, "index.html")
+    return FileResponse(html_path)
 
 
 @app.get("/api/content/latest")
@@ -69,7 +70,7 @@ def get_latest_content(
     - content_type: Filter by type ('news', 'music', 'event', 'sports')
     
     Returns:
-    - List of content items with title, summary, source, date, url
+    - List of content items with title, summary, source, date, url, translations
     """
     try:
         # Start building query - fetch content and source separately
@@ -109,6 +110,9 @@ def get_latest_content(
                 "url": item['url'],
                 "published_at": item['published_at'],
                 "content_type": item['content_type'],
+                "translated_title": item.get('translated_title'),
+                "translated_summary": item.get('translated_summary'),
+                "translated_language": item.get('translated_language'),
                 "source": {
                     "name": source.get('name', 'Unknown'),
                     "country": source.get('country', 'Unknown')
@@ -171,6 +175,9 @@ def get_content_by_id(content_id: str):
                 "content_type": item['content_type'],
                 "regions": item.get('region_tags') or [],
                 "categories": item.get('category_tags') or [],
+                "translated_title": item.get('translated_title'),
+                "translated_summary": item.get('translated_summary'),
+                "translated_language": item.get('translated_language'),
                 "source": {
                     "name": source.get('name', 'Unknown'),
                     "language": source.get('language', 'Unknown'),

@@ -171,3 +171,129 @@ def curate_article(title: str, summary: str, language: str) -> dict:
     }
     
     return result
+
+
+def translate_content(title: str, summary: str, from_language: str) -> dict:
+    """
+    Translate article title and summary to the opposite language.
+    NL → TR or TR → NL
+    
+    Args:
+        title: Original article title
+        summary: Original article summary
+        from_language: Source language code ('nl' or 'tr')
+    
+    Returns:
+        dict with:
+        - translated_title: Translated title
+        - translated_summary: Translated summary
+        - translated_language: Target language code
+    """
+    
+    # Determine target language
+    target_language = 'tr' if from_language == 'nl' else 'nl'
+    language_names = {
+        'nl': 'Dutch',
+        'tr': 'Turkish'
+    }
+    
+    from_lang_name = language_names[from_language]
+    to_lang_name = language_names[target_language]
+    
+    print(f"\n🌐 Translating from {from_lang_name} to {to_lang_name}...")
+    print(f"   Title: {title[:50]}...")
+    
+    max_retries = 3
+    
+    # Translate both title and summary in one API call to save costs
+    prompt = f"""Translate this news article from {from_lang_name} to {to_lang_name}.
+
+Preserve the meaning, tone, and factual accuracy. Use natural {to_lang_name} phrasing.
+
+TITLE:
+{title}
+
+SUMMARY:
+{summary}
+
+Respond in this exact format:
+TRANSLATED_TITLE: [translation here]
+TRANSLATED_SUMMARY: [translation here]"""
+
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": f"You are a professional translator specializing in {from_lang_name} to {to_lang_name} translation. Maintain factual accuracy and natural phrasing."},
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=500,
+                temperature=0.3
+            )
+            
+            result_text = response.choices[0].message.content.strip()
+            
+            # Parse the response
+            translated_title = ""
+            translated_summary = ""
+            
+            lines = result_text.split('\n')
+            current_section = None
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith('TRANSLATED_TITLE:'):
+                    translated_title = line.replace('TRANSLATED_TITLE:', '').strip()
+                    current_section = 'title'
+                elif line.startswith('TRANSLATED_SUMMARY:'):
+                    translated_summary = line.replace('TRANSLATED_SUMMARY:', '').strip()
+                    current_section = 'summary'
+                elif current_section == 'summary' and line:
+                    # Continue building summary if it spans multiple lines
+                    translated_summary += ' ' + line
+            
+            # Fallback parsing if structured format not followed
+            if not translated_title or not translated_summary:
+                parts = result_text.split('TRANSLATED_SUMMARY:', 1)
+                if len(parts) == 2:
+                    title_part = parts[0].replace('TRANSLATED_TITLE:', '').strip()
+                    summary_part = parts[1].strip()
+                    translated_title = title_part if title_part else title
+                    translated_summary = summary_part if summary_part else summary
+            
+            # Final validation
+            if not translated_title:
+                translated_title = title
+            if not translated_summary:
+                translated_summary = summary
+            
+            print(f"   ✅ Translation complete!")
+            print(f"   Translated title: {translated_title[:50]}...")
+            
+            return {
+                'translated_title': translated_title,
+                'translated_summary': translated_summary,
+                'translated_language': target_language
+            }
+            
+        except Exception as e:
+            if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                print(f"   ⏳ Rate limit, waiting {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"   ⚠️ Translation error: {e}")
+                # Return empty translation on failure
+                return {
+                    'translated_title': None,
+                    'translated_summary': None,
+                    'translated_language': target_language
+                }
+    
+    # Fallback if all retries failed
+    return {
+        'translated_title': None,
+        'translated_summary': None,
+        'translated_language': target_language
+    }
