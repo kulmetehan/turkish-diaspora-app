@@ -158,13 +158,19 @@
             border-radius: 12px;
             padding: 20px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
         }
 
         .article-card:hover {
             transform: translateY(-4px);
             box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+
+        .article-content {
+            flex: 1;
+            cursor: pointer;
         }
 
         .article-header {
@@ -265,6 +271,65 @@
             gap: 3px;
         }
 
+        /* TDA-20: EMOJI REACTIONS STYLES */
+        .reactions-bar {
+            display: flex;
+            gap: 8px;
+            padding-top: 12px;
+            margin-top: 12px;
+            border-top: 1px solid #eee;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .reaction-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 6px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 16px;
+            user-select: none;
+        }
+
+        .reaction-btn:hover {
+            border-color: #E30A17;
+            background: #fff5f5;
+            transform: scale(1.05);
+        }
+
+        .reaction-btn.selected {
+            background: #E30A17;
+            border-color: #E30A17;
+            transform: scale(1.1);
+        }
+
+        .reaction-btn.selected:hover {
+            background: #c00916;
+            border-color: #c00916;
+        }
+
+        .reaction-count {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .reaction-btn.selected .reaction-count {
+            color: white;
+        }
+
+        .reaction-emoji {
+            font-size: 18px;
+            line-height: 1;
+        }
+
         .loading {
             text-align: center;
             padding: 60px 20px;
@@ -344,6 +409,15 @@
                 flex-direction: column;
                 gap: 10px;
             }
+
+            .reactions-bar {
+                gap: 6px;
+            }
+
+            .reaction-btn {
+                padding: 5px 8px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -386,7 +460,6 @@
             <div class="filter-group">
                 <span class="filter-label">Locations</span>
                 <div class="filter-buttons" id="locationFiltersContainer">
-                    <!-- Location buttons will be dynamically generated here -->
                     <span style="color: #999; font-size: 13px;">Loading locations...</span>
                 </div>
             </div>
@@ -409,12 +482,24 @@
                  window.location.protocol === 'file:'
     ? 'http://127.0.0.1:8000'
     : 'https://diaspora-backend-api.onrender.com';
+        
         let allArticles = [];
-        let filteredArticles = []; // Store filtered results for click tracking
+        let filteredArticles = [];
         let currentLanguage = 'all';
         let selectedTopics = new Set();
         let selectedLocations = new Set();
         let translationsEnabled = false;
+
+        // TDA-20: User ID for reactions (stored in browser)
+        let userId = localStorage.getItem('diaspora_user_id');
+        if (!userId) {
+            // Generate a unique user ID if not exists
+            userId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            localStorage.setItem('diaspora_user_id', userId);
+        }
+
+        // TDA-20: Store reaction data for optimistic UI
+        let reactionData = {}; // { articleId: { counts: {...}, userReaction: '👍' } }
 
         // ============================================
         // TDA-18: localStorage for language preference
@@ -422,12 +507,10 @@
         
         function saveLanguagePreference(language) {
             localStorage.setItem('preferredLanguage', language);
-            console.log('Saved language preference:', language);
         }
 
         function loadLanguagePreference() {
             const saved = localStorage.getItem('preferredLanguage');
-            console.log('Loaded language preference:', saved);
             return saved || 'all';
         }
 
@@ -435,7 +518,6 @@
             const savedLanguage = loadLanguagePreference();
             currentLanguage = savedLanguage;
             
-            // Update button states
             document.querySelectorAll('.language-filter').forEach(btn => {
                 if (btn.dataset.language === savedLanguage) {
                     btn.classList.add('active');
@@ -445,16 +527,9 @@
             });
             
             displayArticles();
-            console.log('Applied saved language preference:', savedLanguage);
         }
         
-        // ============================================
-        // End TDA-18 code
-        // ============================================
-
-        // Load saved preferences on page load (translation toggle memory)
         function loadPreferences() {
-            // Translation preference (already existed)
             const savedTranslation = localStorage.getItem('translationsEnabled');
             if (savedTranslation === 'true') {
                 translationsEnabled = true;
@@ -462,12 +537,10 @@
             }
         }
 
-        // Save translation preference (already existed)
         function saveTranslationPreference(value) {
             localStorage.setItem('translationsEnabled', value);
         }
 
-        // Update translation button state
         function updateTranslationButton() {
             const btn = document.getElementById('translationToggle');
             if (translationsEnabled) {
@@ -479,7 +552,6 @@
             }
         }
 
-        // Build dynamic location filter buttons
         function buildLocationFilters() {
             const allLocations = new Set();
             
@@ -521,8 +593,6 @@
             clearButton.textContent = 'Clear Locations';
             clearButton.onclick = clearAllLocationFilters;
             container.appendChild(clearButton);
-
-            console.log(`Built ${sortedLocations.length} location filter buttons:`, sortedLocations);
         }
 
         async function loadContent() {
@@ -538,11 +608,11 @@
                 const data = await response.json();
                 allArticles = data.items || [];
                 
+                // TDA-20: Load reactions for all articles
+                await loadAllReactions();
+                
                 buildLocationFilters();
-                
-                // TDA-18: Apply saved language preference after content loads
                 applySavedLanguagePreference();
-                
                 await loadStats();
             } catch (error) {
                 console.error('Error loading content:', error);
@@ -582,15 +652,176 @@
             }
         }
 
+        // ============================================
+        // TDA-20: EMOJI REACTIONS FUNCTIONS
+        // ============================================
+
+        async function loadAllReactions() {
+            // Load reaction counts and user reactions for all visible articles
+            for (const article of allArticles) {
+                await loadReactionsForArticle(article.id);
+            }
+        }
+
+        async function loadReactionsForArticle(articleId) {
+            try {
+                // Load counts
+                const countsResponse = await fetch(`${API_BASE}/api/reactions/counts/${articleId}`);
+                const countsData = await countsResponse.json();
+                
+                // Load user's reaction
+                const userResponse = await fetch(`${API_BASE}/api/reactions/user/${articleId}/${userId}`);
+                const userData = await userResponse.json();
+                
+                reactionData[articleId] = {
+                    counts: countsData.counts || {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
+                    userReaction: userData.emoji || null
+                };
+            } catch (error) {
+                console.error(`Error loading reactions for article ${articleId}:`, error);
+                reactionData[articleId] = {
+                    counts: {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
+                    userReaction: null
+                };
+            }
+        }
+
+        async function handleReactionClick(articleId, emoji, event) {
+            event.stopPropagation(); // Prevent article card click
+            
+            // Optimistic update (update UI immediately)
+            const oldUserReaction = reactionData[articleId]?.userReaction;
+            const oldCounts = {...(reactionData[articleId]?.counts || {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0})};
+            
+            // Update local state
+            if (!reactionData[articleId]) {
+                reactionData[articleId] = {
+                    counts: {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
+                    userReaction: null
+                };
+            }
+            
+            if (oldUserReaction === emoji) {
+                // Remove reaction
+                reactionData[articleId].userReaction = null;
+                reactionData[articleId].counts[emoji] = Math.max(0, (reactionData[articleId].counts[emoji] || 0) - 1);
+            } else {
+                // Add or change reaction
+                if (oldUserReaction) {
+                    // Decrease old emoji count
+                    reactionData[articleId].counts[oldUserReaction] = Math.max(0, (reactionData[articleId].counts[oldUserReaction] || 0) - 1);
+                }
+                // Increase new emoji count
+                reactionData[articleId].counts[emoji] = (reactionData[articleId].counts[emoji] || 0) + 1;
+                reactionData[articleId].userReaction = emoji;
+            }
+            
+            // Update UI immediately
+            updateReactionUI(articleId);
+            
+            // Track with GA4
+            gtag('event', 'reaction_click', {
+                article_id: articleId,
+                emoji: emoji,
+                action: oldUserReaction === emoji ? 'removed' : 'added'
+            });
+            
+            // Send to server
+            try {
+                const response = await fetch(
+                    `${API_BASE}/api/reactions/add?content_id=${articleId}&user_id=${userId}&emoji=${encodeURIComponent(emoji)}`,
+                    { method: 'POST' }
+                );
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update with server counts (in case of discrepancy)
+                    reactionData[articleId].counts = data.counts;
+                    updateReactionUI(articleId);
+                } else {
+                    // Revert on error
+                    reactionData[articleId].userReaction = oldUserReaction;
+                    reactionData[articleId].counts = oldCounts;
+                    updateReactionUI(articleId);
+                    console.error('Failed to save reaction');
+                }
+            } catch (error) {
+                // Revert on error
+                reactionData[articleId].userReaction = oldUserReaction;
+                reactionData[articleId].counts = oldCounts;
+                updateReactionUI(articleId);
+                console.error('Error saving reaction:', error);
+            }
+        }
+
+        function updateReactionUI(articleId) {
+            const emojis = ['👍', '❤️', '😂', '🔥', '👏'];
+            const data = reactionData[articleId];
+            
+            if (!data) return;
+            
+            emojis.forEach(emoji => {
+                const btn = document.querySelector(`[data-article-id="${articleId}"][data-emoji="${emoji}"]`);
+                if (btn) {
+                    const count = data.counts[emoji] || 0;
+                    const isSelected = data.userReaction === emoji;
+                    
+                    // Update button state
+                    if (isSelected) {
+                        btn.classList.add('selected');
+                    } else {
+                        btn.classList.remove('selected');
+                    }
+                    
+                    // Update count
+                    const countSpan = btn.querySelector('.reaction-count');
+                    if (countSpan) {
+                        countSpan.textContent = count;
+                    }
+                }
+            });
+        }
+
+        function createReactionsBar(articleId) {
+            const emojis = ['👍', '❤️', '😂', '🔥', '👏'];
+            const data = reactionData[articleId] || {
+                counts: {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
+                userReaction: null
+            };
+            
+            const buttons = emojis.map(emoji => {
+                const count = data.counts[emoji] || 0;
+                const isSelected = data.userReaction === emoji;
+                const selectedClass = isSelected ? 'selected' : '';
+                
+                return `
+                    <button 
+                        class="reaction-btn ${selectedClass}" 
+                        data-article-id="${articleId}"
+                        data-emoji="${emoji}"
+                        onclick="handleReactionClick('${articleId}', '${emoji}', event)"
+                        title="React with ${emoji}"
+                    >
+                        <span class="reaction-emoji">${emoji}</span>
+                        <span class="reaction-count">${count}</span>
+                    </button>
+                `;
+            }).join('');
+            
+            return `<div class="reactions-bar">${buttons}</div>`;
+        }
+
+        // ============================================
+        // END TDA-20 REACTIONS CODE
+        // ============================================
+
         function displayArticles() {
             let filtered = [...allArticles];
 
-            // Apply language filter
             if (currentLanguage !== 'all') {
                 filtered = filtered.filter(article => article.language === currentLanguage);
             }
 
-            // Apply topic filters (multi-select with OR logic)
             if (selectedTopics.size > 0) {
                 filtered = filtered.filter(article => {
                     if (!article.category_tags || article.category_tags.length === 0) return false;
@@ -598,7 +829,6 @@
                 });
             }
 
-            // Apply location filters (multi-select with OR logic)
             if (selectedLocations.size > 0) {
                 filtered = filtered.filter(article => {
                     if (!article.location_tags || article.location_tags.length === 0) return false;
@@ -606,7 +836,6 @@
                 });
             }
 
-            // Store filtered results globally for click tracking
             filteredArticles = filtered;
 
             const contentGrid = document.getElementById('contentGrid');
@@ -648,7 +877,7 @@
                             `<span class="tag-chip">${tag}</span>`
                         ).join('')}
                        </div>`
-                    : '<div class="article-tags"><span class="tag-chip" style="background: #ffcccc;">No categories</span></div>';
+                    : '';
 
                 const locationTags = article.location_tags && article.location_tags.length > 0
                     ? `<div class="location-tags">
@@ -665,56 +894,53 @@
                 });
 
                 return `
-                    <div class="article-card" onclick="openArticleByIndex(${index})">
-                        <div class="article-header">
-                            <div class="article-badges">
-                                ${languageBadge}
-                                ${translatedBadge}
+                    <div class="article-card">
+                        <div class="article-content" onclick="openArticleByIndex(${index})">
+                            <div class="article-header">
+                                <div class="article-badges">
+                                    ${languageBadge}
+                                    ${translatedBadge}
+                                </div>
+                            </div>
+                            <div class="article-title">${displayTitle}</div>
+                            <div class="article-summary">${displaySummary}</div>
+                            ${categoryTags}
+                            ${locationTags}
+                            <div class="article-meta">
+                                <span class="article-source">${article.source?.name || 'Unknown'}</span>
+                                <span>${date}</span>
                             </div>
                         </div>
-                        <div class="article-title">${displayTitle}</div>
-                        <div class="article-summary">${displaySummary}</div>
-                        ${categoryTags}
-                        ${locationTags}
-                        <div class="article-meta">
-                            <span class="article-source">${article.source_name || 'Unknown'}</span>
-                            <span>${date}</span>
-                        </div>
+                        ${createReactionsBar(article.id)}
                     </div>
                 `;
             }).join('');
         }
 
         function openArticleByIndex(index) {
-            // Look up the article from the filtered results
             const article = filteredArticles[index];
             if (!article) {
                 console.error('Article not found at index:', index);
                 return;
             }
 
-            // TDA-19: Track article click with GA4
             gtag('event', 'article_click', {
                 article_id: article.id,
                 article_title: article.title,
-                source: article.source_name || 'Unknown',
+                source: article.source?.name || 'Unknown',
                 language: article.language,
                 category: article.category_tags && article.category_tags.length > 0 ? article.category_tags[0] : 'General',
                 location: article.location_tags && article.location_tags.length > 0 ? article.location_tags[0] : 'None',
                 translations_enabled: translationsEnabled
             });
             
-            // Open the article in a new tab
             window.open(article.url, '_blank');
         }
 
         function filterByLanguage(lang) {
             currentLanguage = lang;
-            
-            // TDA-18: Save preference when user clicks
             saveLanguagePreference(lang);
             
-            // TDA-19: Track language filter usage with GA4
             gtag('event', 'language_filter', {
                 selected_language: lang
             });
@@ -737,7 +963,6 @@
                 selectedTopics.add(topic);
             }
             
-            // TDA-19: Track topic filter usage with GA4
             gtag('event', 'topic_filter', {
                 selected_topic: topic,
                 action: selectedTopics.has(topic) ? 'added' : 'removed',
@@ -755,7 +980,6 @@
         function clearAllTopicFilters() {
             selectedTopics.clear();
             
-            // TDA-19: Track clearing all topic filters
             gtag('event', 'topics_cleared', {
                 action: 'clear_all_topics'
             });
@@ -773,7 +997,6 @@
                 selectedLocations.add(location);
             }
             
-            // TDA-19: Track location filter usage with GA4
             gtag('event', 'location_filter', {
                 selected_location: location,
                 action: selectedLocations.has(location) ? 'added' : 'removed',
@@ -791,7 +1014,6 @@
         function clearAllLocationFilters() {
             selectedLocations.clear();
             
-            // TDA-19: Track clearing all location filters
             gtag('event', 'locations_cleared', {
                 action: 'clear_all_locations'
             });
@@ -804,33 +1026,14 @@
 
         function toggleTranslations() {
             translationsEnabled = !translationsEnabled;
-            
             saveTranslationPreference(translationsEnabled);
             
-            // TDA-19: Track translation toggle with GA4
             gtag('event', 'translation_toggle', {
                 translations_enabled: translationsEnabled
             });
             
             updateTranslationButton();
-            
             displayArticles();
-        }
-
-        function openArticle(url, articleId, title, source, language, category, location) {
-            // TDA-19: Track article click with GA4
-            gtag('event', 'article_click', {
-                article_id: articleId,
-                article_title: title,
-                source: source,
-                language: language,
-                category: category,
-                location: location,
-                translations_enabled: translationsEnabled
-            });
-            
-            // Open the article in a new tab
-            window.open(url, '_blank');
         }
 
         // Load preferences and content on page load

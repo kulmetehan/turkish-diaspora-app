@@ -236,6 +236,156 @@ def get_stats():
         )
 
 
+# ============================================
+# TDA-20: EMOJI REACTIONS ENDPOINTS
+# ============================================
+
+@app.post("/api/reactions/add")
+async def add_reaction(content_id: str = Query(...), user_id: str = Query(...), emoji: str = Query(...)):
+    """
+    Add or update a user's reaction to an article.
+    
+    Parameters:
+    - content_id: UUID of the article
+    - user_id: Temporary user identifier (from localStorage)
+    - emoji: One of: 👍, ❤️, 😂, 🔥, 👏
+    
+    Returns:
+    - success: boolean
+    - action: 'added', 'updated', or 'removed'
+    - counts: updated reaction counts for this article
+    """
+    try:
+        # Validate emoji
+        valid_emojis = ['👍', '❤️', '😂', '🔥', '👏']
+        if emoji not in valid_emojis:
+            return {"success": False, "error": "Invalid emoji"}, 400
+        
+        # Check if user already reacted to this article
+        existing = supabase.table("reactions")\
+            .select("*")\
+            .eq("content_item_id", content_id)\
+            .eq("user_id", user_id)\
+            .execute()
+        
+        action = ""
+        
+        if existing.data and len(existing.data) > 0:
+            # User already has a reaction
+            if existing.data[0]['reaction_type'] == emoji:
+                # Same emoji clicked - remove reaction (toggle off)
+                supabase.table("reactions")\
+                    .delete()\
+                    .eq("content_item_id", content_id)\
+                    .eq("user_id", user_id)\
+                    .execute()
+                action = "removed"
+            else:
+                # Different emoji - update
+                supabase.table("reactions")\
+                    .update({"reaction_type": emoji})\
+                    .eq("content_item_id", content_id)\
+                    .eq("user_id", user_id)\
+                    .execute()
+                action = "updated"
+        else:
+            # Insert new reaction
+            supabase.table("reactions").insert({
+                "content_item_id": content_id,
+                "user_id": user_id,
+                "reaction_type": emoji
+            }).execute()
+            action = "added"
+        
+        # Get updated counts
+        counts = get_reaction_counts_sync(content_id)
+        
+        return {
+            "success": True,
+            "action": action,
+            "counts": counts
+        }
+        
+    except Exception as e:
+        print(f"Error adding reaction: {e}")
+        return {"success": False, "error": str(e)}, 500
+
+
+@app.get("/api/reactions/counts/{content_id}")
+async def get_reaction_counts(content_id: str):
+    """
+    Get reaction counts for a specific article.
+    
+    Parameters:
+    - content_id: UUID of the article
+    
+    Returns:
+    - Object with emoji counts: {'👍': 5, '❤️': 3, ...}
+    """
+    try:
+        counts = get_reaction_counts_sync(content_id)
+        return {"success": True, "counts": counts}
+        
+    except Exception as e:
+        print(f"Error getting reactions: {e}")
+        return {"success": False, "counts": {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0}}
+
+
+@app.get("/api/reactions/user/{content_id}/{user_id}")
+async def get_user_reaction(content_id: str, user_id: str):
+    """
+    Get a specific user's reaction to an article.
+    
+    Parameters:
+    - content_id: UUID of the article
+    - user_id: Temporary user identifier
+    
+    Returns:
+    - emoji: The emoji they selected, or null if no reaction
+    """
+    try:
+        result = supabase.table("reactions")\
+            .select("reaction_type")\
+            .eq("content_item_id", content_id)\
+            .eq("user_id", user_id)\
+            .execute()
+        
+        if result.data and len(result.data) > 0:
+            return {"success": True, "emoji": result.data[0]['reaction_type']}
+        else:
+            return {"success": True, "emoji": None}
+            
+    except Exception as e:
+        print(f"Error getting user reaction: {e}")
+        return {"success": False, "emoji": None}
+
+
+def get_reaction_counts_sync(content_id: str):
+    """
+    Helper function to get reaction counts (synchronous).
+    Used by other endpoints to avoid code duplication.
+    """
+    try:
+        # Get all reactions for this article
+        result = supabase.table("reactions")\
+            .select("reaction_type")\
+            .eq("content_item_id", content_id)\
+            .execute()
+        
+        # Count emojis
+        counts = {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0}
+        for reaction in result.data:
+            emoji = reaction['reaction_type']
+            if emoji in counts:
+                counts[emoji] += 1
+        
+        return counts
+        
+    except Exception as e:
+        print(f"Error in get_reaction_counts_sync: {e}")
+        return {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
