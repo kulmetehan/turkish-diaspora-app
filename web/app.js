@@ -26,15 +26,43 @@ if (!userId) {
 let reactionData = {};
 
 // ============================================
-// NEW: FILTER MODAL FUNCTIONS
+// PHASE 2: PERSONALIZATION DATA & STATE
+// ============================================
+
+// 50 Cities from backend (25 Dutch + 25 Turkish)
+const DUTCH_CITIES = [
+    'Rotterdam', 'Amsterdam', 'Den Haag', 'Utrecht', 'Zaanstad',
+    'Eindhoven', 'Enschede', 'Arnhem', 'Tilburg', 'Schiedam',
+    'Deventer', 'Dordrecht', 'Haarlem', 'Amersfoort', 'Almelo',
+    'Nijmegen', 'Vlaardingen', 'Hengelo', 'Almere', 'Apeldoorn',
+    'Oss', 'Venlo', 'Haarlemmermeer', 'Breda', 'Bergen op Zoom'
+];
+
+const TURKISH_CITIES = [
+    'Konya', 'Kayseri', 'Ankara', 'Yozgat', 'Karaman',
+    'Kırşehir', 'Niğde', 'Nevşehir', 'Aksaray', 'Adana',
+    'Sivas', 'Kars', 'Trabzon', 'Samsun', 'Aydın',
+    'İzmir', 'İstanbul', 'Gaziantep', 'Afyonkarahisar', 'Giresun',
+    'Denizli', 'Ordu', 'Sakarya', 'Kahramanmaraş', 'Erzincan'
+];
+
+// Personalization state
+let personalizationPreferences = {
+    dutchCities: [],
+    turkishCities: [],
+    topics: [],
+    personalizationEnabled: false
+};
+
+// ============================================
+// FILTER MODAL FUNCTIONS
 // ============================================
 
 function openFiltersModal() {
     const modal = document.getElementById('filterModal');
     modal.classList.add('active');
-    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    document.body.style.overflow = 'hidden';
     
-    // Sync checkbox states with current selections
     syncModalCheckboxes();
     
     gtag('event', 'filters_modal_opened', {
@@ -45,7 +73,7 @@ function openFiltersModal() {
 function closeFiltersModal() {
     const modal = document.getElementById('filterModal');
     modal.classList.remove('active');
-    document.body.style.overflow = ''; // Restore scrolling
+    document.body.style.overflow = '';
     
     gtag('event', 'filters_modal_closed', {
         action: 'close_filters'
@@ -53,19 +81,16 @@ function closeFiltersModal() {
 }
 
 function syncModalCheckboxes() {
-    // Sync topic checkboxes
     document.querySelectorAll('input[data-topic]').forEach(checkbox => {
         const topic = checkbox.dataset.topic;
         checkbox.checked = selectedTopics.has(topic);
     });
     
-    // Sync location checkboxes
     document.querySelectorAll('input[data-location]').forEach(checkbox => {
         const location = checkbox.dataset.location;
         checkbox.checked = selectedLocations.has(location);
     });
     
-    // Sync translation toggle
     updateTranslationButton();
 }
 
@@ -76,7 +101,6 @@ function toggleTopicCheckbox(topic) {
         selectedTopics.add(topic);
     }
     updateFilterBadge();
-    // Note: We don't update the feed here - user clicks "Apply" to apply changes
 }
 
 function toggleLocationCheckbox(location) {
@@ -86,14 +110,12 @@ function toggleLocationCheckbox(location) {
         selectedLocations.add(location);
     }
     updateFilterBadge();
-    // Note: We don't update the feed here - user clicks "Apply" to apply changes
 }
 
 function clearAllFiltersInModal() {
     selectedTopics.clear();
     selectedLocations.clear();
     
-    // Uncheck all checkboxes
     document.querySelectorAll('input[data-topic], input[data-location]').forEach(checkbox => {
         checkbox.checked = false;
     });
@@ -106,7 +128,7 @@ function clearAllFiltersInModal() {
 }
 
 function applyFiltersAndClose() {
-    displayArticles(); // Apply the filters to the feed
+    displayArticles();
     closeFiltersModal();
     
     gtag('event', 'filters_applied', {
@@ -120,7 +142,6 @@ function updateFilterBadge() {
     const badge = document.getElementById('filterBadge');
     badge.textContent = totalFilters;
     
-    // Hide badge if no filters active
     if (totalFilters === 0) {
         badge.style.display = 'none';
     } else {
@@ -129,7 +150,302 @@ function updateFilterBadge() {
 }
 
 // ============================================
-// TDA-18: LOCALSTORAGE PREFERENCES
+// PHASE 2: PERSONALIZATION MODAL FUNCTIONS
+// ============================================
+
+function openPersonalizationModal() {
+    const modal = document.getElementById('personalizationModal');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
+    
+    // Load current preferences into modal
+    loadPreferencesIntoModal();
+    
+    gtag('event', 'personalization_modal_opened', {
+        action: 'open_personalization'
+    });
+}
+
+function closePersonalizationModal() {
+    const modal = document.getElementById('personalizationModal');
+    modal.classList.remove('active');
+    document.body.style.overflow = '';
+    
+    // Clear search inputs
+    document.getElementById('dutchCitySearch').value = '';
+    document.getElementById('turkishCitySearch').value = '';
+    hideDutchDropdown();
+    hideTurkishDropdown();
+    
+    gtag('event', 'personalization_modal_closed', {
+        action: 'close_personalization'
+    });
+}
+
+function loadPreferencesIntoModal() {
+    // Display selected Dutch cities
+    displaySelectedDutchCities();
+    
+    // Display selected Turkish cities
+    displaySelectedTurkishCities();
+    
+    // Check selected topics
+    document.querySelectorAll('.topic-checkbox input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = personalizationPreferences.topics.includes(checkbox.value);
+    });
+}
+
+// ============================================
+// PHASE 2: FUZZY SEARCH FUNCTION
+// ============================================
+
+function fuzzySearch(query, text) {
+    query = query.toLowerCase();
+    text = text.toLowerCase();
+    
+    // Exact match gets highest priority
+    if (text === query) return 1000;
+    
+    // Starts with query gets high priority
+    if (text.startsWith(query)) return 500;
+    
+    // Contains query gets medium priority
+    if (text.includes(query)) return 250;
+    
+    // Fuzzy matching: check if all characters in query appear in order
+    let queryIndex = 0;
+    let score = 0;
+    
+    for (let i = 0; i < text.length && queryIndex < query.length; i++) {
+        if (text[i] === query[queryIndex]) {
+            score += 100 - i; // Earlier matches score higher
+            queryIndex++;
+        }
+    }
+    
+    // All characters found in order
+    if (queryIndex === query.length) {
+        return score;
+    }
+    
+    return 0; // No match
+}
+
+// ============================================
+// PHASE 2: DUTCH CITIES AUTOCOMPLETE
+// ============================================
+
+function filterDutchCities(query) {
+    const dropdown = document.getElementById('dutchCityDropdown');
+    
+    if (!query || query.trim() === '') {
+        dropdown.innerHTML = '';
+        dropdown.classList.remove('active');
+        return;
+    }
+    
+    // Filter cities using fuzzy search
+    const matches = DUTCH_CITIES
+        .map(city => ({ city, score: fuzzySearch(query, city) }))
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(item => item.city);
+    
+    if (matches.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-no-results">No cities found</div>';
+        dropdown.classList.add('active');
+        return;
+    }
+    
+    dropdown.innerHTML = matches.map(city => {
+        const isSelected = personalizationPreferences.dutchCities.includes(city);
+        const className = isSelected ? 'autocomplete-item selected' : 'autocomplete-item';
+        const onclick = isSelected ? '' : `onclick="selectDutchCity('${city}')"`;
+        return `<div class="${className}" ${onclick}>${city}</div>`;
+    }).join('');
+    
+    dropdown.classList.add('active');
+}
+
+function showDutchDropdown() {
+    const input = document.getElementById('dutchCitySearch');
+    filterDutchCities(input.value);
+}
+
+function hideDutchDropdown() {
+    const dropdown = document.getElementById('dutchCityDropdown');
+    setTimeout(() => {
+        dropdown.classList.remove('active');
+    }, 200);
+}
+
+function selectDutchCity(city) {
+    if (!personalizationPreferences.dutchCities.includes(city)) {
+        personalizationPreferences.dutchCities.push(city);
+        displaySelectedDutchCities();
+        
+        // Clear search and hide dropdown
+        document.getElementById('dutchCitySearch').value = '';
+        hideDutchDropdown();
+    }
+}
+
+function removeDutchCity(city) {
+    personalizationPreferences.dutchCities = personalizationPreferences.dutchCities.filter(c => c !== city);
+    displaySelectedDutchCities();
+}
+
+function displaySelectedDutchCities() {
+    const container = document.getElementById('selectedDutchCities');
+    
+    if (personalizationPreferences.dutchCities.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = personalizationPreferences.dutchCities.map(city => `
+        <div class="city-chip">
+            🇳🇱 ${city}
+            <button class="city-chip-remove" onclick="removeDutchCity('${city}')">×</button>
+        </div>
+    `).join('');
+}
+
+// ============================================
+// PHASE 2: TURKISH CITIES AUTOCOMPLETE
+// ============================================
+
+function filterTurkishCities(query) {
+    const dropdown = document.getElementById('turkishCityDropdown');
+    
+    if (!query || query.trim() === '') {
+        dropdown.innerHTML = '';
+        dropdown.classList.remove('active');
+        return;
+    }
+    
+    const matches = TURKISH_CITIES
+        .map(city => ({ city, score: fuzzySearch(query, city) }))
+        .filter(item => item.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(item => item.city);
+    
+    if (matches.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-no-results">No cities found</div>';
+        dropdown.classList.add('active');
+        return;
+    }
+    
+    dropdown.innerHTML = matches.map(city => {
+        const isSelected = personalizationPreferences.turkishCities.includes(city);
+        const className = isSelected ? 'autocomplete-item selected' : 'autocomplete-item';
+        const onclick = isSelected ? '' : `onclick="selectTurkishCity('${city}')"`;
+        return `<div class="${className}" ${onclick}>${city}</div>`;
+    }).join('');
+    
+    dropdown.classList.add('active');
+}
+
+function showTurkishDropdown() {
+    const input = document.getElementById('turkishCitySearch');
+    filterTurkishCities(input.value);
+}
+
+function hideTurkishDropdown() {
+    const dropdown = document.getElementById('turkishCityDropdown');
+    setTimeout(() => {
+        dropdown.classList.remove('active');
+    }, 200);
+}
+
+function selectTurkishCity(city) {
+    if (!personalizationPreferences.turkishCities.includes(city)) {
+        personalizationPreferences.turkishCities.push(city);
+        displaySelectedTurkishCities();
+        
+        document.getElementById('turkishCitySearch').value = '';
+        hideTurkishDropdown();
+    }
+}
+
+function removeTurkishCity(city) {
+    personalizationPreferences.turkishCities = personalizationPreferences.turkishCities.filter(c => c !== city);
+    displaySelectedTurkishCities();
+}
+
+function displaySelectedTurkishCities() {
+    const container = document.getElementById('selectedTurkishCities');
+    
+    if (personalizationPreferences.turkishCities.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    container.innerHTML = personalizationPreferences.turkishCities.map(city => `
+        <div class="city-chip">
+            🇹🇷 ${city}
+            <button class="city-chip-remove" onclick="removeTurkishCity('${city}')">×</button>
+        </div>
+    `).join('');
+}
+
+// ============================================
+// PHASE 2: TOPIC SELECTION
+// ============================================
+
+function togglePersonalizationTopic(topic) {
+    if (personalizationPreferences.topics.includes(topic)) {
+        personalizationPreferences.topics = personalizationPreferences.topics.filter(t => t !== topic);
+    } else {
+        personalizationPreferences.topics.push(topic);
+    }
+}
+
+// ============================================
+// PHASE 2: SAVE/LOAD PERSONALIZATION
+// ============================================
+
+function savePersonalizationPreferences() {
+    // Mark as enabled if user has selected anything
+    const hasSelections = 
+        personalizationPreferences.dutchCities.length > 0 ||
+        personalizationPreferences.turkishCities.length > 0 ||
+        personalizationPreferences.topics.length > 0;
+    
+    personalizationPreferences.personalizationEnabled = hasSelections;
+    
+    // Save to localStorage
+    localStorage.setItem('personalizationPreferences', JSON.stringify(personalizationPreferences));
+    
+    console.log('Saved personalization:', personalizationPreferences);
+    
+    // Close modal
+    closePersonalizationModal();
+    
+    // Show success message
+    alert('✅ Preferences saved!\n\nClick "For You" tab to see your personalized feed.');
+    
+    gtag('event', 'personalization_saved', {
+        dutch_cities: personalizationPreferences.dutchCities.length,
+        turkish_cities: personalizationPreferences.turkishCities.length,
+        topics: personalizationPreferences.topics.length
+    });
+}
+
+function loadPersonalizationPreferences() {
+    try {
+        const saved = localStorage.getItem('personalizationPreferences');
+        if (saved) {
+            personalizationPreferences = JSON.parse(saved);
+            console.log('Loaded personalization:', personalizationPreferences);
+        }
+    } catch (error) {
+        console.error('Error loading personalization preferences:', error);
+    }
+}
+
+// ============================================
+// LOCALSTORAGE PREFERENCES
 // ============================================
 
 function saveLanguagePreference(language) {
@@ -162,6 +478,9 @@ function loadPreferences() {
         translationsEnabled = true;
         updateTranslationButton();
     }
+    
+    // Load personalization preferences
+    loadPersonalizationPreferences();
 }
 
 function saveTranslationPreference(value) {
@@ -176,7 +495,7 @@ function updateTranslationButton() {
 }
 
 // ============================================
-// LOCATION FILTERS - UPDATED FOR MODAL
+// LOCATION FILTERS
 // ============================================
 
 function buildLocationCheckboxes() {
@@ -224,7 +543,7 @@ function buildLocationCheckboxes() {
 }
 
 // ============================================
-// CONTENT LOADING - FIXED
+// CONTENT LOADING
 // ============================================
 
 async function loadContent() {
@@ -240,13 +559,11 @@ async function loadContent() {
         const data = await response.json();
         allArticles = data.items || [];
         
-        // FIXED: Display articles immediately, load reactions in background
         buildLocationCheckboxes();
         applySavedLanguagePreference();
         updateFilterBadge();
         await loadStats();
         
-        // Load reactions in background (non-blocking)
         loadAllReactions();
         
     } catch (error) {
@@ -288,7 +605,7 @@ async function loadStats() {
 }
 
 // ============================================
-// TDA-20: EMOJI REACTIONS FUNCTIONS
+// EMOJI REACTIONS FUNCTIONS
 // ============================================
 
 async function loadAllReactions() {
@@ -310,7 +627,6 @@ async function loadReactionsForArticle(articleId) {
             userReaction: userData.emoji || null
         };
         
-        // Update UI after loading each article's reactions
         updateReactionUI(articleId);
     } catch (error) {
         console.error(`Error loading reactions for article ${articleId}:`, error);
@@ -594,6 +910,237 @@ function toggleTranslations() {
 }
 
 // ============================================
+// PHASE 3: FOR YOU FEED
+// ============================================
+
+async function switchToForYouFeed() {
+    // Update nav button states
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.tab === 'foryou') {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Check if user has personalization set up
+    if (!personalizationPreferences.personalizationEnabled) {
+        // Show empty state - prompt to personalize
+        const contentGrid = document.getElementById('contentGrid');
+        contentGrid.innerHTML = `
+            <div class="empty-state">
+                <div style="font-size: 60px; margin-bottom: 20px;">⭐</div>
+                <h2 style="font-size: 24px; margin-bottom: 15px; color: #333;">Create Your Personal Feed</h2>
+                <p style="font-size: 16px; color: #666; margin-bottom: 30px;">
+                    Select your favorite cities and topics to see news that matters to you.
+                </p>
+                <button onclick="openPersonalizationModal()" style="
+                    padding: 14px 32px;
+                    background: linear-gradient(135deg, #E30A17 0%, #C7000B 100%);
+                    color: white;
+                    border: none;
+                    border-radius: 25px;
+                    font-size: 16px;
+                    font-weight: 700;
+                    cursor: pointer;
+                    box-shadow: 0 4px 12px rgba(227, 10, 23, 0.3);
+                ">
+                    🎯 Get Started
+                </button>
+            </div>
+        `;
+        
+        gtag('event', 'for_you_empty_state_shown');
+        return;
+    }
+    
+    // User has preferences - fetch personalized content
+    await loadPersonalizedContent();
+    
+    gtag('event', 'tab_switch', {
+        tab_name: 'foryou',
+        has_preferences: true
+    });
+}
+
+async function loadPersonalizedContent() {
+    const contentGrid = document.getElementById('contentGrid');
+    contentGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading your personalized feed...</div>';
+    
+    try {
+        // Build query parameters from preferences
+        const allCities = [
+            ...personalizationPreferences.dutchCities,
+            ...personalizationPreferences.turkishCities
+        ];
+        
+        const params = new URLSearchParams();
+        if (allCities.length > 0) {
+            params.append('cities', allCities.join(','));
+        }
+        if (personalizationPreferences.topics.length > 0) {
+            params.append('topics', personalizationPreferences.topics.join(','));
+        }
+        params.append('limit', '50');
+        
+        const url = `${API_BASE}/api/content/personalized?${params.toString()}`;
+        console.log('Fetching personalized content:', url);
+        
+        const response = await fetch(url, { mode: 'cors' });
+        if (!response.ok) throw new Error('Failed to fetch personalized content');
+        
+        const data = await response.json();
+        const personalizedArticles = data.items || [];
+        
+        console.log(`Loaded ${personalizedArticles.length} personalized articles`);
+        
+        if (personalizedArticles.length === 0) {
+            contentGrid.innerHTML = `
+                <div class="empty-state">
+                    <div style="font-size: 60px; margin-bottom: 20px;">🔍</div>
+                    <h2 style="font-size: 24px; margin-bottom: 15px; color: #333;">No Articles Found</h2>
+                    <p style="font-size: 16px; color: #666; margin-bottom: 20px;">
+                        No articles match your current preferences.
+                    </p>
+                    <p style="font-size: 14px; color: #999; margin-bottom: 30px;">
+                        Try adding more cities or topics, or check back later for new content.
+                    </p>
+                    <button onclick="openPersonalizationModal()" style="
+                        padding: 12px 28px;
+                        background: #E30A17;
+                        color: white;
+                        border: none;
+                        border-radius: 20px;
+                        font-size: 15px;
+                        font-weight: 600;
+                        cursor: pointer;
+                    ">
+                        ✏️ Edit Preferences
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        // Display personalized articles
+        filteredArticles = personalizedArticles;
+        
+        contentGrid.innerHTML = personalizedArticles.map((article, index) => {
+            const displayTitle = translationsEnabled && article.translated_title 
+                ? article.translated_title 
+                : article.title;
+            
+            const displaySummary = translationsEnabled && article.translated_summary 
+                ? article.translated_summary 
+                : article.summary;
+
+            const displayLanguage = translationsEnabled && article.translated_language
+                ? article.translated_language
+                : article.language;
+
+            const languageBadge = displayLanguage === 'nl' 
+                ? '<span class="badge badge-nl">NL</span>' 
+                : '<span class="badge badge-tr">TR</span>';
+
+            const translatedBadge = translationsEnabled && article.translated_title
+                ? '<span class="badge badge-translated">Translated</span>'
+                : '';
+
+            const categoryTags = article.category_tags && article.category_tags.length > 0
+                ? `<div class="article-tags">
+                    ${article.category_tags.map(tag => 
+                        `<span class="tag-chip">${tag}</span>`
+                    ).join('')}
+                   </div>`
+                : '';
+
+            const locationTags = article.location_tags && article.location_tags.length > 0
+                ? `<div class="location-tags">
+                    ${article.location_tags.map(loc => 
+                        `<span class="location-badge">📍 ${loc}</span>`
+                    ).join('')}
+                   </div>`
+                : '';
+
+            const date = new Date(article.published_at).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+
+            return `
+                <div class="article-card">
+                    <div class="article-content" onclick="openArticleByIndex(${index})">
+                        <div class="article-header">
+                            <div class="article-badges">
+                                ${languageBadge}
+                                ${translatedBadge}
+                            </div>
+                        </div>
+                        <div class="article-title">${displayTitle}</div>
+                        <div class="article-summary">${displaySummary}</div>
+                        ${categoryTags}
+                        ${locationTags}
+                        <div class="article-meta">
+                            <span class="article-source">${article.source?.name || 'Unknown'}</span>
+                            <span>${date}</span>
+                        </div>
+                    </div>
+                    ${createReactionsBar(article.id)}
+                </div>
+            `;
+        }).join('');
+        
+        // Load reactions for personalized articles
+        for (const article of personalizedArticles) {
+            await loadReactionsForArticle(article.id);
+        }
+        
+    } catch (error) {
+        console.error('Error loading personalized content:', error);
+        contentGrid.innerHTML = `
+            <div class="error">
+                <p>Unable to load personalized content</p>
+                <p style="font-size: 14px; margin-top: 10px;">Please try again or adjust your preferences.</p>
+                <button onclick="switchToMainFeed()" style="
+                    margin-top: 20px;
+                    padding: 10px 24px;
+                    background: #E30A17;
+                    color: white;
+                    border: none;
+                    border-radius: 20px;
+                    cursor: pointer;
+                ">
+                    Back to Main Feed
+                </button>
+            </div>
+        `;
+    }
+}
+
+// ============================================
+// FOOTER NAVIGATION
+// ============================================
+
+function switchToMainFeed() {
+    // Update nav button states
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.tab === 'main') {
+            btn.classList.add('active');
+        }
+    });
+    
+    // Reload main content
+    displayArticles();
+    
+    console.log('Switched to Main feed');
+    
+    gtag('event', 'tab_switch', {
+        tab_name: 'main'
+    });
+}
+
+// ============================================
 // INITIALIZATION
 // ============================================
 
@@ -603,12 +1150,35 @@ loadContent();
 // Auto-refresh every 5 minutes
 setInterval(loadContent, 300000);
 
-// Close modal when clicking ESC key
+// Close modals when clicking ESC key
 document.addEventListener('keydown', function(event) {
     if (event.key === 'Escape') {
-        const modal = document.getElementById('filterModal');
-        if (modal.classList.contains('active')) {
+        const filterModal = document.getElementById('filterModal');
+        const personalizationModal = document.getElementById('personalizationModal');
+        
+        if (filterModal.classList.contains('active')) {
             closeFiltersModal();
+        }
+        if (personalizationModal.classList.contains('active')) {
+            closePersonalizationModal();
         }
     }
 });
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', function(event) {
+    const dutchSearch = document.getElementById('dutchCitySearch');
+    const turkishSearch = document.getElementById('turkishCitySearch');
+    const dutchDropdown = document.getElementById('dutchCityDropdown');
+    const turkishDropdown = document.getElementById('turkishCityDropdown');
+    
+    if (dutchSearch && !dutchSearch.contains(event.target) && !dutchDropdown.contains(event.target)) {
+        hideDutchDropdown();
+    }
+    
+    if (turkishSearch && !turkishSearch.contains(event.target) && !turkishDropdown.contains(event.target)) {
+        hideTurkishDropdown();
+    }
+});
+
+console.log('✅ Diaspora app initialized with personalization');

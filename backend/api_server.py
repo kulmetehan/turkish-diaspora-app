@@ -29,19 +29,19 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 app = FastAPI(
     title="Diaspora App API",
     description="API for serving Turkish diaspora content",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",      # Local development frontend
-        "http://localhost:8000",      # Backend itself
-        "http://127.0.0.1:3000",      # Alternative localhost
-        "http://127.0.0.1:8000",      # Alternative localhost
-        "https://kulmetehan.github.io",  # GitHub Pages
-        "https://*.onrender.com"      # Render deployment
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
+        "https://kulmetehan.github.io",
+        "https://*.onrender.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -66,6 +66,222 @@ async def serve_frontend():
     return FileResponse(html_path)
 
 
+# ============================================
+# MAIN FEED ENDPOINT - National Headlines
+# ============================================
+
+@app.get("/api/content/main")
+def get_main_feed(
+    limit: int = Query(default=50, ge=1, le=100),
+    language: Optional[str] = Query(default=None, pattern="^(nl|tr)$")
+):
+    """
+    Get MAIN feed - national headlines from major cities
+    This shows general news from major population centers
+    
+    Parameters:
+    - limit: Number of items to return (1-100, default 50)
+    - language: Filter by language ('nl' or 'tr')
+    
+    Returns:
+    - List of content items from major cities
+    """
+    try:
+        # Major cities that represent "national headlines"
+        major_dutch_cities = ['Amsterdam', 'Rotterdam', 'Den Haag', 'Utrecht']
+        major_turkish_cities = ['İstanbul', 'Ankara', 'İzmir', 'Konya']
+        major_cities = major_dutch_cities + major_turkish_cities
+        
+        # Build query
+        query = supabase.table('content_items').select('*')
+        
+        # Filter by language if specified
+        if language:
+            query = query.eq('original_language', language)
+        
+        # Get more articles than needed so we can filter by location
+        query = query.order('published_at', desc=True).limit(limit * 3)
+        
+        response = query.execute()
+        
+        if not response.data:
+            return {"success": True, "items": [], "count": 0}
+        
+        # Get source information
+        source_ids = list(set([item['source_id'] for item in response.data if item.get('source_id')]))
+        sources = {}
+        
+        if source_ids:
+            sources_response = supabase.table('sources').select('*').in_('id', source_ids).execute()
+            sources = {s['id']: s for s in sources_response.data}
+        
+        # Filter for main feed: articles from major cities OR no specific location
+        main_articles = []
+        for item in response.data:
+            location_tags = item.get('location_tags', [])
+            
+            # Include if: no location tags OR from major city
+            if not location_tags or any(city in location_tags for city in major_cities):
+                source = sources.get(item.get('source_id'), {})
+                
+                formatted_item = {
+                    "id": item['id'],
+                    "title": item['title'],
+                    "summary": item.get('summary') or "No summary available",
+                    "language": item['original_language'],
+                    "url": item['url'],
+                    "published_at": item['published_at'],
+                    "content_type": item['content_type'],
+                    "translated_title": item.get('translated_title'),
+                    "translated_summary": item.get('translated_summary'),
+                    "translated_language": item.get('translated_language'),
+                    "category_tags": item.get('category_tags', []),
+                    "location_tags": item.get('location_tags', []),
+                    "relevance_score": item.get('relevance_score'),
+                    "source": {
+                        "name": source.get('name', 'Unknown'),
+                        "country": source.get('country', 'Unknown')
+                    }
+                }
+                main_articles.append(formatted_item)
+                
+                if len(main_articles) >= limit:
+                    break
+        
+        return {
+            "success": True,
+            "count": len(main_articles),
+            "items": main_articles
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching main feed: {str(e)}"
+        )
+
+
+# ============================================
+# PERSONALIZED FEED ENDPOINT - For You
+# ============================================
+
+@app.get("/api/content/personalized")
+def get_personalized_feed(
+    cities: Optional[str] = Query(default=None),  # Comma-separated city names
+    topics: Optional[str] = Query(default=None),  # Comma-separated topics
+    limit: int = Query(default=50, ge=1, le=100)
+):
+    """
+    Get PERSONALIZED feed based on user's selected cities and topics
+    
+    Parameters:
+    - cities: Comma-separated city names (e.g., "Vlaardingen,Bayburt,Istanbul")
+    - topics: Comma-separated topics (e.g., "Politics,Sports,Economy")
+    - limit: Number of items to return (1-100, default 50)
+    
+    Returns:
+    - List of content items matching user preferences
+    """
+    try:
+        # Parse comma-separated strings into lists
+        city_list = [c.strip() for c in cities.split(',')] if cities else []
+        topic_list = [t.strip() for t in topics.split(',')] if topics else []
+        
+        if not city_list and not topic_list:
+            return {
+                "success": True,
+                "items": [],
+                "count": 0,
+                "message": "No preferences specified"
+            }
+        
+        # Build query - get extra articles to filter
+        query = supabase.table('content_items').select('*')
+        query = query.order('published_at', desc=True).limit(limit * 3)
+        
+        response = query.execute()
+        
+        if not response.data:
+            return {"success": True, "items": [], "count": 0}
+        
+        # Get source information
+        source_ids = list(set([item['source_id'] for item in response.data if item.get('source_id')]))
+        sources = {}
+        
+        if source_ids:
+            sources_response = supabase.table('sources').select('*').in_('id', source_ids).execute()
+            sources = {s['id']: s for s in sources_response.data}
+        
+        # Filter articles based on user preferences
+        personalized_articles = []
+        
+        for item in response.data:
+            location_tags = item.get('location_tags', [])
+            category_tags = item.get('category_tags', [])
+            
+            # Check if article matches cities (OR logic - any city match)
+            matches_city = False
+            if city_list:
+                matches_city = any(city in location_tags for city in city_list)
+            else:
+                matches_city = True  # If no city filter, it matches
+            
+            # Check if article matches topics (OR logic - any topic match)
+            matches_topic = False
+            if topic_list:
+                matches_topic = any(topic in category_tags for topic in topic_list)
+            else:
+                matches_topic = True  # If no topic filter, it matches
+            
+            # Include article if it matches BOTH criteria (city AND topic)
+            if matches_city and matches_topic:
+                source = sources.get(item.get('source_id'), {})
+                
+                formatted_item = {
+                    "id": item['id'],
+                    "title": item['title'],
+                    "summary": item.get('summary') or "No summary available",
+                    "language": item['original_language'],
+                    "url": item['url'],
+                    "published_at": item['published_at'],
+                    "content_type": item['content_type'],
+                    "translated_title": item.get('translated_title'),
+                    "translated_summary": item.get('translated_summary'),
+                    "translated_language": item.get('translated_language'),
+                    "category_tags": item.get('category_tags', []),
+                    "location_tags": item.get('location_tags', []),
+                    "relevance_score": item.get('relevance_score'),
+                    "source": {
+                        "name": source.get('name', 'Unknown'),
+                        "country": source.get('country', 'Unknown')
+                    }
+                }
+                personalized_articles.append(formatted_item)
+                
+                if len(personalized_articles) >= limit:
+                    break
+        
+        return {
+            "success": True,
+            "count": len(personalized_articles),
+            "items": personalized_articles,
+            "filters_applied": {
+                "cities": city_list,
+                "topics": topic_list
+            }
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching personalized feed: {str(e)}"
+        )
+
+
+# ============================================
+# LEGACY ENDPOINT - Backwards Compatibility
+# ============================================
+
 @app.get("/api/content/latest")
 def get_latest_content(
     limit: int = Query(default=20, ge=1, le=100),
@@ -74,7 +290,7 @@ def get_latest_content(
     location: Optional[str] = Query(default=None)
 ):
     """
-    Get latest content items from database
+    Get latest content items from database (legacy endpoint for backwards compatibility)
     
     Parameters:
     - limit: Number of items to return (1-100, default 20)
@@ -86,10 +302,8 @@ def get_latest_content(
     - List of content items with title, summary, source, date, url, translations
     """
     try:
-        # Start building query - fetch content and source separately
         query = supabase.table('content_items').select('*')
         
-        # Apply filters if provided
         if language:
             query = query.eq('original_language', language)
         
@@ -97,16 +311,12 @@ def get_latest_content(
             query = query.eq('content_type', content_type)
         
         if location:
-            # Filter for articles that mention this city
             query = query.contains('location_tags', [location])
         
-        # Order by published date and apply limit
         query = query.order('published_at', desc=True).limit(limit)
         
-        # Execute query
         response = query.execute()
         
-        # Get source information separately
         source_ids = list(set([item['source_id'] for item in response.data if item.get('source_id')]))
         sources = {}
         
@@ -114,7 +324,6 @@ def get_latest_content(
             sources_response = supabase.table('sources').select('*').in_('id', source_ids).execute()
             sources = {s['id']: s for s in sources_response.data}
         
-        # Format response
         items = []
         for item in response.data:
             source = sources.get(item.get('source_id'), {})
@@ -132,6 +341,7 @@ def get_latest_content(
                 "translated_language": item.get('translated_language'),
                 "category_tags": item.get('category_tags', []),
                 "location_tags": item.get('location_tags', []),
+                "relevance_score": item.get('relevance_score'),
                 "source": {
                     "name": source.get('name', 'Unknown'),
                     "country": source.get('country', 'Unknown')
@@ -154,27 +364,15 @@ def get_latest_content(
 
 @app.get("/api/content/{content_id}")
 def get_content_by_id(content_id: str):
-    """
-    Get a specific content item by ID
-    
-    Parameters:
-    - content_id: UUID of the content item
-    
-    Returns:
-    - Single content item with full details
-    """
+    """Get a specific content item by ID"""
     try:
         response = supabase.table('content_items').select('*').eq('id', content_id).execute()
         
         if not response.data or len(response.data) == 0:
-            raise HTTPException(
-                status_code=404,
-                detail="Content item not found"
-            )
+            raise HTTPException(status_code=404, detail="Content item not found")
         
         item = response.data[0]
         
-        # Get source separately
         source = {}
         if item.get('source_id'):
             source_response = supabase.table('sources').select('*').eq('id', item['source_id']).execute()
@@ -192,11 +390,12 @@ def get_content_by_id(content_id: str):
                 "image_url": item.get('image_url'),
                 "published_at": item['published_at'],
                 "content_type": item['content_type'],
-                "regions": item.get('region_tags') or [],
                 "categories": item.get('category_tags') or [],
+                "locations": item.get('location_tags') or [],
                 "translated_title": item.get('translated_title'),
                 "translated_summary": item.get('translated_summary'),
                 "translated_language": item.get('translated_language'),
+                "relevance_score": item.get('relevance_score'),
                 "source": {
                     "name": source.get('name', 'Unknown'),
                     "language": source.get('language', 'Unknown'),
@@ -208,24 +407,16 @@ def get_content_by_id(content_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching content: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error fetching content: {str(e)}")
 
 
 @app.get("/api/stats")
 def get_stats():
     """Get database statistics"""
     try:
-        # Count total content items
         content_response = supabase.table('content_items').select('id', count='exact').execute()
-        
-        # Count by language
         nl_response = supabase.table('content_items').select('id', count='exact').eq('original_language', 'nl').execute()
         tr_response = supabase.table('content_items').select('id', count='exact').eq('original_language', 'tr').execute()
-        
-        # Count sources
         sources_response = supabase.table('sources').select('id', count='exact').execute()
         
         return {
@@ -239,38 +430,21 @@ def get_stats():
         }
         
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching stats: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error fetching stats: {str(e)}")
 
 
 # ============================================
-# TDA-20: EMOJI REACTIONS ENDPOINTS
+# EMOJI REACTIONS ENDPOINTS
 # ============================================
 
 @app.post("/api/reactions/add")
 async def add_reaction(content_id: str = Query(...), user_id: str = Query(...), emoji: str = Query(...)):
-    """
-    Add or update a user's reaction to an article.
-    
-    Parameters:
-    - content_id: UUID of the article
-    - user_id: Temporary user identifier (from localStorage)
-    - emoji: One of: 👍, ❤️, 😂, 🔥, 👏
-    
-    Returns:
-    - success: boolean
-    - action: 'added', 'updated', or 'removed'
-    - counts: updated reaction counts for this article
-    """
+    """Add or update a user's reaction to an article"""
     try:
-        # Validate emoji
         valid_emojis = ['👍', '❤️', '😂', '🔥', '👏']
         if emoji not in valid_emojis:
             return {"success": False, "error": "Invalid emoji"}, 400
         
-        # Check if user already reacted to this article
         existing = supabase.table("reactions")\
             .select("*")\
             .eq("content_item_id", content_id)\
@@ -280,9 +454,7 @@ async def add_reaction(content_id: str = Query(...), user_id: str = Query(...), 
         action = ""
         
         if existing.data and len(existing.data) > 0:
-            # User already has a reaction
             if existing.data[0]['reaction_type'] == emoji:
-                # Same emoji clicked - remove reaction (toggle off)
                 supabase.table("reactions")\
                     .delete()\
                     .eq("content_item_id", content_id)\
@@ -290,7 +462,6 @@ async def add_reaction(content_id: str = Query(...), user_id: str = Query(...), 
                     .execute()
                 action = "removed"
             else:
-                # Different emoji - update
                 supabase.table("reactions")\
                     .update({"reaction_type": emoji})\
                     .eq("content_item_id", content_id)\
@@ -298,7 +469,6 @@ async def add_reaction(content_id: str = Query(...), user_id: str = Query(...), 
                     .execute()
                 action = "updated"
         else:
-            # Insert new reaction
             supabase.table("reactions").insert({
                 "content_item_id": content_id,
                 "user_id": user_id,
@@ -306,7 +476,6 @@ async def add_reaction(content_id: str = Query(...), user_id: str = Query(...), 
             }).execute()
             action = "added"
         
-        # Get updated counts
         counts = get_reaction_counts_sync(content_id)
         
         return {
@@ -322,15 +491,7 @@ async def add_reaction(content_id: str = Query(...), user_id: str = Query(...), 
 
 @app.get("/api/reactions/counts/{content_id}")
 async def get_reaction_counts(content_id: str):
-    """
-    Get reaction counts for a specific article.
-    
-    Parameters:
-    - content_id: UUID of the article
-    
-    Returns:
-    - Object with emoji counts: {'👍': 5, '❤️': 3, ...}
-    """
+    """Get reaction counts for a specific article"""
     try:
         counts = get_reaction_counts_sync(content_id)
         return {"success": True, "counts": counts}
@@ -342,16 +503,7 @@ async def get_reaction_counts(content_id: str):
 
 @app.get("/api/reactions/user/{content_id}/{user_id}")
 async def get_user_reaction(content_id: str, user_id: str):
-    """
-    Get a specific user's reaction to an article.
-    
-    Parameters:
-    - content_id: UUID of the article
-    - user_id: Temporary user identifier
-    
-    Returns:
-    - emoji: The emoji they selected, or null if no reaction
-    """
+    """Get a specific user's reaction to an article"""
     try:
         result = supabase.table("reactions")\
             .select("reaction_type")\
@@ -370,18 +522,13 @@ async def get_user_reaction(content_id: str, user_id: str):
 
 
 def get_reaction_counts_sync(content_id: str):
-    """
-    Helper function to get reaction counts (synchronous).
-    Used by other endpoints to avoid code duplication.
-    """
+    """Helper function to get reaction counts"""
     try:
-        # Get all reactions for this article
         result = supabase.table("reactions")\
             .select("reaction_type")\
             .eq("content_item_id", content_id)\
             .execute()
         
-        # Count emojis
         counts = {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0}
         for reaction in result.data:
             emoji = reaction['reaction_type']
