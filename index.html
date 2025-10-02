@@ -110,6 +110,20 @@
                         <!-- Dynamically populated by JavaScript -->
                     </div>
                 </div>
+
+                <!-- ADDED: Translation Toggle Section -->
+                <div class="filter-section translation-toggle-section">
+                    <h3>🌐 Translations</h3>
+                    <div class="translation-toggle-container">
+                        <label class="translation-label" for="translationToggle">
+                            <span>Show Translated Articles</span>
+                        </label>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="translationToggle" onchange="toggleTranslations()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <div class="filter-modal-footer">
@@ -122,12 +136,6 @@
     <div class="stats-bar" id="statsBar"></div>
 
     <div class="content-grid" id="contentGrid"></div>
-
-    <div class="translation-toggle">
-        <button class="toggle-btn" id="translationToggle" onclick="toggleTranslations()">
-            Translations: OFF
-        </button>
-    </div>
 
     <!-- Link to external JavaScript -->
     <script src="web/app.js"></script>

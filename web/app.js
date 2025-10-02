@@ -64,6 +64,9 @@ function syncModalCheckboxes() {
         const location = checkbox.dataset.location;
         checkbox.checked = selectedLocations.has(location);
     });
+    
+    // Sync translation toggle
+    updateTranslationButton();
 }
 
 function toggleTopicCheckbox(topic) {
@@ -166,13 +169,9 @@ function saveTranslationPreference(value) {
 }
 
 function updateTranslationButton() {
-    const btn = document.getElementById('translationToggle');
-    if (translationsEnabled) {
-        btn.textContent = 'Translations: ON';
-        btn.classList.add('active');
-    } else {
-        btn.textContent = 'Translations: OFF';
-        btn.classList.remove('active');
+    const toggle = document.getElementById('translationToggle');
+    if (toggle) {
+        toggle.checked = translationsEnabled;
     }
 }
 
@@ -225,7 +224,7 @@ function buildLocationCheckboxes() {
 }
 
 // ============================================
-// CONTENT LOADING
+// CONTENT LOADING - FIXED
 // ============================================
 
 async function loadContent() {
@@ -241,13 +240,15 @@ async function loadContent() {
         const data = await response.json();
         allArticles = data.items || [];
         
-        // TDA-20: Load reactions for all articles
-        await loadAllReactions();
-        
+        // FIXED: Display articles immediately, load reactions in background
         buildLocationCheckboxes();
         applySavedLanguagePreference();
-        updateFilterBadge(); // Initialize badge count
+        updateFilterBadge();
         await loadStats();
+        
+        // Load reactions in background (non-blocking)
+        loadAllReactions();
+        
     } catch (error) {
         console.error('Error loading content:', error);
         contentGrid.innerHTML = `
@@ -308,6 +309,9 @@ async function loadReactionsForArticle(articleId) {
             counts: countsData.counts || {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
             userReaction: userData.emoji || null
         };
+        
+        // Update UI after loading each article's reactions
+        updateReactionUI(articleId);
     } catch (error) {
         console.error(`Error loading reactions for article ${articleId}:`, error);
         reactionData[articleId] = {
