@@ -4,422 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Diaspora - Turkish Community App</title>
+    
     <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-NBYLFXYTWX"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-NBYLFXYTWX');
-</script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
-            color: #333;
-        }
-
-        .header {
-            background: white;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-content {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .app-title {
-            font-size: 28px;
-            font-weight: bold;
-            color: #E30A17;
-            margin-bottom: 5px;
-        }
-
-        .app-tagline {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 20px;
-        }
-
-        .filters-container {
-            background: white;
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .filters-section {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        .filter-group {
-            margin-bottom: 15px;
-        }
-
-        .filter-label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #666;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-            display: block;
-        }
-
-        .filter-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .filter-btn {
-            padding: 8px 16px;
-            border: 2px solid #ddd;
-            background: white;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .filter-btn:hover {
-            border-color: #E30A17;
-            background: #fff5f5;
-        }
-
-        .filter-btn.active {
-            background: #E30A17;
-            color: white;
-            border-color: #E30A17;
-        }
-
-        .filter-btn.active:hover {
-            background: #c00916;
-            border-color: #c00916;
-        }
-
-        .clear-filters-btn {
-            padding: 8px 16px;
-            border: 2px solid #666;
-            background: white;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 14px;
-            color: #666;
-            transition: all 0.2s;
-        }
-
-        .clear-filters-btn:hover {
-            background: #666;
-            color: white;
-        }
-
-        .stats-bar {
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 0 20px;
-            display: flex;
-            gap: 20px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        .stat-item {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .content-grid {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
-        }
-
-        .article-card {
-            background: white;
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: transform 0.2s, box-shadow 0.2s;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .article-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-        }
-
-        .article-content {
-            flex: 1;
-            cursor: pointer;
-        }
-
-        .article-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-
-        .article-badges {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-        }
-
-        .badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .badge-nl {
-            background: #FF9800;
-            color: white;
-        }
-
-        .badge-tr {
-            background: #E30A17;
-            color: white;
-        }
-
-        .badge-translated {
-            background: #4CAF50;
-            color: white;
-        }
-
-        .article-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 10px;
-            line-height: 1.4;
-        }
-
-        .article-summary {
-            font-size: 14px;
-            color: #666;
-            line-height: 1.6;
-            margin-bottom: 12px;
-        }
-
-        .article-meta {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 12px;
-            color: #999;
-            padding-top: 12px;
-            border-top: 1px solid #eee;
-        }
-
-        .article-source {
-            font-weight: 600;
-            color: #666;
-        }
-
-        .article-tags {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-        }
-
-        .tag-chip {
-            padding: 3px 8px;
-            background: #f0f0f0;
-            border-radius: 12px;
-            font-size: 11px;
-            color: #666;
-        }
-
-        .location-tags {
-            display: flex;
-            gap: 6px;
-            flex-wrap: wrap;
-            margin-top: 8px;
-        }
-
-        .location-badge {
-            padding: 3px 8px;
-            background: #4CAF50;
-            color: white;
-            border-radius: 12px;
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            gap: 3px;
-        }
-
-        /* TDA-20: EMOJI REACTIONS STYLES */
-        .reactions-bar {
-            display: flex;
-            gap: 8px;
-            padding-top: 12px;
-            margin-top: 12px;
-            border-top: 1px solid #eee;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .reaction-btn {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            padding: 6px 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 20px;
-            background: white;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 16px;
-            user-select: none;
-        }
-
-        .reaction-btn:hover {
-            border-color: #E30A17;
-            background: #fff5f5;
-            transform: scale(1.05);
-        }
-
-        .reaction-btn.selected {
-            background: #E30A17;
-            border-color: #E30A17;
-            transform: scale(1.1);
-        }
-
-        .reaction-btn.selected:hover {
-            background: #c00916;
-            border-color: #c00916;
-        }
-
-        .reaction-count {
-            font-size: 12px;
-            font-weight: 600;
-            color: #666;
-            min-width: 20px;
-            text-align: center;
-        }
-
-        .reaction-btn.selected .reaction-count {
-            color: white;
-        }
-
-        .reaction-emoji {
-            font-size: 18px;
-            line-height: 1;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 60px 20px;
-            font-size: 18px;
-            color: #666;
-        }
-
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #E30A17;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .error {
-            text-align: center;
-            padding: 60px 20px;
-            color: #E30A17;
-            font-size: 16px;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #999;
-            font-size: 16px;
-        }
-
-        .translation-toggle {
-            position: fixed;
-            bottom: 30px;
-            right: 30px;
-            z-index: 50;
-        }
-
-        .toggle-btn {
-            padding: 12px 24px;
-            background: #E30A17;
-            color: white;
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(227, 10, 23, 0.3);
-            transition: all 0.3s;
-        }
-
-        .toggle-btn:hover {
-            background: #c00916;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(227, 10, 23, 0.4);
-        }
-
-        .toggle-btn.active {
-            background: #4CAF50;
-        }
-
-        .toggle-btn.active:hover {
-            background: #45a049;
-        }
-
-        @media (max-width: 768px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .stats-bar {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .reactions-bar {
-                gap: 6px;
-            }
-
-            .reaction-btn {
-                padding: 5px 8px;
-                font-size: 14px;
-            }
-        }
-    </style>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-NBYLFXYTWX"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-NBYLFXYTWX');
+    </script>
+    
+    <!-- Link to external CSS -->
+    <link rel="stylesheet" href="web/style.css">
 </head>
 <body>
     <div class="header">
@@ -429,39 +25,96 @@
         </div>
     </div>
 
+    <!-- REDESIGNED: Compact single-row filter bar -->
     <div class="filters-container">
         <div class="filters-section">
-            <div class="filter-group">
-                <span class="filter-label">Language</span>
-                <div class="filter-buttons">
+            <div class="compact-filters">
+                <!-- Language filters stay visible -->
+                <div class="language-group">
                     <button class="filter-btn language-filter active" data-language="all" onclick="filterByLanguage('all')">All</button>
                     <button class="filter-btn language-filter" data-language="nl" onclick="filterByLanguage('nl')">Dutch</button>
                     <button class="filter-btn language-filter" data-language="tr" onclick="filterByLanguage('tr')">Turkish</button>
                 </div>
+                
+                <!-- Topics and Locations now hidden behind this button -->
+                <button class="advanced-filters-btn" onclick="openFiltersModal()">
+                    <span class="filter-icon">🎯</span>
+                    <span>Filters</span>
+                    <span class="filter-badge" id="filterBadge">0</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Filter Modal for Topics and Locations -->
+    <div class="filter-modal" id="filterModal">
+        <div class="filter-modal-overlay" onclick="closeFiltersModal()"></div>
+        <div class="filter-modal-content">
+            <div class="filter-modal-header">
+                <h2>Customize Your Feed</h2>
+                <button class="modal-close-btn" onclick="closeFiltersModal()">✕</button>
             </div>
             
-            <div class="filter-group">
-                <span class="filter-label">Topics</span>
-                <div class="filter-buttons">
-                    <button class="filter-btn topic-filter" data-topic="Politics" onclick="toggleTopicFilter('Politics')">Politics</button>
-                    <button class="filter-btn topic-filter" data-topic="Economy" onclick="toggleTopicFilter('Economy')">Economy</button>
-                    <button class="filter-btn topic-filter" data-topic="Sports" onclick="toggleTopicFilter('Sports')">Sports</button>
-                    <button class="filter-btn topic-filter" data-topic="Culture" onclick="toggleTopicFilter('Culture')">Culture</button>
-                    <button class="filter-btn topic-filter" data-topic="Technology" onclick="toggleTopicFilter('Technology')">Technology</button>
-                    <button class="filter-btn topic-filter" data-topic="Health" onclick="toggleTopicFilter('Health')">Health</button>
-                    <button class="filter-btn topic-filter" data-topic="Crime" onclick="toggleTopicFilter('Crime')">Crime</button>
-                    <button class="filter-btn topic-filter" data-topic="Weather" onclick="toggleTopicFilter('Weather')">Weather</button>
-                    <button class="filter-btn topic-filter" data-topic="Education" onclick="toggleTopicFilter('Education')">Education</button>
-                    <button class="filter-btn topic-filter" data-topic="Immigration" onclick="toggleTopicFilter('Immigration')">Immigration</button>
-                    <button class="clear-filters-btn" onclick="clearAllTopicFilters()">Clear Topics</button>
+            <div class="filter-modal-body">
+                <!-- Topics Section -->
+                <div class="filter-section">
+                    <h3>📰 Topics</h3>
+                    <div class="filter-checkboxes">
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Politics" onchange="toggleTopicCheckbox('Politics')">
+                            <span>Politics</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Economy" onchange="toggleTopicCheckbox('Economy')">
+                            <span>Economy</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Sports" onchange="toggleTopicCheckbox('Sports')">
+                            <span>Sports</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Culture" onchange="toggleTopicCheckbox('Culture')">
+                            <span>Culture</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Technology" onchange="toggleTopicCheckbox('Technology')">
+                            <span>Technology</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Health" onchange="toggleTopicCheckbox('Health')">
+                            <span>Health</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Crime" onchange="toggleTopicCheckbox('Crime')">
+                            <span>Crime</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Weather" onchange="toggleTopicCheckbox('Weather')">
+                            <span>Weather</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Education" onchange="toggleTopicCheckbox('Education')">
+                            <span>Education</span>
+                        </label>
+                        <label class="checkbox-item">
+                            <input type="checkbox" data-topic="Immigration" onchange="toggleTopicCheckbox('Immigration')">
+                            <span>Immigration</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Locations Section -->
+                <div class="filter-section">
+                    <h3>📍 Locations</h3>
+                    <div class="filter-checkboxes" id="locationCheckboxesContainer">
+                        <!-- Dynamically populated by JavaScript -->
+                    </div>
                 </div>
             </div>
 
-            <div class="filter-group">
-                <span class="filter-label">Locations</span>
-                <div class="filter-buttons" id="locationFiltersContainer">
-                    <span style="color: #999; font-size: 13px;">Loading locations...</span>
-                </div>
+            <div class="filter-modal-footer">
+                <button class="clear-all-btn" onclick="clearAllFiltersInModal()">Clear All</button>
+                <button class="apply-filters-btn" onclick="applyFiltersAndClose()">Apply Filters</button>
             </div>
         </div>
     </div>
@@ -476,572 +129,7 @@
         </button>
     </div>
 
-    <script>
-        const API_BASE = window.location.hostname === 'localhost' || 
-                 window.location.hostname === '127.0.0.1' ||
-                 window.location.protocol === 'file:'
-    ? 'http://127.0.0.1:8000'
-    : 'https://diaspora-backend-api.onrender.com';
-        
-        let allArticles = [];
-        let filteredArticles = [];
-        let currentLanguage = 'all';
-        let selectedTopics = new Set();
-        let selectedLocations = new Set();
-        let translationsEnabled = false;
-
-        // TDA-20: User ID for reactions (stored in browser)
-        let userId = localStorage.getItem('diaspora_user_id');
-        if (!userId) {
-            // Generate a unique user ID if not exists
-            userId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
-            localStorage.setItem('diaspora_user_id', userId);
-        }
-
-        // TDA-20: Store reaction data for optimistic UI
-        let reactionData = {}; // { articleId: { counts: {...}, userReaction: '👍' } }
-
-        // ============================================
-        // TDA-18: localStorage for language preference
-        // ============================================
-        
-        function saveLanguagePreference(language) {
-            localStorage.setItem('preferredLanguage', language);
-        }
-
-        function loadLanguagePreference() {
-            const saved = localStorage.getItem('preferredLanguage');
-            return saved || 'all';
-        }
-
-        function applySavedLanguagePreference() {
-            const savedLanguage = loadLanguagePreference();
-            currentLanguage = savedLanguage;
-            
-            document.querySelectorAll('.language-filter').forEach(btn => {
-                if (btn.dataset.language === savedLanguage) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-            
-            displayArticles();
-        }
-        
-        function loadPreferences() {
-            const savedTranslation = localStorage.getItem('translationsEnabled');
-            if (savedTranslation === 'true') {
-                translationsEnabled = true;
-                updateTranslationButton();
-            }
-        }
-
-        function saveTranslationPreference(value) {
-            localStorage.setItem('translationsEnabled', value);
-        }
-
-        function updateTranslationButton() {
-            const btn = document.getElementById('translationToggle');
-            if (translationsEnabled) {
-                btn.textContent = 'Translations: ON';
-                btn.classList.add('active');
-            } else {
-                btn.textContent = 'Translations: OFF';
-                btn.classList.remove('active');
-            }
-        }
-
-        function buildLocationFilters() {
-            const allLocations = new Set();
-            
-            allArticles.forEach(article => {
-                if (article.location_tags && Array.isArray(article.location_tags)) {
-                    article.location_tags.forEach(loc => {
-                        if (loc && loc.trim()) {
-                            allLocations.add(loc.trim());
-                        }
-                    });
-                }
-            });
-
-            const sortedLocations = Array.from(allLocations).sort();
-            const container = document.getElementById('locationFiltersContainer');
-            container.innerHTML = '';
-
-            if (sortedLocations.length === 0) {
-                container.innerHTML = '<span style="color: #999; font-size: 13px;">No locations detected in articles</span>';
-                return;
-            }
-
-            sortedLocations.forEach(location => {
-                const button = document.createElement('button');
-                button.className = 'filter-btn location-filter';
-                button.setAttribute('data-location', location);
-                button.textContent = location;
-                button.onclick = () => toggleLocationFilter(location);
-                
-                if (selectedLocations.has(location)) {
-                    button.classList.add('active');
-                }
-                
-                container.appendChild(button);
-            });
-
-            const clearButton = document.createElement('button');
-            clearButton.className = 'clear-filters-btn';
-            clearButton.textContent = 'Clear Locations';
-            clearButton.onclick = clearAllLocationFilters;
-            container.appendChild(clearButton);
-        }
-
-        async function loadContent() {
-            const contentGrid = document.getElementById('contentGrid');
-            contentGrid.innerHTML = '<div class="loading"><div class="spinner"></div>Loading articles...</div>';
-
-            try {
-                const response = await fetch(`${API_BASE}/api/content/latest?limit=100`, {
-                    mode: 'cors'
-                });
-                if (!response.ok) throw new Error('Failed to fetch content');
-                
-                const data = await response.json();
-                allArticles = data.items || [];
-                
-                // TDA-20: Load reactions for all articles
-                await loadAllReactions();
-                
-                buildLocationFilters();
-                applySavedLanguagePreference();
-                await loadStats();
-            } catch (error) {
-                console.error('Error loading content:', error);
-                contentGrid.innerHTML = `
-                    <div class="error">
-                        <p>Unable to load content</p>
-                        <p style="font-size: 14px; margin-top: 10px;">Make sure the backend is running at ${API_BASE}</p>
-                    </div>
-                `;
-            }
-        }
-
-        async function loadStats() {
-            try {
-                const response = await fetch(`${API_BASE}/api/stats`);
-                const data = await response.json();
-                
-                const stats = data.stats;
-                
-                const statsBar = document.getElementById('statsBar');
-                statsBar.innerHTML = `
-                    <div class="stat-item">
-                        <span>📰</span>
-                        <span>Total: ${stats.total_content || 0}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>🇳🇱</span>
-                        <span>Dutch: ${stats.dutch_content || 0}</span>
-                    </div>
-                    <div class="stat-item">
-                        <span>🇹🇷</span>
-                        <span>Turkish: ${stats.turkish_content || 0}</span>
-                    </div>
-                `;
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
-
-        // ============================================
-        // TDA-20: EMOJI REACTIONS FUNCTIONS
-        // ============================================
-
-        async function loadAllReactions() {
-            // Load reaction counts and user reactions for all visible articles
-            for (const article of allArticles) {
-                await loadReactionsForArticle(article.id);
-            }
-        }
-
-        async function loadReactionsForArticle(articleId) {
-            try {
-                // Load counts
-                const countsResponse = await fetch(`${API_BASE}/api/reactions/counts/${articleId}`);
-                const countsData = await countsResponse.json();
-                
-                // Load user's reaction
-                const userResponse = await fetch(`${API_BASE}/api/reactions/user/${articleId}/${userId}`);
-                const userData = await userResponse.json();
-                
-                reactionData[articleId] = {
-                    counts: countsData.counts || {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
-                    userReaction: userData.emoji || null
-                };
-            } catch (error) {
-                console.error(`Error loading reactions for article ${articleId}:`, error);
-                reactionData[articleId] = {
-                    counts: {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
-                    userReaction: null
-                };
-            }
-        }
-
-        async function handleReactionClick(articleId, emoji, event) {
-            event.stopPropagation(); // Prevent article card click
-            
-            // Optimistic update (update UI immediately)
-            const oldUserReaction = reactionData[articleId]?.userReaction;
-            const oldCounts = {...(reactionData[articleId]?.counts || {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0})};
-            
-            // Update local state
-            if (!reactionData[articleId]) {
-                reactionData[articleId] = {
-                    counts: {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
-                    userReaction: null
-                };
-            }
-            
-            if (oldUserReaction === emoji) {
-                // Remove reaction
-                reactionData[articleId].userReaction = null;
-                reactionData[articleId].counts[emoji] = Math.max(0, (reactionData[articleId].counts[emoji] || 0) - 1);
-            } else {
-                // Add or change reaction
-                if (oldUserReaction) {
-                    // Decrease old emoji count
-                    reactionData[articleId].counts[oldUserReaction] = Math.max(0, (reactionData[articleId].counts[oldUserReaction] || 0) - 1);
-                }
-                // Increase new emoji count
-                reactionData[articleId].counts[emoji] = (reactionData[articleId].counts[emoji] || 0) + 1;
-                reactionData[articleId].userReaction = emoji;
-            }
-            
-            // Update UI immediately
-            updateReactionUI(articleId);
-            
-            // Track with GA4
-            gtag('event', 'reaction_click', {
-                article_id: articleId,
-                emoji: emoji,
-                action: oldUserReaction === emoji ? 'removed' : 'added'
-            });
-            
-            // Send to server
-            try {
-                const response = await fetch(
-                    `${API_BASE}/api/reactions/add?content_id=${articleId}&user_id=${userId}&emoji=${encodeURIComponent(emoji)}`,
-                    { method: 'POST' }
-                );
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Update with server counts (in case of discrepancy)
-                    reactionData[articleId].counts = data.counts;
-                    updateReactionUI(articleId);
-                } else {
-                    // Revert on error
-                    reactionData[articleId].userReaction = oldUserReaction;
-                    reactionData[articleId].counts = oldCounts;
-                    updateReactionUI(articleId);
-                    console.error('Failed to save reaction');
-                }
-            } catch (error) {
-                // Revert on error
-                reactionData[articleId].userReaction = oldUserReaction;
-                reactionData[articleId].counts = oldCounts;
-                updateReactionUI(articleId);
-                console.error('Error saving reaction:', error);
-            }
-        }
-
-        function updateReactionUI(articleId) {
-            const emojis = ['👍', '❤️', '😂', '🔥', '👏'];
-            const data = reactionData[articleId];
-            
-            if (!data) return;
-            
-            emojis.forEach(emoji => {
-                const btn = document.querySelector(`[data-article-id="${articleId}"][data-emoji="${emoji}"]`);
-                if (btn) {
-                    const count = data.counts[emoji] || 0;
-                    const isSelected = data.userReaction === emoji;
-                    
-                    // Update button state
-                    if (isSelected) {
-                        btn.classList.add('selected');
-                    } else {
-                        btn.classList.remove('selected');
-                    }
-                    
-                    // Update count
-                    const countSpan = btn.querySelector('.reaction-count');
-                    if (countSpan) {
-                        countSpan.textContent = count;
-                    }
-                }
-            });
-        }
-
-        function createReactionsBar(articleId) {
-            const emojis = ['👍', '❤️', '😂', '🔥', '👏'];
-            const data = reactionData[articleId] || {
-                counts: {'👍': 0, '❤️': 0, '😂': 0, '🔥': 0, '👏': 0},
-                userReaction: null
-            };
-            
-            const buttons = emojis.map(emoji => {
-                const count = data.counts[emoji] || 0;
-                const isSelected = data.userReaction === emoji;
-                const selectedClass = isSelected ? 'selected' : '';
-                
-                return `
-                    <button 
-                        class="reaction-btn ${selectedClass}" 
-                        data-article-id="${articleId}"
-                        data-emoji="${emoji}"
-                        onclick="handleReactionClick('${articleId}', '${emoji}', event)"
-                        title="React with ${emoji}"
-                    >
-                        <span class="reaction-emoji">${emoji}</span>
-                        <span class="reaction-count">${count}</span>
-                    </button>
-                `;
-            }).join('');
-            
-            return `<div class="reactions-bar">${buttons}</div>`;
-        }
-
-        // ============================================
-        // END TDA-20 REACTIONS CODE
-        // ============================================
-
-        function displayArticles() {
-            let filtered = [...allArticles];
-
-            if (currentLanguage !== 'all') {
-                filtered = filtered.filter(article => article.language === currentLanguage);
-            }
-
-            if (selectedTopics.size > 0) {
-                filtered = filtered.filter(article => {
-                    if (!article.category_tags || article.category_tags.length === 0) return false;
-                    return article.category_tags.some(tag => selectedTopics.has(tag));
-                });
-            }
-
-            if (selectedLocations.size > 0) {
-                filtered = filtered.filter(article => {
-                    if (!article.location_tags || article.location_tags.length === 0) return false;
-                    return article.location_tags.some(loc => selectedLocations.has(loc));
-                });
-            }
-
-            filteredArticles = filtered;
-
-            const contentGrid = document.getElementById('contentGrid');
-
-            if (filtered.length === 0) {
-                contentGrid.innerHTML = `
-                    <div class="empty-state">
-                        <p>No articles found matching your filters</p>
-                        <p style="font-size: 14px; margin-top: 10px;">Try adjusting your filters</p>
-                    </div>
-                `;
-                return;
-            }
-
-            contentGrid.innerHTML = filtered.map((article, index) => {
-                const displayTitle = translationsEnabled && article.translated_title 
-                    ? article.translated_title 
-                    : article.title;
-                
-                const displaySummary = translationsEnabled && article.translated_summary 
-                    ? article.translated_summary 
-                    : article.summary;
-
-                const displayLanguage = translationsEnabled && article.translated_language
-                    ? article.translated_language
-                    : article.language;
-
-                const languageBadge = displayLanguage === 'nl' 
-                    ? '<span class="badge badge-nl">NL</span>' 
-                    : '<span class="badge badge-tr">TR</span>';
-
-                const translatedBadge = translationsEnabled && article.translated_title
-                    ? '<span class="badge badge-translated">Translated</span>'
-                    : '';
-
-                const categoryTags = article.category_tags && article.category_tags.length > 0
-                    ? `<div class="article-tags">
-                        ${article.category_tags.map(tag => 
-                            `<span class="tag-chip">${tag}</span>`
-                        ).join('')}
-                       </div>`
-                    : '';
-
-                const locationTags = article.location_tags && article.location_tags.length > 0
-                    ? `<div class="location-tags">
-                        ${article.location_tags.map(loc => 
-                            `<span class="location-badge">📍 ${loc}</span>`
-                        ).join('')}
-                       </div>`
-                    : '';
-
-                const date = new Date(article.published_at).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric'
-                });
-
-                return `
-                    <div class="article-card">
-                        <div class="article-content" onclick="openArticleByIndex(${index})">
-                            <div class="article-header">
-                                <div class="article-badges">
-                                    ${languageBadge}
-                                    ${translatedBadge}
-                                </div>
-                            </div>
-                            <div class="article-title">${displayTitle}</div>
-                            <div class="article-summary">${displaySummary}</div>
-                            ${categoryTags}
-                            ${locationTags}
-                            <div class="article-meta">
-                                <span class="article-source">${article.source?.name || 'Unknown'}</span>
-                                <span>${date}</span>
-                            </div>
-                        </div>
-                        ${createReactionsBar(article.id)}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function openArticleByIndex(index) {
-            const article = filteredArticles[index];
-            if (!article) {
-                console.error('Article not found at index:', index);
-                return;
-            }
-
-            gtag('event', 'article_click', {
-                article_id: article.id,
-                article_title: article.title,
-                source: article.source?.name || 'Unknown',
-                language: article.language,
-                category: article.category_tags && article.category_tags.length > 0 ? article.category_tags[0] : 'General',
-                location: article.location_tags && article.location_tags.length > 0 ? article.location_tags[0] : 'None',
-                translations_enabled: translationsEnabled
-            });
-            
-            window.open(article.url, '_blank');
-        }
-
-        function filterByLanguage(lang) {
-            currentLanguage = lang;
-            saveLanguagePreference(lang);
-            
-            gtag('event', 'language_filter', {
-                selected_language: lang
-            });
-            
-            document.querySelectorAll('.language-filter').forEach(btn => {
-                if (btn.dataset.language === lang) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-            
-            displayArticles();
-        }
-
-        function toggleTopicFilter(topic) {
-            if (selectedTopics.has(topic)) {
-                selectedTopics.delete(topic);
-            } else {
-                selectedTopics.add(topic);
-            }
-            
-            gtag('event', 'topic_filter', {
-                selected_topic: topic,
-                action: selectedTopics.has(topic) ? 'added' : 'removed',
-                total_topics_selected: selectedTopics.size
-            });
-            
-            const btn = document.querySelector(`.topic-filter[data-topic="${topic}"]`);
-            if (btn) {
-                btn.classList.toggle('active');
-            }
-            
-            displayArticles();
-        }
-
-        function clearAllTopicFilters() {
-            selectedTopics.clear();
-            
-            gtag('event', 'topics_cleared', {
-                action: 'clear_all_topics'
-            });
-            
-            document.querySelectorAll('.topic-filter').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            displayArticles();
-        }
-
-        function toggleLocationFilter(location) {
-            if (selectedLocations.has(location)) {
-                selectedLocations.delete(location);
-            } else {
-                selectedLocations.add(location);
-            }
-            
-            gtag('event', 'location_filter', {
-                selected_location: location,
-                action: selectedLocations.has(location) ? 'added' : 'removed',
-                total_locations_selected: selectedLocations.size
-            });
-            
-            const btn = document.querySelector(`.location-filter[data-location="${location}"]`);
-            if (btn) {
-                btn.classList.toggle('active');
-            }
-            
-            displayArticles();
-        }
-
-        function clearAllLocationFilters() {
-            selectedLocations.clear();
-            
-            gtag('event', 'locations_cleared', {
-                action: 'clear_all_locations'
-            });
-            
-            document.querySelectorAll('.location-filter').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            displayArticles();
-        }
-
-        function toggleTranslations() {
-            translationsEnabled = !translationsEnabled;
-            saveTranslationPreference(translationsEnabled);
-            
-            gtag('event', 'translation_toggle', {
-                translations_enabled: translationsEnabled
-            });
-            
-            updateTranslationButton();
-            displayArticles();
-        }
-
-        // Load preferences and content on page load
-        loadPreferences();
-        loadContent();
-
-        // Auto-refresh every 5 minutes
-        setInterval(loadContent, 300000);
-    </script>
+    <!-- Link to external JavaScript -->
+    <script src="web/app.js"></script>
 </body>
 </html>

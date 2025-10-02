@@ -6,6 +6,7 @@ Serves content from Supabase database
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from typing import List, Optional
@@ -47,13 +48,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Get the base directory (parent of backend folder)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WEB_DIR = os.path.join(BASE_DIR, "web")
+
+# Mount the web directory to serve static files (CSS, JS)
+if os.path.exists(WEB_DIR):
+    app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
+
 
 @app.get("/")
 async def serve_frontend():
     """Serve the web app frontend"""
-    import os
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    html_path = os.path.join(base_dir, "index.html")
+    html_path = os.path.join(BASE_DIR, "index.html")
+    if not os.path.exists(html_path):
+        raise HTTPException(status_code=404, detail="index.html not found")
     return FileResponse(html_path)
 
 
