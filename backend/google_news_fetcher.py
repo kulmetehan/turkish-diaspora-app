@@ -340,17 +340,16 @@ def fetch_google_news_for_city(city):
 
 def fetch_all_cities():
     """
-    Main function: Fetch news for priority cities and store in database
+    Main function: Fetch news for ALL diaspora cities and store in database
     """
     print("\n" + "="*60)
-    print("🚀 GOOGLE NEWS FETCHER - DIASPORA APP (OPTIMIZED)")
-    print(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("GOOGLE NEWS FETCHER - DIASPORA APP (FULL COVERAGE)")
+    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
     
-    # Use priority cities instead of all 50
-    cities = fetch_priority_cities()
-    total_stored = 0
-    start_time = time.time()
+    # Fetch from all 50 cities for complete diaspora coverage
+    cities = get_all_cities()
+    print(f"Fetching from {len(cities)} cities: 25 Dutch + 25 Turkish")
     
     for i, city in enumerate(cities, 1):
         print(f"\n[{i}/{len(cities)}] 🏙️ Processing {city['name']}, {city['country']}")
