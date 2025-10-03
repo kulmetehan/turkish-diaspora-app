@@ -8,6 +8,7 @@ on:
 jobs:
   fetch-news:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # Add timeout to prevent hanging
 
     steps:
     - name: Checkout code
@@ -30,16 +31,22 @@ jobs:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       run: |
         cd backend
+        echo "🔄 Starting news fetch at $(date)"
         python google_news_fetcher.py
+        echo "✅ News fetch completed at $(date)"
 
     - name: Notify on failure
       if: failure()
       uses: actions/github-script@v6
       with:
         script: |
-          github.rest.issues.create({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            title: 'News Fetching Failed',
-            body: 'The scheduled news fetching job has failed. Please check the logs.'
-          })
+          try {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'News Fetching Failed',
+              body: 'The scheduled news fetching job has failed. Please check the logs.'
+            })
+          } catch (error) {
+            console.log('Could not create issue, but workflow failed:', error.message)
+          }
