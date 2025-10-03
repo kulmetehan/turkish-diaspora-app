@@ -50,3 +50,8 @@ jobs:
           } catch (error) {
             console.log('Could not create issue, but workflow failed:', error.message)
           }
+
+    - name: Cleanup old articles
+      run: |
+        cd backend
+        python cleanup_old_articles.py
