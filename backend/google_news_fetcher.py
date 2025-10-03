@@ -351,12 +351,15 @@ def fetch_all_cities():
     cities = get_all_cities()
     print(f"Fetching from {len(cities)} cities: 25 Dutch + 25 Turkish")
     
+    total_stored = 0  # ← THIS LINE MUST BE HERE
+    start_time = time.time()
+    
     for i, city in enumerate(cities, 1):
-        print(f"\n[{i}/{len(cities)}] 🏙️ Processing {city['name']}, {city['country']}")
+        print(f"\n[{i}/{len(cities)}] Processing {city['name']}, {city['country']}")
         
         # Fetch articles
         stored = fetch_google_news_for_city(city)
-        total_stored += stored
+        total_stored += stored  # ← This is line 359 that's failing
         
         # Be nice to Google - wait 2 seconds between requests
         if i < len(cities):
