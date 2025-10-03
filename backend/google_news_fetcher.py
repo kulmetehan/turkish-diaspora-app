@@ -16,14 +16,27 @@ import time
 import ssl
 import hashlib
 
-# Load environment variables
-load_dotenv()
+# Try to load environment variables from .env file (for local development)
+# But don't fail if .env doesn't exist (like in GitHub Actions)
+try:
+    load_dotenv()
+except:
+    print("⚠️  .env file not found, using environment variables directly")
 
-# Initialize Supabase client
+# Initialize Supabase client - get from environment variables directly
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY')
 
+# Debug: Check if environment variables are loaded (without printing actual values)
+print(f"🔧 Environment check - SUPABASE_URL present: {bool(SUPABASE_URL)}")
+print(f"🔧 Environment check - SUPABASE_KEY present: {bool(SUPABASE_KEY)}")
+
 if not SUPABASE_URL or not SUPABASE_KEY:
+    print("❌ ERROR: Missing Supabase credentials")
+    print("Available environment variables:")
+    for key in ['SUPABASE_URL', 'SUPABASE_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'OPENAI_API_KEY']:
+        present = "✅" if os.getenv(key) else "❌"
+        print(f"   {present} {key}")
     raise ValueError("Missing Supabase credentials in environment variables")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
