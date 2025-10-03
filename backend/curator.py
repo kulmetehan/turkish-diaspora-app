@@ -3,7 +3,7 @@ import time
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
-from location_detector import detect_cities
+from location_detector import detect_cities # Bestaande import
 
 load_dotenv()
 
@@ -158,8 +158,7 @@ def create_fallback_result(title: str, summary: str, language: str, target_langu
 
 
 def tag_locations(title: str, summary: str, language: str) -> list:
-    """
-    Detect and tag cities mentioned in content, including national news
+    """Detect and tag cities mentioned in content, including national news
     
     Args:
         title: Article title
@@ -175,11 +174,15 @@ def tag_locations(title: str, summary: str, language: str) -> list:
         # Regular city detection
         cities = detect_cities(title, summary)
         
-        # National news detection for country-wide articles
-        national_cities = detect_national_news(title, summary, language)
+        # If no cities detected, tag with capital city as fallback
+        if not cities:
+            if language == 'tr':
+                cities = ['Ankara']
+            else:
+                cities = ['Den Haag']
         
-        # Combine both regular and national city detections
-        all_cities = list(set(cities + national_cities))
+        # Combine both regular and national city detections (deze logica is verwijderd)
+        all_cities = cities
         
         if all_cities:
             print(f"  ✓ Tagged {len(all_cities)} locations: {', '.join(all_cities)}")
@@ -190,7 +193,8 @@ def tag_locations(title: str, summary: str, language: str) -> list:
         
     except Exception as e:
         print(f"  ❌ Location detection error: {e}")
-        return []  # Return empty list if detection fails
+        # Return empty list on error so it doesn't break the merge
+        return []
 
 
 # Keep these legacy functions for backwards compatibility, but they won't be used

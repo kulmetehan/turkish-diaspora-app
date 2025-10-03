@@ -315,8 +315,11 @@ def fetch_google_news_for_city(city):
                         language=content_data['original_language']
                     )
                     
-                    # Merge with existing city tag (avoid duplicates)
-                    all_locations = list(set([city['name']] + location_tags))
+                    # Always keep the searched city, even if detection fails
+                    all_locations = [city['name']]  # Start with searched city
+                    if location_tags:  # Only add if detection succeeded
+                        all_locations.extend(location_tags)
+                    all_locations = list(set(all_locations))  # Remove duplicates
                     content_data['location_tags'] = all_locations
                 
                 # Insert into database
