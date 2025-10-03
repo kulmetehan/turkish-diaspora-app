@@ -36,6 +36,12 @@ DUTCH_CITIES = {
 # Combine all cities for detection
 ALL_CITIES = TURKISH_CITIES | DUTCH_CITIES
 
+# Common words that might be mistaken for cities
+FALSE_POSITIVES = {
+    'van', 'der', 'den', 'het', 'de', 'een', 'op', 'in', 'uit',
+    'aan', 'te', 'bij', 'door', 'voor', 'naar', 'met', 'als'
+}
+
 
 def normalize_text(text: str) -> str:
     """
@@ -87,16 +93,21 @@ def detect_cities(title: str, summary: str) -> List[str]:
     dutch_indicators = ['de', 'het', 'een', 'en', 'van', 'voor', 'in', 'op', 'met']
     text_lower = normalized_text.lower()
     dutch_word_count = sum(1 for word in dutch_indicators if f' {word} ' in f' {text_lower} ')
-    is_likely_dutch = dutch_word_count >= 3
+    is_likely_dutch = dutch_word_count >= 2
+    
+    # Check if this appears to be Turkish text
+    turkish_indicators = ['ve', 'bir', 'bu', 'ile', 'için', 'gibi', 'kadar', 'sonra']
+    turkish_word_count = sum(1 for word in turkish_indicators if f' {word} ' in f' {text_lower} ')
+    is_likely_turkish = turkish_word_count >= 2
     
     # Track cities we find
     found_cities: Set[str] = set()
     
     # Look for each city name
     for city in ALL_CITIES:
-        # Skip 'Van' entirely for Dutch text to avoid false positives
+        # Skip problematic cities based on context
         if city == 'Van' and is_likely_dutch:
-            continue
+            continue  # Skip Van in Dutch text to avoid false positives
             
         # Create a pattern that matches the city name as a whole word
         # \b means "word boundary" so we don't match partial words
@@ -104,6 +115,13 @@ def detect_cities(title: str, summary: str) -> List[str]:
         
         # Search for the city name (case-insensitive)
         if re.search(pattern, normalized_text, re.IGNORECASE):
+            # Additional validation for common false positives
+            if city.lower() in FALSE_POSITIVES:
+                # Check if it's actually used as a city name (capitalized, in specific contexts)
+                city_pattern = r'(?:in|uit|naar|van)\s+' + re.escape(normalize_text(city))
+                if not re.search(city_pattern, normalized_text, re.IGNORECASE):
+                    continue
+                    
             found_cities.add(city)
             logger.info(f"✓ Found city: {city}")
     
@@ -136,21 +154,72 @@ def get_city_region(city: str) -> str:
         return 'Unknown'
 
 
+def detect_national_news(title: str, summary: str, language: str) -> List[str]:
+    """
+    Detect national-level news and assign appropriate capital city
+    
+    Args:
+        title: Article title
+        summary: Article summary
+        language: Language code ('nl' or 'tr')
+        
+    Returns:
+        List with capital city if this appears to be national news
+    """
+    # National-level keywords that indicate country-wide relevance
+    national_keywords_nl = {
+        'nederland', 'landelijk', 'rijksoverheid', 'regering', 'premier', 
+        'kabinet', 'tweede kamer', 'minister', 'national', 'heel nederland'
+    }
+    
+    national_keywords_tr = {
+        'türkiye', 'ülke', 'milli', 'hükümet', 'cumhurbaşkanı', 'başbakan',
+        'bakan', 'meclis', 'ulusal', 'genel', 'tüm türkiye'
+    }
+    
+    full_text = f"{title} {summary}".lower()
+    
+    if language == 'nl':
+        keywords = national_keywords_nl
+        capital = 'Den Haag'
+    else:
+        keywords = national_keywords_tr
+        capital = 'Ankara'
+    
+    # Check for national-level keywords
+    national_keyword_count = sum(1 for keyword in keywords if keyword in full_text)
+    
+    # If we find multiple national keywords, it's likely national news
+    if national_keyword_count >= 2:
+        logger.info(f"🇳🇱 National news detected, assigning capital: {capital}")
+        return [capital]
+    
+    return []
+
+
 # Test function - you can run this file directly to test
 if __name__ == "__main__":
     # Test examples
     test_cases = [
         {
             "title": "Amsterdam plans new housing development",
-            "summary": "The city of Amsterdam announced plans for 5000 new homes in collaboration with Rotterdam."
+            "summary": "The city of Amsterdam announced plans for 5000 new homes in collaboration with Rotterdam.",
+            "language": "nl"
         },
         {
             "title": "Istanbul'da trafik sorunu büyüyor",
-            "summary": "Istanbul ve Ankara'da trafik yoğunluğu artmaya devam ediyor."
+            "summary": "Istanbul ve Ankara'da trafik yoğunluğu artmaya devam ediyor.",
+            "language": "tr"
         },
         {
             "title": "Dutch economy grows",
-            "summary": "Economic growth reported across the Netherlands including Utrecht and Eindhoven."
+            "summary": "Economic growth reported across the Netherlands including Utrecht and Eindhoven.",
+            "language": "nl"
+        },
+        {
+            "title": "Van uit Amsterdam naar Rotterdam",
+            "summary": "Reis van Amsterdam naar Rotterdam was snel",
+            "language": "nl"
         }
     ]
     
@@ -162,11 +231,16 @@ if __name__ == "__main__":
         print(f"\n--- Test Case {i} ---")
         print(f"Title: {test['title']}")
         print(f"Summary: {test['summary'][:50]}...")
+        print(f"Language: {test['language']}")
         
         cities = detect_cities(test['title'], test['summary'])
-        print(f"\nDetected cities: {cities}")
+        national_cities = detect_national_news(test['title'], test['summary'], test['language'])
         
-        if cities:
-            for city in cities:
+        all_cities = list(set(cities + national_cities))
+        
+        print(f"\nDetected cities: {all_cities}")
+        
+        if all_cities:
+            for city in all_cities:
                 region = get_city_region(city)
                 print(f"  • {city} ({region})")

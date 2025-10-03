@@ -8,12 +8,13 @@ from bs4 import BeautifulSoup
 from supabase import create_client, Client
 from datetime import datetime
 from urllib.parse import quote_plus
-from curator import curate_article, translate_content, tag_locations
+from curator import curate_and_translate_batch, tag_locations
 from cities import get_all_cities
 from dotenv import load_dotenv
 import os
 import time
 import ssl
+import hashlib
 
 # Load environment variables
 load_dotenv()
@@ -29,6 +30,27 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # SSL context for macOS (if needed)
 ssl._create_default_https_context = ssl._create_unverified_context
+
+
+def get_content_hash(title, summary):
+    """
+    Create unique hash from title + first 100 chars of summary
+    
+    Args:
+        title: Article title
+        summary: Article summary
+        
+    Returns:
+        MD5 hash string
+    """
+    # Handle None summary
+    clean_summary = summary if summary else ""
+    
+    # Create content string from title + first 100 chars of summary
+    content = f"{title[:200]}{clean_summary[:100]}".lower()
+    
+    # Generate MD5 hash
+    return hashlib.md5(content.encode()).hexdigest()
 
 
 def generate_google_news_url(city_name, country_code, language):
@@ -133,6 +155,24 @@ def parse_date(date_struct):
         return datetime.now().isoformat()
 
 
+def fetch_priority_cities():
+    """
+    Get only high-priority cities (top 15 Dutch + top 15 Turkish)
+    to reduce processing time from 50 to 30 cities
+    """
+    all_cities = get_all_cities()
+    
+    # Separate Dutch and Turkish cities
+    dutch_cities = [city for city in all_cities if city['country'] == 'Netherlands']
+    turkish_cities = [city for city in all_cities if city['country'] == 'Turkey']
+    
+    # Take top 15 from each (cities are already sorted by population)
+    priority_cities = dutch_cities[:15] + turkish_cities[:15]
+    
+    print(f"🎯 Using {len(priority_cities)} priority cities: {len(dutch_cities[:15])} Dutch + {len(turkish_cities[:15])} Turkish")
+    return priority_cities
+
+
 def fetch_google_news_for_city(city):
     """
     Fetch news from Google News for a specific city
@@ -144,7 +184,7 @@ def fetch_google_news_for_city(city):
         Number of articles successfully stored
     """
     print(f"\n{'='*60}")
-    print(f"Fetching: {city['name']}, {city['country']}")
+    print(f"📍 Fetching: {city['name']}, {city['country']}")
     print(f"{'='*60}")
     
     # Generate Google News URL
@@ -154,29 +194,34 @@ def fetch_google_news_for_city(city):
         city['language']
     )
     
-    print(f"URL: {url}")
+    print(f"🔗 URL: {url}")
     
     try:
         # Parse RSS feed
-        print("Downloading feed...")
+        print("📥 Downloading feed...")
         feed = feedparser.parse(url, agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)')
         
-        print(f"Feed status: {feed.get('status', 'unknown')}")
-        print(f"Feed entries found: {len(feed.entries)}")
+        print(f"📊 Feed status: {feed.get('status', 'unknown')}")
+        print(f"📄 Feed entries found: {len(feed.entries)}")
         
         if hasattr(feed, 'bozo_exception'):
-            print(f"Feed parsing warning: {feed.bozo_exception}")
+            print(f"⚠️ Feed parsing warning: {feed.bozo_exception}")
         
         if not feed.entries:
-            print(f"No entries found in feed for {city['name']}")
+            print(f"❌ No entries found in feed for {city['name']}")
             return 0
         
         stored_count = 0
         skipped_count = 0
         
-        # Process up to 10 articles per city
+        # Process up to 10 articles per city, but stop after 5 new ones
         for entry in feed.entries[:10]:
             try:
+                # Early exit if we already have 5 new articles for this city
+                if stored_count >= 5:
+                    print(f"✅ Reached 5 new articles for {city['name']}, moving to next city")
+                    break
+                
                 # Extract and clean data
                 title = entry.get('title', 'No title')
                 summary = clean_html(entry.get('summary', entry.get('description', '')))
@@ -196,11 +241,15 @@ def fetch_google_news_for_city(city):
                     skipped_count += 1
                     continue
                 
-                # Check if article already exists
-                existing = supabase.table('content_items').select('id').eq('url', url).execute()
+                # Generate content hash for deduplication
+                content_hash = get_content_hash(title, summary)
+                
+                # Check if article already exists by URL OR content hash
+                existing = supabase.table('content_items').select('id').or_(f"url.eq.{url},content_hash.eq.{content_hash}").execute()
                 
                 if existing.data and len(existing.data) > 0:
                     skipped_count += 1
+                    print(f"⏭️  Skipped duplicate: {title[:50]}...")
                     continue
                 
                 # Get or create source
@@ -212,7 +261,7 @@ def fetch_google_news_for_city(city):
                 )
                 
                 if not source_id:
-                    print(f"Failed to get source ID for {source_name}")
+                    print(f"❌ Failed to get source ID for {source_name}")
                     skipped_count += 1
                     continue
                 
@@ -225,25 +274,28 @@ def fetch_google_news_for_city(city):
                     'original_language': city['language'],
                     'url': url,
                     'published_at': published,
-                    'location_tags': [city['name']]  # Tag with city name
+                    'location_tags': [city['name']],  # Tag with city name
+                    'content_hash': content_hash  # Add content hash for future deduplication
                 }
                 
-                # AI curation for each article
+                # AI curation and translation in ONE batch call
                 if content_data.get('summary'):
-                    print(f"  🤖 Curating article with AI...")
-                    curation = curate_article(
+                    print(f"  🤖 Processing article with AI...")
+                    batch_result = curate_and_translate_batch(
                         title=content_data['title'],
                         summary=content_data['summary'],
                         language=content_data['original_language']
                     )
                     
-                    # Update item with curated data
-                    content_data['summary'] = curation['summary']
-                    content_data['relevance_score'] = curation['relevance_score']
-                    content_data['category_tags'] = curation['category_tags']
+                    # Update item with batch processed data
+                    content_data['summary'] = batch_result['summary']
+                    content_data['relevance_score'] = batch_result['relevance_score']
+                    content_data['category_tags'] = batch_result['category_tags']
+                    content_data['translated_title'] = batch_result['translated_title']
+                    content_data['translated_summary'] = batch_result['translated_summary']
+                    content_data['translated_language'] = batch_result['translated_language']
                     
                     # Detect additional locations (beyond the city we searched for)
-                    print(f"  📍 Detecting additional locations...")
                     location_tags = tag_locations(
                         title=content_data['title'],
                         summary=content_data['summary']
@@ -252,19 +304,6 @@ def fetch_google_news_for_city(city):
                     # Merge with existing city tag (avoid duplicates)
                     all_locations = list(set([city['name']] + location_tags))
                     content_data['location_tags'] = all_locations
-                    
-                    # AI translation (NL ↔ TR)
-                    print(f"  🌐 Translating article...")
-                    translation = translate_content(
-                        title=content_data['title'],
-                        summary=content_data['summary'],
-                        from_language=content_data['original_language']
-                    )
-                    
-                    # Add translation to content data
-                    content_data['translated_title'] = translation['translated_title']
-                    content_data['translated_summary'] = translation['translated_summary']
-                    content_data['translated_language'] = translation['translated_language']
                 
                 # Insert into database
                 supabase.table('content_items').insert(content_data).execute()
@@ -275,9 +314,9 @@ def fetch_google_news_for_city(city):
                 print(f"❌ Error processing entry: {e}")
                 continue
         
-        print(f"\nSummary for {city['name']}:")
-        print(f"  - Stored: {stored_count} new articles")
-        print(f"  - Skipped: {skipped_count} (duplicates or invalid)")
+        print(f"\n📊 Summary for {city['name']}:")
+        print(f"  - ✅ Stored: {stored_count} new articles")
+        print(f"  - ⏭️  Skipped: {skipped_count} (duplicates or invalid)")
         
         return stored_count
         
@@ -288,19 +327,20 @@ def fetch_google_news_for_city(city):
 
 def fetch_all_cities():
     """
-    Main function: Fetch news for all 50 cities and store in database
+    Main function: Fetch news for priority cities and store in database
     """
     print("\n" + "="*60)
-    print("🚀 GOOGLE NEWS FETCHER - DIASPORA APP")
-    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("🚀 GOOGLE NEWS FETCHER - DIASPORA APP (OPTIMIZED)")
+    print(f"⏰ Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
     
-    cities = get_all_cities()
-    total_articles = 0
+    # Use priority cities instead of all 50
+    cities = fetch_priority_cities()
     total_stored = 0
+    start_time = time.time()
     
     for i, city in enumerate(cities, 1):
-        print(f"\n[{i}/{len(cities)}] Processing {city['name']}, {city['country']}")
+        print(f"\n[{i}/{len(cities)}] 🏙️ Processing {city['name']}, {city['country']}")
         
         # Fetch articles
         stored = fetch_google_news_for_city(city)
@@ -311,10 +351,14 @@ def fetch_all_cities():
             print("⏳ Waiting 2 seconds before next city...")
             time.sleep(2)
     
+    end_time = time.time()
+    total_minutes = (end_time - start_time) / 60
+    
     print("\n" + "="*60)
     print(f"✅ COMPLETED!")
     print(f"💾 Total articles stored: {total_stored}")
-    print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"⏱️  Total time: {total_minutes:.1f} minutes")
+    print(f"🏁 Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60 + "\n")
 
 

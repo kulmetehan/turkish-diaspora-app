@@ -13,20 +13,15 @@
         gtag('js', new Date());
         gtag('config', 'G-NBYLFXYTWX');
     </script>
-
+    
     <!-- Link to external CSS -->
     <link rel="stylesheet" href="web/style.css">
 </head>
 <body>
-    <div class="header-content">
-        <div class="header-left">
+    <div class="header">
+        <div class="header-content">
             <div class="app-title">Diaspora</div>
             <div class="app-tagline">Your bridge between Turkey and the Netherlands</div>
-        </div>
-        <div class="header-right">
-            <button class="personalize-btn" onclick="openPersonalizationModal()">
-                🎯 Personalize
-            </button>
         </div>
     </div>
 
@@ -51,7 +46,7 @@
         </div>
     </div>
 
-    <!-- Filter Modal for Topics and Locations -->
+    <!-- NEW: Filter Modal for Topics and Locations -->
     <div class="filter-modal" id="filterModal">
         <div class="filter-modal-overlay" onclick="closeFiltersModal()"></div>
         <div class="filter-modal-content">
@@ -116,7 +111,7 @@
                     </div>
                 </div>
 
-                <!-- Translation Toggle Section -->
+                <!-- ADDED: Translation Toggle Section -->
                 <div class="filter-section translation-toggle-section">
                     <h3>🌐 Translations</h3>
                     <div class="translation-toggle-container">
@@ -138,152 +133,9 @@
         </div>
     </div>
 
-    <!-- NEW: Personalization Modal -->
-    <div class="personalization-modal" id="personalizationModal">
-        <div class="personalization-modal-overlay" onclick="closePersonalizationModal()"></div>
-        <div class="personalization-modal-content">
-            <div class="personalization-modal-header">
-                <h2>🎯 Personalize Your Feed</h2>
-                <button class="modal-close-btn" onclick="closePersonalizationModal()">✕</button>
-            </div>
-            
-            <div class="personalization-modal-body">
-                <!-- Dutch Cities Section -->
-                <div class="personalization-section">
-                    <h3>🇳🇱 Dutch Cities</h3>
-                    <p class="section-description">Select cities in the Netherlands you want to follow</p>
-                    
-                    <!-- Autocomplete Search Box -->
-                    <div class="autocomplete-container">
-                        <input 
-                            type="text" 
-                            id="dutchCitySearch" 
-                            class="city-search-input"
-                            placeholder="Search Dutch cities..."
-                            autocomplete="off"
-                            oninput="filterDutchCities(this.value)"
-                            onfocus="showDutchDropdown()"
-                        >
-                        <div class="autocomplete-dropdown" id="dutchCityDropdown">
-                            <!-- Populated by JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <!-- Selected Cities Display -->
-                    <div class="selected-cities" id="selectedDutchCities">
-                        <!-- Selected city chips appear here -->
-                    </div>
-                </div>
-
-                <!-- Turkish Cities Section -->
-                <div class="personalization-section">
-                    <h3>🇹🇷 Turkish Cities</h3>
-                    <p class="section-description">Select cities in Turkey you want to follow</p>
-                    
-                    <!-- Autocomplete Search Box -->
-                    <div class="autocomplete-container">
-                        <input 
-                            type="text" 
-                            id="turkishCitySearch" 
-                            class="city-search-input"
-                            placeholder="Search Turkish cities..."
-                            autocomplete="off"
-                            oninput="filterTurkishCities(this.value)"
-                            onfocus="showTurkishDropdown()"
-                        >
-                        <div class="autocomplete-dropdown" id="turkishCityDropdown">
-                            <!-- Populated by JavaScript -->
-                        </div>
-                    </div>
-                    
-                    <!-- Selected Cities Display -->
-                    <div class="selected-cities" id="selectedTurkishCities">
-                        <!-- Selected city chips appear here -->
-                    </div>
-                </div>
-
-                <!-- Topics Section -->
-                <div class="personalization-section">
-                    <h3>📰 Favorite Topics</h3>
-                    <p class="section-description">Choose topics you're interested in</p>
-                    
-                    <div class="topic-grid">
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Politics" onchange="togglePersonalizationTopic('Politics')">
-                            <span>Politics</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Economy" onchange="togglePersonalizationTopic('Economy')">
-                            <span>Economy</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Sports" onchange="togglePersonalizationTopic('Sports')">
-                            <span>Sports</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Culture" onchange="togglePersonalizationTopic('Culture')">
-                            <span>Culture</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Technology" onchange="togglePersonalizationTopic('Technology')">
-                            <span>Technology</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Health" onchange="togglePersonalizationTopic('Health')">
-                            <span>Health</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Crime" onchange="togglePersonalizationTopic('Crime')">
-                            <span>Crime</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Weather" onchange="togglePersonalizationTopic('Weather')">
-                            <span>Weather</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Education" onchange="togglePersonalizationTopic('Education')">
-                            <span>Education</span>
-                        </label>
-                        <label class="topic-checkbox">
-                            <input type="checkbox" value="Immigration" onchange="togglePersonalizationTopic('Immigration')">
-                            <span>Immigration</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="personalization-modal-footer">
-                <button class="cancel-btn" onclick="closePersonalizationModal()">Cancel</button>
-                <button class="save-preferences-btn" onclick="savePersonalizationPreferences()">Save Preferences</button>
-            </div>
-        </div>
-    </div>
-
     <div class="stats-bar" id="statsBar"></div>
 
     <div class="content-grid" id="contentGrid"></div>
-
-    <!-- Footer Navigation -->
-    <nav class="bottom-navigation">
-        <button class="nav-btn active" data-tab="main" onclick="switchToMainFeed()">
-            <span class="nav-icon">📰</span>
-            <span class="nav-label">Main</span>
-        </button>
-        <button class="nav-btn" data-tab="foryou" onclick="switchToForYouFeed()">
-            <span class="nav-icon">⭐</span>
-            <span class="nav-label">For You</span>
-        </button>
-        <button class="nav-btn disabled" data-tab="music">
-            <span class="nav-icon">🎵</span>
-            <span class="nav-label">Music</span>
-            <span class="coming-soon-tag">Soon</span>
-        </button>
-        <button class="nav-btn disabled" data-tab="sports">
-            <span class="nav-icon">⚽</span>
-            <span class="nav-label">Sports</span>
-            <span class="coming-soon-tag">Soon</span>
-        </button>
-    </nav>
 
     <!-- Link to external JavaScript -->
     <script src="web/app.js"></script>

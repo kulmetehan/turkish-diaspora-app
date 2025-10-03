@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from location_detector import detect_cities
@@ -8,321 +9,232 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
-def normalize_summary(summary: str, max_words: int = 70) -> str:
+def curate_and_translate_batch(title: str, summary: str, language: str) -> dict:
     """
-    If RSS summary is too long, trim it intelligently.
-    If it's already good length, return as-is.
-    """
-    words = summary.split()
-    
-    # If already good length, don't process
-    if 40 <= len(words) <= max_words:
-        return summary
-    
-    # Too short - return as is (some RSS feeds are minimal)
-    if len(words) < 40:
-        return summary
-    
-    # Too long - ask AI to trim intelligently
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "system", "content": "You trim text to exactly 70 words while keeping the most important information. Maintain the original language."},
-                    {"role": "user", "content": f"Trim this to 70 words:\n\n{summary}"}
-                ],
-                max_tokens=150,
-                temperature=0.3
-            )
-            
-            trimmed = response.choices[0].message.content.strip()
-            print(f"  ✂️ Trimmed summary: {len(words)} → {len(trimmed.split())} words")
-            return trimmed
-            
-        except Exception as e:
-            if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                print(f"  ⏳ Rate limit, waiting {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                print(f"  ⚠️ Error trimming: {e}")
-                return ' '.join(words[:max_words]) + "..."
-    
-    # Fallback if all retries failed
-    return ' '.join(words[:max_words]) + "..."
-
-
-def tag_locations(title: str, summary: str) -> list:
-    """
-    Detect and tag cities mentioned in content
+    Batch process: normalize, rate relevance, extract topics, and translate in ONE API call.
     
     Args:
         title: Article title
         summary: Article summary
-        
-    Returns:
-        List of city names found
-    """
-    try:
-        print("🏙️ Detecting locations...")
-        
-        cities = detect_cities(title, summary)
-        
-        if cities:
-            print(f"✓ Tagged {len(cities)} locations: {', '.join(cities)}")
-        else:
-            print("ℹ️ No locations detected")
-            
-        return cities
-        
-    except Exception as e:
-        print(f"❌ Location detection error: {e}")
-        return []  # Return empty list if detection fails
-
-
-def rate_relevance(title: str, summary: str, language: str) -> int:
-    """
-    Rate article relevance for Turkish diaspora in Netherlands (0-10).
-    Higher score = more relevant.
-    """
-    
-    language_name = "Dutch" if language == "nl" else "Turkish"
-    
-    prompt = f"""Rate this {language_name} article's relevance to Turkish diaspora living in Netherlands.
-
-Consider:
-- Cultural relevance to Turkish community
-- Practical importance for daily life in Netherlands
-- Local impact (Dutch cities, Turkish communities)
-- Immigration/integration topics
-- Economic opportunities
-
-Return ONLY a number from 0 to 10.
-0 = Not relevant
-10 = Highly relevant
-
-Title: {title}
-Summary: {summary}"""
-
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=10,
-                temperature=0.3
-            )
-            
-            score_text = response.choices[0].message.content.strip()
-            score = int(score_text)
-            score = max(0, min(10, score))  # Ensure 0-10 range
-            
-            print(f"  📊 Relevance: {score}/10")
-            return score
-            
-        except Exception as e:
-            if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                print(f"  ⏳ Rate limit, waiting {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                print(f"  ⚠️ Error rating: {e}")
-                return 5  # Neutral default
-    
-    return 5  # Fallback
-
-
-def extract_topics(title: str, summary: str) -> list:
-    """
-    Extract 1-3 topic categories from article.
-    """
-    
-    prompt = f"""Categorize this article. Return ONLY a comma-separated list.
-
-Choose 1-3 most relevant from these categories:
-Politics, Economy, Sports, Culture, Technology, Health, Crime, Weather, Education, Immigration, Transportation, Housing, Energy, Environment
-
-Title: {title}
-Summary: {summary}
-
-Example response: Politics, Immigration
-Example response: Sports
-Example response: Economy, Housing, Energy"""
-
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=50,
-                temperature=0.3
-            )
-            
-            topics_text = response.choices[0].message.content.strip()
-            topics = [t.strip() for t in topics_text.split(',') if t.strip()]
-            topics = topics[:3]  # Max 3 topics
-            
-            print(f"  🏷️ Topics: {', '.join(topics)}")
-            return topics
-            
-        except Exception as e:
-            if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
-                wait_time = 2 ** attempt
-                print(f"  ⏳ Rate limit, waiting {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                print(f"  ⚠️ Error extracting topics: {e}")
-                return ["General"]
-    
-    return ["General"]  # Fallback
-
-
-def curate_article(title: str, summary: str, language: str) -> dict:
-    """
-    Complete curation: normalize, rate, and categorize an article.
-    
-    Returns dict with:
-    - summary: normalized summary
-    - relevance_score: 0-10 rating
-    - category_tags: list of topics
-    """
-    
-    print(f"\n🤖 Curating: {title[:60]}...")
-    
-    result = {
-        'summary': normalize_summary(summary),
-        'relevance_score': rate_relevance(title, summary, language),
-        'category_tags': extract_topics(title, summary)
-    }
-    
-    return result
-
-
-def translate_content(title: str, summary: str, from_language: str) -> dict:
-    """
-    Translate article title and summary to the opposite language.
-    NL → TR or TR → NL
-    
-    Args:
-        title: Original article title
-        summary: Original article summary
-        from_language: Source language code ('nl' or 'tr')
+        language: Source language ('nl' or 'tr')
     
     Returns:
-        dict with:
-        - translated_title: Translated title
-        - translated_summary: Translated summary
-        - translated_language: Target language code
+        dict with all processed data
     """
     
-    # Determine target language
-    target_language = 'tr' if from_language == 'nl' else 'nl'
+    # Determine target language for translation
+    target_language = 'tr' if language == 'nl' else 'nl'
     language_names = {
         'nl': 'Dutch',
         'tr': 'Turkish'
     }
     
-    from_lang_name = language_names[from_language]
+    from_lang_name = language_names[language]
     to_lang_name = language_names[target_language]
     
-    print(f"\n🌐 Translating from {from_lang_name} to {to_lang_name}...")
-    print(f"   Title: {title[:50]}...")
+    print(f"\n🤖 Batch AI Processing: {title[:60]}...")
+    print(f"   📝 From {from_lang_name} to {to_lang_name}")
     
+    prompt = f"""Process this {from_lang_name} news article for Turkish diaspora audience:
+
+TITLE: {title}
+SUMMARY: {summary}
+
+Please perform ALL these tasks in one go:
+
+1. SUMMARY TRIMMING: If the summary is over 70 words, trim it to exactly 70 words while keeping key information. If it's already good (40-70 words), keep as-is.
+
+2. RELEVANCE RATING: Rate relevance to Turkish diaspora in Netherlands (0-10). Consider:
+   - Cultural relevance to Turkish community
+   - Practical importance for daily life in Netherlands  
+   - Local impact (Dutch/Turkish cities, communities)
+   - Immigration/integration topics
+   - Economic opportunities
+
+3. TOPIC EXTRACTION: Extract 1-3 topics from: Politics, Economy, Sports, Culture, Technology, Health, Crime, Weather, Education, Immigration, Transportation, Housing, Energy, Environment
+
+4. TRANSLATION: Translate title and summary to {to_lang_name}. Maintain factual accuracy and natural phrasing.
+
+Return ONLY valid JSON in this exact format:
+{{
+  "summary": "trimmed or original summary",
+  "relevance_score": 7,
+  "category_tags": ["Politics", "Immigration"],
+  "translated_title": "translated title",
+  "translated_summary": "translated summary"
+}}"""
+
     max_retries = 3
-    
-    # Translate both title and summary in one API call to save costs
-    prompt = f"""Translate this news article from {from_lang_name} to {to_lang_name}.
-
-Preserve the meaning, tone, and factual accuracy. Use natural {to_lang_name} phrasing.
-
-TITLE:
-{title}
-
-SUMMARY:
-{summary}
-
-Respond in this exact format:
-TRANSLATED_TITLE: [translation here]
-TRANSLATED_SUMMARY: [translation here]"""
-
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": f"You are a professional translator specializing in {from_lang_name} to {to_lang_name} translation. Maintain factual accuracy and natural phrasing."},
+                    {"role": "system", "content": "You are a news curator and translator. Always return valid JSON format."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=500,
-                temperature=0.3
+                max_tokens=800,
+                temperature=0.3,
+                response_format={"type": "json_object"}
             )
             
             result_text = response.choices[0].message.content.strip()
             
-            # Parse the response
-            translated_title = ""
-            translated_summary = ""
+            # Parse JSON response
+            batch_result = json.loads(result_text)
             
-            lines = result_text.split('\n')
-            current_section = None
+            # Validate and ensure all required fields
+            if not batch_result.get('summary'):
+                batch_result['summary'] = summary
+            if not batch_result.get('relevance_score'):
+                batch_result['relevance_score'] = 5
+            if not batch_result.get('category_tags'):
+                batch_result['category_tags'] = ["General"]
+            if not batch_result.get('translated_title'):
+                batch_result['translated_title'] = title
+            if not batch_result.get('translated_summary'):
+                batch_result['translated_summary'] = batch_result.get('summary', summary)
             
-            for line in lines:
-                line = line.strip()
-                if line.startswith('TRANSLATED_TITLE:'):
-                    translated_title = line.replace('TRANSLATED_TITLE:', '').strip()
-                    current_section = 'title'
-                elif line.startswith('TRANSLATED_SUMMARY:'):
-                    translated_summary = line.replace('TRANSLATED_SUMMARY:', '').strip()
-                    current_section = 'summary'
-                elif current_section == 'summary' and line:
-                    # Continue building summary if it spans multiple lines
-                    translated_summary += ' ' + line
+            # Ensure relevance score is within bounds
+            batch_result['relevance_score'] = max(0, min(10, int(batch_result['relevance_score'])))
             
-            # Fallback parsing if structured format not followed
-            if not translated_title or not translated_summary:
-                parts = result_text.split('TRANSLATED_SUMMARY:', 1)
-                if len(parts) == 2:
-                    title_part = parts[0].replace('TRANSLATED_TITLE:', '').strip()
-                    summary_part = parts[1].strip()
-                    translated_title = title_part if title_part else title
-                    translated_summary = summary_part if summary_part else summary
+            print(f"  📊 Relevance: {batch_result['relevance_score']}/10")
+            print(f"  🏷️ Topics: {', '.join(batch_result['category_tags'])}")
+            print(f"  🌐 Translation: {batch_result['translated_title'][:50]}...")
             
-            # Final validation
-            if not translated_title:
-                translated_title = title
-            if not translated_summary:
-                translated_summary = summary
+            # Add the target language
+            batch_result['translated_language'] = target_language
             
-            print(f"   ✅ Translation complete!")
-            print(f"   Translated title: {translated_title[:50]}...")
+            return batch_result
             
-            return {
-                'translated_title': translated_title,
-                'translated_summary': translated_summary,
-                'translated_language': target_language
-            }
-            
+        except json.JSONDecodeError as e:
+            print(f"  ⚠️ JSON parsing error: {e}")
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt
+                print(f"  ⏳ Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"  ❌ Failed to parse JSON after {max_retries} attempts")
+                return create_fallback_result(title, summary, language, target_language)
+                
         except Exception as e:
             if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
                 wait_time = 2 ** attempt
-                print(f"   ⏳ Rate limit, waiting {wait_time}s...")
+                print(f"  ⏳ Rate limit, waiting {wait_time}s...")
                 time.sleep(wait_time)
             else:
-                print(f"   ⚠️ Translation error: {e}")
-                # Return empty translation on failure
-                return {
-                    'translated_title': None,
-                    'translated_summary': None,
-                    'translated_language': target_language
-                }
+                print(f"  ⚠️ Batch processing error: {e}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    print(f"  ⏳ Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                else:
+                    return create_fallback_result(title, summary, language, target_language)
     
-    # Fallback if all retries failed
+    return create_fallback_result(title, summary, language, target_language)
+
+
+def create_fallback_result(title: str, summary: str, language: str, target_language: str) -> dict:
+    """
+    Create a fallback result when batch processing fails
+    """
+    print("  ⚠️ Using fallback processing")
+    
+    # Simple word-based trimming as fallback
+    words = summary.split()
+    if len(words) > 70:
+        trimmed_summary = ' '.join(words[:70]) + '...'
+    else:
+        trimmed_summary = summary
+    
     return {
-        'translated_title': None,
-        'translated_summary': None,
+        'summary': trimmed_summary,
+        'relevance_score': 5,
+        'category_tags': ['General'],
+        'translated_title': title,
+        'translated_summary': trimmed_summary,
         'translated_language': target_language
+    }
+
+
+def tag_locations(title: str, summary: str, language: str) -> list:
+    """
+    Detect and tag cities mentioned in content, including national news
+    
+    Args:
+        title: Article title
+        summary: Article summary
+        language: Article language ('nl' or 'tr')
+        
+    Returns:
+        List of city names found
+    """
+    try:
+        print("  📍 Detecting locations...")
+        
+        # Regular city detection
+        cities = detect_cities(title, summary)
+        
+        # National news detection for country-wide articles
+        national_cities = detect_national_news(title, summary, language)
+        
+        # Combine both regular and national city detections
+        all_cities = list(set(cities + national_cities))
+        
+        if all_cities:
+            print(f"  ✓ Tagged {len(all_cities)} locations: {', '.join(all_cities)}")
+        else:
+            print("  ℹ️ No locations detected")
+            
+        return all_cities
+        
+    except Exception as e:
+        print(f"  ❌ Location detection error: {e}")
+        return []  # Return empty list if detection fails
+
+
+# Keep these legacy functions for backwards compatibility, but they won't be used
+def normalize_summary(summary: str, max_words: int = 70) -> str:
+    """Legacy function - kept for compatibility"""
+    words = summary.split()
+    if len(words) > max_words:
+        return ' '.join(words[:max_words]) + '...'
+    return summary
+
+
+def rate_relevance(title: str, summary: str, language: str) -> int:
+    """Legacy function - kept for compatibility"""
+    return 5
+
+
+def extract_topics(title: str, summary: str) -> list:
+    """Legacy function - kept for compatibility"""
+    return ["General"]
+
+
+def curate_article(title: str, summary: str, language: str) -> dict:
+    """Legacy function - kept for compatibility"""
+    print(f"\n🤖 Curating: {title[:60]}...")
+    
+    # Use batch processing internally for legacy calls
+    batch_result = curate_and_translate_batch(title, summary, language)
+    
+    return {
+        'summary': batch_result['summary'],
+        'relevance_score': batch_result['relevance_score'],
+        'category_tags': batch_result['category_tags']
+    }
+
+
+def translate_content(title: str, summary: str, from_language: str) -> dict:
+    """Legacy function - kept for compatibility"""
+    print(f"\n🌐 Translating from {from_language}...")
+    
+    # Use batch processing internally for legacy calls
+    batch_result = curate_and_translate_batch(title, summary, from_language)
+    
+    return {
+        'translated_title': batch_result['translated_title'],
+        'translated_summary': batch_result['translated_summary'],
+        'translated_language': batch_result['translated_language']
     }
