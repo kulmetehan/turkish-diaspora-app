@@ -67,7 +67,7 @@ def normalize_text(text: str) -> str:
     return text
 
 
-def detect_cities(title: str, summary: str) -> List[str]:
+def detect_cities(title: str, summary: str, language: str = None) -> List[str]:
     """
     Find all city names mentioned in the article
     

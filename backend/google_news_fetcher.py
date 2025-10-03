@@ -25,7 +25,7 @@ except:
 
 # Initialize Supabase client - get from environment variables directly
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
 
 # Debug: Check if environment variables are loaded (without printing actual values)
 print(f"🔧 Environment check - SUPABASE_URL present: {bool(SUPABASE_URL)}")
@@ -311,7 +311,8 @@ def fetch_google_news_for_city(city):
                     # Detect additional locations (beyond the city we searched for)
                     location_tags = tag_locations(
                         title=content_data['title'],
-                        summary=content_data['summary']
+                        summary=content_data['summary'],
+                        language=content_data['original_language']
                     )
                     
                     # Merge with existing city tag (avoid duplicates)
