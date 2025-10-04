@@ -168,24 +168,6 @@ def parse_date(date_struct):
         return datetime.now().isoformat()
 
 
-def fetch_priority_cities():
-    """
-    Get only high-priority cities (top 15 Dutch + top 15 Turkish)
-    to reduce processing time from 50 to 30 cities
-    """
-    all_cities = get_all_cities()
-    
-    # Separate Dutch and Turkish cities
-    dutch_cities = [city for city in all_cities if city['country'] == 'Netherlands']
-    turkish_cities = [city for city in all_cities if city['country'] == 'Turkey']
-    
-    # Take top 15 from each (cities are already sorted by population)
-    priority_cities = dutch_cities[:15] + turkish_cities[:15]
-    
-    print(f"🎯 Using {len(priority_cities)} priority cities: {len(dutch_cities[:15])} Dutch + {len(turkish_cities[:15])} Turkish")
-    return priority_cities
-
-
 def fetch_google_news_for_city(city):
     """
     Fetch news from Google News for a specific city
@@ -227,14 +209,9 @@ def fetch_google_news_for_city(city):
         stored_count = 0
         skipped_count = 0
         
-        # Process up to 10 articles per city, but stop after 5 new ones
-        for entry in feed.entries[:10]:
+        # FIXED: Process all 30 articles (removed early exit logic)
+        for entry in feed.entries[:30]:
             try:
-                # Early exit if we already have 5 new articles for this city
-                if stored_count >= 5:
-                    print(f"✅ Reached 5 new articles for {city['name']}, moving to next city")
-                    break
-                
                 # Extract and clean data
                 title = entry.get('title', 'No title')
                 summary = clean_html(entry.get('summary', entry.get('description', '')))
@@ -288,7 +265,7 @@ def fetch_google_news_for_city(city):
                     'url': url,
                     'published_at': published,
                     'location_tags': [city['name']],  # Tag with city name
-                    'content_hash': content_hash  # Add content hash for future deduplication
+                    'content_hash': content_hash
                 }
                 
                 # AI curation and translation in ONE batch call
@@ -347,15 +324,15 @@ def fetch_all_cities():
     Main function: Fetch news for ALL diaspora cities and store in database
     """
     print("\n" + "="*60)
-    print("GOOGLE NEWS FETCHER - DIASPORA APP (FULL COVERAGE)")
-    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("🚀 STARTING GOOGLE NEWS FETCH FOR ALL CITIES")
+    print(f"🕐 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*60)
     
     # Fetch from all 50 cities for complete diaspora coverage
     cities = get_all_cities()
-    print(f"Fetching from {len(cities)} cities: 25 Dutch + 25 Turkish")
+    print(f"🌍 Fetching from {len(cities)} cities")
     
-    total_stored = 0  # ← THIS LINE MUST BE HERE
+    total_stored = 0
     start_time = time.time()
     
     for i, city in enumerate(cities, 1):
@@ -363,7 +340,7 @@ def fetch_all_cities():
         
         # Fetch articles
         stored = fetch_google_news_for_city(city)
-        total_stored += stored  # ← This is line 359 that's failing
+        total_stored += stored
         
         # Be nice to Google - wait 2 seconds between requests
         if i < len(cities):

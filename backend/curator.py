@@ -3,7 +3,7 @@ import time
 import json
 from openai import OpenAI
 from dotenv import load_dotenv
-from location_detector import detect_cities # Bestaande import
+from location_detector import detect_cities
 
 load_dotenv()
 
@@ -35,6 +35,7 @@ def curate_and_translate_batch(title: str, summary: str, language: str) -> dict:
     print(f"\n🤖 Batch AI Processing: {title[:60]}...")
     print(f"   📝 From {from_lang_name} to {to_lang_name}")
     
+    # FIXED: Changed from 70 words to 150 characters for consistent UI display
     prompt = f"""Process this {from_lang_name} news article for Turkish diaspora audience:
 
 TITLE: {title}
@@ -42,7 +43,11 @@ SUMMARY: {summary}
 
 Please perform ALL these tasks in one go:
 
-1. SUMMARY TRIMMING: If the summary is over 70 words, trim it to exactly 70 words while keeping key information. If it's already good (40-70 words), keep as-is.
+1. SUMMARY TRIMMING: Create a summary of EXACTLY 150 characters (not words). 
+   - Must be exactly 150 characters including spaces
+   - Must be complete sentence(s)
+   - Capture the core news event
+   - Keep it factual and informative
 
 2. RELEVANCE RATING: Rate relevance to Turkish diaspora in Netherlands (0-10). Consider:
    - Cultural relevance to Turkish community
@@ -57,11 +62,11 @@ Please perform ALL these tasks in one go:
 
 Return ONLY valid JSON in this exact format:
 {{
-  "summary": "trimmed or original summary",
+  "summary": "exactly 150 character summary",
   "relevance_score": 7,
   "category_tags": ["Politics", "Immigration"],
   "translated_title": "translated title",
-  "translated_summary": "translated summary"
+  "translated_summary": "translated summary (also 150 chars)"
 }}"""
 
     max_retries = 3
@@ -70,7 +75,7 @@ Return ONLY valid JSON in this exact format:
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are a news curator and translator. Always return valid JSON format."},
+                    {"role": "system", "content": "You are a news curator and translator. Always return valid JSON format. Summaries must be exactly 150 characters."},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=800,
@@ -85,7 +90,7 @@ Return ONLY valid JSON in this exact format:
             
             # Validate and ensure all required fields
             if not batch_result.get('summary'):
-                batch_result['summary'] = summary
+                batch_result['summary'] = summary[:147] + "..." if len(summary) > 150 else summary
             if not batch_result.get('relevance_score'):
                 batch_result['relevance_score'] = 5
             if not batch_result.get('category_tags'):
@@ -93,7 +98,13 @@ Return ONLY valid JSON in this exact format:
             if not batch_result.get('translated_title'):
                 batch_result['translated_title'] = title
             if not batch_result.get('translated_summary'):
-                batch_result['translated_summary'] = batch_result.get('summary', summary)
+                batch_result['translated_summary'] = batch_result.get('summary', summary)[:147] + "..."
+            
+            # CRITICAL: Enforce 150 character limit on both summaries
+            if len(batch_result['summary']) > 150:
+                batch_result['summary'] = batch_result['summary'][:147] + "..."
+            if len(batch_result['translated_summary']) > 150:
+                batch_result['translated_summary'] = batch_result['translated_summary'][:147] + "..."
             
             # Ensure relevance score is within bounds
             batch_result['relevance_score'] = max(0, min(10, int(batch_result['relevance_score'])))
@@ -137,14 +148,15 @@ Return ONLY valid JSON in this exact format:
 def create_fallback_result(title: str, summary: str, language: str, target_language: str) -> dict:
     """
     Create a fallback result when batch processing fails
+    Ensures 150 character limit is enforced
     """
     print("  ⚠️ Using fallback processing")
     
-    # Simple word-based trimming as fallback
-    words = summary.split()
-    if len(words) > 70:
-        trimmed_summary = ' '.join(words[:70]) + '...'
+    # Simple character-based trimming as fallback (not word-based)
+    if len(summary) > 150:
+        trimmed_summary = summary[:147] + '...'
     else:
+        # Pad if too short for consistency
         trimmed_summary = summary
     
     return {
@@ -158,7 +170,7 @@ def create_fallback_result(title: str, summary: str, language: str, target_langu
 
 
 def tag_locations(title: str, summary: str, language: str) -> list:
-    """Detect and tag cities mentioned in content, including national news
+    """Detect and tag cities mentioned in content
     
     Args:
         title: Article title
@@ -181,29 +193,22 @@ def tag_locations(title: str, summary: str, language: str) -> list:
             else:
                 cities = ['Den Haag']
         
-        # Combine both regular and national city detections (deze logica is verwijderd)
-        all_cities = cities
-        
-        if all_cities:
-            print(f"  ✓ Tagged {len(all_cities)} locations: {', '.join(all_cities)}")
+        if cities:
+            print(f"  ✓ Tagged {len(cities)} locations: {', '.join(cities)}")
         else:
             print("  ℹ️ No locations detected")
             
-        return all_cities
+        return cities
         
     except Exception as e:
         print(f"  ❌ Location detection error: {e}")
-        # Return empty list on error so it doesn't break the merge
         return []
 
 
-# Keep these legacy functions for backwards compatibility, but they won't be used
-def normalize_summary(summary: str, max_words: int = 70) -> str:
-    """Legacy function - kept for compatibility"""
-    words = summary.split()
-    if len(words) > max_words:
-        return ' '.join(words[:max_words]) + '...'
-    return summary
+# Legacy functions kept for backwards compatibility
+def normalize_summary(text, target_length=150):
+    """Legacy function - not used in current pipeline"""
+    return text[:147] + "..." if len(text) > 150 else text
 
 
 def rate_relevance(title: str, summary: str, language: str) -> int:
