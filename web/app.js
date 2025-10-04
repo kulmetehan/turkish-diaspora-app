@@ -5,8 +5,12 @@
 const API_BASE = window.location.hostname === 'localhost' || 
                  window.location.hostname === '127.0.0.1' ||
                  window.location.protocol === 'file:'
-    ? 'http://127.0.0.1:8000'
+    ? 'http://localhost:8000'
     : 'https://diaspora-backend-api.onrender.com';
+
+    // ADD THIS TEMPORARY DEBUG LINE:
+console.log('🌐 Environment:', window.location.protocol, window.location.hostname, '→ API_BASE:', API_BASE);
+
 
 // Global state
 let allArticles = [];
@@ -680,7 +684,7 @@ async function loadPersonalizedFeed() {
         const citiesParam = savedCities.join(',');
         const topicsParam = savedTopics.join(',');
         
-        const url = `${API_BASE}/api/content/personalized?cities=${encodeURIComponent(citiesParam)}&topics=${encodeURIComponent(topicsParam)}&limit=50`;
+        const url = `${API_BASE}/api/content/personalized?cities=${encodeURIComponent(citiesParam)}&topics=${encodeURIComponent(topicsParam)}&limit=200`;
         
         console.log('📡 Fetching personalized feed:', url);
         

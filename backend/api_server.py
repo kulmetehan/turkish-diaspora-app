@@ -57,6 +57,28 @@ if os.path.exists(WEB_DIR):
     app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
 
 
+def normalize_turkish_text(text):
+    """Normalize Turkish characters for comparison"""
+    if not text:
+        return text
+    
+    # Turkish character mappings
+    replacements = {
+        'ı': 'i', 'İ': 'I',  # Dotless i
+        'ş': 's', 'Ş': 'S',  # S with cedilla
+        'ğ': 'g', 'Ğ': 'G',  # G with breve
+        'ü': 'u', 'Ü': 'U',  # U with diaeresis
+        'ö': 'o', 'Ö': 'O',  # O with diaeresis
+        'ç': 'c', 'Ç': 'C',  # C with cedilla
+    }
+    
+    result = text
+    for turkish_char, latin_char in replacements.items():
+        result = result.replace(turkish_char, latin_char)
+    
+    return result
+
+
 @app.get("/")
 async def serve_frontend():
     """Serve the web app frontend"""
@@ -169,7 +191,7 @@ def get_main_feed(
 def get_personalized_feed(
     cities: Optional[str] = Query(default=None),  # Comma-separated city names
     topics: Optional[str] = Query(default=None),  # Comma-separated topics
-    limit: int = Query(default=50, ge=1, le=100)
+    limit: int = Query(default=200, ge=1, le=500)
 ):
     """
     Get PERSONALIZED feed based on user's selected cities and topics
@@ -195,6 +217,9 @@ def get_personalized_feed(
                 "message": "No preferences specified"
             }
         
+        # Normalize city names for comparison
+        normalized_cities = [normalize_turkish_text(city) for city in city_list]
+        
         # Build query - get extra articles to filter
         query = supabase.table('content_items').select('*')
         query = query.order('published_at', desc=True).limit(limit * 3)
@@ -212,7 +237,7 @@ def get_personalized_feed(
             sources_response = supabase.table('sources').select('*').in_('id', source_ids).execute()
             sources = {s['id']: s for s in sources_response.data}
         
-        # Filter articles based on user preferences
+        # Filter articles based on user preferences with Turkish character normalization
         personalized_articles = []
         
         for item in response.data:
@@ -222,7 +247,18 @@ def get_personalized_feed(
             # Check if article matches cities (OR logic - any city match)
             matches_city = False
             if city_list:
-                matches_city = any(city in location_tags for city in city_list)
+                # Normalize location tags for comparison
+                normalized_location_tags = [normalize_turkish_text(tag) for tag in location_tags]
+                
+                # Check against both original and normalized city names
+                for i, city in enumerate(city_list):
+                    normalized_city = normalized_cities[i]
+                    if (city in location_tags or 
+                        normalized_city in normalized_location_tags or
+                        city in normalized_location_tags or
+                        normalized_city in location_tags):
+                        matches_city = True
+                        break
             else:
                 matches_city = True  # If no city filter, it matches
             
