@@ -26,4 +26,13 @@ class Settings(BaseSettings):
         extra="ignore",         # negeer alle overige .env-keys
     )
 
+# Backend/app/core/config.py (aanvulling)
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # ...
+    OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-4.1-mini"  # of "gpt-4o-mini"
+    # ...
+
 settings = Settings()
