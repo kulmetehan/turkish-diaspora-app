@@ -4,9 +4,16 @@ import logging
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from api.routers import google_dev
 
 from app.config import settings
 from app.db import ping_db
+
+# ----------------------------------------------------
+# Logging setup
+# ----------------------------------------------------
+logger = logging.getLogger("api")
+logging.basicConfig(level=logging.INFO)
 
 # ----------------------------------------------------
 # App setup
@@ -18,8 +25,8 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-logger = logging.getLogger("api")
-logging.basicConfig(level=logging.INFO)
+# Routers registreren
+app.include_router(google_dev.router)
 
 # ----------------------------------------------------
 # CORS
