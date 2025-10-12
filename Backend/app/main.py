@@ -1,93 +1,93 @@
-import logging
-import sys
-import uuid
+"""
+FastAPI entrypoint.
 
-import structlog
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+Wat je hier krijgt:
+- CORS (nu permissief; zet later specifieke origins).
+- Startup check die de DB-verbinding verifieert (faalt hard als het misgaat).
+- Eenvoudige health endpoints.
 
-from .core.config import settings
+Start lokaal:
+    cd "./Turkish Diaspora App/Backend"
+    source .venv/bin/activate
+    # Alleen als je lokaal TLS-inspectie/self-signed CA hebt:
+    export SUPABASE_SSL_NO_VERIFY=1
+    uvicorn app.main:app --reload
+"""
 
-# --- 1. Structured Logging Configuration (Same as before) ---
-logging.basicConfig(
-    format="%(message)s",
-    stream=sys.stdout,
-    level=logging.INFO,
-)
+import os
+import uvicorn
+from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
-structlog.configure(
-    processors=[
-        structlog.contextvars.merge_contextvars,
-        structlog.stdlib.add_logger_name,
-        structlog.stdlib.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
-    ],
-    logger_factory=structlog.stdlib.LoggerFactory(),
-    wrapper_class=structlog.stdlib.BoundLogger,
-    cache_logger_on_first_use=True,
-)
-formatter = structlog.stdlib.ProcessorFormatter(
-    processor=structlog.processors.JSONRenderer(),
-)
-root_logger = logging.getLogger()
-if root_logger.handlers:
-    root_logger.handlers[0].setFormatter(formatter)
-else:
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    root_logger.addHandler(handler)
+from app.config import settings
+from app.db import ping_db
 
-log = structlog.get_logger("api")
-
-
-# --- 2. Create The FastAPI App Instance ---
-# THIS MUST BE CREATED BEFORE IT CAN BE USED BY THE MIDDLEWARE
+# -----------------------------------------------------------------------------
+# App-instantie
+# -----------------------------------------------------------------------------
 app = FastAPI(
-    title=settings.PROJECT_NAME,
+    title="Turkish Diaspora Backend",
     version=settings.APP_VERSION,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
+# -----------------------------------------------------------------------------
+# CORS (nu open; zet later alleen je frontend(s) toe)
+# -----------------------------------------------------------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],      # bv. ["http://localhost:5173", "https://jouwdomein.nl"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# --- 3. Middleware for Request IDs ---
-# NOW we can attach the middleware using the correct `app` object
-@app.middleware("http")
-async def request_id_middleware(request: Request, call_next) -> Response:
-    """
-    Adds a unique X-Request-ID header to every request and response.
-    """
-    request_id = str(uuid.uuid4())
-    logger = log.bind(request_id=request_id)
+# -----------------------------------------------------------------------------
+# Startup: check databaseverbinding
+# -----------------------------------------------------------------------------
+@app.on_event("startup")
+async def on_startup():
+    try:
+        await ping_db()
+        print("[startup] Database OK")
+    except Exception as e:
+        # Faal bewust zodat je het meteen ziet bij opstarten
+        print(f"[startup] Database ping failed: {e}")
+        raise
 
-    logger.info(
-        "request_started",
-        method=request.method,
-        path=request.url.path
-    )
+# -----------------------------------------------------------------------------
+# Health endpoints
+# -----------------------------------------------------------------------------
+@app.get("/", tags=["health"])
+async def root():
+    return {
+        "app": "Turkish Diaspora Backend",
+        "version": settings.APP_VERSION,
+        "status": "running",
+    }
 
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = request_id
-
-    logger.info(
-        "request_finished",
-        status_code=response.status_code
-    )
-    return response
-
-
-# --- 4. API Endpoints (Same as before) ---
-@app.get("/health", tags=["Monitoring"])
-def get_health() -> dict[str, str]:
-    """
-    Health check endpoint to confirm the API is running.
-    """
-    log.info("Health check endpoint was called")
+@app.get("/health", tags=["health"])
+async def health():
     return {"status": "ok"}
 
-
-@app.get("/version", tags=["Monitoring"])
-def get_version() -> dict[str, str]:
-    """
-    Returns the current version of the application from settings.
-    """
+@app.get("/version", tags=["health"])
+async def version():
     return {"version": settings.APP_VERSION}
+
+@app.get("/db/ping", tags=["health"])
+async def db_ping():
+    # Actieve check op de DB
+    await ping_db()
+    return {"db": "ok"}
+
+# -----------------------------------------------------------------------------
+# Entrypoint (lokaal starten met: python -m app.main of uvicorn app.main:app)
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    uvicorn.run(
+        "app.main:app",
+        host=os.environ.get("HOST", "127.0.0.1"),
+        port=int(os.environ.get("PORT", 8000)),
+        reload=True,
+    )
