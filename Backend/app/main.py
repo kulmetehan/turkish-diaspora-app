@@ -1,89 +1,97 @@
-"""
-FastAPI entrypoint.
-
-Wat je hier krijgt:
-- CORS (nu permissief; zet later specifieke origins).
-- Startup check die de DB-verbinding verifieert (faalt hard als het misgaat).
-- Eenvoudige health endpoints.
-
-Start lokaal:
-    cd "./Turkish Diaspora App/Backend"
-    source .venv/bin/activate
-    # Alleen als je lokaal TLS-inspectie/self-signed CA hebt:
-    export SUPABASE_SSL_NO_VERIFY=1
-    uvicorn app.main:app --reload
-"""
-
 import os
+import json
+import logging
 import uvicorn
 from fastapi import FastAPI
-from starlette.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import ping_db
 
-# -----------------------------------------------------------------------------
-# App-instantie
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------
+# App setup
+# ----------------------------------------------------
 app = FastAPI(
     title="Turkish Diaspora Backend",
-    version=settings.APP_VERSION,
+    version=getattr(settings, "APP_VERSION", "0.1.0"),
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# -----------------------------------------------------------------------------
-# CORS (nu open; zet later alleen je frontend(s) toe)
-# -----------------------------------------------------------------------------
+logger = logging.getLogger("api")
+logging.basicConfig(level=logging.INFO)
+
+# ----------------------------------------------------
+# CORS
+# ----------------------------------------------------
+# Gebruik lijst uit settings als die bestaat; anders veilige defaults
+default_cors_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+]
+cors_origins = (
+    getattr(settings, "CORS_ORIGINS", None)
+    or getattr(settings, "FRONTEND_ORIGINS", None)
+    or default_cors_origins
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # bv. ["http://localhost:5173", "https://jouwdomein.nl"]
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# -----------------------------------------------------------------------------
-# Startup: check databaseverbinding
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------
+# Lifecycle hooks
+# ----------------------------------------------------
 @app.on_event("startup")
-async def on_startup():
+async def on_startup() -> None:
+    # Probeer DB te pingen bij start-up (handig voor snelle diagnose)
     try:
+        logger.info(json.dumps({"event": "Checking database connection...", "logger": "api"}))
         await ping_db()
-        print("[startup] Database OK")
-    except Exception as e:
-        # Faal bewust zodat je het meteen ziet bij opstarten
-        print(f"[startup] Database ping failed: {e}")
-        raise
+        logger.info(json.dumps({"event": "Database connection OK.", "logger": "api"}))
+    except Exception as exc:
+        # We laten de app wel starten; frontend kan nog steeds draaien
+        logger.error(
+            json.dumps(
+                {
+                    "event": "Database connection failed.",
+                    "error": str(exc),
+                    "logger": "api",
+                }
+            )
+        )
 
-# -----------------------------------------------------------------------------
-# Health endpoints
-# -----------------------------------------------------------------------------
-@app.get("/", tags=["health"])
-async def root():
+# ----------------------------------------------------
+# Routes
+# ----------------------------------------------------
+@app.get("/health", tags=["health"])
+def health():
+    """
+    Eenvoudige healthcheck voor de frontend.
+    """
     return {
-        "app": "Turkish Diaspora Backend",
-        "version": settings.APP_VERSION,
-        "status": "running",
+        "status": "ok",
+        "version": getattr(settings, "APP_VERSION", "0.1.0"),
     }
 
-@app.get("/health", tags=["health"])
-async def health():
-    return {"status": "ok"}
-
 @app.get("/version", tags=["health"])
-async def version():
-    return {"version": settings.APP_VERSION}
+def version():
+    return {"version": getattr(settings, "APP_VERSION", "0.1.0")}
 
 @app.get("/db/ping", tags=["health"])
 async def db_ping():
-    # Actieve check op de DB
     await ping_db()
     return {"db": "ok"}
 
-# -----------------------------------------------------------------------------
-# Entrypoint (lokaal starten met: python -m app.main of uvicorn app.main:app)
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------
+# Local dev entrypoint
+# ----------------------------------------------------
 if __name__ == "__main__":
     uvicorn.run(
         "app.main:app",

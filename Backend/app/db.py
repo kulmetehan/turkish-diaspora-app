@@ -1,79 +1,90 @@
-"""
-Database bootstrap met SQLAlchemy 2.x (async) + asyncpg.
-
-Belangrijkste punten:
-- Supabase vereist TLS. We maken een expliciete SSL-context.
-- In sommige (lokale) netwerken zit TLS-inspectie (self-signed CA). Daarvoor
-  is er een *ontwikkel* toggel via env: SUPABASE_SSL_NO_VERIFY=1.
-  Gebruik dit alléén voor lokaal debuggen. In productie/cloud: niet zetten.
-
-Gebruik:
-- set SUPABASE_SSL_NO_VERIFY=1 (alleen lokaal) om tijdelijk certificate checks uit te zetten.
-- laat variabele weg in cloud (Render/Railway/etc.) zodat verificatie aan staat.
-"""
-
+# Backend/app/db.py
 import os
 import ssl
-import certifi
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from typing import Dict, Any
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
+
 from app.config import settings
 
 
-def build_ssl_context() -> ssl.SSLContext:
+def _to_str_url(url_obj: Any) -> str:
     """
-    Bouw een SSL-context voor asyncpg.
-
-    - Default (aanbevolen): strikte verificatie met de certifi CA-store.
-    - Als SUPABASE_SSL_NO_VERIFY=1 is gezet (alleen voor development!):
-      hostname-check & certificaatverificatie uit.
+    settings.DATABASE_URL kan een Pydantic AnyUrl zijn.
+    SQLAlchemy verwacht str of sqlalchemy.engine.URL.
     """
-    if os.getenv("SUPABASE_SSL_NO_VERIFY", "0") == "1":
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        return ctx
-
-    # Strikte, veilige context met certifi
-    ctx = ssl.create_default_context(cafile=certifi.where())
-    ctx.check_hostname = True
-    ctx.verify_mode = ssl.CERT_REQUIRED
-    return ctx
+    return str(url_obj)
 
 
-# Maak één gedeelde engine voor de app
-_engine: AsyncEngine = create_async_engine(
-    str(settings.DATABASE_URL),
-    connect_args={"ssl": build_ssl_context()},  # expliciete SSL context voor Supabase
-    pool_pre_ping=True,                         # check connecties voor hergebruik
-    pool_size=5,
-    max_overflow=5,
+def _strip_sslmode(url_str: str) -> str:
+    """
+    Haal 'sslmode' uit de querystring van de URL, zodat de driver
+    (vooral asyncpg) géén onbekend kw-argument krijgt.
+    """
+    parts = urlsplit(url_str)
+    query_items = dict(parse_qsl(parts.query, keep_blank_values=True))
+    # Verwijder sslmode als die bestaat
+    if "sslmode" in query_items:
+        query_items.pop("sslmode", None)
+
+    new_query = urlencode(query_items, doseq=True)
+    # Herbouw URL
+    cleaned = urlunsplit((parts.scheme, parts.netloc, parts.path, new_query, parts.fragment))
+    return cleaned
+
+
+def _build_connect_args(db_scheme: str) -> Dict[str, Any]:
+    """
+    Bepaal connect_args op basis van driver.
+    - Voor asyncpg: gebruik 'ssl' (bool of ssl.SSLContext).
+    - Voor psycopg(3): je kunt sslmode in URL laten (maar we strippen 'm al),
+      en zonodig via connect_args extra opties meegeven.
+    We kiezen hier voor DEV: SSL-verificatie UIT (handig bij zelfondertekende ketens).
+    In productie wil je verificatie AAN.
+    """
+    # DEV: certificaatverificatie uitzetten om self-signed errors te voorkomen
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = False
+    ssl_ctx.verify_mode = ssl.CERT_NONE  # <-- DEV ONLY (niet in productie!)
+
+    if "asyncpg" in db_scheme:
+        # asyncpg verwacht 'ssl'
+        return {"ssl": ssl_ctx}
+    else:
+        # Fallback voor andere drivers (bijv. psycopg), meestal niet nodig.
+        # psycopg3 accepteert geen 'ssl' in connect_args op dezelfde manier;
+        # doorgaans volstaat de URL, maar we geven niets extra's mee.
+        return {}
+
+
+# 1) URL ophalen en normaliseren
+_RAW_URL = getattr(settings, "DATABASE_URL", None)
+if not _RAW_URL:
+    raise RuntimeError("DATABASE_URL ontbreekt in settings/config.")
+
+_URL_STR = _to_str_url(_RAW_URL)
+_URL_STR = _strip_sslmode(_URL_STR)  # Verwijder sslmode uit querystring
+
+# 2) Connect args bepalen o.b.v. driver
+_db_scheme = _URL_STR.split(":")[0]  # bijv. 'postgresql+asyncpg'
+_CONNECT_ARGS = _build_connect_args(_db_scheme)
+
+# 3) Engine aanmaken (ASYNCHRONOUS)
+engine: AsyncEngine = create_async_engine(
+    _URL_STR,
+    echo=False,           # zet op True als je SQL wilt loggen
+    future=True,
+    pool_pre_ping=True,   # check verbindingen voordat ze hergebruikt worden
+    connect_args=_CONNECT_ARGS,
 )
-
-# Session factory (per request/usage een AsyncSession via dependency)
-AsyncSessionLocal = sessionmaker(bind=_engine, class_=AsyncSession, expire_on_commit=False)
-
-
-async def get_engine() -> AsyncEngine:
-    """Geef de gedeelde engine terug (handig voor advanced use)."""
-    return _engine
-
-
-async def get_db():
-    """
-    FastAPI dependency voor database-sessies.
-    Gebruik in endpoints als: `async def endpoint(db: AsyncSession = Depends(get_db))`
-    """
-    async with AsyncSessionLocal() as session:
-        yield session
 
 
 async def ping_db() -> None:
     """
-    Voer een simpele query uit om de verbinding te verifiëren.
-    SQLAlchemy 2.x vereist `text()` voor raw SQL.
+    Simpele gezondheidstest voor de DB-verbinding.
+    Wordt bij startup aangeroepen in app.main: on_startup.
     """
-    async with _engine.connect() as conn:
-        result = await conn.execute(text("SELECT 1"))
-        _ = result.scalar()  # 1 verwacht
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
