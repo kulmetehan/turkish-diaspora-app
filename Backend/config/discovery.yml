@@ -1,0 +1,136 @@
+# Discovery Bot Configuratie
+# Pad: Backend/config/discovery.yml
+#
+# Gebruik met: python workers/discovery_bot.py --profile rotterdam --config config/discovery.yml
+
+profiles:
+  # Rotterdam profiel - standaard configuratie
+  rotterdam:
+    center_lat: 51.9244
+    center_lng: 4.4777
+    categories:
+      - bakery
+      - restaurant
+      - supermarket
+      - barber_shop
+      - travel_agency
+    nearby_radius_m: 1000
+    grid_span_km: 14
+    max_per_cell_per_category: 30
+    inter_call_sleep_s: 0.2
+    max_total_inserts: 0  # 0 = geen limiet
+    max_cells_per_category: 0  # 0 = alle cellen
+
+  # Rotterdam - snelle test run (beperkt)
+  rotterdam_test:
+    center_lat: 51.9244
+    center_lng: 4.4777
+    categories:
+      - bakery
+      - restaurant
+    nearby_radius_m: 800
+    grid_span_km: 5
+    max_per_cell_per_category: 20
+    inter_call_sleep_s: 0.15
+    max_total_inserts: 200
+    max_cells_per_category: 10
+
+  # Amsterdam profiel (als voorbeeld voor toekomstige expansie)
+  amsterdam:
+    center_lat: 52.3676
+    center_lng: 4.9041
+    categories:
+      - bakery
+      - restaurant
+      - supermarket
+      - barber_shop
+      - travel_agency
+      - cafe
+    nearby_radius_m: 1000
+    grid_span_km: 12
+    max_per_cell_per_category: 30
+    inter_call_sleep_s: 0.2
+    max_total_inserts: 0
+    max_cells_per_category: 0
+
+  # Den Haag profiel
+  den_haag:
+    center_lat: 52.0705
+    center_lng: 4.3007
+    categories:
+      - bakery
+      - restaurant
+      - supermarket
+      - barber_shop
+      - travel_agency
+    nearby_radius_m: 1000
+    grid_span_km: 10
+    max_per_cell_per_category: 30
+    inter_call_sleep_s: 0.2
+    max_total_inserts: 0
+    max_cells_per_category: 0
+
+  # Utrecht profiel
+  utrecht:
+    center_lat: 52.0907
+    center_lng: 5.1214
+    categories:
+      - bakery
+      - restaurant
+      - supermarket
+      - barber_shop
+      - travel_agency
+    nearby_radius_m: 1000
+    grid_span_km: 10
+    max_per_cell_per_category: 30
+    inter_call_sleep_s: 0.2
+    max_total_inserts: 0
+    max_cells_per_category: 0
+
+  # Conservatieve run (langzamer, meer betrouwbaar)
+  rotterdam_conservative:
+    center_lat: 51.9244
+    center_lng: 4.4777
+    categories:
+      - bakery
+      - restaurant
+      - supermarket
+      - barber_shop
+      - travel_agency
+    nearby_radius_m: 1200
+    grid_span_km: 14
+    max_per_cell_per_category: 40
+    inter_call_sleep_s: 0.3  # Langzamer voor minder API druk
+    max_total_inserts: 0
+    max_cells_per_category: 0
+
+  # Agressieve run (sneller, meer coverage)
+  rotterdam_aggressive:
+    center_lat: 51.9244
+    center_lng: 4.4777
+    categories:
+      - bakery
+      - restaurant
+      - supermarket
+      - barber_shop
+      - travel_agency
+      - cafe
+      - clothing_store
+      - hair_salon
+      - mosque
+    nearby_radius_m: 800
+    grid_span_km: 16
+    max_per_cell_per_category: 20
+    inter_call_sleep_s: 0.1  # Sneller
+    max_total_inserts: 0
+    max_cells_per_category: 0
+
+# Notities:
+# - center_lat/center_lng: GPS coördinaten van het centrum
+# - categories: lijst van Google Places types (zie: https://developers.google.com/maps/documentation/places/web-service/place-types)
+# - nearby_radius_m: zoekradius per grid cel in meters
+# - grid_span_km: totale breedte/hoogte van het grid in kilometers
+# - max_per_cell_per_category: max aantal resultaten per API call
+# - inter_call_sleep_s: pauze tussen API calls (voor rate limiting)
+# - max_total_inserts: stop na X nieuwe inserts (0 = geen limiet)
+# - max_cells_per_category: max aantal grid cellen per categorie (0 = alle cellen)
