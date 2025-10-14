@@ -1,6 +1,7 @@
 # services/openai_service.py
 from __future__ import annotations
 
+import asyncio
 import json
 import math
 import re
@@ -125,8 +126,8 @@ class OpenAIService:
 
                 duration_ms = int((time.perf_counter() - t0) * 1000)
 
-                # Logging → aansluitend op jouw schema
-                ai_log(
+                # Logging → aansluitend op jouw schema (async safe)
+                asyncio.create_task(ai_log(
                     location_id=location_id,
                     action_type=action_type,
                     prompt=prompt_payload,  # als TEXT in DB (JSON-string)
@@ -139,7 +140,7 @@ class OpenAIService:
                     model_used=self.model,
                     is_success=True,
                     error_message=None,
-                )
+                ))
 
                 return parsed, {
                     "ok": True,
@@ -167,8 +168,8 @@ class OpenAIService:
 
         duration_ms = int((time.perf_counter() - t0) * 1000)
 
-        # Failure logging
-        ai_log(
+        # Failure logging (async safe)
+        asyncio.create_task(ai_log(
             location_id=location_id,
             action_type=action_type,
             prompt=prompt_payload,
@@ -177,5 +178,5 @@ class OpenAIService:
             model_used=self.model,
             is_success=False,
             error_message=str(last_err),
-        )
+        ))
         raise RuntimeError(f"OpenAIService failed after retries: {last_err}")

@@ -1,0 +1,30 @@
+TAKEN
+- Bepaal of de locatie relevant is voor de Turkse diaspora in NL:
+  action ∈ {"keep","ignore"}
+- Geef de primaire category wanneer action="keep".
+- Geef een confidence_score ∈ [0,1] (hoge score = hoge zekerheid).
+- Geef een korte reason (1 zin).
+
+CONTEXT & REGELS
+- Gebruik vooral naam + type + adres; let op duidelijke Turkse cues.
+- Turkse cues (niet-limitatief): kebab, döner, grill, ocakbaşı, lahmacun, pide, börek, simit, baklava, saray, istanbul, anadolu/anatolia, osmanlı, sultan, firat, vatan, ankara, konya, urfa, antep, helal/halal (i.c.m. Turks eten), bakkal, kasap, berber/kuaför (barber), lokanta, çiğköfte, tantuni.
+- Anti-cues: generieke NL namen (bv. HEMA, Limburgia, De Brug, Hollandse termen zonder Turkse link).
+- Als type=bakery en je ziet Turkse cues → category="bakery".
+- Als er wél duidelijke Turkse cues zitten maar type wijst op iets anders (kebab, grill, barber, butcher, bakkal) → kies die category.
+- Als je géén Turkse indicaties vindt → action="ignore", category=null.
+- Houd categories beperkt tot: {"bakery","kebab","restaurant","bakkal/supermarket","barber","butcher","mosque","association"}.
+- Ga NOOIT gokken buiten deze set.
+
+STRICTE OUTPUT
+- Altijd geldige JSON op één regel:
+  {"action": "...", "category": <string|null>, "confidence_score": <float>, "reason": "..."}
+- Als action="ignore": category=null.
+- Gebruik korte, concrete reason.
+
+AFWEGING
+- We optimaliseren voor PRECISION op "keep": bij twijfel → "ignore".
+- Confidence: zeer zeker (≥0.9), twijfel (0.6–0.8), laag (<0.6).
+
+TYPE-NAAM REGEL
+- type=bakery + Turkse cue → category="bakery".
+- type=bakery + géén Turkse cue → ignore.
