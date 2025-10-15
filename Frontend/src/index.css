@@ -66,3 +66,22 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+/* Stretch the app to the viewport */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+/* Wrapper controlling the visible height of the map */
+.map-root {
+  height: 70vh;   /* change to 100vh if you want full-screen */
+  width: 100%;
+  position: relative;
+}
+
+/* Ensure Leaflet fills its parent */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+}
