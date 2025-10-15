@@ -40,3 +40,82 @@
 .read-the-docs {
   color: #888;
 }
+
+/* eenvoudige basisstijl; pas gerust aan naar jouw design */
+.loc-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  cursor: pointer;
+  background: #fff;
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+.loc-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.loc-card--selected { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+
+.loc-card__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.loc-card__title { font-size: 16px; line-height: 1.2; margin: 0; font-weight: 600; }
+
+.loc-card__meta { margin-top: 8px; display: grid; gap: 4px; }
+.loc-card__row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; }
+.loc-card__label { color: #6b7280; font-size: 12px; }
+.loc-card__value { font-size: 14px; }
+
+.badge { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; background:#e5e7eb; color:#111827; }
+.badge--success { background:#dcfce7; color:#065f46; }
+.badge--warn { background:#fef3c7; color:#92400e; }
+.badge--error { background:#fee2e2; color:#991b1b; }
+
+.location-list {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 160px); /* pas aan op jouw header/toolbar-hoogte */
+  overflow: auto;
+  padding-right: 4px; /* ruimte voor scrollbar */
+}
+
+.filters { padding: 8px 0; }
+.filters__header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.filters__title { font-size:14px; margin:0; }
+.filters__actions { display:flex; gap:6px; }
+.btn { border:1px solid #e5e7eb; background:#fff; padding:4px 8px; border-radius:8px; cursor:pointer; }
+.btn--ghost { background:#fff; }
+.filters__list { display:flex; flex-wrap:wrap; gap:6px; }
+.chip { display:inline-flex; align-items:center; gap:6px; border:1px solid #e5e7eb; border-radius:999px; padding:4px 10px; cursor:pointer; user-select:none; }
+.chip input { display:none; }
+.chip--active { background:#eff6ff; border-color:#bfdbfe; }
+.filters__empty { color:#6b7280; font-size:13px; }
+
+.sort-bar { display:flex; align-items:center; gap:8px; margin:8px 0; }
+.sort-bar__label { font-size:14px; color:#374151; }
+.sort-bar__select { padding:6px 10px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; }
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  grid-template-rows: 100vh;
+}
+
+.app-sidebar {
+  padding: 12px;
+  overflow: hidden;
+  border-right: 1px solid #e5e7eb;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar { position: sticky; top: 0; background: #fafafa; padding-bottom: 8px; z-index: 10; }
+.loading, .error { padding: 8px 0; color: #374151; }
+.error { color: #b91c1c; }
+
+.app-map { min-width: 0; }
+@media (max-width: 900px) {
+  .app-layout { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+  .app-map { height: 60vh; }
+}
+/* Geselecteerde marker (className op SelectedIcon) */
+.leaflet-marker-selected {
+  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.55));
+}

@@ -1,149 +1,119 @@
-import { useEffect, useMemo, useState } from "react";
+// Frontend/src/components/MapView.tsx
+
+// Zorg dat Leaflet CSS geladen is (defensieve extra import; dubbel importen is onschadelijk in Vite)
+import "leaflet/dist/leaflet.css";
+
+import { useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
-import L from "leaflet";
 import type { LatLngExpression } from "leaflet";
+import L from "leaflet";
 
-import { getLocations } from "../lib/api";
 import type { Location } from "../types/location";
-import { NL_CENTER, NL_ZOOM } from "../lib/geo";
-import { useUserPosition } from "../hooks/useUserPosition";
+import { useSelectedLocationId, selectLocation } from "../state/ui";
 
-// Fix default marker icons in Vite so Leaflet pins render correctly
-import marker2x from "leaflet/dist/images/marker-icon-2x.png";
-import marker1x from "leaflet/dist/images/marker-icon.png";
-import shadow from "leaflet/dist/images/marker-shadow.png";
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: marker2x,
-  iconUrl: marker1x,
-  shadowUrl: shadow,
+type Props = {
+  locations: Location[];
+};
+
+// --- Leaflet default icon fix ---
+const DefaultIcon = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  tooltipAnchor: [16, -28],
+  shadowSize: [41, 41],
 });
 
-function FlyTo({ center }: { center: LatLngExpression }) {
+const SelectedIcon = L.icon({
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [30, 49],
+  iconAnchor: [15, 49],
+  popupAnchor: [1, -40],
+  tooltipAnchor: [16, -35],
+  shadowSize: [49, 49],
+  className: "leaflet-marker-selected",
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
+
+function SelectedMarkerFollower({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, 12, { duration: 0.8 });
-  }, [center, map]);
+    map.panTo([lat, lng], { animate: true });
+  }, [lat, lng, map]);
   return null;
 }
 
-export default function MapView() {
-  const { coords, status } = useUserPosition(6000);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [items, setItems] = useState<Location[]>([]);
-  const [center, setCenter] = useState<LatLngExpression>([
-    NL_CENTER.lat,
-    NL_CENTER.lng,
-  ]);
+export default function MapView({ locations }: Props) {
+  const selectedId = useSelectedLocationId();
 
-  // Center on user if permission is granted
+  const selectedLoc = useMemo(
+    () => locations.find((l) => l.id === selectedId) ?? null,
+    [locations, selectedId]
+  );
+
+  const initialCenter: LatLngExpression = selectedLoc
+    ? ([selectedLoc.lat, selectedLoc.lng] as LatLngExpression)
+    : ([51.9225, 4.47917] as LatLngExpression); // Rotterdam fallback
+
+  // Bewaar directe Leaflet marker instanties
+  const markerRefs = useRef<Record<string, L.Marker | null>>({});
+
+  // Open popup van de geselecteerde marker wanneer de selectie wijzigt
   useEffect(() => {
-    if (status === "granted" && coords) {
-      setCenter([coords.lat, coords.lng]);
-    }
-  }, [status, coords]);
+    if (!selectedId) return;
+    const m = markerRefs.current[selectedId];
+    if (m) m.openPopup();
+  }, [selectedId]);
 
-  // Load locations
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setErr(null);
-
-    getLocations({ limit: 200 })
-      .then((data) => {
-        if (cancelled) return;
-        setItems(data);
-      })
-      .catch((e) => {
-        if (cancelled) return;
-        setErr(e?.message || "Kon locaties niet laden.");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const markers = useMemo(() => items, [items]);
+  if (!locations.length) {
+    return <div style={{ padding: 8 }}>Geen locaties om te tonen.</div>;
+  }
 
   return (
-    <div className="map-root">{/* height is controlled in index.css */}
-      <MapContainer
-        center={center}
-        zoom={NL_ZOOM}
-        preferCanvas
-        worldCopyJump
-        style={{ height: "100%", width: "100%" }}
-      >
-        <TileLayer
-          attribution="&copy; OpenStreetMap contributors"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+    <MapContainer center={initialCenter} zoom={12} style={{ width: "100%", height: "100vh" }}>
+      <TileLayer
+        attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      />
 
-        {Array.isArray(center) && status === "granted" && (
-          <FlyTo center={center} />
-        )}
+      {selectedLoc && <SelectedMarkerFollower lat={selectedLoc.lat} lng={selectedLoc.lng} />}
 
-        {markers.map((loc) => (
-          <Marker key={loc.id} position={[loc.lat, loc.lng]}>
+      {locations.map((loc) => {
+        const isSelected = loc.id === selectedId;
+        return (
+          <Marker
+            key={loc.id}
+            position={[loc.lat, loc.lng]}
+            icon={isSelected ? SelectedIcon : DefaultIcon}
+            ref={(instance) => {
+              markerRefs.current[loc.id] = instance;
+            }}
+            eventHandlers={{
+              click: () => selectLocation(loc.id),
+            }}
+          >
             <Popup>
-              <div style={{ minWidth: 180 }}>
-                <strong>{loc.name}</strong>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>
-                  {loc.category || "other"}
-                </div>
-                {loc.address && (
-                  <div style={{ fontSize: 12, marginTop: 4 }}>{loc.address}</div>
-                )}
-              </div>
+              <strong>{loc.name}</strong>
+              <br />
+              {loc.address ?? "—"}
+              <br />
+              {loc.category ?? "—"}
+              {typeof loc.rating === "number" ? (
+                <>
+                  <br />
+                  {loc.rating.toFixed(1)} ★{loc.user_ratings_total ? ` (${loc.user_ratings_total})` : ""}
+                </>
+              ) : null}
             </Popup>
           </Marker>
-        ))}
-      </MapContainer>
-
-      {/* Lightweight status toasts */}
-      {loading && (
-        <div
-          className="pointer-events-none"
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: 12,
-            transform: "translateX(-50%)",
-            zIndex: 1000,
-            background: "rgba(255,255,255,0.9)",
-            padding: "4px 8px",
-            borderRadius: 6,
-            fontSize: 13,
-            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-          }}
-        >
-          Locaties laden…
-        </div>
-      )}
-      {err && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: 12,
-            transform: "translateX(-50%)",
-            zIndex: 1000,
-            background: "#dc2626",
-            color: "white",
-            padding: "4px 8px",
-            borderRadius: 6,
-            fontSize: 13,
-            boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-          }}
-        >
-          {err}
-        </div>
-      )}
-    </div>
+        );
+      })}
+    </MapContainer>
   );
 }

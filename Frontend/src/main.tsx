@@ -1,12 +1,17 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import 'leaflet/dist/leaflet.css';
-import App from './App.tsx'
+// Frontend/src/main.tsx
 
-const root = document.getElementById('root')!;
-createRoot(root).render(
-  <StrictMode>
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+
+// App styles
+import "./App.css";
+
+// BELANGRIJK: Leaflet basis-styles (tiles, controls, popups, etc.)
+import "leaflet/dist/leaflet.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
     <App />
-  </StrictMode>
+  </React.StrictMode>
 );

@@ -1,47 +1,43 @@
-import { useEffect, useState } from "react";
+// Frontend/src/App.tsx
+
+import "./App.css";
+
+import Filters from "./components/Filters";
+import SortBar from "./components/SortBar";
+import LocationList from "./components/LocationList";
 import MapView from "./components/MapView";
-import { API_BASE_URL, getHealth } from "./lib/api";
 
-export default function App() {
-  const [health, setHealth] = useState<string | null>(null);
+import { useLocations } from "./hooks/useLocations";
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await getHealth();
-        setHealth(data?.status ?? null);
-      } catch {
-        setHealth(null);
-      }
-    })();
-  }, []);
+function App() {
+  const { locations, categories, isLoading, error } = useLocations();
 
   return (
-    <div className="min-h-screen w-full" style={{ fontFamily: "system-ui, Arial, sans-serif" }}>
-      {/* Full-bleed Map */}
-      <div style={{ height: "65vh", width: "100%" }}>
-        <MapView />
-      </div>
+    <div className="app-layout">
+      <aside className="app-sidebar">
+        <div className="toolbar">
+          <Filters categories={categories} />
+          <SortBar />
+        </div>
 
-      {/* Info blok */}
-      <div style={{ padding: 24 }}>
-        <h1>Turkish Diaspora App</h1>
-        <p>Kaart + lijst experience (Epic 4) — TDA-13 in uitvoering.</p>
+        {isLoading && <div className="loading">Laden…</div>}
+        {error && <div className="error">Fout bij laden: {error}</div>}
 
-        <hr style={{ margin: "16px 0" }} />
+        {!isLoading && !error && (
+          <LocationList
+            locations={locations}
+            autoScrollToSelected
+            emptyText="Geen resultaten. Pas je filters aan."
+          />
+        )}
+      </aside>
 
-        <h2>Config</h2>
-        <p>
-          <strong>API base URL:</strong> {API_BASE_URL || "(not set)"}
-        </p>
-
-        <h2>Backend health</h2>
-        <p>
-          {health === null
-            ? "Proberen te verbinden… (of backend niet bereikbaar)"
-            : `Backend zegt: ${health}`}
-        </p>
-      </div>
+      <main className="app-map">
+        {/* MapView ontvangt de *zelfde* dataset -> geen tweede fetch */}
+        <MapView locations={locations} />
+      </main>
     </div>
   );
 }
+
+export default App;
