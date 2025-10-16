@@ -1,0 +1,100 @@
+Work Type,Summary,Description,Epic Link,Status,Priority,Labels,Story Points,Acceptance Criteria,Definition of Done,Technical Notes,Components,Risk Level
+Epic,Foundation & Infrastructure,"Establish the core development environment, repository structure, and deployment pipelines for a stable and scalable project foundation.",,To Do,High,"infrastructure,setup,backend,frontend",,,"All foundational systems are operational and documented",,"Backend, Frontend, DevOps",Medium
+Story,Monorepo & Initial Project Setup,"Initialize the monorepo with all top-level directories and configuration files. This includes setting up .gitignore, .editorconfig, licensing, and placeholder directories for Docs/, Infra/, Backend/, and Frontend/.",Foundation & Infrastructure,To Do,High,"repository,setup,ci-cd",3,"- Repository can be cloned successfully
+- All top-level folders (Docs/, Infra/, Backend/, Frontend/, .github/) exist
+- .gitignore is configured for Python, Node.js, and environment files
+- A basic README.md file is present with project description and setup instructions","- Monorepo structure created and pushed to version control
+- All configuration files in place
+- Team can successfully clone and access the repository","This is a ""day zero"" task. Keep it simple and focused on structure, not implementation.","DevOps",Low
+Story,Core Backend Infrastructure & Configuration,"Set up the foundational FastAPI application with configuration management, structured logging, and error handling. Create the core application structure without any business logic.",Foundation & Infrastructure,To Do,High,"backend,fastapi,configuration",5,"- Running uvicorn app.main:app starts a server without errors
+- GET /health returns a 200 OK status with JSON payload {""status"": ""ok""}
+- GET /version returns the current project version
+- Application configuration loaded from .env file using Pydantic
+- Logging implemented in structured format (JSON) with request IDs","- Backend server runs without errors
+- Health and version endpoints functional
+- Configuration management working
+- Structured logging operational","Focus on making the backend ""alive"" and observable from the start","Backend",Low
+Story,Database Schema Implementation & Migration,"Implement the complete database schema as defined in the data model. Create and run idempotent SQL migration scripts in the Infra/supabase/ folder to create all tables (locations, ai_logs, tasks, training_data, category_icon_map) with correct columns, data types, constraints, and indexes.",Foundation & Infrastructure,To Do,High,"database,supabase,migrations",8,"- Running migration script on fresh Supabase project creates all tables successfully
+- All defined columns and constraints (PRIMARY KEY, UNIQUE on place_id) are present
+- Basic indexes exist on foreign keys and frequently queried columns (state, category, next_check_at)
+- Backend can establish database connection and perform simple SELECT 1 query","- All database tables created with proper constraints
+- Migration scripts are idempotent and tested
+- Backend can connect and query database successfully","The 0001_init.sql file is the single source of truth for database structure","Backend",Medium
+Story,Frontend Scaffolding and Build Pipeline,"Initialize the chosen frontend (React + Vite) with basic component structure, build tooling, and configuration that points to the backend API. The app should display a simple ""Hello World"" page.",Foundation & Infrastructure,To Do,High,"frontend,react,scaffolding",5,"- Running npm run dev starts local development server
+- Running npm run build creates production-ready build without errors
+- Frontend can read API base URL from environment variable (VITE_API_BASE_URL)
+- Basic App.tsx component renders a page title","- Frontend development server runs
+- Production build succeeds
+- Environment configuration working
+- Basic component structure in place","This story is agnostic to UI library; focused on making frontend toolchain work","Frontend",Low
+Epic,Legal Data Discovery & Ingestion,"Automatically and legally discover potential Turkish-oriented business candidates from Google APIs and store them in the system.",,To Do,High,"data,discovery,google-api,legal",,,"Data discovery pipeline is operational and compliant",,"Backend, Data Engineering",High
+Story,Google Places API Integration Service,"Build a robust, quota-efficient service (google_service.py) that wraps the Google Places API (Nearby Search and Text Search). The service must handle API errors, respect rate limits, and use field masks to request only necessary data.",Legal Data Discovery & Ingestion,To Do,High,"google-api,backend,services",8,"- Given latitude, longitude, and radius, service returns list of places
+- Given text query (e.g., ""Turkse bakkerij Rotterdam""), service returns list of places
+- Service implements exponential backoff for retrying failed requests
+- All API calls logged for auditing and cost tracking","- Google Places API integration working
+- Error handling and retry logic implemented
+- Comprehensive logging in place
+- Field masks used for quota efficiency","This is a core, reusable service. Focus on stability and efficiency.","Backend",Medium
+Story,DiscoveryBot - Grid-Based Search Scheduler,"Implement the discovery_bot.py worker. It should read configuration of target cities (starting with Rotterdam) and categories, execute grid-based search using Google Service, and insert new, deduplicated candidates into locations table with state CANDIDATE.",Legal Data Discovery & Ingestion,To Do,High,"bot,discovery,automation",13,"- Bot can be run manually from command line
+- Processes at least 3 different business categories for Rotterdam
+- Successfully deduplicates results based on place_id before insertion
+- After run, locations table contains ~500 new records with state = 'CANDIDATE'","- DiscoveryBot executable and functional
+- Grid-based search working for Rotterdam
+- Deduplication logic implemented
+- 500+ candidate records in database","Deduplication is critical to avoid wasting API calls and processing power","Backend",Medium
+Epic,AI-Powered Classification & Verification,"Use AI to intelligently filter, categorize, and enrich candidate businesses, moving them to a verified state.",,To Do,High,"ai,classification,openai,verification",,,"AI classification and verification system is operational and accurate",,"AI/ML, Backend",High
+Story,OpenAI Service with Structured JSON Output,"Build the openai_service.py that handles communication with OpenAI API. The service must enforce JSON schema on AI output, handle retries, and log all interactions for cost and quality analysis in ai_logs table.",AI-Powered Classification & Verification,To Do,High,"openai,ai,backend",8,"- Service can send prompt and receive valid JSON response conforming to predefined Pydantic model
+- If AI returns invalid JSON, service retries request (up to limit)
+- Every AI call recorded in ai_logs table with input, output, and model used","- OpenAI integration working with JSON schema validation
+- Retry logic for invalid responses implemented
+- Comprehensive AI logging in place","Reliability of AI interaction is key. Invalid JSON should be exception, not rule.","AI/ML",Medium
+Story,AI Classification - Relevance & Categorization,"Implement the classify AI task. It should take candidate's name, address, and type and determine: a) if relevant to Turkish diaspora (keep/ignore), b) its primary category (e.g., bakery, restaurant).",AI-Powered Classification & Verification,To Do,High,"ai,classification,categorization",13,"- Classification prompt includes few-shot examples with clear Dutch/Turkish patterns
+- On test set of 100 manually labeled candidates, classification precision ≥ 90%
+- Output successfully validated against JSON schema
+- Candidate's category and confidence_score updated in database based on result","- AI classification working with 90%+ precision
+- Category assignment functional
+- Confidence scoring implemented
+- JSON validation operational","This is the first major quality gate. Prompt engineering here is critical.","AI/ML",High
+Epic,Frontend Map & List Application,"Build a fast, intuitive, and mobile-friendly web application for end-users to discover Turkish-oriented businesses.",,To Do,High,"frontend,react,map,ui",,,"Frontend application is functional, performant, and user-friendly",,"Frontend",Medium
+Story,Core Map View with Leaflet,"Implement the MapView component using Leaflet. It should display map of Netherlands, centered on default location or user's position, with markers for verified locations.",Frontend Map & List Application,To Do,High,"frontend,map,leaflet",8,"- Map loads correctly with OpenStreetMap or similar tile layer
+- Markers displayed on map for locations fetched from GET /api/v1/locations endpoint
+- Clicking marker displays popup with location's name and category
+- Map performance smooth with up to 200 markers","- Map component rendering correctly
+- Markers displaying for verified locations
+- Popup functionality working
+- Performance optimized for 200+ markers","This is the primary visual interface for the app","Frontend",Low
+Story,Location List & Filtering Components,"Build the LocationList and LocationCard components. The list should display locations, be sortable by distance and rating, and filterable by category. The card should show all key information.",Frontend Map & List Application,To Do,High,"frontend,components,filtering",8,"- List displays location name, address, category, rating, and status badge
+- Users can filter list by selecting one or more categories
+- Users can sort list by ""Distance"" or ""Rating""
+- List and map synchronized; clicking list item highlights corresponding marker on map","- Location list and card components functional
+- Filtering and sorting working
+- Map-list synchronization implemented","This provides an alternative, accessible way to browse data","Frontend",Low
+Epic,Continuous Monitoring & Data Freshness,"Ensure the data remains accurate and up-to-date through automated monitoring and re-verification processes.",,To Do,Medium,"monitoring,freshness,automation",,,"Monitoring system ensures data remains fresh and accurate",,"Backend, DevOps",Medium
+Story,MonitorBot & Freshness Policy Engine,"Implement the monitor_bot.py worker. It should periodically select records where next_check_at is in the past, based on defined Freshness Policy. It then re-triggers verification process for these records.",Continuous Monitoring & Data Freshness,To Do,Medium,"monitoring,bot,automation",13,"- Bot correctly calculates next_check_at for new records based on confidence and status
+- Bot processes records in batches (e.g., MONITOR_MAX_PER_RUN=200)
+- After run, no record in database has next_check_at older than 90 days
+- Changes to location's business_status detected and updated","- MonitorBot operational
+- Freshness policy implemented and working
+- Automatic re-verification functioning
+- Data quality maintained over time","This is the ""heartbeat"" of the application, ensuring long-term data quality","Backend",Medium
+Epic,Admin CMS & Human-in-the-Loop,"Provide tools for administrators to manually correct data, add gold records, and manage the system.",,To Do,Medium,"admin,cms,human-in-loop",,,"Admin system allows manual data correction and management",,"Backend",Low
+Story,Manual Location Management & Gold Records,"Build admin-only API endpoints and simple UI to allow admins to manually create, edit, and correct location records. Manually added records should be flagged as ""gold"" in training_data table.",Admin CMS & Human-in-the-Loop,To Do,Medium,"admin,backend,cms",8,"- Admin can add new location with all core fields, immediately set to VERIFIED
+- Admin can edit any field of existing location
+- All manual actions logged for audit purposes
+- Manually added/verified records stored as gold records for LearningBot","- Admin CRUD operations functional
+- Audit logging implemented
+- Gold record system working","This is the ""human-in-the-loop"" mechanism for continuous improvement","Backend",Low
+Epic,Observability, Security & Hardening,"Make the system reliable, secure, and production-ready with monitoring, alerts, and compliance checks.",,To Do,High,"security,monitoring,compliance",,,"System is secure, observable, and production-ready",,"DevOps, Backend",High
+Story,Comprehensive Metrics & Alerting,"Implement metrics collection system that tracks key KPIs: new candidates per week, conversion rate to VERIFIED, task error rates, API latency. Set up basic alerting for critical failures.",Observability, Security & Hardening,To Do,High,"monitoring,metrics,alerting",8,"- Metrics dashboard displays at least 5 core metrics
+- Alert triggered when task failure rate exceeds 10% in 1-hour period
+- Alert triggered when Google API returns burst of 429 status codes","- Metrics system operational
+- Alerting configured and tested
+- KPI tracking in place","You can't manage what you can't measure. Essential for production.","DevOps",Medium
+Epic,Pilot Deployment & Roll-out,"Prepare the MVP for its first real-world test, gather feedback, and plan for the next phase.",,To Do,High,"deployment,pilot,production",,,"MVP is successfully deployed and ready for user testing",,"DevOps, Product",High
+Story,End-to-End Pilot Deployment,"Deploy entire integrated system (Backend, Frontend, Database, Cron Jobs) to production environment. Execute full, automated cycle from discovery to verification for Rotterdam.",Pilot Deployment & Roll-out,To Do,High,"deployment,production,integration",13,"- Public URL for frontend is live and accessible
+- Application has ≥200 VERIFIED locations in Rotterdam with ratings and websites
+- All automated bots (Discovery, Verification, Monitor) running on schedule without human intervention
+- Application loads in under 2 seconds on mobile 3G connection","- Full system deployed and operational
+- 200+ verified locations in production
+- Automated pipeline working
+- Performance targets met","This is the ""go-live"" story. The success criteria for MVP are met here.","DevOps",High
