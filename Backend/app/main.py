@@ -42,6 +42,11 @@ async def root():
 async def healthz():
     return {"status": "healthy"}
 
+# extra alias om jouw curl op /health te laten slagen
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
 # === Include bestaande DEV routers (alleen als ze bestaan) ===
 def _include_if_present(mod_path: str, router_attr: str = "router"):
     try:
@@ -56,7 +61,10 @@ _include_if_present("api.routers.dev_ai")
 _include_if_present("api.routers.dev_classify")
 _include_if_present("api.routers.google_dev")
 
-# === Include LOCATIONS router (cruciaal) ===
-# NB: De router heeft zélf prefix="/api/v1/locations" — geen extra prefix hier.
+# === Include LOCATIONS router (heeft eigen prefix in de router) ===
 from api.routers.locations import router as locations_router
 app.include_router(locations_router)
+
+# === Include ADMIN router onder /api/v1 ===
+from api.routers import admin as admin_router
+app.include_router(admin_router.router, prefix="/api/v1")
