@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: read     # to checkout
+  pages: write       # to deploy Pages
+  id-token: write    # to verify the deployment originates from this workflow
 
 concurrency:
   group: "pages"
@@ -28,14 +28,19 @@ jobs:
           cache: 'npm'
           cache-dependency-path: Frontend/package-lock.json
 
-      # Schrijf de backend-URL (Render) naar Frontend/.env.production
+      # 1) Configure Pages (required by deploy-pages)
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      # 2) Create .env.production from your secret (Render backend URL)
       - name: Create .env.production from secret
         working-directory: Frontend
         run: |
           echo "VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}" > .env.production
           echo "Created Frontend/.env.production"
 
-      # Zet een env-flag om in Vite de base voor GitHub Pages te activeren
+      # 3) Flag build for GitHub Pages base path in Vite
       - name: Set flag for GitHub Pages base path
         run: echo "GITHUB_PAGES=true" >> $GITHUB_ENV
 
@@ -46,10 +51,10 @@ jobs:
       - name: Build
         working-directory: Frontend
         env:
-          # Zorg dat de env-flag ook binnen de build beschikbaar is
           GITHUB_PAGES: "true"
         run: npm run build
 
+      # 4) Upload artifact to Pages (uses default artifact name "github-pages")
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -60,9 +65,9 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      # Dit veld toont de uiteindelijke Pages-URL in de Actions UI
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # 5) Deploy the artifact configured above
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
