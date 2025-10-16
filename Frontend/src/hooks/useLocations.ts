@@ -1,128 +1,92 @@
-// Frontend/src/hooks/useLocations.ts
-//
-// - Werkt met Vite proxy (/api -> backend) OF met VITE_API_BASE als je die zet.
-// - Gooit een duidelijke fout als response geen JSON is (content-type check).
+import { useEffect, useState } from "react";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Location, LocationList } from "../types/location";
-import { useUserPosition } from "../hooks/useUserPosition";
+/**
+ * Publieke shape van een locatie zoals de frontend 'm gebruikt.
+ * Pas velden gerust aan op basis van je API-contract (/api/v1/locations).
+ */
+export type Location = {
+  id: number;
+  name: string;
+  lat: number;
+  lng: number;
+  category?: string;
+  rating?: number | null;
+  website?: string | null;
+  address?: string;
+};
 
-// --- helpers ---
+/**
+ * Base-URL komt uit de GitHub Pages workflow:
+ * .env.production -> VITE_API_BASE_URL
+ * Lokaal werkt je dev-proxy via /api; voor prod gebruiken we de absolute base.
+ */
+const API_BASE: string = import.meta.env.VITE_API_BASE_URL;
 
-function buildUrl(): string {
-  // Als je VITE_API_BASE zet, gebruiken we die, anders de /api proxy.
-  const base =
-    (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_BASE) || "";
-  const trimmed = typeof base === "string" ? base.replace(/\/+$/, "") : "";
-  if (trimmed) return `${trimmed}/api/v1/locations`;
-  return `/api/v1/locations`; // via Vite proxy
+/**
+ * Helper die een consistente fetch-URL maakt voor VERIFIED records.
+ * - limit: initieel max aantal markers (200 voor performance op 3G)
+ * - extraQuery: space voor toekomstige filters (category, bbox, etc.)
+ */
+function buildApiUrl(limit: number, extraQuery?: Record<string, string | number | boolean>) {
+  const url = new URL(`${API_BASE}/api/v1/locations`);
+  url.searchParams.set("state", "VERIFIED");
+  url.searchParams.set("limit", String(limit));
+
+  if (extraQuery) {
+    Object.entries(extraQuery).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+  }
+  return url.toString();
 }
 
-function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const toRad = (x: number) => (x * Math.PI) / 180;
-  const R = 6371; // km
-  const dLat = toRad(bLat - aLat);
-  const dLng = toRad(bLng - aLng);
-  const s1 =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(s1), Math.sqrt(1 - s1));
-  return R * c;
-}
+type HookState = {
+  data: Location[];
+  loading: boolean;
+  error: string | null;
+};
 
-// --- hook ---
+/**
+ * useLocations
+ * - Haalt VERIFIED locaties op met rating/website (indien beschikbaar)
+ * - Beperkt initieel resultaat voor snelle laadtijden
+ */
+export function useLocations(initialLimit = 200, extraQuery?: Record<string, string | number | boolean>) {
+  const [state, setState] = useState<HookState>({ data: [], loading: true, error: null });
 
-export function useLocations() {
-  const [raw, setRaw] = useState<LocationList>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const userPos = useUserPosition(); // { status, coords: {lat,lng} | null, error }
-  const lastPosRef = useRef<{ lat: number; lng: number } | null>(null);
-
-  // Initial fetch
   useEffect(() => {
-    let aborted = false;
-    const url = `/api/v1/locations/?only_turkish=true&limit=200`;
+    const controller = new AbortController();
 
-    (async () => {
+    async function run() {
       try {
-        setLoading(true);
-        setError(null);
+        setState((s) => ({ ...s, loading: true, error: null }));
 
-        const res = await fetch(url, { method: "GET" });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status} @ ${url}`);
+        const url = buildApiUrl(initialLimit, extraQuery);
+        const resp = await fetch(url, { signal: controller.signal });
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}`);
         }
 
-        const ct = res.headers.get("content-type") || "";
-        if (!ct.includes("application/json")) {
-          const text = await res.text().catch(() => "");
-          throw new Error(
-            `Expected JSON but got "${ct || "unknown"}" @ ${url}. Snippet: ${text.slice(0, 120)}`
-          );
-        }
+        const json = await resp.json();
 
-        const data: LocationList = await res.json();
+        // Probeer een paar gebruikelijke vormen te ondersteunen:
+        // - { items: Location[] } of { data: Location[] } of direct Location[]
+        const items: Location[] =
+          (Array.isArray(json) && json) ||
+          (Array.isArray(json?.items) && json.items) ||
+          (Array.isArray(json?.data) && json.data) ||
+          [];
 
-        if (!aborted) {
-          setRaw(
-            data
-              .filter(
-                (d) =>
-                  d &&
-                  typeof d.lat === "number" &&
-                  typeof d.lng === "number" &&
-                  typeof d.name === "string" &&
-                  typeof d.id !== "undefined"
-              )
-              .map((d) => ({
-                ...d,
-                id: String((d as any).id), // normaliseer naar string
-              }))
-          );
-        }
-      } catch (e: any) {
-        if (!aborted) setError(e?.message ?? "Unknown error");
-      } finally {
-        if (!aborted) setLoading(false);
+        setState({ data: items, loading: false, error: null });
+      } catch (err: unknown) {
+        if ((err as any)?.name === "AbortError") return;
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        setState({ data: [], loading: false, error: msg });
       }
-    })();
-
-    return () => {
-      aborted = true;
-    };
-  }, []);
-
-  // Enrich met distance wanneer coords beschikbaar zijn
-  const withDistance: LocationList = useMemo(() => {
-    const coords = userPos?.coords ?? null;
-    if (!coords) return raw;
-
-    const pos = { lat: coords.lat, lng: coords.lng };
-    lastPosRef.current = pos;
-
-    return raw.map((l) => {
-      const km = haversineKm(pos.lat, pos.lng, l.lat, l.lng);
-      return { ...l, distanceKm: km };
-    });
-  }, [raw, userPos?.coords?.lat, userPos?.coords?.lng]);
-
-  // Unieke categorieën (gesorteerd)
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    for (const l of raw) {
-      if (l.category && l.category.trim()) set.add(l.category.trim());
     }
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [raw]);
 
-  return {
-    locations: withDistance,
-    categories,
-    isLoading: loading,
-    error,
-  };
+    run();
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialLimit, JSON.stringify(extraQuery)]);
+
+  return state;
 }
-
-export type UseLocationsReturn = ReturnType<typeof useLocations>;
