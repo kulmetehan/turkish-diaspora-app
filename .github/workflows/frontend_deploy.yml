@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read     # to checkout
-  pages: write       # to deploy Pages
-  id-token: write    # to verify the deployment originates from this workflow
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
   group: "pages"
@@ -28,19 +28,16 @@ jobs:
           cache: 'npm'
           cache-dependency-path: Frontend/package-lock.json
 
-      # 1) Configure Pages (required by deploy-pages)
       - name: Configure GitHub Pages
         id: pages
         uses: actions/configure-pages@v5
 
-      # 2) Create .env.production from your secret (Render backend URL)
       - name: Create .env.production from secret
         working-directory: Frontend
         run: |
           echo "VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}" > .env.production
           echo "Created Frontend/.env.production"
 
-      # 3) Flag build for GitHub Pages base path in Vite
       - name: Set flag for GitHub Pages base path
         run: echo "GITHUB_PAGES=true" >> $GITHUB_ENV
 
@@ -54,7 +51,10 @@ jobs:
           GITHUB_PAGES: "true"
         run: npm run build
 
-      # 4) Upload artifact to Pages (uses default artifact name "github-pages")
+      # NEW: 404 fallback for SPA routing on Pages
+      - name: Create 404.html for SPA
+        run: cp Frontend/dist/index.html Frontend/dist/404.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
@@ -67,7 +67,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # 5) Deploy the artifact configured above
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
