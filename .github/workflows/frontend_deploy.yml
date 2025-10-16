@@ -25,18 +25,30 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: Frontend/package-lock.json
 
+      # Schrijf de backend-URL (Render) naar Frontend/.env.production
       - name: Create .env.production from secret
         working-directory: Frontend
         run: |
           echo "VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}" > .env.production
           echo "Created Frontend/.env.production"
 
-      - name: Install & Build
+      # Zet een env-flag om in Vite de base voor GitHub Pages te activeren
+      - name: Set flag for GitHub Pages base path
+        run: echo "GITHUB_PAGES=true" >> $GITHUB_ENV
+
+      - name: Install dependencies
         working-directory: Frontend
-        run: |
-          npm ci
-          npm run build
+        run: npm ci
+
+      - name: Build
+        working-directory: Frontend
+        env:
+          # Zorg dat de env-flag ook binnen de build beschikbaar is
+          GITHUB_PAGES: "true"
+        run: npm run build
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -48,6 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
+      # Dit veld toont de uiteindelijke Pages-URL in de Actions UI
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages

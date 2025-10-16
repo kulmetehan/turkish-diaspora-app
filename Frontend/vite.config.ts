@@ -1,19 +1,27 @@
 // Frontend/vite.config.ts
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
-// Vite dev-proxy: alles wat met /api begint gaat naar FastAPI (127.0.0.1:8000)
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
-        // optioneel: als jouw backend geen /api prefix heeft, kun je hier herschrijven,
-        // maar in ons geval heeft backend /api/v1/locations, dus geen rewrite nodig.
-        // rewrite: (path) => path.replace(/^\/api/, "")
+/**
+ * - Dev: proxy naar http://127.0.0.1:8000 blijft werken
+ * - Prod (GitHub Pages): base = "/turkish-diaspora-app/" via env-flag GITHUB_PAGES=true
+ *   (de workflow zet die flag vóór npm run build)
+ */
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const isPages = !!env.GITHUB_PAGES;
+
+  return {
+    plugins: [react()],
+    base: isPages ? "/turkish-diaspora-app/" : "/",
+    server: {
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+          // rewrite: (path) => path.replace(/^\/api/, ""),
+        },
       },
     },
-  },
+  };
 });
