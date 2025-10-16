@@ -19,16 +19,21 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# --- CORS (dev) ---
+# --- CORS (dev + prod) ---
+ALLOWED_ORIGINS = [
+    # lokale ontwikkelomgevingen (Vite)
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    # live frontend (GitHub Pages)
+    "https://kulmetehan.github.io",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-    ],
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,  # geen cookies/credentials nodig
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -42,10 +47,9 @@ async def root():
 async def healthz():
     return {"status": "healthy"}
 
-# extra alias om jouw curl op /health te laten slagen
 @app.get("/health")
 async def health():
-    return {"ok": True}
+    return {"ok": True, "status": "healthy"}
 
 # === Include bestaande DEV routers (alleen als ze bestaan) ===
 def _include_if_present(mod_path: str, router_attr: str = "router"):
