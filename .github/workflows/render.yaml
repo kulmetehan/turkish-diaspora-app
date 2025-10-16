@@ -11,10 +11,8 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     autoDeploy: true
     envVars:
-      - key: APP_VERSION
-        value: "1.0.0"
-      - key: DATABASE_URL
-        sync: false           # set in Render dashboard
+      - key: DATABASE_URL        # Supabase
+        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
@@ -29,7 +27,7 @@ services:
         value: "0.80"
       - key: MONITOR_MAX_PER_RUN
         value: "200"
-      # Alerting thresholds per TDA-20
+      # Alerting drempels (TDA-20)
       - key: ALERT_CHECK_INTERVAL_SECONDS
         value: "60"
       - key: ALERT_ERR_RATE_THRESHOLD
@@ -40,19 +38,15 @@ services:
         value: "60"
       - key: ALERT_GOOGLE429_WINDOW_MINUTES
         value: "60"
-      - key: ALERT_WEBHOOK_URL
-        sync: false           # optional (Slack/Teams)
+      - key: ALERT_WEBHOOK_URL    # optioneel (Slack/Teams)
+        sync: false
       - key: ALERT_CHANNEL
-        value: "ops"          # optional
+        value: "ops"
 
-# Cron jobs (Render) – draaien het Backend/worker-ecosysteem
-# Zie: Discovery/Verification/Monitor/Alert bots en Freshness Policy. 
-# TDA-7/8/11/16/20 beschrijven gedrag, retries, en drempels.
-# Discovery: wekelijks; Verification: elke 30 min; Monitor: elk uur; Alert: elke 5 min.
-# Pas schema en flags aan op basis van jouw productiestrategie.
 cronJobs:
+  # Discovery: wekelijkse grid-scan Rotterdam (TDA-7/8)
   - name: discovery-bot-weekly
-    schedule: "0 2 * * 6"   # Za 02:00 CET
+    schedule: "0 2 * * 6"   # Zaterdag 02:00 CET
     env: python
     plan: free
     rootDir: Backend
@@ -77,6 +71,7 @@ cronJobs:
       - key: GOOGLE_PLACES_REGION
         value: "NL"
 
+  # Verification: doorlopend naar VERIFIED (TDA-11)
   - name: verification-bot-30min
     schedule: "*/30 * * * *"
     env: python
@@ -104,6 +99,7 @@ cronJobs:
       - key: CLASSIFY_MIN_CONF
         value: "0.80"
 
+  # Monitor: freshness policy (≤90d) (TDA-16)
   - name: monitor-bot-hourly
     schedule: "0 * * * *"
     env: python
@@ -121,6 +117,7 @@ cronJobs:
       - key: MONITOR_MAX_PER_RUN
         value: "200"
 
+  # Alerts: spikes en 429 bursts (TDA-20)
   - name: alert-bot-5min
     schedule: "*/5 * * * *"
     env: python
