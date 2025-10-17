@@ -50,7 +50,7 @@ jobs:
           GOOGLE_PLACES_REGION: NL
           PYTHONUNBUFFERED: "1"
         run: >
-          python -m app.workers.discovery_bot
+          python app/workers/discovery_bot.py
           --city rotterdam
           --categories bakery,restaurant,supermarket
           --nearby-radius-m 1000
