@@ -53,4 +53,4 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: >
           python -m app.workers.classify_bot
-          --limit 1000
+          --limit 1500
