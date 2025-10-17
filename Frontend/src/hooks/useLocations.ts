@@ -1,14 +1,14 @@
 // Frontend/src/hooks/useLocations.ts
 //
-// - DEV: via Vite proxy (relatieve /api)
+// - DEV: via Vite proxy (relatief pad /api)
 // - PROD (GitHub Pages): absolute base uit VITE_API_BASE_URL (gezet in CI)
 // - Haalt VERIFIED op (limit 200) en retourneert { locations, categories, isLoading, error }
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Location, LocationList } from "../types/location";
+import type { LocationList } from "../types/location";
 import { useUserPosition } from "../hooks/useUserPosition";
 
-/** Bouw fetch-URL (let op: trailing slash om redirects/CORS gaps te vermijden) */
+/** Bouw fetch-URL (let op: trailing slash om redirects/CORS-gaps te vermijden) */
 function buildUrl(limit = 200): string {
   const fromEnv = (import.meta as any)?.env?.VITE_API_BASE_URL as string | undefined;
   const base = fromEnv && fromEnv.trim() ? fromEnv.replace(/\/+$/, "") : ""; // strip trailing slash
@@ -19,7 +19,7 @@ function buildUrl(limit = 200): string {
   const url = new URL(path, window.location.origin);
   url.searchParams.set("state", "VERIFIED");
   url.searchParams.set("limit", String(limit));
-  // url.searchParams.set("only_turkish", "true"); // gebruik als je backend dit ondersteunt
+  // url.searchParams.set("only_turkish", "true"); // gebruik dit alleen als jouw backend dit ondersteunt
 
   // In dev (relatief pad) alleen pad+query teruggeven; in prod volledige URL
   return base ? url.toString() : `${url.pathname}${url.search}`;
@@ -75,14 +75,14 @@ export function useLocations(limit = 200) {
 
         const safe: LocationList = (list as LocationList)
           .filter(
-            (d) =>
+            (d: any) =>
               d &&
               typeof d.lat === "number" &&
               typeof d.lng === "number" &&
               typeof d.name === "string" &&
-              typeof (d as any).id !== "undefined"
+              typeof d.id !== "undefined"
           )
-          .map((d) => ({ ...d, id: String((d as any).id) })); // normaliseer id
+          .map((d: any) => ({ ...d, id: String(d.id) })); // normaliseer id
 
         if (!aborted) setRaw(safe);
       } catch (e: any) {
