@@ -1,48 +1,34 @@
 // Frontend/src/hooks/useLocations.ts
 //
-// - Werkt in DEV via Vite proxy (/api -> backend).
-// - Werkt in PROD (GitHub Pages) via absolute base uit VITE_API_BASE_URL.
-// - Haalt VERIFIED records op (limit 200) ivm <2s 3G-doel.
-// - Houdt jouw bestaande return shape aan: { locations, categories, isLoading, error }.
+// - DEV: via Vite proxy (relatieve /api)
+// - PROD (GitHub Pages): absolute base uit VITE_API_BASE_URL (gezet in CI)
+// - Haalt VERIFIED op (limit 200) en retourneert { locations, categories, isLoading, error }
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Location, LocationList } from "../types/location";
 import { useUserPosition } from "../hooks/useUserPosition";
 
-/** Bepaal de API base:
- *  - PROD (Pages): .env.production bevat VITE_API_BASE_URL (gezet door CI).
- *  - DEV: geen VITE_API_BASE_URL => we vallen terug op de Vite proxy met relatieve /api.
- */
-function getApiBase(): string {
-  const fromEnv = (import.meta as any)?.env?.VITE_API_BASE_URL as string | undefined;
-  if (fromEnv && typeof fromEnv === "string" && fromEnv.trim()) {
-    return fromEnv.replace(/\/+$/, ""); // trim trailing slashes
-  }
-  return ""; // dev proxy
-}
-
-/** Bouw de fetch-URL (VERIFIED + limit) */
+/** Bouw fetch-URL (let op: trailing slash om redirects/CORS gaps te vermijden) */
 function buildUrl(limit = 200): string {
   const fromEnv = (import.meta as any)?.env?.VITE_API_BASE_URL as string | undefined;
-  const base = (fromEnv && fromEnv.trim()) ? fromEnv.replace(/\/+$/, "") : ""; // no trailing slash
+  const base = fromEnv && fromEnv.trim() ? fromEnv.replace(/\/+$/, "") : ""; // strip trailing slash
 
-  // IMPORTANT: always hit the trailing-slash endpoint to avoid 307/308 redirect
-  const prefix = base ? `${base}/api` : "/api";      // prod absolute vs. dev proxy
-  const path = `${prefix}/v1/locations/`;            // <-- trailing slash here
+  const prefix = base ? `${base}/api` : "/api"; // prod absolute vs dev proxy
+  const path = `${prefix}/v1/locations/`;       // <-- trailing slash
 
   const url = new URL(path, window.location.origin);
   url.searchParams.set("state", "VERIFIED");
   url.searchParams.set("limit", String(limit));
-  // url.searchParams.set("only_turkish", "true"); // enable if your API supports it
+  // url.searchParams.set("only_turkish", "true"); // gebruik als je backend dit ondersteunt
 
-  // In dev (relative path), return path+query only; in prod return full URL
+  // In dev (relatief pad) alleen pad+query teruggeven; in prod volledige URL
   return base ? url.toString() : `${url.pathname}${url.search}`;
 }
 
-/** Afstand in km (voor enrichment) */
+/** Afstand in km (enrichment) */
 function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
   const toRad = (x: number) => (x * Math.PI) / 180;
-  const R = 6371; // km
+  const R = 6371;
   const dLat = toRad(bLat - aLat);
   const dLng = toRad(bLng - aLng);
   const s1 =
@@ -53,17 +39,13 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
 }
 
 export function useLocations(limit = 200) {
-  // Hou types in gebruik zodat TS geen unused warnings geeft
-  const [_typeGuardLocation] = useState<Location | null>(null);
-
   const [raw, setRaw] = useState<LocationList>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const userPos = useUserPosition(); // { status, coords: {lat,lng} | null, error }
+  const userPos = useUserPosition();
   const lastPosRef = useRef<{ lat: number; lng: number } | null>(null);
 
-  // Initial fetch
   useEffect(() => {
     let aborted = false;
     const url = buildUrl(limit);
@@ -74,9 +56,7 @@ export function useLocations(limit = 200) {
         setError(null);
 
         const res = await fetch(url, { method: "GET" });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status} @ ${url}`);
-        }
+        if (!res.ok) throw new Error(`HTTP ${res.status} @ ${url}`);
 
         const ct = res.headers.get("content-type") || "";
         if (!ct.includes("application/json")) {
@@ -86,7 +66,6 @@ export function useLocations(limit = 200) {
           );
         }
 
-        // Backend kan array of {items}/{data} teruggeven; normaliseer naar array
         const json = await res.json();
         const list: unknown =
           (Array.isArray(json) && json) ||
@@ -103,10 +82,7 @@ export function useLocations(limit = 200) {
               typeof d.name === "string" &&
               typeof (d as any).id !== "undefined"
           )
-          .map((d) => ({
-            ...d,
-            id: String((d as any).id), // normaliseer id naar string
-          }));
+          .map((d) => ({ ...d, id: String((d as any).id) })); // normaliseer id
 
         if (!aborted) setRaw(safe);
       } catch (e: any) {
@@ -121,7 +97,7 @@ export function useLocations(limit = 200) {
     };
   }, [limit]);
 
-  // Enrich met distance wanneer coords beschikbaar zijn
+  // Distance enrichment wanneer gebruiker coördinaten heeft
   const withDistance: LocationList = useMemo(() => {
     const coords = userPos?.coords ?? null;
     if (!coords) return raw;
@@ -135,7 +111,7 @@ export function useLocations(limit = 200) {
     });
   }, [raw, userPos?.coords?.lat, userPos?.coords?.lng]);
 
-  // Unieke categorieën (gesorteerd)
+  // Unieke categorieën
   const categories = useMemo(() => {
     const set = new Set<string>();
     for (const l of raw) {
@@ -144,7 +120,6 @@ export function useLocations(limit = 200) {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [raw]);
 
-  // Houd de exact verwachte return shape aan voor App.tsx:
   return {
     locations: withDistance,
     categories,
