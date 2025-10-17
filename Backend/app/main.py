@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Response
 
 # --- Zorg dat de Backend-root altijd op sys.path staat (i.v.m. spaties e.d.) ---
 THIS_FILE = Path(__file__).resolve()
@@ -72,3 +73,8 @@ app.include_router(locations_router)
 # === Include ADMIN router onder /api/v1 ===
 from api.routers import admin as admin_router
 app.include_router(admin_router.router, prefix="/api/v1")
+
+@app.options("/{rest_of_path:path}")
+async def any_preflight(rest_of_path: str) -> Response:
+    # Fast path for any preflight; CORSMiddleware will add the right headers
+    return Response(status_code=204)
