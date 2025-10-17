@@ -23,16 +23,19 @@ function getApiBase(): string {
 
 /** Bouw de fetch-URL (VERIFIED + limit) */
 function buildUrl(limit = 200): string {
-  const base = getApiBase();
-  const prefix = base ? `${base}/api` : "/api"; // prod: absolute, dev: relative proxy
-  const url = new URL(`${prefix}/v1/locations`, window.location.origin);
+  const fromEnv = (import.meta as any)?.env?.VITE_API_BASE_URL as string | undefined;
+  const base = (fromEnv && fromEnv.trim()) ? fromEnv.replace(/\/+$/, "") : ""; // no trailing slash
 
+  // IMPORTANT: always hit the trailing-slash endpoint to avoid 307/308 redirect
+  const prefix = base ? `${base}/api` : "/api";      // prod absolute vs. dev proxy
+  const path = `${prefix}/v1/locations/`;            // <-- trailing slash here
+
+  const url = new URL(path, window.location.origin);
   url.searchParams.set("state", "VERIFIED");
   url.searchParams.set("limit", String(limit));
-  // optioneel, indien je dit in je backend ondersteunt:
-  // url.searchParams.set("only_turkish", "true");
+  // url.searchParams.set("only_turkish", "true"); // enable if your API supports it
 
-  // URL.toString() met absolute origin; voor relative pad willen we alleen pad+query
+  // In dev (relative path), return path+query only; in prod return full URL
   return base ? url.toString() : `${url.pathname}${url.search}`;
 }
 
