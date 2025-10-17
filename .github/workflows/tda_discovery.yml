@@ -49,6 +49,7 @@ jobs:
           GOOGLE_PLACES_LANGUAGE: nl
           GOOGLE_PLACES_REGION: NL
           PYTHONUNBUFFERED: "1"
+          PYTHONPATH: .
         run: >
           python app/workers/discovery_bot.py
           --city rotterdam
