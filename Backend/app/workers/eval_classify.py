@@ -4,12 +4,17 @@ from __future__ import annotations
 import argparse
 import asyncio
 from collections import Counter
+from typing import Any, Dict
 
 from sqlalchemy import text
 
-# LET OP: services staat op top-level, dus zo importeren:
+# Toplevel services
 from services.db_service import async_engine
 from services.classify_service import ClassifyService
+
+# Unified AI schema (centrale validatie)
+from services.ai_validation import validate_classification_payload
+from app.models.ai import AIClassification
 
 
 async def load_gold(limit: int):
@@ -30,6 +35,23 @@ async def load_gold(limit: int):
     async with async_engine.begin() as conn:
         rows = (await conn.execute(q, {"limit": limit})).mappings().all()
     return rows
+
+
+def _ensure_parsed(payload: Any) -> AIClassification:
+    """
+    Neem raw payload (dict/model/anders) en geef altijd AIClassification terug
+    via de centrale validator.
+    """
+    if isinstance(payload, AIClassification):
+        return payload
+    if hasattr(payload, "model_dump"):
+        data: Dict[str, Any] = payload.model_dump()  # type: ignore[attr-defined]
+    elif isinstance(payload, dict):
+        data = payload
+    else:
+        # laatste redmiddel; validator zal hierop falen met duidelijke fout
+        data = {"__raw__": str(payload)}
+    return validate_classification_payload(data)
 
 
 async def run(limit: int, model: str | None = None):
@@ -53,14 +75,15 @@ async def run(limit: int, model: str | None = None):
         gold_action = (row["label_action"] or "").strip().lower()
         gold_category = (row["label_category"] or "").strip().lower() or None
 
-        parsed, meta = svc.classify(name=name, address=address, typ=typ, location_id=location_id)
-        pred_action = parsed.action
-        pred_category = parsed.category
+        raw_payload, meta = svc.classify(name=name, address=address, typ=typ, location_id=location_id)
+        parsed = _ensure_parsed(raw_payload)
+        pred_action = parsed.action.value
+        pred_category = parsed.category.value if parsed.category else None
 
         # Confusion-matrix voor "keep" als positieve klasse
         if gold_action == "keep" and pred_action == "keep":
             tp += 1
-            # voor category-accuracy: alleen bij predicted keep vergelijken
+            # category-accuracy: alleen op predicted keep vergelijken
             keep_pred_categories.append((gold_category, pred_category))
         elif gold_action != "keep" and pred_action == "keep":
             fp += 1
@@ -73,7 +96,7 @@ async def run(limit: int, model: str | None = None):
     # Precision op "keep"
     precision_keep = tp / (tp + fp) if (tp + fp) > 0 else 0.0
 
-    # Category accuracy alleen op predicted keep (waar we net keep_pred_categories gevuld hebben)
+    # Category accuracy alleen op predicted keep
     cat_correct = sum(1 for gold_cat, pred_cat in keep_pred_categories if (gold_cat or "") == (pred_cat or ""))
     cat_acc = cat_correct / len(keep_pred_categories) if keep_pred_categories else 0.0
 
