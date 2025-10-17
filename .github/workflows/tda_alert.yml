@@ -1,0 +1,63 @@
+name: TDA Alert (every 5m)
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "tda-alerts"
+  cancel-in-progress: true
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.13-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.13-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Alert
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ALERT_CHECK_INTERVAL_SECONDS: "60"
+          ALERT_ERR_RATE_THRESHOLD: "0.10"
+          ALERT_GOOGLE429_THRESHOLD: "5"
+          ALERT_ERR_RATE_WINDOW_MINUTES: "60"
+          ALERT_GOOGLE429_WINDOW_MINUTES: "60"
+          # Optioneel: Slack/Teams/Discord webhook
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          ALERT_CHANNEL: ops
+          PYTHONUNBUFFERED: "1"
+        run: >
+          # Single-shot behavior for GitHub Actions:
+          # 1) run once
+          # 2) sleep to allow one more scrape/window tick
+          # 3) exit within 4 minutes total
+          set -e
+          python app/workers/alert_bot.py || true
+          sleep 60
