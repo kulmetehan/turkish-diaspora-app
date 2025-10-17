@@ -52,5 +52,5 @@ jobs:
           CLASSIFY_MIN_CONF: "0.80"
           PYTHONUNBUFFERED: "1"
         run: >
-          python -m app.workers.verification_bot
+          python app/workers/classify_bot.py
           --limit 300
