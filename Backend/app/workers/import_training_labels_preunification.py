@@ -4,20 +4,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
-import time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
 from sqlalchemy import text, bindparam
 from sqlalchemy.dialects.postgresql import JSONB
-
-# --- Uniform logging voor workers ---
-from app.core.logging import configure_logging, get_logger
-from app.core.request_id import with_run_id
-
-configure_logging(service_name="worker")
-logger = get_logger()
-logger = logger.bind(worker="import_training_labels")
 
 from services.db_service import async_engine
 
@@ -53,7 +44,7 @@ async def upsert_row(conn, row: dict) -> bool:
     """
     Verwacht CSV-kolommen:
       location_id,name,address,type,label_action,label_category,notes
-    Alleen rows met label_action gevuld (keep/ignore) worden geÃ¯mporteerd.
+    Alleen rows met label_action gevuld (keep/ignore) worden geïmporteerd.
     """
     loc_id = int(row["location_id"])
     name = row["name"].strip()
@@ -133,21 +124,15 @@ async def run(infile: Path, only_labeled: bool) -> None:
             imported += int(ok)
             skipped += int(not ok)
 
-    print(f"âœ… Import klaar. Imported={imported}, Skipped={skipped}")
+    print(f"✅ Import klaar. Imported={imported}, Skipped={skipped}")
 
 
 def main():
-    t0 = time.perf_counter()
-    with with_run_id() as rid:
-        logger.info("worker_started")
-        p = argparse.ArgumentParser()
-        p.add_argument("--infile", type=Path, required=True, help="CSV met labels")
-        p.add_argument("--only-labeled", action="store_true", help="Sla rijen zonder label_action over")
-        args = p.parse_args()
-        asyncio.run(run(args.infile, args.only_labeled))
-        
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        logger.info("worker_finished", duration_ms=duration_ms)
+    p = argparse.ArgumentParser()
+    p.add_argument("--infile", type=Path, required=True, help="CSV met labels")
+    p.add_argument("--only-labeled", action="store_true", help="Sla rijen zonder label_action over")
+    args = p.parse_args()
+    asyncio.run(run(args.infile, args.only_labeled))
 
 
 if __name__ == "__main__":

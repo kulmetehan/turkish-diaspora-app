@@ -1,17 +1,8 @@
 # app/workers/generate_fewshots.py
 from __future__ import annotations
-import argparse, json, asyncio, time
+import argparse, json, asyncio
 from pathlib import Path
 from sqlalchemy import text
-
-# --- Uniform logging voor workers ---
-from app.core.logging import configure_logging, get_logger
-from app.core.request_id import with_run_id
-
-configure_logging(service_name="worker")
-logger = get_logger()
-logger = logger.bind(worker="generate_fewshots")
-
 from services.db_service import async_engine
 
 OUTFILE = Path("app/services/prompts/classify_fewshot_nltr.md")
@@ -74,19 +65,13 @@ async def run(limit: int):
         + "".join(blocks)
     )
     OUTFILE.write_text(text_out, encoding="utf-8")
-    print(f"âœ… Few-shots geschreven naar: {OUTFILE} (n={len(blocks)})")
+    print(f"✅ Few-shots geschreven naar: {OUTFILE} (n={len(blocks)})")
 
 def main():
-    t0 = time.perf_counter()
-    with with_run_id() as rid:
-        logger.info("worker_started")
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--limit", type=int, default=40, help="aantal voorbeelden")
-        args = parser.parse_args()
-        asyncio.run(run(args.limit))
-        
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        logger.info("worker_finished", duration_ms=duration_ms)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--limit", type=int, default=40, help="aantal voorbeelden")
+    args = parser.parse_args()
+    asyncio.run(run(args.limit))
 
 if __name__ == "__main__":
     main()

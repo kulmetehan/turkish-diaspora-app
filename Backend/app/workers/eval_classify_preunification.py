@@ -3,19 +3,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import time
 from collections import Counter
 from typing import Any, Dict
 
 from sqlalchemy import text
-
-# --- Uniform logging voor workers ---
-from app.core.logging import configure_logging, get_logger
-from app.core.request_id import with_run_id
-
-configure_logging(service_name="worker")
-logger = get_logger()
-logger = logger.bind(worker="eval_classify")
 
 # Toplevel services
 from services.db_service import async_engine
@@ -116,17 +107,11 @@ async def run(limit: int, model: str | None = None):
 
 
 def main():
-    t0 = time.perf_counter()
-    with with_run_id() as rid:
-        logger.info("worker_started")
-        parser = argparse.ArgumentParser(description="Evaluate classify quality on gold set")
-        parser.add_argument("--limit", type=int, default=100)
-        parser.add_argument("--model", type=str, default=None, help="override model name")
-        args = parser.parse_args()
-        asyncio.run(run(args.limit, args.model))
-        
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        logger.info("worker_finished", duration_ms=duration_ms)
+    parser = argparse.ArgumentParser(description="Evaluate classify quality on gold set")
+    parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument("--model", type=str, default=None, help="override model name")
+    args = parser.parse_args()
+    asyncio.run(run(args.limit, args.model))
 
 
 if __name__ == "__main__":

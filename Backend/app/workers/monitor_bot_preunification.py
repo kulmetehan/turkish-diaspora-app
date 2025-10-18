@@ -9,20 +9,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional, Sequence
 
 from pydantic import BaseModel, Field
 from sqlalchemy import text, bindparam
-
-# --- Uniform logging voor workers ---
-from app.core.logging import configure_logging, get_logger
-from app.core.request_id import with_run_id
-
-configure_logging(service_name="worker")
-logger = get_logger()
-logger = logger.bind(worker="monitor_bot")
 
 # Hergebruik de bestaande async engine uit jullie project
 from services.db_service import async_engine
@@ -53,7 +44,7 @@ class MonitorSettings(BaseModel):
     VERIFIED_MANY_REVIEWS_DAYS: int = 90
     TEMP_CLOSED_MIN_DAYS: int = 7
     TEMP_CLOSED_MAX_DAYS: int = 14
-    ABS_MAX_DAYS: int = 90  # harde cap â€" nooit ouder dan 90 dagen
+    ABS_MAX_DAYS: int = 90  # harde cap – nooit ouder dan 90 dagen
 
     @classmethod
     def from_env(cls) -> "MonitorSettings":
@@ -100,13 +91,13 @@ def compute_next_check_at(row: Mapping[str, Any], cfg: MonitorSettings) -> datet
         else datetime.now(tz=UTC)
     )
 
-    # Temporarily closed â†' kort-cyclisch
+    # Temporarily closed → kort-cyclisch
     if business_status and "TEMPORARILY_CLOSED" in business_status:
         days = cfg.TEMP_CLOSED_MIN_DAYS
-    # Nog niet open â†' sneller terugkomen
+    # Nog niet open → sneller terugkomen
     elif probable_not_open:
         days = cfg.PROBABLE_NOT_OPEN_YET_DAYS
-    # Verified â†' afhankelijk van volume reviews
+    # Verified → afhankelijk van volume reviews
     elif state == "VERIFIED":
         if urt >= cfg.VERIFIED_MANY_REVIEWS_MIN:
             days = cfg.VERIFIED_MANY_REVIEWS_DAYS
@@ -114,7 +105,7 @@ def compute_next_check_at(row: Mapping[str, Any], cfg: MonitorSettings) -> datet
             days = cfg.VERIFIED_MEDIUM_REVIEWS_DAYS
         else:
             days = cfg.VERIFIED_FEW_REVIEWS_DAYS
-    # Candidate/pending â†' confidence-gestuurd
+    # Candidate/pending → confidence-gestuurd
     else:
         if conf < 0.60:
             days = cfg.LOW_CONF_DAYS_FAST
@@ -137,7 +128,7 @@ SELECT_COLS = """
 
 
 async def _fetch_bootstrap_rows(limit: int) -> Sequence[Mapping[str, Any]]:
-    # BELANGRIJK: gebruik bindparam(expanding=True) voor NOT IN (â€¦) met parameters
+    # BELANGRIJK: gebruik bindparam(expanding=True) voor NOT IN (…) met parameters
     query = (
         text(
             f"""
@@ -294,32 +285,26 @@ async def stats_after() -> Mapping[str, Any]:
 # CLI
 # ------------------------------
 async def main_async(limit: Optional[int], dry_run: Optional[bool]) -> None:
-    t0 = time.perf_counter()
-    with with_run_id() as rid:
-        logger.info("worker_started")
-        cfg = MonitorSettings.from_env()
-        if limit is not None:
-            cfg.MONITOR_MAX_PER_RUN = int(limit)
-        if dry_run is not None:
-            cfg.DRY_RUN = bool(dry_run)
+    cfg = MonitorSettings.from_env()
+    if limit is not None:
+        cfg.MONITOR_MAX_PER_RUN = int(limit)
+    if dry_run is not None:
+        cfg.DRY_RUN = bool(dry_run)
 
-        print(f"[MonitorBot] start DRY_RUN={cfg.DRY_RUN} limit={cfg.MONITOR_MAX_PER_RUN}")
+    print(f"[MonitorBot] start DRY_RUN={cfg.DRY_RUN} limit={cfg.MONITOR_MAX_PER_RUN}")
 
-        # 1) Bootstrap ontbrekende next_check_at (actieve staten)
-        boot = await bootstrap_missing_next_check(cfg)
-        print(f"[MonitorBot] initialized next_check_at for {boot} records")
+    # 1) Bootstrap ontbrekende next_check_at (actieve staten)
+    boot = await bootstrap_missing_next_check(cfg)
+    print(f"[MonitorBot] initialized next_check_at for {boot} records")
 
-        # 2) Verwerk due records in batch
-        enq, bump = await enqueue_verification_tasks(cfg)
-        print(f"[MonitorBot] enqueued={enq} bumped_next_check_at={bump}")
+    # 2) Verwerk due records in batch
+    enq, bump = await enqueue_verification_tasks(cfg)
+    print(f"[MonitorBot] enqueued={enq} bumped_next_check_at={bump}")
 
-        # 3) Sanity stats
-        s = await stats_after()
-        print(f"[MonitorBot] records >90d overdue (after run): {s['older_than_90d']}")
-        print(f"[MonitorBot] oldest due next_check_at (after run): {s['oldest_due']}")
-        
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        logger.info("worker_finished", duration_ms=duration_ms)
+    # 3) Sanity stats
+    s = await stats_after()
+    print(f"[MonitorBot] records >90d overdue (after run): {s['older_than_90d']}")
+    print(f"[MonitorBot] oldest due next_check_at (after run): {s['oldest_due']}")
 
 
 def parse_args() -> argparse.Namespace:

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-DiscoveryBot â€" Grid-based discovery met chunking
+DiscoveryBot – Grid-based discovery met chunking
 - CLI flags: --chunks en --chunk-index om grote runs op te delen
 - Gebruikt GooglePlacesService (per-call max 20; paginatie tot max_per_cell_per_category)
 
@@ -14,19 +14,10 @@ import asyncio
 import math
 import os
 import sys
-import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Dict, Any, Set, Tuple, Optional
-
-# --- Uniform logging voor workers ---
-from app.core.logging import configure_logging, get_logger
-from app.core.request_id import with_run_id
-
-configure_logging(service_name="worker")
-logger = get_logger()
-logger = logger.bind(worker="discovery_bot")
 
 # ---------------------------------------------------------------------------
 # sys.path zodat 'app.*' werkt bij GH Actions
@@ -224,8 +215,8 @@ class DiscoveryBot:
         )
         points = pick_chunk(all_points, self.cfg.chunks, self.cfg.chunk_index)
 
-        print(f"[DiscoveryBot] Grid totaal={len(all_points)}, chunk={self.cfg.chunk_index}/{self.cfg.chunks-1} â†' subset={len(points)}")
-        print(f"[DiscoveryBot] CategorieÃ«n: {', '.join(self.cfg.categories)}")
+        print(f"[DiscoveryBot] Grid totaal={len(all_points)}, chunk={self.cfg.chunk_index}/{self.cfg.chunks-1} → subset={len(points)}")
+        print(f"[DiscoveryBot] Categorieën: {', '.join(self.cfg.categories)}")
 
         per_call_cap = 20  # harde limiet API; service pagineert tot max_per_cell_per_category
 
@@ -281,14 +272,14 @@ class DiscoveryBot:
                 if self.cfg.inter_call_sleep_s:
                     await asyncio.sleep(self.cfg.inter_call_sleep_s)
 
-        print(f"\n[DiscoveryBot] âœ" Klaar. Totaal nieuw (idempotent) ingevoegd: {total_inserted}")
+        print(f"\n[DiscoveryBot] ✓ Klaar. Totaal nieuw (idempotent) ingevoegd: {total_inserted}")
         return total_inserted
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="DiscoveryBot â€" grid-based met chunking")
+    ap = argparse.ArgumentParser(description="DiscoveryBot – grid-based met chunking")
     ap.add_argument("--city")
     ap.add_argument("--categories")
     ap.add_argument("--center-lat", type=float)
@@ -321,31 +312,25 @@ def build_config(ns: argparse.Namespace) -> DiscoveryConfig:
     return DiscoveryConfig(**cfg)
 
 async def main_async():
-    t0 = time.perf_counter()
-    with with_run_id() as rid:
-        logger.info("worker_started")
-        ns = parse_args()
-        cfg = build_config(ns)
+    ns = parse_args()
+    cfg = build_config(ns)
 
-        print("\n[DiscoveryBot] Configuratie:")
-        print(f"  Stad: {cfg.city}")
-        print(f"  Center: ({cfg.center_lat:.4f}, {cfg.center_lng:.4f})")
-        print(f"  CategorieÃ«n: {cfg.categories}")
-        print(f"  Grid span: {cfg.grid_span_km} km")
-        print(f"  Nearby radius: {cfg.nearby_radius_m} m")
-        print(f"  Max per cel: {cfg.max_per_cell_per_category}")
-        print(f"  Sleep tijd: {cfg.inter_call_sleep_s} s")
-        if cfg.max_total_inserts > 0:
-            print(f"  Max totaal inserts: {cfg.max_total_inserts}")
-        if cfg.max_cells_per_category > 0:
-            print(f"  Max cellen/categorie: {cfg.max_cells_per_category}")
-        print(f"  Chunks: {cfg.chunks} (index={cfg.chunk_index})\n")
+    print("\n[DiscoveryBot] Configuratie:")
+    print(f"  Stad: {cfg.city}")
+    print(f"  Center: ({cfg.center_lat:.4f}, {cfg.center_lng:.4f})")
+    print(f"  Categorieën: {cfg.categories}")
+    print(f"  Grid span: {cfg.grid_span_km} km")
+    print(f"  Nearby radius: {cfg.nearby_radius_m} m")
+    print(f"  Max per cel: {cfg.max_per_cell_per_category}")
+    print(f"  Sleep tijd: {cfg.inter_call_sleep_s} s")
+    if cfg.max_total_inserts > 0:
+        print(f"  Max totaal inserts: {cfg.max_total_inserts}")
+    if cfg.max_cells_per_category > 0:
+        print(f"  Max cellen/categorie: {cfg.max_cells_per_category}")
+    print(f"  Chunks: {cfg.chunks} (index={cfg.chunk_index})\n")
 
-        bot = DiscoveryBot(cfg)
-        await bot.run()
-        
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        logger.info("worker_finished", duration_ms=duration_ms)
+    bot = DiscoveryBot(cfg)
+    await bot.run()
 
 def main():
     try:

@@ -163,6 +163,7 @@ class AIEnrichment(BaseModel):
                 seen.add(tag)
                 out.append(tag)
         return out
+
     @model_validator(mode="after")
     def _ensure_url_valid(self):
         # Als url_valid niet expliciet gezet is, dan afleiden uit website (na normalisatie)
@@ -288,3 +289,10 @@ def validate_verification(data: Dict[str, Any]) -> AIVerificationResult:
         return TA_VERIFICATION.validate_python(data, by_name=True)
     except ValidationError as e:
         raise AIValidationError(f"verification invalid: {e}", payload=data)
+
+
+# =========================
+# Backward-compatible aliases
+# =========================
+# Houd dev_ai.py en oudere endpoints werkend:
+ClassificationResult = AIClassification

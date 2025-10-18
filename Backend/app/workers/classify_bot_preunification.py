@@ -4,16 +4,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
-import time
 from typing import Optional, Any, Dict
-
-# --- Uniform logging voor workers ---
-from app.core.logging import configure_logging, get_logger
-from app.core.request_id import with_run_id
-
-configure_logging(service_name="worker")
-logger = get_logger()
-logger = logger.bind(worker="classify_bot")
 
 # jouw bestaande services (toplevel 'services' package)
 from services.db_service import (
@@ -108,28 +99,22 @@ async def run(limit: int, min_conf: float, dry_run: bool, model: Optional[str]) 
 
 
 def main():
-    t0 = time.perf_counter()
-    with with_run_id() as rid:
-        logger.info("worker_started")
-        p = argparse.ArgumentParser(description="Batch classify candidates")
-        p.add_argument("--limit", type=int, default=50)
+    p = argparse.ArgumentParser(description="Batch classify candidates")
+    p.add_argument("--limit", type=int, default=50)
 
-        default_conf = float(os.getenv("CLASSIFY_MIN_CONF", "0.80"))
-        p.add_argument(
-            "--min-confidence",
-            type=float,
-            default=default_conf,
-            help="Minimale confidence score (0..1)"
-        )
+    default_conf = float(os.getenv("CLASSIFY_MIN_CONF", "0.80"))
+    p.add_argument(
+        "--min-confidence",
+        type=float,
+        default=default_conf,
+        help="Minimale confidence score (0..1)"
+    )
 
-        p.add_argument("--dry-run", action="store_true", help="Don't write to DB")
-        p.add_argument("--model", type=str, default=None, help="Override model name")
-        args = p.parse_args()
+    p.add_argument("--dry-run", action="store_true", help="Don't write to DB")
+    p.add_argument("--model", type=str, default=None, help="Override model name")
+    args = p.parse_args()
 
-        asyncio.run(run(args.limit, args.min_confidence, args.dry_run, args.model))
-        
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        logger.info("worker_finished", duration_ms=duration_ms)
+    asyncio.run(run(args.limit, args.min_confidence, args.dry_run, args.model))
 
 
 if __name__ == "__main__":
