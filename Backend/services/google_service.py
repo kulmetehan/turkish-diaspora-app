@@ -1,138 +1,123 @@
-# -*- coding: utf-8 -*-
-"""
-Google Places Service (async) – v1 Nearby Search
-- Clampt per-call resultaten op 20 (API limiet).
-- Ondersteunt paginatie via nextPageToken om tot 'requested_total' per cel te halen.
-
-Vereist:
-  - env GOOGLE_API_KEY
-  - pip install httpx python-dotenv
-"""
-
+# Backend/services/google_service.py
 from __future__ import annotations
-import os
+
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
+
 import httpx
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-PLACES_NEARBY_URL = "https://places.googleapis.com/v1/places:searchNearby"
+PLACES_HOST = "https://places.googleapis.com/v1"
 
-# Hou het field mask klein (quota/latency)
-FIELD_MASK = (
-    "places.id,places.displayName,places.formattedAddress,places.location,"
-    "places.types,places.rating,places.userRatingCount,places.businessStatus,"
-    "places.websiteUri,nextPageToken"
-)
+# Field mask ZONDER nextPageToken (vermijdt 400 in sommige regio's)
+FIELD_MASK = ",".join([
+    "places.id",
+    "places.displayName",
+    "places.formattedAddress",
+    "places.location",
+    "places.types",
+    "places.rating",
+    "places.userRatingCount",
+    "places.businessStatus",
+    "places.websiteUri",
+])
+
+class GooglePlacesAPIError(RuntimeError):
+    pass
 
 class GooglePlacesService:
-    """Async wrapper voor Google Places v1 Nearby Search."""
+    def __init__(self, api_key: str, timeout_s: float = 15.0):
+        self._api_key = api_key
+        self._client = httpx.AsyncClient(timeout=timeout_s)
 
-    def __init__(self, api_key: Optional[str] = None, timeout_s: float = 15.0, max_retries: int = 5):
-        self.api_key = api_key or GOOGLE_API_KEY
-        if not self.api_key:
-            raise RuntimeError("GOOGLE_API_KEY ontbreekt (env).")
-        self.timeout_s = timeout_s
-        self.max_retries = max_retries
+    async def aclose(self):
+        await self._client.aclose()
 
-    async def _single_call(
-        self,
-        *,
-        lat: float,
-        lng: float,
-        radius_m: int,
-        included_types: List[str],
-        page_size: int,
-        page_token: Optional[str],
-        language: Optional[str],
-    ) -> Dict[str, Any]:
-        """Doet één POST naar places:searchNearby."""
-        headers = {
-            "Content-Type": "application/json",
-            "X-Goog-Api-Key": self.api_key,
+    def _headers(self) -> Dict[str, str]:
+        return {
+            "X-Goog-Api-Key": self._api_key,
+            # v1 vereist FIELD MASK als HEADER (niet als queryparam)
             "X-Goog-FieldMask": FIELD_MASK,
+            "Content-Type": "application/json",
         }
-        body: Dict[str, Any] = {
-            "includedTypes": included_types,
-            # API max 20 per call
-            "maxResultCount": max(1, min(int(page_size), 20)),
-            "locationRestriction": {
-                "circle": {
-                    "center": {"latitude": lat, "longitude": lng},
-                    "radius": float(radius_m),
-                }
-            },
+
+    async def _post(self, path: str, json: Dict[str, Any]) -> Dict[str, Any]:
+        url = f"{PLACES_HOST}/{path}"
+        backoff = 0.5
+        last = None
+        for _ in range(6):
+            resp = await self._client.post(url, headers=self._headers(), json=json)
+            if resp.status_code < 400:
+                return resp.json()
+            last = resp
+            if resp.status_code in (429, 500, 502, 503, 504):
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 8.0)
+                continue
+            raise GooglePlacesAPIError(f"Google Places API error {resp.status_code}: {resp.text}")
+        raise GooglePlacesAPIError(f"Google Places API retry exhausted: last={last.status_code if last else 'n/a'} {last.text if last else ''}")
+
+    async def search_text(
+        self,
+        text: str,
+        max_results: int = 20,
+        language: Optional[str] = None,
+        region: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        payload: Dict[str, Any] = {
+            "textQuery": text,
+            "maxResultCount": min(20, max(1, int(max_results))),
         }
         if language:
-            body["languageCode"] = language
-        if page_token:
-            body["pageToken"] = page_token
+            payload["languageCode"] = language
+        if region:
+            payload["regionCode"] = region
 
-        backoff = 0.8
-        last_err: Optional[Exception] = None
-
-        for _ in range(1, self.max_retries + 1):
-            try:
-                async with httpx.AsyncClient(timeout=self.timeout_s) as client:
-                    resp = await client.post(PLACES_NEARBY_URL, headers=headers, json=body)
-
-                if resp.status_code == 200:
-                    return resp.json() or {}
-
-                if resp.status_code in (429, 500, 502, 503, 504):
-                    await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2.0, 8.0)
-                    continue
-
-                # Niet-retrybaar
-                raise RuntimeError(f"Google Places API error {resp.status_code}: {resp.text}")
-
-            except Exception as e:
-                last_err = e
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2.0, 8.0)
-
-        if last_err:
-            raise last_err
-        return {}
+        items: List[Dict[str, Any]] = []
+        next_page_token: Optional[str] = None
+        while True:
+            if next_page_token:
+                payload["pageToken"] = next_page_token
+            data = await self._post("places:searchText", payload)
+            items.extend(data.get("places") or [])
+            # NB: sommige regio's geven nextPageToken terug ook zonder mask
+            next_page_token = data.get("nextPageToken")
+            if not next_page_token or len(items) >= max_results:
+                break
+        return items[:max_results]
 
     async def search_nearby(
         self,
         lat: float,
         lng: float,
         radius: int,
-        included_types: List[str],
+        included_types: Optional[List[str]] = None,
         max_results: int = 20,
         language: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Haalt tot 'max_results' items binnen door pagina's (20 per call) op te vragen.
-        """
-        requested_total = max(1, int(max_results))
-        results: List[Dict[str, Any]] = []
-        next_token: Optional[str] = None
+        payload: Dict[str, Any] = {
+            "maxResultCount": min(20, max(1, int(max_results))),
+            "locationRestriction": {
+                "circle": {
+                    "center": {"latitude": lat, "longitude": lng},
+                    "radius": float(radius),
+                }
+            },
+        }
+        if included_types:
+            payload["includedTypes"] = included_types
+        if language:
+            payload["languageCode"] = language
 
-        while len(results) < requested_total:
-            page_size = min(20, requested_total - len(results))
-            data = await self._single_call(
-                lat=lat,
-                lng=lng,
-                radius_m=radius,
-                included_types=included_types,
-                page_size=page_size,
-                page_token=next_token,
-                language=language,
-            )
-
+        items: List[Dict[str, Any]] = []
+        next_page_token: Optional[str] = None
+        while True:
+            if next_page_token:
+                payload["pageToken"] = next_page_token
+            data = await self._post("places:searchNearby", payload)
             places = data.get("places") or []
-            results.extend(places)
-
-            next_token = data.get("nextPageToken")
-            if not next_token:
+            items.extend(places)
+            # NB: sommige regio's geven nextPageToken terug ook zonder mask
+            next_page_token = data.get("nextPageToken")
+            if not next_page_token or len(items) >= max_results:
                 break
-
-            # v1 is meestal direct pageable, maar wees lief voor quota
-            await asyncio.sleep(1.2)
-
-        # truncate als er onverhoopt meer kwam
-        return results[:requested_total]
+        return items[:max_results]

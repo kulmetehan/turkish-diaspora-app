@@ -1,0 +1,108 @@
+# Turkish Diaspora App – Google Type Mapping Config
+# Generated 2025-10-18
+# Author: LaMarka Digital
+# Description: Maps Google place_types to internal diaspora categories
+# Encoding: UTF-8 (no tabs)
+
+version: 1
+source_of_truth: "Google Places types (v1) + project categories"
+notes:
+  - "Primary driver = included_types in DiscoveryBot (TDA-7)."
+  - "AI-laag (TDA-10) mag category labels ongewijzigd behouden voor continuïteit."
+  - "Admin/gold records (TDA-18) volgen dezelfde category keys."
+
+defaults:
+  language: "nl"
+  region: "NL"
+  discovery:
+    nearby_radius_m: 1000
+    max_per_cell_per_category: 20
+
+categories:
+  bakery:
+    label: "bakkerij"
+    description: "Bakkerij en bakkerswinkels met (Turkse) brood- en patisserie-assortiment."
+    google_types:
+      - "bakery"
+    aliases:
+      - "bakker"
+      - "turkse bakker"
+      - "firin"          # TR
+      - "pastane"        # TR
+    discovery:
+      enabled: true
+      priority: 10
+
+  restaurant:
+    label: "restaurant"
+    description: "Restaurants en eethuizen met (Turkse) keuken."
+    google_types:
+      - "restaurant"
+    aliases:
+      - "turks restaurant"
+      - "ocakbasi"       # TR
+      - "lokanta"        # TR
+      - "grillroom"
+      - "doner"
+      - "kebab"
+    discovery:
+      enabled: true
+      priority: 9
+
+  supermarket:
+    label: "supermarkt"
+    description: "Supermarkten en levensmiddelenzaken."
+    google_types:
+      - "supermarket"
+      - "grocery_or_supermarket"   # Indien door Google gebruikt
+    aliases:
+      - "markt"
+      - "turkse supermarkt"
+      - "semt pazari"    # TR
+      - "bakkal"         # TR
+    discovery:
+      enabled: true
+      priority: 8
+
+  barber:
+    label: "kapper"
+    description: "Kappers en barbershops."
+    google_types:
+      - "hair_care"
+      # NB: sommige datasets hanteren barbershop binnen hair_care
+    aliases:
+      - "barber"
+      - "barbershop"
+      - "kuaför"         # TR (kapsalon)
+      - "berber"         # TR (barbier)
+    discovery:
+      enabled: true
+      priority: 7
+
+  mosque:
+    label: "moskee"
+    description: "Religieuze locaties – moskeeën."
+    google_types:
+      - "mosque"
+      - "place_of_worship"
+    aliases:
+      - "camii"          # TR
+      - "moskee"
+    discovery:
+      enabled: true
+      priority: 6
+
+  travel_agency:
+    label: "reisbureau"
+    description: "Reisbureaus en ticketing."
+    google_types:
+      - "travel_agency"
+    aliases:
+      - "turks reisbureau"
+      - "seyahat"        # TR
+      - "bilet"          # TR (ticket/kantoor)
+    discovery:
+      enabled: true
+      priority: 5
+
+# Einde van bestand

@@ -1,55 +1,72 @@
-from fastapi import APIRouter, Query, HTTPException
-import httpx
-from services.google_service import GooglePlacesService
-from app.config import settings
+# Backend/api/routers/google_dev.py
+from __future__ import annotations
 
-router = APIRouter(prefix="/dev/google", tags=["dev-google"])
+from typing import Optional, List, Dict, Any
+from fastapi import APIRouter, Query, HTTPException
+from os import getenv
+
+# Importeer de bestaande service (jouw pad)
+try:
+    from app.services.google_service import GooglePlacesService  # type: ignore
+except Exception:
+    from services.google_service import GooglePlacesService  # type: ignore
+
+router = APIRouter(prefix="/dev/google", tags=["dev_google"])
 
 def _svc() -> GooglePlacesService:
-    return GooglePlacesService(
-        api_key=settings.GOOGLE_API_KEY,
-        language_code=getattr(settings, "GOOGLE_PLACES_LANGUAGE", "nl"),
-        region_code=getattr(settings, "GOOGLE_PLACES_REGION", "NL"),
-    )
-
-@router.get("/text")
-async def text_search(q: str = Query(..., min_length=2), max_results: int = 20):
-    svc = _svc()
-    try:
-        items = await svc.search_text(q, max_results=max_results)
-        return {"count": len(items), "items": items}
-    except httpx.HTTPStatusError as exc:
-        # Google API returned an error status
-        raise HTTPException(
-            status_code=502,
-            detail=f"Google Places returned {exc.response.status_code}"
-        )
-    except httpx.RequestError as exc:
-        # Network error
-        raise HTTPException(
-            status_code=502,
-            detail=f"Network error to Google: {str(exc)}"
-        )
-    finally:
-        await svc.aclose()
+    api_key = getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GOOGLE_API_KEY ontbreekt (exporteer in je shell).")
+    return GooglePlacesService(api_key=api_key)
 
 @router.get("/nearby")
-async def nearby(lat: float, lng: float, radius: int = 1500, max_results: int = 20):
+async def nearby(
+    lat: float = Query(..., description="Latitude"),
+    lng: float = Query(..., description="Longitude"),
+    radius: int = Query(1000, ge=1, le=50000, description="Radius in meters"),
+    included_types: Optional[str] = Query(None, description="Comma-separated Google place types"),
+    max_results: int = Query(20, ge=1, le=60, description="Cap across pagination"),
+    language: Optional[str] = Query(None, description="e.g. 'nl'"),
+):
+    svc = _svc()
+    types_list: Optional[List[str]] = None
+    if included_types:
+        types_list = [t.strip() for t in included_types.split(",") if t.strip()]
+
+    try:
+        data = await svc.search_nearby(
+            lat=lat,
+            lng=lng,
+            radius=radius,
+            included_types=types_list,   # None of list[str]
+            max_results=max_results,
+            language=language,
+        )
+        return {"ok": True, "count": len(data or []), "items": data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Google Places error: {e}")
+
+@router.get("/text")
+async def text(
+    q: str = Query(..., description="textQuery"),
+    max_results: int = Query(20, ge=1, le=60, description="Cap across pagination"),
+    language: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+):
     svc = _svc()
     try:
-        items = await svc.search_nearby(lat, lng, radius, max_results=max_results)
-        return {"count": len(items), "items": items}
-    except httpx.HTTPStatusError as exc:
-        # Google API returned an error status
-        raise HTTPException(
-            status_code=502,
-            detail=f"Google Places returned {exc.response.status_code}"
+        data = await svc.search_text(
+            text=q,                # ✅ juiste naam
+            max_results=max_results,
+            language=language,
+            region=region,
         )
-    except httpx.RequestError as exc:
-        # Network error
-        raise HTTPException(
-            status_code=502,
-            detail=f"Network error to Google: {str(exc)}"
-        )
+        return {"ok": True, "count": len(data or []), "items": data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Google Places error: {e}")
     finally:
         await svc.aclose()

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-DiscoveryBot â€" Grid-based discovery met chunking
+DiscoveryBot — Grid-based discovery met YAML category-mapping
+- Leest Infra/config/categories.yml als bron voor diaspora->Google place_types
 - CLI flags: --chunks en --chunk-index om grote runs op te delen
 - Gebruikt GooglePlacesService (per-call max 20; paginatie tot max_per_cell_per_category)
 
@@ -32,9 +33,12 @@ logger = logger.bind(worker="discovery_bot")
 # sys.path zodat 'app.*' werkt bij GH Actions
 # ---------------------------------------------------------------------------
 THIS_FILE = Path(__file__).resolve()
-BACKEND_ROOT = THIS_FILE.parent.parent  # .../Backend/app/..
-if str(BACKEND_ROOT.parent) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT.parent))  # .../Backend
+APP_DIR = THIS_FILE.parent.parent           # .../Backend/app
+BACKEND_DIR = APP_DIR.parent                # .../Backend
+REPO_ROOT = BACKEND_DIR.parent              # .../
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))    # .../Backend
 
 # ---------------------------------------------------------------------------
 # DB (async)
@@ -75,18 +79,25 @@ engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------
-# Google service (fallback-safe)
+# Google service — expliciet via 'services.google_service'
 # ---------------------------------------------------------------------------
-try:
-    from app.services.google_service import GooglePlacesService  # type: ignore
-except Exception:
-    try:
-        from services.google_service import GooglePlacesService  # type: ignore
-    except Exception as e:
-        print("[DiscoveryBot] GooglePlacesService niet gevonden, stub actief:", e)
-        class GooglePlacesService:
-            async def search_nearby(self, *a, **k):
-                return []
+from services.google_service import GooglePlacesService  # <-- vaste import
+
+# ---------------------------------------------------------------------------
+# YAML Config loader
+# ---------------------------------------------------------------------------
+import yaml
+
+CATEGORIES_YML = REPO_ROOT / "Infra" / "config" / "categories.yml"
+
+def load_categories_config() -> Dict[str, Any]:
+    """Laad Infra/config/categories.yml en geef dict terug."""
+    if not CATEGORIES_YML.exists():
+        raise FileNotFoundError(f"Config niet gevonden: {CATEGORIES_YML}")
+    data = yaml.safe_load(CATEGORIES_YML.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or "categories" not in data:
+        raise ValueError("categories.yml is ongeldig: mist 'categories' root-key.")
+    return data
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -193,23 +204,26 @@ async def insert_candidates(rows: List[Dict[str, Any]]) -> int:
 # ---------------------------------------------------------------------------
 @dataclass
 class DiscoveryConfig:
-    city: str = "rotterdam"
-    categories: List[str] = None
-    center_lat: float = ROTTERDAM_CENTER[0]
-    center_lng: float = ROTTERDAM_CENTER[1]
-    nearby_radius_m: int = 1000
-    grid_span_km: float = 12.0
-    max_per_cell_per_category: int = 20
-    inter_call_sleep_s: float = 0.15
-    max_total_inserts: int = 0
-    max_cells_per_category: int = 0
-    chunks: int = 1
-    chunk_index: int = 0
+    city: str
+    categories: List[str]
+    center_lat: float
+    center_lng: float
+    nearby_radius_m: int
+    grid_span_km: float
+    max_per_cell_per_category: int
+    inter_call_sleep_s: float
+    max_total_inserts: int
+    max_cells_per_category: int
+    chunks: int
+    chunk_index: int
+    language: Optional[str]
 
 class DiscoveryBot:
-    def __init__(self, cfg: DiscoveryConfig):
+    def __init__(self, cfg: DiscoveryConfig, cfg_yaml: Dict[str, Any]):
         self.cfg = cfg
-        self.google = GooglePlacesService()
+        self.yaml = cfg_yaml
+        from app.config import settings
+        self.google = GooglePlacesService(api_key=settings.GOOGLE_API_KEY)
 
     async def run(self) -> int:
         seen: Set[str] = set()
@@ -217,39 +231,43 @@ class DiscoveryBot:
 
         cell_spacing_m = max(100, int(self.cfg.nearby_radius_m * 0.75))
         all_points = generate_grid_points(
-            self.cfg.center_lat,
-            self.cfg.center_lng,
-            self.cfg.grid_span_km,
-            cell_spacing_m,
+            self.cfg.center_lat, self.cfg.center_lng, self.cfg.grid_span_km, cell_spacing_m
         )
         points = pick_chunk(all_points, self.cfg.chunks, self.cfg.chunk_index)
 
-        print(f"[DiscoveryBot] Grid totaal={len(all_points)}, chunk={self.cfg.chunk_index}/{self.cfg.chunks-1} â†' subset={len(points)}")
-        print(f"[DiscoveryBot] CategorieÃ«n: {', '.join(self.cfg.categories)}")
+        print(f"[DiscoveryBot] Grid totaal={len(all_points)}, chunk={self.cfg.chunk_index}/{self.cfg.chunks-1} → subset={len(points)}")
+        print(f"[DiscoveryBot] Categorieën (interne keys): {', '.join(self.cfg.categories)}")
 
-        per_call_cap = 20  # harde limiet API; service pagineert tot max_per_cell_per_category
+        for cat_key in self.cfg.categories:
+            cat_def = (self.yaml.get("categories") or {}).get(cat_key)
+            if not cat_def:
+                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' niet gevonden in YAML; overslaan.")
+                continue
 
-        for cat in self.cfg.categories:
-            print(f"\n[DiscoveryBot] === {cat} ===")
+            google_types = cat_def.get("google_types") or []
+            if not google_types:
+                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' heeft geen google_types; overslaan.")
+                continue
+
+            print(f"\n[DiscoveryBot] === {cat_key} ===  (google_types={google_types})")
             processed_cells = 0
 
             for i, (lat, lng) in enumerate(points, start=1):
                 if self.cfg.max_cells_per_category > 0 and processed_cells >= self.cfg.max_cells_per_category:
-                    print(f"[DiscoveryBot] Max cellen voor {cat} bereikt: {processed_cells}")
+                    print(f"[DiscoveryBot] Max cellen voor {cat_key} bereikt: {processed_cells}")
                     break
 
                 try:
-                    # vraag 'max_per_cell_per_category' totaal op; service haalt dit in pagina's van 20 op
                     places = await self.google.search_nearby(
                         lat=lat,
                         lng=lng,
                         radius=self.cfg.nearby_radius_m,
-                        included_types=[cat],
+                        included_types=google_types,
                         max_results=max(1, int(self.cfg.max_per_cell_per_category)),
-                        language=None,
+                        language=self.cfg.language,
                     )
                 except Exception as e:
-                    print(f"[DiscoveryBot] Google call fout @({lat:.5f},{lng:.5f}) {cat}: {e}")
+                    print(f"[DiscoveryBot] Google call fout @({lat:.5f},{lng:.5f}) {cat_key}: {e}")
                     places = []
 
                 batch: List[Dict[str, Any]] = []
@@ -258,7 +276,7 @@ class DiscoveryBot:
                     if not pid or pid in seen:
                         continue
                     seen.add(pid)
-                    batch.append(map_google_place_to_row(p, cat))
+                    batch.append(map_google_place_to_row(p, cat_key))
 
                 if batch:
                     try:
@@ -272,7 +290,7 @@ class DiscoveryBot:
                 processed_cells += 1
 
                 if i % 50 == 0:
-                    print(f"[DiscoveryBot] {cat}: {i}/{len(points)} cellen, totaal ingevoegd={total_inserted}")
+                    print(f"[DiscoveryBot] {cat_key}: {i}/{len(points)} cellen, totaal ingevoegd={total_inserted}")
 
                 if self.cfg.max_total_inserts > 0 and total_inserted >= self.cfg.max_total_inserts:
                     print(f"[DiscoveryBot] Max totaal inserts bereikt: {total_inserted}. Stoppen.")
@@ -281,14 +299,14 @@ class DiscoveryBot:
                 if self.cfg.inter_call_sleep_s:
                     await asyncio.sleep(self.cfg.inter_call_sleep_s)
 
-        print(f"\n[DiscoveryBot] âœ" Klaar. Totaal nieuw (idempotent) ingevoegd: {total_inserted}")
+        print(f"\n[DiscoveryBot] ✓ Klaar. Totaal nieuw (idempotent) ingevoegd: {total_inserted}")
         return total_inserted
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="DiscoveryBot â€" grid-based met chunking")
+    ap = argparse.ArgumentParser(description="DiscoveryBot — grid-based met YAML mapping + chunking")
     ap.add_argument("--city")
     ap.add_argument("--categories")
     ap.add_argument("--center-lat", type=float)
@@ -301,22 +319,35 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--max-cells-per-category", type=int, default=0)
     ap.add_argument("--chunks", type=int, default=1)
     ap.add_argument("--chunk-index", type=int, default=0)
+    ap.add_argument("--language")
     return ap.parse_args()
 
-def build_config(ns: argparse.Namespace) -> DiscoveryConfig:
+def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig:
+    defaults = yml.get("defaults") or {}
+    disc_def = defaults.get("discovery") or {}
+    yaml_lang = defaults.get("language")
+    center_lat = ns.center_lat if ns.center_lat is not None else 51.9244
+    center_lng = ns.center_lng if ns.center_lng is not None else 4.4777
+
+    if ns.categories:
+        cats = [c.strip() for c in ns.categories.split(",") if c.strip()]
+    else:
+        cats = list((yml.get("categories") or {}).keys())
+
     cfg = {
         "city": ns.city or "rotterdam",
-        "categories": [c.strip() for c in (ns.categories or "bakery,restaurant,supermarket").split(",") if c.strip()],
-        "center_lat": ns.center_lat if ns.center_lat is not None else ROTTERDAM_CENTER[0],
-        "center_lng": ns.center_lng if ns.center_lng is not None else ROTTERDAM_CENTER[1],
-        "nearby_radius_m": ns.nearby_radius_m if ns.nearby_radius_m is not None else 1000,
-        "grid_span_km": ns.grid_span_km if ns.grid_span_km is not None else 12.0,
-        "max_per_cell_per_category": ns.max_per_cell_per_category if ns.max_per_cell_per_category is not None else 20,
+        "categories": cats,
+        "center_lat": center_lat,
+        "center_lng": center_lng,
+        "nearby_radius_m": ns.nearby_radius_m if ns.nearby_radius_m is not None else int(disc_def.get("nearby_radius_m", 1000)),
+        "grid_span_km": ns.grid_span_km if ns.grid_span_km is not None else float(disc_def.get("grid_span_km", 12.0)) if "grid_span_km" in disc_def else 12.0,
+        "max_per_cell_per_category": ns.max_per_cell_per_category if ns.max_per_cell_per_category is not None else int(disc_def.get("max_per_cell_per_category", 20)),
         "inter_call_sleep_s": ns.inter_call_sleep_s if ns.inter_call_sleep_s is not None else 0.15,
         "max_total_inserts": ns.max_total_inserts or 0,
         "max_cells_per_category": ns.max_cells_per_category or 0,
         "chunks": ns.chunks or 1,
         "chunk_index": ns.chunk_index or 0,
+        "language": ns.language or yaml_lang or None,
     }
     return DiscoveryConfig(**cfg)
 
@@ -325,25 +356,28 @@ async def main_async():
     with with_run_id() as rid:
         logger.info("worker_started")
         ns = parse_args()
-        cfg = build_config(ns)
+        yml = load_categories_config()
+        cfg = build_config(ns, yml)
 
         print("\n[DiscoveryBot] Configuratie:")
         print(f"  Stad: {cfg.city}")
         print(f"  Center: ({cfg.center_lat:.4f}, {cfg.center_lng:.4f})")
-        print(f"  CategorieÃ«n: {cfg.categories}")
+        print(f"  Categorieën: {cfg.categories}")
         print(f"  Grid span: {cfg.grid_span_km} km")
         print(f"  Nearby radius: {cfg.nearby_radius_m} m")
         print(f"  Max per cel: {cfg.max_per_cell_per_category}")
         print(f"  Sleep tijd: {cfg.inter_call_sleep_s} s")
+        if cfg.language:
+            print(f"  Language: {cfg.language}")
         if cfg.max_total_inserts > 0:
             print(f"  Max totaal inserts: {cfg.max_total_inserts}")
         if cfg.max_cells_per_category > 0:
             print(f"  Max cellen/categorie: {cfg.max_cells_per_category}")
         print(f"  Chunks: {cfg.chunks} (index={cfg.chunk_index})\n")
 
-        bot = DiscoveryBot(cfg)
+        bot = DiscoveryBot(cfg, yml)
         await bot.run()
-        
+
         duration_ms = int((time.perf_counter() - t0) * 1000)
         logger.info("worker_finished", duration_ms=duration_ms)
 
