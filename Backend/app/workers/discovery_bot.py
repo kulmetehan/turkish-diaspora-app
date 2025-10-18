@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-DiscoveryBot — Grid-based discovery met YAML category-mapping
+DiscoveryBot — Grid-based discovery met YAML category-mapping + district support
 - Leest Infra/config/categories.yml als bron voor diaspora->Google place_types
-- CLI flags: --chunks en --chunk-index om grote runs op te delen
-- Gebruikt GooglePlacesService (per-call max 20; paginatie tot max_per_cell_per_category)
+- Leest Infra/config/cities.yml voor district-bounding boxes
+- CLI flags: chunking, caps per categorie, district-selectie
+- Inclusief sanitization + self-heal voor ongeldige Google types
 
 Pad: Backend/app/workers/discovery_bot.py
 """
@@ -21,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Dict, Any, Set, Tuple, Optional
 
-# --- Uniform logging voor workers ---
+# --- Uniform logging ---
 from app.core.logging import configure_logging, get_logger
 from app.core.request_id import with_run_id
 
@@ -30,7 +31,7 @@ logger = get_logger()
 logger = logger.bind(worker="discovery_bot")
 
 # ---------------------------------------------------------------------------
-# sys.path zodat 'app.*' werkt bij GH Actions
+# Pathing zodat 'app.*' werkt (CI, GH Actions, lokale run)
 # ---------------------------------------------------------------------------
 THIS_FILE = Path(__file__).resolve()
 APP_DIR = THIS_FILE.parent.parent           # .../Backend/app
@@ -79,19 +80,19 @@ engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------
-# Google service — expliciet via 'services.google_service'
+# Google service
 # ---------------------------------------------------------------------------
-from services.google_service import GooglePlacesService  # <-- vaste import
+from services.google_service import GooglePlacesService  # vaste import
 
 # ---------------------------------------------------------------------------
-# YAML Config loader
+# YAML Config loaders
 # ---------------------------------------------------------------------------
 import yaml
 
 CATEGORIES_YML = REPO_ROOT / "Infra" / "config" / "categories.yml"
+CITIES_YML = REPO_ROOT / "Infra" / "config" / "cities.yml"
 
 def load_categories_config() -> Dict[str, Any]:
-    """Laad Infra/config/categories.yml en geef dict terug."""
     if not CATEGORIES_YML.exists():
         raise FileNotFoundError(f"Config niet gevonden: {CATEGORIES_YML}")
     data = yaml.safe_load(CATEGORIES_YML.read_text(encoding="utf-8"))
@@ -99,10 +100,17 @@ def load_categories_config() -> Dict[str, Any]:
         raise ValueError("categories.yml is ongeldig: mist 'categories' root-key.")
     return data
 
+def load_cities_config() -> Dict[str, Any]:
+    if not CITIES_YML.exists():
+        raise FileNotFoundError(f"Config niet gevonden: {CITIES_YML}")
+    data = yaml.safe_load(CITIES_YML.read_text(encoding="utf-8"))
+    if not isinstance(data, dict) or "cities" not in data:
+        raise ValueError("cities.yml is ongeldig: mist 'cities' root-key.")
+    return data
+
 # ---------------------------------------------------------------------------
-# Helpers
+# Geo helpers
 # ---------------------------------------------------------------------------
-ROTTERDAM_CENTER = (51.9244, 4.4777)
 EARTH_RADIUS_M = 6371000.0
 
 def meters_to_lat_deg(m: float) -> float:
@@ -110,6 +118,12 @@ def meters_to_lat_deg(m: float) -> float:
 
 def meters_to_lng_deg(m: float, at_lat_deg: float) -> float:
     return (m / (EARTH_RADIUS_M * math.cos(math.radians(at_lat_deg)))) * (180.0 / math.pi)
+
+def deg_lat_to_m(deg: float) -> float:
+    return deg * math.pi / 180.0 * EARTH_RADIUS_M
+
+def deg_lng_to_m(deg: float, at_lat_deg: float) -> float:
+    return deg * math.pi / 180.0 * EARTH_RADIUS_M * math.cos(math.radians(at_lat_deg))
 
 def generate_grid_points(center_lat: float, center_lng: float, grid_span_km: float, cell_spacing_m: int) -> List[Tuple[float, float]]:
     half_span_m = grid_span_km * 1000
@@ -140,6 +154,9 @@ def pick_chunk(points: List[Tuple[float, float]], chunks: int, chunk_index: int)
     end = min(start + size, n)
     return points[start:end]
 
+# ---------------------------------------------------------------------------
+# Mapping helpers
+# ---------------------------------------------------------------------------
 def map_google_place_to_row(p: Dict[str, Any], category_hint: str) -> Dict[str, Any]:
     display_name = p.get("displayName")
     name = display_name.get("text") if isinstance(display_name, dict) else display_name
@@ -200,6 +217,36 @@ async def insert_candidates(rows: List[Dict[str, Any]]) -> int:
     return inserted
 
 # ---------------------------------------------------------------------------
+# Type sanitization / self-heal
+# ---------------------------------------------------------------------------
+# Bekende foute/legacy types voor v1 (vul aan indien je meer tegenkomt)
+BAD_TYPES = {
+    "grocery_or_supermarket",
+}
+
+def sanitize_types(types: List[str]) -> List[str]:
+    """Filter ongeldige of lege type-namen; trim lowercase en underscores-only schema."""
+    out: List[str] = []
+    for t in types or []:
+        if not t or not isinstance(t, str):
+            continue
+        t = t.strip()
+        if not t or t in BAD_TYPES:
+            continue
+        # Simpele sanity: v1 types zijn lowercase en bevatten geen spaties
+        if any(ch.isspace() for ch in t):
+            continue
+        out.append(t)
+    # Dedupe behoud volgorde
+    seen = set()
+    deduped = []
+    for t in out:
+        if t not in seen:
+            seen.add(t)
+            deduped.append(t)
+    return deduped
+
+# ---------------------------------------------------------------------------
 # Config + Bot
 # ---------------------------------------------------------------------------
 @dataclass
@@ -217,6 +264,7 @@ class DiscoveryConfig:
     chunks: int
     chunk_index: int
     language: Optional[str]
+    district: Optional[str] = None
 
 class DiscoveryBot:
     def __init__(self, cfg: DiscoveryConfig, cfg_yaml: Dict[str, Any]):
@@ -235,8 +283,10 @@ class DiscoveryBot:
         )
         points = pick_chunk(all_points, self.cfg.chunks, self.cfg.chunk_index)
 
-        print(f"[DiscoveryBot] Grid totaal={len(all_points)}, chunk={self.cfg.chunk_index}/{self.cfg.chunks-1} → subset={len(points)}")
+        print(f"[DiscoveryBot] Grid totaal={len(all_points)}, chunk={self.cfg.chunk_index}/{max(0,self.cfg.chunks-1)} → subset={len(points)}")
         print(f"[DiscoveryBot] Categorieën (interne keys): {', '.join(self.cfg.categories)}")
+        if self.cfg.district:
+            print(f"[DiscoveryBot] District: {self.cfg.district}")
 
         for cat_key in self.cfg.categories:
             cat_def = (self.yaml.get("categories") or {}).get(cat_key)
@@ -244,9 +294,9 @@ class DiscoveryBot:
                 print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' niet gevonden in YAML; overslaan.")
                 continue
 
-            google_types = cat_def.get("google_types") or []
+            google_types = sanitize_types(cat_def.get("google_types") or [])
             if not google_types:
-                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' heeft geen google_types; overslaan.")
+                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' heeft geen geldige google_types; overslaan.")
                 continue
 
             print(f"\n[DiscoveryBot] === {cat_key} ===  (google_types={google_types})")
@@ -267,8 +317,33 @@ class DiscoveryBot:
                         language=self.cfg.language,
                     )
                 except Exception as e:
-                    print(f"[DiscoveryBot] Google call fout @({lat:.5f},{lng:.5f}) {cat_key}: {e}")
-                    places = []
+                    msg = str(e)
+                    # Self-heal bij "Unsupported types: X"
+                    if "Unsupported types:" in msg:
+                        bad = msg.split("Unsupported types:")[-1].strip().strip(".").strip()
+                        if bad in google_types:
+                            print(f"[DiscoveryBot] Unsupported type gedetecteerd: {bad} → opnieuw zonder dit type")
+                            google_types = [t for t in google_types if t != bad]
+                            if not google_types:
+                                print(f"[DiscoveryBot] Geen valide google_types meer voor {cat_key}; sla cel over.")
+                                processed_cells += 1
+                                continue
+                            try:
+                                places = await self.google.search_nearby(
+                                    lat=lat, lng=lng, radius=self.cfg.nearby_radius_m,
+                                    included_types=google_types,
+                                    max_results=max(1, int(self.cfg.max_per_cell_per_category)),
+                                    language=self.cfg.language,
+                                )
+                            except Exception as e2:
+                                print(f"[DiscoveryBot] Google retry fout @({lat:.5f},{lng:.5f}) {cat_key}: {e2}")
+                                places = []
+                        else:
+                            print(f"[DiscoveryBot] Google call fout @({lat:.5f},{lng:.5f}) {cat_key}: {e}")
+                            places = []
+                    else:
+                        print(f"[DiscoveryBot] Google call fout @({lat:.5f},{lng:.5f}) {cat_key}: {e}")
+                        places = []
 
                 batch: List[Dict[str, Any]] = []
                 for p in places or []:
@@ -305,29 +380,59 @@ class DiscoveryBot:
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+@dataclass
+class _Arg:
+    name: str
+    help: str
+    type: Any = None
+    default: Any = None
+
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="DiscoveryBot — grid-based met YAML mapping + chunking")
-    ap.add_argument("--city")
-    ap.add_argument("--categories")
-    ap.add_argument("--center-lat", type=float)
-    ap.add_argument("--center-lng", type=float)
-    ap.add_argument("--nearby-radius-m", type=int)
-    ap.add_argument("--grid-span-km", type=float)
-    ap.add_argument("--max-per-cell-per-category", type=int)
-    ap.add_argument("--inter-call-sleep-s", type=float)
-    ap.add_argument("--max-total-inserts", type=int, default=0)
-    ap.add_argument("--max-cells-per-category", type=int, default=0)
-    ap.add_argument("--chunks", type=int, default=1)
-    ap.add_argument("--chunk-index", type=int, default=0)
-    ap.add_argument("--language")
+    ap = argparse.ArgumentParser(description="DiscoveryBot — grid-based met YAML mapping + chunking + district")
+    ap.add_argument("--city", help="Stad key in cities.yml (default: rotterdam)", default="rotterdam")
+    ap.add_argument("--district", help="District key in cities.yml (bv. centrum)")
+    ap.add_argument("--categories", help="Komma-gescheiden interne categorieën (anders: alle uit categories.yml)")
+    ap.add_argument("--center-lat", type=float, help="Override center latitude")
+    ap.add_argument("--center-lng", type=float, help="Override center longitude")
+    ap.add_argument("--nearby-radius-m", type=int, help="Google Nearby radius (meter)")
+    ap.add_argument("--grid-span-km", type=float, help="Grid-span (km, zijde)")
+    ap.add_argument("--max-per-cell-per-category", type=int, help="Cap resultaten per cel per categorie")
+    ap.add_argument("--inter-call-sleep-s", type=float, help="Sleep tussen calls")
+    ap.add_argument("--max-total-inserts", type=int, default=0, help="Stop na N inserts (0=geen limiet)")
+    ap.add_argument("--max-cells-per-category", type=int, default=0, help="Stop na N cellen per categorie (0=geen limiet)")
+    ap.add_argument("--chunks", type=int, default=1, help="Verdeel grid in N chunks")
+    ap.add_argument("--chunk-index", type=int, default=0, help="Welke chunk index (0-based)")
+    ap.add_argument("--language", help="API-taal, bv. nl")
     return ap.parse_args()
 
 def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig:
     defaults = yml.get("defaults") or {}
     disc_def = defaults.get("discovery") or {}
     yaml_lang = defaults.get("language")
+
+    city = ns.city or "rotterdam"
     center_lat = ns.center_lat if ns.center_lat is not None else 51.9244
     center_lng = ns.center_lng if ns.center_lng is not None else 4.4777
+
+    district = ns.district.strip() if ns.district else None
+    if district:
+        cities = load_cities_config()
+        city_def = (cities.get("cities") or {}).get(city)
+        if not city_def or "districts" not in city_def:
+            raise ValueError(f"cities.yml: stad '{city}' of districts ontbreken.")
+        d = (city_def["districts"] or {}).get(district)
+        if not d:
+            raise ValueError(f"cities.yml: district '{district}' niet gevonden voor stad '{city}'.")
+        lat_min, lat_max = float(d["lat_min"]), float(d["lat_max"])
+        lng_min, lng_max = float(d["lng_min"]), float(d["lng_max"])
+        center_lat = (lat_min + lat_max) / 2.0
+        center_lng = (lng_min + lng_max) / 2.0
+        # span = max(latspan, lngspan) in km
+        lat_span_km = deg_lat_to_m(abs(lat_max - lat_min)) / 1000.0
+        lng_span_km = deg_lng_to_m(abs(lng_max - lng_min), center_lat) / 1000.0
+        auto_span_km = max(lat_span_km, lng_span_km)
+    else:
+        auto_span_km = 12.0  # fallback zoals eerder
 
     if ns.categories:
         cats = [c.strip() for c in ns.categories.split(",") if c.strip()]
@@ -335,12 +440,12 @@ def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig
         cats = list((yml.get("categories") or {}).keys())
 
     cfg = {
-        "city": ns.city or "rotterdam",
+        "city": city,
         "categories": cats,
         "center_lat": center_lat,
         "center_lng": center_lng,
         "nearby_radius_m": ns.nearby_radius_m if ns.nearby_radius_m is not None else int(disc_def.get("nearby_radius_m", 1000)),
-        "grid_span_km": ns.grid_span_km if ns.grid_span_km is not None else float(disc_def.get("grid_span_km", 12.0)) if "grid_span_km" in disc_def else 12.0,
+        "grid_span_km": ns.grid_span_km if ns.grid_span_km is not None else float(disc_def.get("grid_span_km", auto_span_km)),
         "max_per_cell_per_category": ns.max_per_cell_per_category if ns.max_per_cell_per_category is not None else int(disc_def.get("max_per_cell_per_category", 20)),
         "inter_call_sleep_s": ns.inter_call_sleep_s if ns.inter_call_sleep_s is not None else 0.15,
         "max_total_inserts": ns.max_total_inserts or 0,
@@ -348,6 +453,7 @@ def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig
         "chunks": ns.chunks or 1,
         "chunk_index": ns.chunk_index or 0,
         "language": ns.language or yaml_lang or None,
+        "district": district,
     }
     return DiscoveryConfig(**cfg)
 
@@ -361,9 +467,11 @@ async def main_async():
 
         print("\n[DiscoveryBot] Configuratie:")
         print(f"  Stad: {cfg.city}")
+        if cfg.district:
+            print(f"  District: {cfg.district}")
         print(f"  Center: ({cfg.center_lat:.4f}, {cfg.center_lng:.4f})")
         print(f"  Categorieën: {cfg.categories}")
-        print(f"  Grid span: {cfg.grid_span_km} km")
+        print(f"  Grid span: {cfg.grid_span_km:.2f} km")
         print(f"  Nearby radius: {cfg.nearby_radius_m} m")
         print(f"  Max per cel: {cfg.max_per_cell_per_category}")
         print(f"  Sleep tijd: {cfg.inter_call_sleep_s} s")

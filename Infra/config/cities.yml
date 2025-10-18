@@ -1,0 +1,104 @@
+# Turkish Diaspora App – City Grid Definitions
+# Generated 2025-10-18
+# Author: LaMarka Digital
+# Description: Multi-grid bounding boxes for Rotterdam districts
+
+version: 1
+metadata:
+  projection: "WGS84 (lat/lng)"
+  notes: >
+    Bounding boxes zijn conservatief (beetje 'ruim') gekozen om
+    oversampling te vermijden en toch alle relevante POI's te vangen.
+    Voor latere iteraties kan polygon-steun worden toegevoegd.
+
+defaults:
+  # Standaard grid- en searchinstellingen die DiscoveryBot kan gebruiken
+  &rotterdam_defaults
+  grid_span_km: 8         # totale breedte/hoogte van het grid per wijk (kan per wijk worden overschreven)
+  nearby_radius_m: 1000   # straal voor Google Nearby Search
+  max_per_cell_per_category: 20
+  inter_call_sleep_s: 0.15
+
+cities:
+  rotterdam:
+    city_name: "Rotterdam"
+    country: "NL"
+    apply: *rotterdam_defaults
+    districts:
+
+      centrum:
+        lat_min: 51.9150
+        lat_max: 51.9350
+        lng_min: 4.4500
+        lng_max: 4.4950
+        apply: *rotterdam_defaults
+
+      noord:
+        lat_min: 51.9350
+        lat_max: 51.9750
+        lng_min: 4.4300
+        lng_max: 4.4900
+        apply: *rotterdam_defaults
+
+      delfshaven:
+        lat_min: 51.9000
+        lat_max: 51.9450
+        lng_min: 4.4200
+        lng_max: 4.4600
+        apply: *rotterdam_defaults
+
+      kralingen_crooswijk:
+        lat_min: 51.9150
+        lat_max: 51.9600
+        lng_min: 4.5000
+        lng_max: 4.5700
+        apply: *rotterdam_defaults
+
+      feijenoord:
+        lat_min: 51.8850
+        lat_max: 51.9200
+        lng_min: 4.4800
+        lng_max: 4.5500
+        apply: *rotterdam_defaults
+
+      charlois:
+        lat_min: 51.8600
+        lat_max: 51.9050
+        lng_min: 4.4400
+        lng_max: 4.5300
+        apply: *rotterdam_defaults
+
+      ijsselmonde:
+        lat_min: 51.8700
+        lat_max: 51.9050
+        lng_min: 4.5500
+        lng_max: 4.6400
+        apply: *rotterdam_defaults
+
+      prins_alexander:
+        lat_min: 51.9450
+        lat_max: 51.9900
+        lng_min: 4.5500
+        lng_max: 4.6500
+        apply: *rotterdam_defaults
+
+      overschie:
+        lat_min: 51.9350
+        lat_max: 51.9800
+        lng_min: 4.4000
+        lng_max: 4.4700
+        apply: *rotterdam_defaults
+
+      hoogvliet:
+        lat_min: 51.8450
+        lat_max: 51.8750
+        lng_min: 4.3400
+        lng_max: 4.3900
+        apply: *rotterdam_defaults
+
+      pernis:
+        lat_min: 51.8850
+        lat_max: 51.9050
+        lng_min: 4.3800
+        lng_max: 4.4300
+        apply: *rotterdam_defaults

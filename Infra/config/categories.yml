@@ -54,7 +54,6 @@ categories:
     description: "Supermarkten en levensmiddelenzaken."
     google_types:
       - "supermarket"
-      - "grocery_or_supermarket"   # Indien door Google gebruikt
     aliases:
       - "markt"
       - "turkse supermarkt"
