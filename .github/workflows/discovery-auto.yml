@@ -1,0 +1,50 @@
+name: Automated DiscoveryBot Runs
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # dagelijks 02:00 UTC
+  workflow_dispatch:
+
+jobs:
+  discovery:
+    name: Run DiscoveryBot per categorie
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [bakery, restaurant, supermarket, barber, mosque, travel_agency]
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r Backend/requirements.txt
+
+      - name: Run DiscoveryBot (${{ matrix.category }})
+        run: |
+          cd Backend
+          echo "=== Starting DiscoveryBot for ${{ matrix.category }} ==="
+          python -m app.workers.discovery_bot \
+            --city rotterdam \
+            --categories ${{ matrix.category }} \
+            --max-per-cell-per-category 20 \
+            --max-total-inserts 1000 \
+            --inter-call-sleep-s 0.15
+        continue-on-error: false
+
+      - name: Structured Log Output
+        if: always()
+        run: |
+          echo "{\"category\":\"${{ matrix.category }}\",\"status\":\"completed\",\"ts\":\"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\"}" >> discovery_log.json
