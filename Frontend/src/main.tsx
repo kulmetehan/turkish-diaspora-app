@@ -4,29 +4,30 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import App from "./App";
-import AdminPage from "./pages/AdminPage"; // <-- if you don't have this, remove the /admin route
-
-import "./App.css";
+import "./index.css";
 import "leaflet/dist/leaflet.css";
 
-// On GitHub Pages we’re served under /turkish-diaspora-app
-// The workflow sets GITHUB_PAGES=true during build
-const isPages = !!import.meta.env.GITHUB_PAGES;
-const basename = isPages ? "/turkish-diaspora-app" : "/";
+import UiKit from "@/pages/UiKit";
+import { Header } from "@/components/Header";
+import { Toaster } from "@/components/ui/toaster";
+import { initTheme } from "@/lib/theme/darkMode";
+
+// Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
+const basename = import.meta.env.BASE_URL || "/";
+
+initTheme();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter basename={basename}>
+      <Header />
       <Routes>
-        {/* Public app at root */}
         <Route path="/" element={<App />} />
-
-        {/* Optional admin page (remove if you don't have it yet) */}
-        <Route path="/admin" element={<AdminPage />} />
-
-        {/* Catch-all: send unknown paths to root */}
+        <Route path="/ui-kit" element={<UiKit />} />
+        {/* Catch-all naar home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
   </React.StrictMode>
 );

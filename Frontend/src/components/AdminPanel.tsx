@@ -1,16 +1,10 @@
 // Frontend/src/components/AdminPanel.tsx
 import { useState } from "react";
-import axios from "axios";
-
-// Eenvoudig paneel voor create + update.
-// Vereist dat VITE_API_BASE_URL is gezet (zie TDA-5).
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000") + "/api/v1";
-
-// Admin key via local storage of env (niet bundelen in code!):
-function getAdminKey(): string {
-  const v = localStorage.getItem("ADMIN_API_KEY") || "";
-  return v;
-}
+import { API_BASE, apiFetch, getAdminKey } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type CreatePayload = {
   name: string;
@@ -51,12 +45,14 @@ export default function AdminPanel() {
   async function doCreate() {
     setResult("");
     try {
-      const res = await axios.post(`${API_BASE}/admin/locations`, createForm, {
+      const data = await apiFetch<any>("/admin/locations", {
+        method: "POST",
         headers: { "X-Admin-Key": getAdminKey() },
+        body: JSON.stringify(createForm),
       });
-      setResult(JSON.stringify(res.data, null, 2));
+      setResult(JSON.stringify(data, null, 2));
     } catch (e: any) {
-      setResult(e?.response?.data?.detail || e.message);
+      setResult(e?.message ?? String(e));
     }
   }
 
@@ -67,87 +63,267 @@ export default function AdminPanel() {
     }
     setResult("");
     try {
-      const res = await axios.patch(`${API_BASE}/admin/locations/${updateId}`, updateForm, {
+      const data = await apiFetch<any>(`/admin/locations/${updateId}`, {
+        method: "PATCH",
         headers: { "X-Admin-Key": getAdminKey() },
+        body: JSON.stringify(updateForm),
       });
-      setResult(JSON.stringify(res.data, null, 2));
+      setResult(JSON.stringify(data, null, 2));
     } catch (e: any) {
-      setResult(e?.response?.data?.detail || e.message);
+      setResult(e?.message ?? String(e));
     }
   }
 
   return (
-    <div className="p-4 space-y-6">
-      <h2 className="text-xl font-bold">Admin Panel (Locations)</h2>
+    <div className="mx-auto max-w-5xl p-6 space-y-6">
+      <header className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold">Admin Panel (Locations)</h2>
+        <div className="text-xs text-muted-foreground">
+          API: <code>{API_BASE}</code>
+        </div>
+      </header>
 
       {/* CREATE */}
-      <div className="p-4 border rounded-md">
-        <h3 className="font-semibold mb-2">Nieuwe locatie aanmaken (auto VERIFIED)</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          <input className="border p-2" placeholder="Name" value={createForm.name}
-                 onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })} />
-          <input className="border p-2" placeholder="Address" value={createForm.address}
-                 onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })} />
-          <input className="border p-2" placeholder="Lat" type="number" value={createForm.lat}
-                 onChange={(e) => setCreateForm({ ...createForm, lat: parseFloat(e.target.value) })} />
-          <input className="border p-2" placeholder="Lng" type="number" value={createForm.lng}
-                 onChange={(e) => setCreateForm({ ...createForm, lng: parseFloat(e.target.value) })} />
-          <input className="border p-2" placeholder="Category" value={createForm.category}
-                 onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })} />
-          <input className="border p-2" placeholder="Business Status" value={createForm.business_status || ""}
-                 onChange={(e) => setCreateForm({ ...createForm, business_status: e.target.value })} />
-          <input className="border p-2" placeholder="Rating" type="number" value={createForm.rating ?? ""}
-                 onChange={(e) => setCreateForm({ ...createForm, rating: e.target.value ? parseFloat(e.target.value) : null })} />
-          <input className="border p-2" placeholder="User Ratings Total" type="number" value={createForm.user_ratings_total ?? ""}
-                 onChange={(e) => setCreateForm({ ...createForm, user_ratings_total: e.target.value ? parseInt(e.target.value) : null })} />
-          <input className="border p-2 md:col-span-2" placeholder="Notes" value={createForm.notes || ""}
-                 onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} />
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={!!createForm.is_probable_not_open_yet}
-                   onChange={(e) => setCreateForm({ ...createForm, is_probable_not_open_yet: e.target.checked })} />
-            Probable Not Open Yet
-          </label>
-        </div>
-        <button className="mt-3 px-3 py-2 bg-black text-white rounded" onClick={doCreate}>Aanmaken</button>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Nieuwe locatie aanmaken</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Name</Label>
+              <Input
+                value={createForm.name}
+                onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Address</Label>
+              <Input
+                value={createForm.address}
+                onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Lat</Label>
+              <Input
+                type="number"
+                value={createForm.lat}
+                onChange={(e) => setCreateForm({ ...createForm, lat: parseFloat(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Lng</Label>
+              <Input
+                type="number"
+                value={createForm.lng}
+                onChange={(e) => setCreateForm({ ...createForm, lng: parseFloat(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Category</Label>
+              <Input
+                value={createForm.category}
+                onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Business Status</Label>
+              <Input
+                value={createForm.business_status || ""}
+                onChange={(e) => setCreateForm({ ...createForm, business_status: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Rating</Label>
+              <Input
+                type="number"
+                value={createForm.rating ?? ""}
+                onChange={(e) =>
+                  setCreateForm({
+                    ...createForm,
+                    rating: e.target.value ? parseFloat(e.target.value) : null,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>User Ratings Total</Label>
+              <Input
+                type="number"
+                value={createForm.user_ratings_total ?? ""}
+                onChange={(e) =>
+                  setCreateForm({
+                    ...createForm,
+                    user_ratings_total: e.target.value ? parseInt(e.target.value) : null,
+                  })
+                }
+              />
+            </div>
+            <div className="md:col-span-2 space-y-1">
+              <Label>Notes</Label>
+              <Input
+                value={createForm.notes || ""}
+                onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={!!createForm.is_probable_not_open_yet}
+                onChange={(e) =>
+                  setCreateForm({
+                    ...createForm,
+                    is_probable_not_open_yet: e.target.checked,
+                  })
+                }
+              />
+              Probable Not Open Yet
+            </label>
+          </div>
+
+          <div className="pt-2">
+            <Button onClick={doCreate}>Aanmaken</Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* UPDATE */}
-      <div className="p-4 border rounded-md">
-        <h3 className="font-semibold mb-2">Bestaande locatie bewerken</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input className="border p-2" placeholder="Location ID" value={updateId}
-                 onChange={(e) => setUpdateId(e.target.value ? parseInt(e.target.value) : "")} />
-          <input className="border p-2" placeholder="name"
-                 onChange={(e) => setUpdateForm({ ...updateForm, name: e.target.value || undefined })} />
-          <input className="border p-2" placeholder="address"
-                 onChange={(e) => setUpdateForm({ ...updateForm, address: e.target.value || undefined })} />
-          <input className="border p-2" placeholder="lat" type="number"
-                 onChange={(e) => setUpdateForm({ ...updateForm, lat: e.target.value ? parseFloat(e.target.value) : undefined })} />
-          <input className="border p-2" placeholder="lng" type="number"
-                 onChange={(e) => setUpdateForm({ ...updateForm, lng: e.target.value ? parseFloat(e.target.value) : undefined })} />
-          <input className="border p-2" placeholder="category"
-                 onChange={(e) => setUpdateForm({ ...updateForm, category: e.target.value || undefined })} />
-          <input className="border p-2" placeholder="business_status"
-                 onChange={(e) => setUpdateForm({ ...updateForm, business_status: e.target.value || undefined })} />
-          <input className="border p-2" placeholder="rating" type="number"
-                 onChange={(e) => setUpdateForm({ ...updateForm, rating: e.target.value ? parseFloat(e.target.value) : undefined })} />
-          <input className="border p-2" placeholder="user_ratings_total" type="number"
-                 onChange={(e) => setUpdateForm({ ...updateForm, user_ratings_total: e.target.value ? parseInt(e.target.value) : undefined })} />
-          <input className="border p-2" placeholder="confidence_score" type="number" step="0.01" min="0" max="1"
-                 onChange={(e) => setUpdateForm({ ...updateForm, confidence_score: e.target.value ? parseFloat(e.target.value) : undefined })} />
-          <input className="border p-2" placeholder="state (e.g., VERIFIED)"
-                 onChange={(e) => setUpdateForm({ ...updateForm, state: e.target.value || undefined })} />
-          <input className="border p-2 md:col-span-3" placeholder="notes"
-                 onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value || undefined })} />
-        </div>
-        <button className="mt-3 px-3 py-2 bg-black text-white rounded" onClick={doUpdate}>Updaten</button>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Bestaande locatie bewerken</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label>Location ID</Label>
+              <Input
+                value={updateId}
+                onChange={(e) => setUpdateId(e.target.value ? parseInt(e.target.value) : "")}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>name</Label>
+              <Input
+                onChange={(e) => setUpdateForm({ ...updateForm, name: e.target.value || undefined })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>address</Label>
+              <Input
+                onChange={(e) => setUpdateForm({ ...updateForm, address: e.target.value || undefined })}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>lat</Label>
+              <Input
+                type="number"
+                onChange={(e) =>
+                  setUpdateForm({
+                    ...updateForm,
+                    lat: e.target.value ? parseFloat(e.target.value) : undefined,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>lng</Label>
+              <Input
+                type="number"
+                onChange={(e) =>
+                  setUpdateForm({
+                    ...updateForm,
+                    lng: e.target.value ? parseFloat(e.target.value) : undefined,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>category</Label>
+              <Input
+                onChange={(e) =>
+                  setUpdateForm({ ...updateForm, category: e.target.value || undefined })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>business_status</Label>
+              <Input
+                onChange={(e) =>
+                  setUpdateForm({ ...updateForm, business_status: e.target.value || undefined })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>rating</Label>
+              <Input
+                type="number"
+                onChange={(e) =>
+                  setUpdateForm({
+                    ...updateForm,
+                    rating: e.target.value ? parseFloat(e.target.value) : undefined,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>user_ratings_total</Label>
+              <Input
+                type="number"
+                onChange={(e) =>
+                  setUpdateForm({
+                    ...updateForm,
+                    user_ratings_total: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>confidence_score</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                max="1"
+                onChange={(e) =>
+                  setUpdateForm({
+                    ...updateForm,
+                    confidence_score: e.target.value ? parseFloat(e.target.value) : undefined,
+                  })
+                }
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>state (e.g., VERIFIED)</Label>
+              <Input
+                onChange={(e) => setUpdateForm({ ...updateForm, state: e.target.value || undefined })}
+              />
+            </div>
+            <div className="md:col-span-3 space-y-1">
+              <Label>notes</Label>
+              <Input
+                onChange={(e) => setUpdateForm({ ...updateForm, notes: e.target.value || undefined })}
+              />
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <Button variant="secondary" onClick={doUpdate}>
+              Updaten
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* RESULT */}
-      <div className="p-4 border rounded-md">
-        <h3 className="font-semibold mb-2">Result</h3>
-        <pre className="whitespace-pre-wrap text-sm">{result}</pre>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Result</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="whitespace-pre-wrap text-sm">{result}</pre>
+        </CardContent>
+      </Card>
     </div>
   );
 }

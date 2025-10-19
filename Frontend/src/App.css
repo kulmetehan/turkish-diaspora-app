@@ -1,47 +1,13 @@
+/* ---------- App shell / reset ---------- */
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  /* Laat het grid zelf de breedte bepalen; geen centrering op root */
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}
-
-/* eenvoudige basisstijl; pas gerust aan naar jouw design */
+/* ---------- Kaarten / lijst kaarten ---------- */
 .loc-card {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -67,12 +33,13 @@
 .badge--warn { background:#fef3c7; color:#92400e; }
 .badge--error { background:#fee2e2; color:#991b1b; }
 
+/* ---------- Lijst / filters ---------- */
 .location-list {
   display: flex;
   flex-direction: column;
-  max-height: calc(100vh - 160px); /* pas aan op jouw header/toolbar-hoogte */
+  max-height: calc(100vh - 160px);
   overflow: auto;
-  padding-right: 4px; /* ruimte voor scrollbar */
+  padding-right: 4px;
 }
 
 .filters { padding: 8px 0; }
@@ -88,13 +55,25 @@
 .filters__empty { color:#6b7280; font-size:13px; }
 
 .sort-bar { display:flex; align-items:center; gap:8px; margin:8px 0; }
-.sort-bar__label { font-size:14px; color:#374151; }
+.sort-bar__label { font-size:14px; color: #374151; }
 .sort-bar__select { padding:6px 10px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; }
 
+/* ---------- Layout ---------- */
+/* Mobile-first: 1 kolom (sidebar boven, map onder) */
 .app-layout {
   display: grid;
-  grid-template-columns: 380px 1fr;
-  grid-template-rows: 100vh;
+  width: 100%;
+  max-width: 100%;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+/* Desktop (≥900px): 2 kolommen — links 380px, rechts vult */
+@media (min-width: 900px) {
+  .app-layout {
+    grid-template-columns: 380px 1fr;
+    align-items: start;
+  }
 }
 
 .app-sidebar {
@@ -110,12 +89,15 @@
 .loading, .error { padding: 8px 0; color: #374151; }
 .error { color: #b91c1c; }
 
+/* Map-pane moet kunnen krimpen/uitvullen */
 .app-map { min-width: 0; }
-@media (max-width: 900px) {
-  .app-layout { grid-template-columns: 1fr; grid-template-rows: auto auto; }
-  .app-map { height: 60vh; }
+
+/* Desktop: prettige hoogte voor de kaart */
+@media (min-width: 900px) {
+  .app-map { min-height: 80vh; }
 }
-/* Geselecteerde marker (className op SelectedIcon) */
+
+/* Geselecteerde marker */
 .leaflet-marker-selected {
   filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.55));
 }

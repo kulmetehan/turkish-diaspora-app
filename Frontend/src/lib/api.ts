@@ -1,45 +1,46 @@
 // Frontend/src/lib/api.ts
-import type { Location } from "../types/location";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL as string;
+// In development gebruiken we de Vite dev-proxy op "/api".
+// In productie gebruiken we een absolute origin uit VITE_API_BASE_URL.
+// BASE-pad van endpoints blijft altijd "/api/v1".
+const DEV = import.meta.env.DEV;
 
-if (!API_BASE_URL) {
-  // Valt op tijdens dev als je .env mist
-  // (console.warn is genoeg; we willen geen crash)
-  console.warn('VITE_API_BASE_URL is not set in your environment files.');
-}
+// Let op: geen trailing slash in VITE_API_BASE_URL
+const PROD_ORIGIN = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
 
-export async function getHealth(): Promise<{ status: string } | null> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/healthz`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
+const API_ROOT = DEV ? "" : (PROD_ORIGIN ?? "");
+export const API_BASE = `${API_ROOT}/api/v1`;
 
-export async function getLocations(params?: {
-  lat?: number;
-  lng?: number;
-  radius?: number;
-  category?: string[]; // multi
-  limit?: number;
-}): Promise<Location[]> {
-  const usp = new URLSearchParams();
-  if (params?.lat != null) usp.set("lat", String(params.lat));
-  if (params?.lng != null) usp.set("lng", String(params.lng));
-  if (params?.radius != null) usp.set("radius", String(params.radius));
-  if (params?.limit != null) usp.set("limit", String(params.limit));
-  if (params?.category && params.category.length) {
-    params.category.forEach((c) => usp.append("category", c));
-  }
-
-  const url = `${API_BASE_URL}/api/v1/locations${usp.toString() ? `?${usp}` : ""}`;
-  const res = await fetch(url);
+/** Kleine helper voor fetch-calls naar onze API */
+export async function apiFetch<T>(
+  path: string,
+  init?: RequestInit
+): Promise<T> {
+  const url = `${API_BASE}${path}`;
+  const res = await fetch(url, {
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    ...init,
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`GET /locations failed ${res.status}: ${text}`);
+    throw new Error(
+      `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
+    );
   }
-  return (await res.json()) as Location[];
+  // Als er geen body is, niet proberen te parsen
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    // sommige endpoints geven leeg terug (204 / text)
+    const text = await res.text().catch(() => "");
+    return text as unknown as T;
+  }
+  return (await res.json()) as T;
+}
+
+/** Admin-key uit localStorage ophalen (niet bundelen) */
+export function getAdminKey(): string {
+  return localStorage.getItem("ADMIN_API_KEY") || "";
 }
