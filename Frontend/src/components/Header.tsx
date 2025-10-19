@@ -24,7 +24,7 @@ export function Header() {
       <div className="mx-auto max-w-7xl flex items-center gap-3 p-3">
         {/* Logo / Home */}
         <Link to="/" className="inline-flex items-center gap-2 font-semibold">
-          <Icon name="map" aria-label="Logo" />
+          <Icon name="Map" aria-label="Logo" />
           <span>Turkish Diaspora App</span>
         </Link>
 
