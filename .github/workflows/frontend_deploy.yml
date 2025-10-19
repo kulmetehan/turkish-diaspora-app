@@ -29,29 +29,34 @@ jobs:
           cache-dependency-path: Frontend/package-lock.json
 
       - name: Configure GitHub Pages
-        id: pages
         uses: actions/configure-pages@v5
 
-      - name: Create .env.production from secret
+      - name: Create .env.production
         working-directory: Frontend
         run: |
-          echo "VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}" > .env.production
+          : > .env.production
+          # Zet hier je productie API-origin. Geen trailing slash.
+          echo "VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}" >> .env.production
           echo "Created Frontend/.env.production"
-
-      - name: Set flag for GitHub Pages base path
-        run: echo "GITHUB_PAGES=true" >> $GITHUB_ENV
 
       - name: Install dependencies
         working-directory: Frontend
         run: npm ci
 
-      - name: Build
+      # >>> Belangrijk: forceer base via CLI (overrulet config) <<<
+      - name: Build with explicit base
         working-directory: Frontend
-        env:
-          GITHUB_PAGES: "true"
-        run: npm run build
+        run: npm run build -- --base=/turkish-diaspora-app/
 
-      # NEW: 404 fallback for SPA routing on Pages
+      # Validatie: index.html moet /turkish-diaspora-app/ bevatten vóór assets
+      - name: Inspect built index.html
+        run: |
+          echo "---- FIRST 60 LINES OF dist/index.html ----"
+          sed -n '1,60p' Frontend/dist/index.html
+          echo "-------------------------------------------"
+          grep -q '/turkish-diaspora-app/assets/' Frontend/dist/index.html || (echo 'ERROR: base path not applied' && exit 1)
+
+      # 404 fallback voor SPA routing
       - name: Create 404.html for SPA
         run: cp Frontend/dist/index.html Frontend/dist/404.html
 
