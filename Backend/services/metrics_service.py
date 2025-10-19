@@ -2,15 +2,25 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+import structlog
+
+# Logger (JSON via structlog)
+logger = structlog.get_logger()
+
+# Optional: PyYAML voor city-grid (bbox) laden
+try:
+    import yaml  # type: ignore
+except Exception:
+    yaml = None  # we fallbacken op env-variabelen als YAML niet beschikbaar is
 
 
 # =========================================================
-# Engine management
+# Engine management (compatibel met jouw project)
 # =========================================================
 
 _ENGINE: Optional[AsyncEngine] = None
@@ -31,7 +41,7 @@ def get_engine() -> AsyncEngine:
     if _ENGINE is not None:
         return _ENGINE
 
-    # Probeer gedeelde engine (optioneel in jouw project)
+    # Probeer gedeelde engine (indien jouw project die expose't)
     try:
         from app.services.db_service import async_engine as shared_engine  # type: ignore
         _ENGINE = shared_engine
@@ -45,21 +55,20 @@ def get_engine() -> AsyncEngine:
     except Exception:
         pass
 
-    # Fallback: maak zelf een engine vanuit env
+    # Fallback: zelf engine opbouwen
     db_url = os.getenv("DATABASE_URL")
     if not db_url:
         raise RuntimeError(
             "DATABASE_URL is niet gezet. Zet bijv.: "
             "export DATABASE_URL='postgresql+asyncpg://user:pass@host:5432/dbname'"
         )
-
     db_url = _coerce_to_asyncpg(db_url)
     _ENGINE = create_async_engine(db_url, echo=False, pool_pre_ping=True)
     return _ENGINE
 
 
 # =========================================================
-# Pydantic v2 datamodellen
+# Pydantic v2 datamodellen (bestaand + extensie via KPIItem)
 # =========================================================
 
 class TimeWindow(BaseModel):
@@ -95,7 +104,7 @@ class MetricsSnapshot(BaseModel):
 
 
 # =========================================================
-# KPI helpers
+# KPI helpers (bestaand)
 # =========================================================
 
 async def kpi_new_candidates_per_week(engine: AsyncEngine, weeks: int = 8) -> KPIItem:
@@ -148,13 +157,12 @@ async def kpi_conversion_rate_verified(engine: AsyncEngine, days: int = 14) -> K
 async def kpi_task_error_rate(engine: AsyncEngine, window: TimeWindow = TimeWindow(hours=1)) -> KPIItem:
     """
     Task-foutpercentage over de laatste window.
-    1) Probeer uit tasks (status/is_success) in EIGEN transactie.
-    2) Faalt dat (bv. tabel bestaat niet), dan fallback naar ai_logs in NIEUWE transactie.
-    Dit voorkomt 'current transaction is aborted'.
+    1) Probeer uit tasks (status/is_success).
+    2) Fallback naar ai_logs bij ontbreken.
     """
     since_ts = _now_utc() - window.to_timedelta()
 
-    # ------------ Probeer tasks in eigen transactie ------------
+    # ---- Eerst tasks
     try:
         sql_tasks_total = text("""
             SELECT COUNT(*) AS total
@@ -185,9 +193,9 @@ async def kpi_task_error_rate(engine: AsyncEngine, window: TimeWindow = TimeWind
             },
         )
     except Exception:
-        pass  # ga door naar fallback
+        pass  # fallback hieronder
 
-    # ------------ Fallback naar ai_logs in NIEUWE transactie ------------
+    # ---- Fallback ai_logs
     sql_logs_total = text("""
         SELECT COUNT(*) AS total
         FROM ai_logs
@@ -289,7 +297,149 @@ async def kpi_google_429_count(engine: AsyncEngine, window: TimeWindow = TimeWin
 
 
 # =========================================================
-# Public API
+# 🔹 City KPI (Rotterdam only) — bbox uit cities.yml
+# =========================================================
+
+def _load_rotterdam_bbox() -> Tuple[float, float, float, float]:
+    """
+    Laad de Rotterdam-bbox uit cities.yml (union van alle districten).
+    Zoekpad:
+      1) ENV CITIES_YML
+      2) ./Infra/config/cities.yml
+      3) Infra/config/cities.yml
+      4) ./cities.yml
+      5) /mnt/data/cities.yml
+    Als PyYAML ontbreekt, gebruik ENV fallback:
+      ROTTERDAM_LAT_MIN, ROTTERDAM_LAT_MAX, ROTTERDAM_LNG_MIN, ROTTERDAM_LNG_MAX
+    """
+    if yaml is not None:
+        paths = [
+            os.getenv("CITIES_YML"),
+            os.path.join(".", "Infra", "config", "cities.yml"),
+            os.path.join("Infra", "config", "cities.yml"),
+            os.path.join(".", "cities.yml"),
+            "/mnt/data/cities.yml",
+        ]
+        for p in [pp for pp in paths if pp]:
+            try:
+                if os.path.exists(p):
+                    with open(p, "r") as f:
+                        data = yaml.safe_load(f)
+                    city = data["cities"]["rotterdam"]
+                    lat_min = 10**9
+                    lat_max = -10**9
+                    lng_min = 10**9
+                    lng_max = -10**9
+                    for _, bbox in city["districts"].items():
+                        lat_min = min(lat_min, float(bbox["lat_min"]))
+                        lat_max = max(lat_max, float(bbox["lat_max"]))
+                        lng_min = min(lng_min, float(bbox["lng_min"]))
+                        lng_max = max(lng_max, float(bbox["lng_max"]))
+                    return (lat_min, lat_max, lng_min, lng_max)
+            except Exception:
+                pass  # try next path
+
+    # ENV fallback (ruime defaults; overschrijf in CI/ENV voor exacte grenzen)
+    lat_min = float(os.getenv("ROTTERDAM_LAT_MIN", "51.845"))
+    lat_max = float(os.getenv("ROTTERDAM_LAT_MAX", "51.990"))
+    lng_min = float(os.getenv("ROTTERDAM_LNG_MIN", "4.340"))
+    lng_max = float(os.getenv("ROTTERDAM_LNG_MAX", "4.650"))
+    return (lat_min, lat_max, lng_min, lng_max)
+
+
+_SQL_VERIFIED_RTM = text("""
+    SELECT COUNT(*) AS verified_count
+    FROM locations
+    WHERE state = 'VERIFIED'
+      AND lat BETWEEN :lat_min AND :lat_max
+      AND lng BETWEEN :lng_min AND :lng_max
+""")
+
+_SQL_CANDIDATE_RTM = text("""
+    SELECT COUNT(*) AS candidate_count
+    FROM locations
+    WHERE state = 'CANDIDATE'
+      AND lat BETWEEN :lat_min AND :lat_max
+      AND lng BETWEEN :lng_min AND :lng_max
+""")
+
+_SQL_NEW_VERIFIED_CURR_RTM = text("""
+    SELECT COUNT(*) AS new_verified_curr
+    FROM locations
+    WHERE state = 'VERIFIED'
+      AND last_verified_at IS NOT NULL
+      AND last_verified_at >= (NOW() - INTERVAL '7 days')
+      AND last_verified_at < NOW()
+      AND lat BETWEEN :lat_min AND :lat_max
+      AND lng BETWEEN :lng_min AND :lng_max
+""")
+
+_SQL_NEW_VERIFIED_PREV_RTM = text("""
+    SELECT COUNT(*) AS new_verified_prev
+    FROM locations
+    WHERE state = 'VERIFIED'
+      AND last_verified_at IS NOT NULL
+      AND last_verified_at >= (NOW() - INTERVAL '14 days')
+      AND last_verified_at < (NOW() - INTERVAL '7 days')
+      AND lat BETWEEN :lat_min AND :lat_max
+      AND lng BETWEEN :lng_min AND :lng_max
+""")
+
+
+def _growth_wow(curr: int, prev: int) -> float:
+    denom = prev if prev > 0 else 1
+    return (curr - prev) / float(denom)
+
+
+async def kpi_city_progress_rotterdam(engine: AsyncEngine) -> KPIItem:
+    """
+    City-level KPI's voor **rotterdam** op basis van lat/lng binnen union(bbox districten).
+    Output is een enkele rij voor 'rotterdam'.
+    """
+    lat_min, lat_max, lng_min, lng_max = _load_rotterdam_bbox()
+    params = {"lat_min": lat_min, "lat_max": lat_max, "lng_min": lng_min, "lng_max": lng_max}
+
+    async with engine.begin() as conn:
+        verified = int((await conn.execute(_SQL_VERIFIED_RTM, params)).scalar() or 0)
+        candidate = int((await conn.execute(_SQL_CANDIDATE_RTM, params)).scalar() or 0)
+        curr = int((await conn.execute(_SQL_NEW_VERIFIED_CURR_RTM, params)).scalar() or 0)
+        prev = int((await conn.execute(_SQL_NEW_VERIFIED_PREV_RTM, params)).scalar() or 0)
+
+    coverage = verified / float(candidate if candidate > 0 else 1)
+    growth = _growth_wow(curr, prev)
+
+    row = {
+        "city": "rotterdam",  # consistentie behouden
+        "verified_count": verified,
+        "candidate_count": candidate,
+        "coverage_ratio": round(coverage, 4),
+        "growth_weekly": round(growth, 4),
+    }
+
+    # 🔸 JSON-logging voor observability & alerts (AC eis)
+    logger.info(
+        "metrics_city_progress",
+        city=row["city"],
+        verified_count=row["verified_count"],
+        candidate_count=row["candidate_count"],
+        coverage_ratio=row["coverage_ratio"],
+        growth_weekly=row["growth_weekly"],
+        bbox={"lat_min": lat_min, "lat_max": lat_max, "lng_min": lng_min, "lng_max": lng_max},
+    )
+
+    return KPIItem(
+        name="city_progress",
+        value=[row],  # één stad: rotterdam
+        meta={
+            "goal_verified_per_city": 500,
+            "filter": "bbox(rotterdam)",
+            "bbox": {"lat_min": lat_min, "lat_max": lat_max, "lng_min": lng_min, "lng_max": lng_max},
+        },
+    )
+
+
+# =========================================================
+# Public API (ongewijzigd + extra KPI)
 # =========================================================
 
 async def generate_metrics_snapshot(
@@ -307,6 +457,8 @@ async def generate_metrics_snapshot(
         await kpi_task_error_rate(engine, window=error_rate_window),
         await kpi_api_latency(engine, window=latency_window),
         await kpi_google_429_count(engine, window=google_window),
+        # 🔹 NIEUW: city-level KPI (Rotterdam via bbox)
+        await kpi_city_progress_rotterdam(engine),
     ]
     return MetricsSnapshot(
         generated_at=_now_utc(),

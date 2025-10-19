@@ -6,7 +6,7 @@ This dashboard defines the initial 5+ KPIs using SQL over the existing schema.
 
 1) New Candidates / Week (last 8 weeks)
 - Source: locations (state='CANDIDATE', first_seen_at)
-- SQL: see Backend/app/services/metrics_service.py (kpi_new_candidates_per_week)
+- SQL: see Backend/services/metrics_service.py (kpi_new_candidates_per_week)
 
 2) Conversion Rate to VERIFIED (14 days cohort)
 - Source: locations (first_seen_at >= NOW()-14d; state='VERIFIED')
@@ -35,3 +35,33 @@ This dashboard defines the initial 5+ KPIs using SQL over the existing schema.
 ## Notes
 - Output is JSON-friendly for log collectors; ideal stepping stone to Prometheus/Grafana in V2.
 - Keep costs low: no extra infra required at MVP stage.
+
+---
+
+## City Progress (KPI Expansion — Rotterdam first)
+
+**Doel:** zicht op expansie en coverage **per stad**. In deze fase: **alleen Rotterdam**. Target: **≥ 500 VERIFIED**.
+
+**Bron & Filter**
+- Telling uitsluitend op basis van **lat/lng binnen union(bbox) van alle Rotterdam-districten** uit `Infra/config/cities.yml`.
+- Geen address-parsing.
+
+**KPI Item (JSON in snapshot)**
+- `name: "city_progress"`
+- `value: [ { "city": "rotterdam", "verified_count", "candidate_count", "coverage_ratio", "growth_weekly" } ]`
+- `meta: { "goal_verified_per_city": 500, "filter": "bbox(rotterdam)", "bbox": { lat_min, lat_max, lng_min, lng_max } }`
+
+**Definities**
+- **verified_count**: `COUNT(*) FROM locations WHERE state='VERIFIED' AND point∈bbox(rotterdam)`
+- **candidate_count**: `COUNT(*) WHERE state='CANDIDATE' AND point∈bbox(rotterdam)`
+- **coverage_ratio**: `verified_count / max(candidate_count, 1)`
+- **growth_weekly**: `(new_verified_7d - prev_7d) / max(prev_7d, 1)` op basis van `last_verified_at` binnen de bbox.
+
+**Voorbeeldweergave (tabel)**
+| City      | VERIFIED | CANDIDATE | Coverage Ratio | Growth WoW |
+|-----------|---------:|----------:|---------------:|-----------:|
+| rotterdam |       742|      1092 |          0.680 |     +0.035 |
+
+**Alerts (suggestie)**
+- `CITY_UNDER_GOAL(rotterdam)`: `verified_count < 500`
+- `CITY_NEGATIVE_GROWTH(rotterdam)`: `growth_weekly < 0` voor N weken op rij
