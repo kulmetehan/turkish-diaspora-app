@@ -1,0 +1,56 @@
+# Turkish Diaspora App - Environment Configuration Template
+# Copy this file to Backend/.env and fill in your values
+
+# =============================================================================
+# DATABASE CONFIGURATION
+# =============================================================================
+DATABASE_URL=postgresql://username:password@localhost:5432/turkish_diaspora
+
+# =============================================================================
+# GOOGLE PLACES API CONFIGURATION
+# =============================================================================
+GOOGLE_API_KEY=your_google_api_key_here
+GOOGLE_PLACES_LANGUAGE=nl
+GOOGLE_PLACES_REGION=NL
+
+# =============================================================================
+# OPENAI CONFIGURATION
+# =============================================================================
+OPENAI_API_KEY=your_openai_api_key_here
+OPENAI_MODEL=gpt-4o-mini
+
+# =============================================================================
+# OSM/OVERPASS API CONFIGURATION
+# =============================================================================
+# Data provider selection: "google" or "osm"
+DATA_PROVIDER=osm
+
+# Overpass API User Agent (REQUIRED for OSM compliance)
+OVERPASS_USER_AGENT=TurkishDiasporaApp/1.0 (contact: m.kul@lamarka.nl)
+
+# Rate limiting and backoff configuration
+DISCOVERY_RATE_LIMIT_QPS=0.08
+DISCOVERY_SLEEP_BASE_S=7.0
+DISCOVERY_SLEEP_JITTER_PCT=0.40
+DISCOVERY_BACKOFF_SERIES=20,60,180,420
+
+# Overpass API timeout and result limits
+OVERPASS_TIMEOUT_S=60
+DISCOVERY_MAX_RESULTS=50
+
+# Turkish hints filtering (1=enabled, 0=disabled)
+OSM_TURKISH_HINTS=1
+
+# Cell subdivision configuration
+MAX_SUBDIVIDE_DEPTH=2
+
+# =============================================================================
+# LOGGING CONFIGURATION
+# =============================================================================
+OSM_LOG_QUERIES=false
+
+# =============================================================================
+# FRONTEND CONFIGURATION (Optional)
+# =============================================================================
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here

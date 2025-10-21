@@ -24,6 +24,9 @@ categories:
     description: "Bakkerij en bakkerswinkels met (Turkse) brood- en patisserie-assortiment."
     google_types:
       - "bakery"
+    osm_tags:
+      any:
+        - { shop: "bakery" }
     aliases:
       - "bakker"
       - "turkse bakker"
@@ -38,6 +41,9 @@ categories:
     description: "Restaurants en eethuizen met (Turkse) keuken."
     google_types:
       - "restaurant"
+    osm_tags:
+      any:
+        - { amenity: "restaurant" }
     aliases:
       - "turks restaurant"
       - "ocakbasi"       # TR
@@ -54,6 +60,9 @@ categories:
     description: "Supermarkten en levensmiddelenzaken."
     google_types:
       - "supermarket"
+    osm_tags:
+      any:
+        - { shop: "supermarket" }
     aliases:
       - "markt"
       - "turkse supermarkt"
@@ -69,6 +78,9 @@ categories:
     google_types:
       - "hair_care"
       # NB: sommige datasets hanteren barbershop binnen hair_care
+    osm_tags:
+      any:
+        - { shop: "hairdresser" }
     aliases:
       - "barber"
       - "barbershop"
@@ -84,6 +96,10 @@ categories:
     google_types:
       - "mosque"
       - "place_of_worship"
+    osm_tags:
+      all:
+        - { amenity: "place_of_worship" }
+        - { religion: "muslim" }
     aliases:
       - "camii"          # TR
       - "moskee"
@@ -96,6 +112,9 @@ categories:
     description: "Reisbureaus en ticketing."
     google_types:
       - "travel_agency"
+    osm_tags:
+      any:
+        - { office: "travel_agent" }
     aliases:
       - "turks reisbureau"
       - "seyahat"        # TR
@@ -103,5 +122,21 @@ categories:
     discovery:
       enabled: true
       priority: 5
+
+  butcher:
+    label: "slagerij"
+    description: "Slagerijen en vleeswinkels."
+    google_types:
+      - "butcher"
+    osm_tags:
+      any:
+        - { shop: "butcher" }
+    aliases:
+      - "kasap"          # TR
+      - "et dükkanı"     # TR
+      - "turkse slager"
+    discovery:
+      enabled: true
+      priority: 4
 
 # Einde van bestand

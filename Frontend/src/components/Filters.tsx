@@ -1,85 +1,83 @@
-// Frontend/src/components/Filters.tsx
-
-import React from "react";
-import {
-  useSelectedCategories,
-  toggleCategory,
-  clearCategories,
-  setCategories,
-} from "../state/ui";
-
-/**
- * Multi-select categorie filter.
- * - Verwacht de lijst met beschikbare categorieën als prop (unik, gesorteerd).
- * - Neemt en schrijft de selectie naar de centrale UI-store.
- */
+import { useMemo } from "react";
 
 type Props = {
-  categories: string[];
-  className?: string;
-  title?: string;
-  /** Toon een "Alles wissen" knop (default: true) */
-  showClear?: boolean;
+  search: string;
+  category: string | null;
+  minRating: number | null;
+  onlyTurkish: boolean;
+  loading?: boolean;
+  onChange: (patch: Partial<{
+    search: string;
+    category: string | null;
+    minRating: number | null;
+    onlyTurkish: boolean;
+  }>) => void;
 };
 
-const Filters: React.FC<Props> = ({
-  categories,
-  className,
-  title = "Categorieën",
-  showClear = true,
-}) => {
-  const selected = useSelectedCategories();
-  const selectedSet = new Set(selected);
+// Eventuele categorieën die je wilt tonen (pas aan op je data)
+const KNOWN_CATEGORIES = ["restaurant", "bakery", "market", "cafe", "shop", "other"];
 
-  const onToggle = (cat: string) => {
-    toggleCategory(cat);
-  };
+export default function Filters({
+  search,
+  category,
+  minRating,
+  onlyTurkish,
+  loading,
+  onChange,
+}: Props) {
+  const ratingValue = minRating ?? 0;
 
-  const onClear = () => {
-    clearCategories();
-  };
-
-  const onSelectAll = () => {
-    setCategories(categories);
-  };
+  const categories = useMemo(() => {
+    // Zorg dat de huidige category (als die buiten de lijst valt) toch zichtbaar is.
+    return category && !KNOWN_CATEGORIES.includes(category)
+      ? [category, ...KNOWN_CATEGORIES]
+      : KNOWN_CATEGORIES;
+  }, [category]);
 
   return (
-    <div className={["filters", className ?? ""].join(" ").trim()}>
-      <div className="filters__header">
-        <h4 className="filters__title">{title}</h4>
-        <div className="filters__actions">
-          {showClear && (
-            <button type="button" className="btn btn--ghost" onClick={onClear}>
-              Wissen
-            </button>
-          )}
-          <button type="button" className="btn btn--ghost" onClick={onSelectAll}>
-            Alles
-          </button>
-        </div>
+    <div className="rounded-xl border bg-card p-3 flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        <input
+          className="w-full rounded-md border px-3 py-2"
+          type="text"
+          placeholder="Zoek op naam of categorie…"
+          value={search}
+          onChange={(e) => onChange({ search: e.target.value })}
+        />
       </div>
 
-      <div className="filters__list" role="group" aria-label={title}>
-        {categories.length === 0 && <div className="filters__empty">Geen categorieën beschikbaar.</div>}
+      <div className="flex items-center gap-2">
+        <select
+          className="rounded-md border px-3 py-2"
+          value={category ?? ""}
+          onChange={(e) => onChange({ category: e.target.value || null })}
+        >
+          <option value="">Alle categorieën</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {c.charAt(0).toUpperCase() + c.slice(1)}
+            </option>
+          ))}
+        </select>
 
-        {categories.map((cat) => {
-          const active = selectedSet.has(cat);
-          const id = `cat-${cat.replace(/\s+/g, "-").toLowerCase()}`;
-          return (
-            <label key={cat} htmlFor={id} className={["chip", active ? "chip--active" : ""].join(" ")}>
-              <input
-                id={id}
-                type="checkbox"
-                checked={active}
-                onChange={() => onToggle(cat)}
-              />
-              <span>{cat}</span>
-            </label>
-          );
-        })}
+        <div className="flex items-center gap-2">
+          <label className="text-sm whitespace-nowrap">Min. rating</label>
+          <input
+            className="w-40"
+            type="range"
+            min={0}
+            max={5}
+            step={0.5}
+            value={ratingValue}
+            onChange={(e) => onChange({ minRating: Number(e.target.value) || 0 })}
+          />
+          <span className="w-8 text-center text-sm">{ratingValue.toFixed(1)}</span>
+        </div>
+
+        {loading ? (
+          <span className="text-xs text-muted-foreground">Laden…</span>
+        ) : null}
       </div>
     </div>
   );
-};
-
-export default Filters;
+}

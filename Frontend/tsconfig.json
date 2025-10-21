@@ -4,7 +4,24 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
-    }
+    },
+
+    /* Stricte en stabiele TS-instellingen */
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+
+    /* Zorg dat DOM types en moderne ES features beschikbaar zijn (Mapbox) */
+    "target": "ES2021",
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+
+    /* Vite/React standaard */
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+
+    /* Helpt soms TS met externe lib-typings (Mapbox) */
+    "types": ["mapbox-gl"]
   },
   "references": [
     { "path": "./tsconfig.app.json" },

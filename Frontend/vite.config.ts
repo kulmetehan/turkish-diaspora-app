@@ -1,38 +1,25 @@
 // Frontend/vite.config.ts
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import path from "node:path";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { fileURLToPath, URL } from 'node:url'
 
-/**
- * Belangrijk:
- * - In production (npm run build op CI) hardcoden we base naar je repo-pad.
- * - In dev is base altijd "/", Vite negeert base grotendeels voor de dev server.
- */
-const BASE_PROD = "/turkish-diaspora-app/";
-
-export default defineConfig(({ mode }) => {
-  const isProd = mode === "production";
-
-  return {
-    plugins: [react()],
-    base: isProd ? BASE_PROD : "/",
-    resolve: {
-      alias: { "@": path.resolve(__dirname, "./src") },
+// Vite config met alias '@' → 'src' en standaard React plugin.
+// Geen extra aannames (geen base/publicPath wijzigingen).
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
-    server: {
-      port: 5173,
-      proxy: {
-        "/api": {
-          target: "http://127.0.0.1:8000",
-          changeOrigin: true,
-          secure: false,
-        },
-      },
-    },
-    build: {
-      outDir: "dist",
-      sourcemap: true,
-      chunkSizeWarningLimit: 1200,
-    },
-  };
-});
+  },
+  // Optioneel: wat vriendelijkere build warnings
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 1200,
+  },
+  server: {
+    // Handig bij mobiel/devices testen; commentaar weg te halen indien gewenst:
+    // host: true,
+    // port: 5173,
+  },
+})

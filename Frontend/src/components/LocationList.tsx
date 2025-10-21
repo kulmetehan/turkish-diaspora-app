@@ -1,115 +1,92 @@
-// Frontend/src/components/LocationList.tsx
-
-import React, { useEffect, useMemo, useRef } from "react";
-import type { Location } from "../types/location";
-import LocationCard from "./LocationCard";
-import {
-  useSelectedCategories,
-  useSelectedLocationId,
-  useSortBy,
-  selectLocation,
-} from "../state/ui";
-
-/**
- * Pure presentational + light behaviour:
- * - Filteren op categorie (uit globale UI store)
- * - Sorteren op afstand of rating (uit globale UI store)
- * - Sync selectie met UI store (list <-> map)
- *
- * Data (locaties) wordt als prop aangereikt door de parent (App/useLocations).
- */
+import { useEffect, useMemo, useRef } from "react";
+import type { Location } from "@/lib/api/location";
 
 type Props = {
   locations: Location[];
-  className?: string;
-  /**
-   * Wanneer true zal de lijst automatisch naar het geselecteerde item scrollen
-   * als selectedLocationId verandert.
-   */
+  selectedId: number | null;
+  onSelect?: (id: number) => void;
   autoScrollToSelected?: boolean;
-  /** Optioneel: “Geen resultaten”-tekst overschrijven */
   emptyText?: string;
 };
 
-function sortLocations(
-  list: Location[],
-  sortBy: "distance" | "rating"
-): Location[] {
-  if (sortBy === "distance") {
-    // undefined afstand => onderaan
-    return [...list].sort((a, b) => {
-      const da = a.distanceKm ?? Number.POSITIVE_INFINITY;
-      const db = b.distanceKm ?? Number.POSITIVE_INFINITY;
-      return da - db;
-    });
-  }
-  // rating: undefined/null => onderaan
-  return [...list].sort((a, b) => {
-    const ra = a.rating ?? -Infinity;
-    const rb = b.rating ?? -Infinity;
-    // Descending
-    return rb - ra;
-  });
-}
-
-const LocationList: React.FC<Props> = ({
+export default function LocationList({
   locations,
-  className,
+  selectedId,
+  onSelect,
   autoScrollToSelected = true,
-  emptyText = "Geen resultaten voor de huidige filters.",
-}) => {
-  const selectedCategories = useSelectedCategories();
-  const selectedLocationId = useSelectedLocationId();
-  const sortBy = useSortBy();
+  emptyText = "Geen resultaten",
+}: Props) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  // Filter op categorie (één of meerdere). Lege set => geen filter.
-  const filtered = useMemo(() => {
-    if (!selectedCategories.length) return locations;
-    const set = new Set(selectedCategories);
-    return locations.filter((l) => (l.category ? set.has(l.category) : false));
-  }, [locations, selectedCategories]);
-
-  // Sorteren
-  const sorted = useMemo(() => sortLocations(filtered, sortBy), [filtered, sortBy]);
-
-  // Refs voor auto-scroll naar geselecteerde card
-  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Zorg dat onze refs altijd up-to-date zijn met de zichtbare lijst
+  const ids = useMemo(() => locations.map((l) => l.id).join(","), [locations]);
 
   useEffect(() => {
-    if (!autoScrollToSelected || !selectedLocationId) return;
-    const el = itemRefs.current[selectedLocationId];
-    if (el) {
-      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    // Cleanup refs van items die niet meer bestaan
+    const keep = new Set(locations.map((l) => l.id));
+    for (const id of itemRefs.current.keys()) {
+      if (!keep.has(id)) itemRefs.current.delete(id);
     }
-  }, [selectedLocationId, autoScrollToSelected]);
+  }, [ids, locations]);
 
-  if (!sorted.length) {
-    return <div className={className ?? ""}>{emptyText}</div>;
-  }
+  // Auto-scroll naar geselecteerd item
+  useEffect(() => {
+    if (!autoScrollToSelected || !selectedId) return;
+    const el = itemRefs.current.get(selectedId);
+    const container = containerRef.current;
+    if (!el || !container) return;
+
+    const box = el.getBoundingClientRect();
+    const cbox = container.getBoundingClientRect();
+    const outside = box.top < cbox.top || box.bottom > cbox.bottom;
+
+    if (outside) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
+  }, [selectedId, autoScrollToSelected]);
+
+  if (!locations.length) {
+    return (
+      <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+        {emptyText}
+      </div>
+    );
+    }
 
   return (
-    <div className={["location-list", className ?? ""].join(" ").trim()} role="list">
-      {sorted.map((loc) => {
-        const isSelected = loc.id === selectedLocationId;
-
+    <div
+      ref={containerRef}
+      className="rounded-xl border bg-card divide-y max-h-[calc(100vh-220px)] overflow-auto"
+    >
+      {locations.map((l) => {
+        const active = l.id === selectedId;
         return (
           <div
-            key={loc.id}
+            key={l.id}
             ref={(el) => {
-              itemRefs.current[loc.id] = el;
+              // callback-ref mag niets teruggeven:
+              if (el) itemRefs.current.set(l.id, el);
+              else itemRefs.current.delete(l.id);
             }}
-            role="listitem"
+            role="button"
+            className={`px-4 py-3 cursor-pointer hover:bg-accent/40 ${active ? "bg-accent/60" : ""}`}
+            onClick={() => onSelect?.(l.id)}
           >
-            <LocationCard
-              location={loc}
-              isSelected={isSelected}
-              onSelect={(id) => selectLocation(id)}
-            />
+            <div className="flex items-center justify-between">
+              <div className="font-medium">{l.name}</div>
+              {typeof l.rating === "number" ? (
+                <div className="text-xs px-2 py-0.5 rounded bg-emerald-600/10 text-emerald-700 border border-emerald-600/20">
+                  ★ {l.rating.toFixed(1)}
+                </div>
+              ) : null}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {l.category ?? "—"} • {l.is_turkish ? "Turks" : "—"}
+            </div>
           </div>
         );
       })}
     </div>
   );
-};
-
-export default LocationList;
+}

@@ -25,8 +25,8 @@ async def ping() -> dict[str, Any]:
 
 @router.get("/", response_model=List[dict])
 async def list_locations(
-    state: str = Query("VERIFIED", description="Filter op state"),
-    limit: int = Query(200, gt=1, le=500, description="Max aantal records (2..500)"),
+    state: str = Query("VERIFIED", description="Filter op state (comma-separated for multiple)"),
+    limit: int = Query(200, gt=1, le=2000, description="Max aantal records (2..2000)"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -36,7 +36,11 @@ async def list_locations(
     - Geen crash bij DB-fout: log & return [].
     """
     # Let op: geen 'website' selecteren (TDA-8 mapping gebruikt die kolom niet)
-    sql = """
+    # Support multiple states separated by comma
+    states = [s.strip() for s in state.split(',')]
+    state_placeholders = ','.join([f':state_{i}' for i in range(len(states))])
+    
+    sql = f"""
         SELECT
             id,
             name,
@@ -44,13 +48,15 @@ async def list_locations(
             lng,
             category,
             rating,
-            state
+            state,
+            confidence_score
         FROM locations
-        WHERE state = :state
+        WHERE state IN ({state_placeholders})
         ORDER BY id DESC
         LIMIT :limit
     """
-    params = {"state": state, "limit": limit}
+    params = {f"state_{i}": states[i] for i in range(len(states))}
+    params["limit"] = limit
 
     try:
         result = await db.execute(text(sql), params)

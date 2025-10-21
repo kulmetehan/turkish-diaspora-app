@@ -1,166 +1,411 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
-
-/* Stretch the app to the viewport */
-html, body, #root {
-  height: 100%;
-  margin: 0;
-}
-
-/* Wrapper controlling the visible height of the map */
-.map-root {
-  height: 70vh;   /* change to 100vh if you want full-screen */
-  width: 100%;
-  position: relative;
-}
-
-/* Ensure Leaflet fills its parent */
-.leaflet-container {
-  height: 100%;
-  width: 100%;
-}
-
+/* ==========================================================================
+   0) Tailwind injectie
+   --------------------------------------------------------------------------
+   Laat Tailwind zijn base/components/utilities toevoegen zoals in je setup.
+   ========================================================================== */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* === CSS Vars (Design Tokens) === */
+/* ==========================================================================
+   1) CSS-variabelen (layout tokens)
+   --------------------------------------------------------------------------
+   Je kunt de waardes hieronder aanpassen zonder code te breken.
+   ========================================================================== */
 :root {
-  /* Base palette (HSL) */
+  /* Hoogtes */
+  --tda-header-h: 56px;          /* hoogte van evt. topbar/header (pas aan of laat op 0) */
+  --tda-min-map-h: 72vh;         /* minimum hoogte van de kaart */
+  --tda-min-map-h-mobile: 60vh;  /* minimum hoogte van de kaart op mobiel */
+
+  /* Breedtes */
+  --tda-sidebar-w: 380px;        /* vaste breedte van de lijst/filters desktop */
+  --tda-content-max: 1600px;     /* optionele max breedte van de gehele app */
+
+  /* Kleur-tokens (licht) */
+  --tda-bg: #ffffff;
+  --tda-surface: #f8fafc;        /* lichtgrijs voor panel-achtergrond */
+  --tda-border: #e5e7eb;         /* randjes / dividers */
+  --tda-text: #0f172a;           /* bijna-zwart tekst */
+  --tda-muted: #64748b;          /* secundaire tekst */
+  --tda-accent: #2563eb;         /* blauw accent (links/hover) */
+  --tda-accent-weak: #dbeafe;    /* lichtblauw achtergrond (hover/select) */
+
+  /* Tailwind CSS variables (light mode) */
   --background: 0 0% 100%;
-  --foreground: 222.2 47.4% 11.2%;
-
+  --foreground: 222.2 84% 4.9%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 47.4% 11.2%;
-
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
   --primary: 221.2 83.2% 53.3%;
   --primary-foreground: 210 40% 98%;
-
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222.2 84% 4.9%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222.2 84% 4.9%;
   --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 0 0% 98%;
-
+  --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
   --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
 
-  /* Radius */
-  --radius-lg: 1rem;
-  --radius-md: 0.75rem;
-  --radius-sm: 0.5rem;
-
-  /* Shadows */
-  --shadow-soft: 0 1px 2px rgba(0,0,0,.05);
-  --shadow-card: 0 8px 24px rgba(0,0,0,.06);
-
-  /* Spacing tokens */
-  --space-grid-gutter: 1rem;
+  /* Kleur-tokens (donker) */
+  color-scheme: light dark;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --tda-bg: #0b1020;
+    --tda-surface: #0f172a;
+    --tda-border: #1f2a44;
+    --tda-text: #e5e7eb;
+    --tda-muted: #94a3b8;
+    --tda-accent: #60a5fa;
+    --tda-accent-weak: #0b315f;
+
+    /* Tailwind CSS variables (dark mode) */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+/* Dark mode via class (for manual theme switching) */
 .dark {
+  --tda-bg: #0b1020;
+  --tda-surface: #0f172a;
+  --tda-border: #1f2a44;
+  --tda-text: #e5e7eb;
+  --tda-muted: #94a3b8;
+  --tda-accent: #60a5fa;
+  --tda-accent-weak: #0b315f;
+
+  /* Tailwind CSS variables (dark mode) */
   --background: 222.2 84% 4.9%;
   --foreground: 210 40% 98%;
-
-  --card: 222.2 84% 5.5%;
+  --card: 222.2 84% 4.9%;
   --card-foreground: 210 40% 98%;
-
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
   --primary: 217.2 91.2% 59.8%;
   --primary-foreground: 222.2 84% 4.9%;
-
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
-
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
-
   --border: 217.2 32.6% 17.5%;
   --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  --ring: 224.3 76.3% 94.1%;
 }
 
-/* Base reset & focus */
-@layer base {
-  * { @apply border-border; }
-  body { @apply bg-background text-foreground antialiased; }
-  :focus-visible { @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background; }
+/* ==========================================================================
+   2) Global resets en basis
+   --------------------------------------------------------------------------
+   Zorgt dat de app "strak" begint, en dat #root 100% hoogte kan nemen.
+   ========================================================================== */
+html, body, #root {
+  height: 100%;
 }
+
+html, body {
+  padding: 0;
+  margin: 0;
+  background: var(--tda-bg);
+  color: var(--tda-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Optioneel: centraalkader met max-breedte (alleen gebruiken als je dat wil) */
+/* .tda-container { max-width: var(--tda-content-max); margin-inline: auto; } */
+
+/* ==========================================================================
+   3) App layout (grid): sidebar + map
+   --------------------------------------------------------------------------
+   .tda-app     → je hoofdgrid (2 kolommen desktop)
+   .tda-sidebar → de linker kolom met lijst/filters
+   .tda-map     → de rechter kolom met de kaart (full stretch)
+   ========================================================================== */
+.tda-app {
+  display: grid;
+  grid-template-columns: minmax(320px, var(--tda-sidebar-w)) 1fr;
+  gap: 0;                               /* geen gat tussen lijst en kaart */
+  min-height: calc(100dvh - var(--tda-header-h));
+}
+
+/* Mobiel/kleine schermen: lijst boven, kaart eronder */
+@media (max-width: 1024px) {
+  .tda-app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: auto;
+  }
+}
+
+/* Sidebar-paneel */
+.tda-sidebar {
+  background: var(--tda-surface);
+  border-right: 1px solid var(--tda-border);
+  min-height: calc(100dvh - var(--tda-header-h));
+  overflow: hidden;            /* we scrollen binnenin het body-gedeelte */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbaar gebied voor de lijst */
+.tda-sidebar__scroll {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  height: 100%;
+}
+
+/* Kaartkolom → moet ALTIJD full width/height innemen */
+.tda-map {
+  position: relative;
+  min-height: var(--tda-min-map-h);
+  background: var(--tda-bg);
+}
+
+@media (max-width: 1024px) {
+  .tda-map {
+    min-height: var(--tda-min-map-h-mobile);
+  }
+}
+
+/* Wrapper om Mapbox heen (zorgt voor 100% rekken) */
+.map-wrap,
+.tda-map .map-wrap {
+  position: absolute;
+  inset: 0;        /* top:0; right:0; bottom:0; left:0 */
+  width: 100%;
+  height: 100%;
+}
+
+/* De daadwerkelijke Mapbox container id of class */
+#map,
+.mapboxgl-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ==========================================================================
+   4) Lijstweergave: items, hover, selected/highlight
+   --------------------------------------------------------------------------
+   Gebruik onderstaande classes in je lijstcomponent (LocationList).
+   ========================================================================== */
+.tda-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.tda-list__header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--tda-border);
+  font-weight: 600;
+}
+
+.tda-list__empty {
+  padding: 1rem;
+  color: var(--tda-muted);
+}
+
+/* Een item in de lijst */
+.tda-item {
+  display: grid;
+  grid-template-columns: 1fr auto; /* tekst links, afstand/pil of actie rechts */
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--tda-border);
+  cursor: pointer;
+  background: transparent;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.tda-item:hover {
+  background: var(--tda-accent-weak);
+}
+
+.tda-item.is-selected {
+  outline: 2px solid var(--tda-accent);
+  outline-offset: -2px;
+  background: color-mix(in oklab, var(--tda-accent-weak) 70%, transparent);
+}
+
+.tda-item__title {
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.tda-item__meta {
+  font-size: 0.85rem;
+  color: var(--tda-muted);
+}
+
+/* Badges/pillen rechts */
+.tda-item__pill {
+  align-self: start;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  background: var(--tda-accent-weak);
+  color: var(--tda-accent);
+  border: 1px solid color-mix(in oklab, var(--tda-accent) 30%, transparent);
+}
+
+/* ==========================================================================
+   5) Mapbox popups en marker-highlights
+   --------------------------------------------------------------------------
+   De JS voegt of verwijdert classnames; CSS zorgt hier voor de visuals.
+   ========================================================================== */
+
+/* Popups: iets neutraler thema-conform */
+.mapboxgl-popup-content {
+  background: var(--tda-surface);
+  color: var(--tda-text);
+  border: 1px solid var(--tda-border);
+  border-radius: 10px;
+  box-shadow:
+    0 10px 25px rgba(2, 8, 23, 0.20),
+    0 2px 6px rgba(2, 8, 23, 0.12);
+}
+
+.mapboxgl-popup-tip {
+  border-top-color: var(--tda-surface) !important;
+  border-bottom-color: var(--tda-surface) !important;
+}
+
+/* Marker highlight ring (voeg in JS de class .tda-marker--highlighted toe) */
+.tda-marker--highlighted {
+  position: relative;
+  z-index: 2;
+}
+
+.tda-marker--highlighted::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 3px solid var(--tda-accent);
+  border-radius: 999px;
+  pointer-events: none;
+  animation: tdaPulse 1.6s ease-out infinite;
+}
+
+@keyframes tdaPulse {
+  0%   { opacity: 0.6; transform: scale(0.92); }
+  70%  { opacity: 0.15; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+
+/* Clusters (optioneel, als je eigen HTML/CSS clusters gebruikt) */
+.tda-cluster {
+  background: var(--tda-accent);
+  color: #fff;
+  border-radius: 999px;
+  border: 2px solid #fff3;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  font-weight: 700;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+}
+
+/* ==========================================================================
+   6) Buttons/inputs global (kleine polish)
+   -------------------------------------------------------------------------- */
+button, .btn {
+  cursor: pointer;
+}
+
+a {
+  color: var(--tda-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* ==========================================================================
+   7) Util classes — handig in React zonder Tailwind utility noise
+   -------------------------------------------------------------------------- */
+.tda-divider {
+  height: 1px;
+  background: var(--tda-border);
+  width: 100%;
+}
+
+.tda-scroll {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tda-muted {
+  color: var(--tda-muted);
+}
+
+/* Volledige breedte/hoogte helpers voor containers die moeten rekken */
+.tda-fill {
+  width: 100%;
+  height: 100%;
+}
+
+/* ==========================================================================
+   8) Veiligheidsnet voor vreemde wrappers
+   --------------------------------------------------------------------------
+   Soms plaatsen libraries/wrappers extra divs; forceer de map om te rekken.
+   ========================================================================== */
+.tda-map > div,
+.tda-map > div > canvas,
+.tda-map .mapboxgl-canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ==========================================================================
+   9) (Optioneel) Header ruimte reserveren als je een topbar hebt
+   --------------------------------------------------------------------------
+   Als je een vaste header gebruikt, geef die dan hoogte --tda-header-h en
+   laat .tda-app eronder beginnen.
+   ========================================================================== */
+/*
+.tda-header {
+  height: var(--tda-header-h);
+  display: flex;
+  align-items: center;
+  padding-inline: 1rem;
+  border-bottom: 1px solid var(--tda-border);
+  background: var(--tda-bg);
+}
+*/

@@ -44,6 +44,10 @@ jobs:
       - name: Run Alert
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           ALERT_CHECK_INTERVAL_SECONDS: "60"
           ALERT_ERR_RATE_THRESHOLD: "0.10"
           ALERT_GOOGLE429_THRESHOLD: "5"

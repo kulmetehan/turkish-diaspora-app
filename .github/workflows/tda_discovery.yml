@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        category: [bakery, restaurant, supermarket]
+        category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food]
         chunk_index: [0, 1, 2, 3, 4, 5]   # 6 chunks -> pas aan indien nodig
     defaults:
       run:
@@ -50,7 +50,10 @@ jobs:
       - name: Run Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GOOGLE_PLACES_LANGUAGE: nl
           GOOGLE_PLACES_REGION: NL
           PYTHONUNBUFFERED: "1"

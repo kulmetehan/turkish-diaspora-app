@@ -33,9 +33,7 @@ export function Header() {
           <Button variant="ghost" asChild>
             <NavLink
               to="/"
-              className={({ isActive }) =>
-                isActive ? "font-medium" : undefined
-              }
+              className={({ isActive }) => (isActive ? "font-medium" : undefined)}
               end
             >
               Home
@@ -45,9 +43,7 @@ export function Header() {
           <Button variant="ghost" asChild>
             <NavLink
               to="/ui-kit"
-              className={({ isActive }) =>
-                isActive ? "font-medium" : undefined
-              }
+              className={({ isActive }) => (isActive ? "font-medium" : undefined)}
             >
               UI Kit
             </NavLink>

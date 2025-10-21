@@ -1,0 +1,105 @@
+# Turkish Diaspora App - Cursor AI Rules
+
+## Project Overview
+This is a Turkish Diaspora App (TDA) - an AI-driven location discovery and mapping application for Turkish communities in the Netherlands. The project is currently in **consolidation phase (TDA-107)** with recent focus on OSM discovery improvements and verification pipeline work.
+
+## Architecture
+- **Backend**: FastAPI (Python 3.10+) with async/await patterns
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS
+- **Database**: Supabase (PostgreSQL) with async connection pooling
+- **AI Services**: OpenAI integration for classification and validation
+- **Maps**: Leaflet/Mapbox integration for location visualization
+- **Discovery**: OSM Overpass API + Google Places API integration
+
+## Current Phase & Recent Work
+- **Phase**: TDA-107 (Consolidation)
+- **Recent OSM Discovery**: Successfully completed Rotterdam production rollout (151+ locations discovered)
+- **Verification Pipeline**: Implemented VerifyLocationsBot for CANDIDATE → VERIFIED promotion
+- **Categories**: 8 main categories (restaurant, bakery, supermarket, barber, mosque, travel_agency, butcher, fast_food)
+- **Cities**: Rotterdam completed, next targets: The Hague, Amsterdam, Utrecht
+
+## Key Directories
+- `/Backend/app/workers/` - Discovery and verification bots
+- `/Backend/services/` - Core business logic (AI, OSM, Google services)
+- `/Backend/api/routers/` - FastAPI endpoints
+- `/Frontend/src/components/` - React UI components
+- `/Frontend/src/lib/` - Utilities, API clients, map integration
+- `/Infra/config/` - Category mappings and city configurations
+- `/Docs/` - Project documentation and planning
+
+## Coding Standards
+
+### Python (Backend)
+- Use async/await for all I/O operations
+- Follow FastAPI patterns with Pydantic models
+- Use structured logging with `app.core.logging`
+- Database operations through `app.db` with connection pooling
+- AI operations through `services/` layer (ClassifyService, AuditService)
+- Environment variables via `.env` files
+- Type hints required for all functions
+
+### TypeScript (Frontend)
+- Use React hooks and functional components
+- TypeScript strict mode enabled
+- Tailwind CSS for styling with component-based design
+- API calls through `lib/api/` layer
+- State management with React hooks (useState, useEffect, useMemo)
+- Map integration with Leaflet/Mapbox
+
+### Database
+- Use Supabase for PostgreSQL operations
+- Async connection pooling for performance
+- Audit logging for all AI operations
+- State transitions: CANDIDATE → VERIFIED → PUBLISHED
+
+## AI Integration Patterns
+- **Classification**: Use `ClassifyService.classify()` for location categorization
+- **Validation**: Use `validate_classification_payload()` for result validation
+- **Audit**: Use `AuditService.log()` for all AI operations
+- **Discovery**: Use `DiscoveryBot` for OSM/Google location discovery
+- **Verification**: Use `VerifyLocationsBot` for CANDIDATE → VERIFIED promotion
+
+## Environment Configuration
+- Backend: Python virtual environment in `Backend/.venv/`
+- Frontend: Node.js with npm/yarn in `Frontend/`
+- Database: Supabase connection via `DATABASE_URL`
+- AI: OpenAI API key via `OPENAI_API_KEY`
+- Maps: Mapbox token via `VITE_MAPBOX_TOKEN`
+
+## Recent Improvements
+- OSM Discovery production rollout for Rotterdam (October 2025)
+- VerifyLocationsBot implementation for automated verification
+- Enhanced error handling and endpoint rotation for Overpass API
+- Improved rate limiting and backoff strategies
+- Turkish business category mapping and aliases
+
+## Development Workflow
+- Backend: `uvicorn app.main:app --reload` for API development
+- Frontend: `npm run dev` for React development
+- Workers: Run discovery/verification bots via CLI
+- Database: Use Supabase dashboard for monitoring
+- Testing: Use existing test patterns in `tests/`
+
+## Key Files to Reference
+- `Backend/app/main.py` - FastAPI application entry point
+- `Backend/app/workers/discovery_bot.py` - OSM discovery worker
+- `Backend/app/workers/verify_locations.py` - Verification worker
+- `Frontend/src/App.tsx` - Main React application
+- `Infra/config/categories.yml` - Business category mappings
+- `Backend/OSM_Discovery_Report_Rotterdam_Production.md` - Recent production results
+
+## Context Files
+- `PROJECT_PROGRESS.md` - Master plan and current progress status
+- `PROJECT_CONTEXT.md` - Comprehensive project overview
+- `QUICK_START.md` - Development commands and setup
+
+## Context for AI Assistance
+When working on this project:
+1. Understand the Turkish diaspora business discovery context
+2. Follow the existing AI service patterns for classification
+3. Maintain the CANDIDATE → VERIFIED → PUBLISHED state flow
+4. Use proper error handling and logging patterns
+5. Consider the OSM/Google API rate limiting constraints
+6. Follow the established category mapping system
+7. Maintain audit trails for all AI operations
+8. Reference PROJECT_PROGRESS.md for master plan and current status

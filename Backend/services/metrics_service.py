@@ -296,6 +296,37 @@ async def kpi_google_429_count(engine: AsyncEngine, window: TimeWindow = TimeWin
     )
 
 
+async def kpi_provider_usage(engine: AsyncEngine, window: TimeWindow = TimeWindow(hours=1)) -> KPIItem:
+    """
+    Provider usage statistics (Google vs OSM) from structured logs.
+    """
+    since_ts = _now_utc() - window.to_timedelta()
+    sql = text("""
+        SELECT 
+          COALESCE(provider, 'unknown') as provider,
+          COUNT(*) as request_count
+        FROM ai_logs
+        WHERE created_at >= :since_ts
+          AND (
+            action_type ILIKE 'osm_search_%' OR
+            action_type ILIKE 'google_search_%' OR
+            provider IS NOT NULL
+          )
+        GROUP BY provider
+        ORDER BY request_count DESC
+    """)
+    async with engine.begin() as conn:
+        rows = (await conn.execute(sql, {"since_ts": since_ts})).mappings().all()
+        provider_stats = [{"provider": row["provider"], "requests": int(row["request_count"])} for row in rows]
+    
+    return KPIItem(
+        name="provider_usage",
+        value=provider_stats,
+        unit="requests",
+        meta={"window_minutes": int(window.to_timedelta().total_seconds() // 60)},
+    )
+
+
 # =========================================================
 # 🔹 City KPI (Rotterdam only) — bbox uit cities.yml
 # =========================================================
@@ -449,6 +480,7 @@ async def generate_metrics_snapshot(
     error_rate_window: TimeWindow = TimeWindow(hours=1),
     latency_window: TimeWindow = TimeWindow(hours=1),
     google_window: TimeWindow = TimeWindow(hours=1),
+    provider_window: TimeWindow = TimeWindow(hours=1),
 ) -> MetricsSnapshot:
     engine = engine or get_engine()
     kpis = [
@@ -459,6 +491,8 @@ async def generate_metrics_snapshot(
         await kpi_google_429_count(engine, window=google_window),
         # 🔹 NIEUW: city-level KPI (Rotterdam via bbox)
         await kpi_city_progress_rotterdam(engine),
+        # 🔹 NIEUW: provider usage KPI
+        await kpi_provider_usage(engine, window=provider_window),
     ]
     return MetricsSnapshot(
         generated_at=_now_utc(),
@@ -466,7 +500,8 @@ async def generate_metrics_snapshot(
             f"new={weeks_for_new}w, conv={conversion_days}d, "
             f"err={int(error_rate_window.to_timedelta().total_seconds()//60)}m, "
             f"lat={int(latency_window.to_timedelta().total_seconds()//60)}m, "
-            f"g429={int(google_window.to_timedelta().total_seconds()//60)}m"
+            f"g429={int(google_window.to_timedelta().total_seconds()//60)}m, "
+            f"prov={int(provider_window.to_timedelta().total_seconds()//60)}m"
         ),
         kpis=kpis,
     )

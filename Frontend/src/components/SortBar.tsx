@@ -1,37 +1,29 @@
-// Frontend/src/components/SortBar.tsx
+type SortKey = "relevance" | "rating_desc" | "name_asc";
 
-import React from "react";
-import { useSortBy, setSort } from "../state/ui";
-import type { SortBy } from "../state/ui";
-
-/**
- * Eenvoudige sorteerbalk:
- * - Opties: Afstand | Rating
- * - Schrijft naar centrale UI-store
- */
 type Props = {
-  className?: string;
-  label?: string;
+  sort: SortKey;
+  total: number;
+  onChange: (key: SortKey) => void;
 };
 
-const SortBar: React.FC<Props> = ({ className, label = "Sorteer op" }) => {
-  const sortBy = useSortBy();
-
-  const onChange: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
-    setSort(e.target.value as SortBy);
-  };
-
+export default function SortBar({ sort, total, onChange }: Props) {
   return (
-    <div className={["sort-bar", className ?? ""].join(" ").trim()}>
-      <label className="sort-bar__label" htmlFor="sortBy">
-        {label}
-      </label>
-      <select id="sortBy" value={sortBy} onChange={onChange} className="sort-bar__select">
-        <option value="distance">Afstand</option>
-        <option value="rating">Rating</option>
-      </select>
+    <div className="rounded-xl border bg-card px-3 py-2 flex items-center justify-between">
+      <div className="text-sm text-muted-foreground">
+        {total} resultaat{total === 1 ? "" : "en"}
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-sm">Sorteer op</label>
+        <select
+          className="rounded-md border px-3 py-1.5"
+          value={sort}
+          onChange={(e) => onChange(e.target.value as SortKey)}
+        >
+          <option value="relevance">Relevantie</option>
+          <option value="rating_desc">Rating (hoog → laag)</option>
+          <option value="name_asc">Naam (A → Z)</option>
+        </select>
+      </div>
     </div>
   );
-};
-
-export default SortBar;
+}

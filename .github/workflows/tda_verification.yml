@@ -47,10 +47,13 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_MODEL: gpt-4.1-mini
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GOOGLE_PLACES_LANGUAGE: nl
           GOOGLE_PLACES_REGION: NL
           CLASSIFY_MIN_CONF: "0.80"
           PYTHONUNBUFFERED: "1"
         run: >
-          python -m app.workers.classify_bot
+          python -m app.workers.verify_locations
           --limit 1500
+          --min-confidence 0.80
