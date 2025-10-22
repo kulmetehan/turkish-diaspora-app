@@ -302,8 +302,8 @@ class DiscoveryBot:
         if self.cfg.district:
             print(f"[DiscoveryBot] District: {self.cfg.district}")
 
-        # Check if we should use OSM discovery
-        use_osm = os.getenv("DATA_PROVIDER", "").lower() == "osm"
+        # Check if we should use OSM discovery (default to OSM when unset)
+        use_osm = os.getenv("DATA_PROVIDER", "osm").lower() == "osm"
         
         if use_osm:
             print(f"[DiscoveryBot] Using OSM discovery with subdivision")
