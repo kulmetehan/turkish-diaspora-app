@@ -17,7 +17,7 @@ Elke diaspora-categorie draait dagelijks via GitHub Actions.
 2. **Omgeving**: Python 3.11 + `Backend/requirements.txt`.  
 3. **Secrets**:
    - `DATABASE_URL`
-   - `GOOGLE_API_KEY`
+   - Google API removed to avoid costs
    - `SUPABASE_URL`
    - `SUPABASE_KEY`
 4. **Limieten**:

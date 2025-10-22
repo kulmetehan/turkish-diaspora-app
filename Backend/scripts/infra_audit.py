@@ -17,13 +17,7 @@ def check_openai():
         return {"openai_error": str(e)}
 
 def check_google():
-    key = os.getenv("GOOGLE_API_KEY")
-    if not key:
-        return {"google": "missing key"}
-    # Google doesn't expose usage endpoint on free tier; just validate
-    test_url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query=Rotterdam&key={key}"
-    r = requests.get(test_url, timeout=10)
-    return {"google_status": r.status_code, "ok": r.ok}
+    return {"google": "API removed to avoid costs"}
 
 if __name__ == "__main__":
     print(check_openai())

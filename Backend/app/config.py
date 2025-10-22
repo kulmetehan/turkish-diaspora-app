@@ -23,10 +23,8 @@ class Settings(BaseSettings):
     NEXT_PUBLIC_SUPABASE_URL: Optional[str] = None
     NEXT_PUBLIC_SUPABASE_ANON_KEY: Optional[str] = None
 
-    # ---- Google ----
-    GOOGLE_API_KEY: Optional[str] = None
-    GOOGLE_PLACES_LANGUAGE: str = "nl"
-    GOOGLE_PLACES_REGION: str = "NL"
+    # ---- Google API removed to avoid costs ----
+    # All discovery now uses free OSM Overpass API
 
     # ---- OpenAI ----
     # Niet hard-required op class-niveau om server-start niet te blokkeren;

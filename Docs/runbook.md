@@ -39,7 +39,7 @@ turkish-diaspora-app/
 - Python 3.11+ met venv
 - Node 20+ (Vite) en npm
 - Een Supabase project (Postgres) met de tabellen uit `Infra/supabase/*.sql`  
-- API keys: **OPENAI_API_KEY**, **GOOGLE_API_KEY** (Places), database **DATABASE_URL**  
+- API keys: **OPENAI_API_KEY**, database **DATABASE_URL** (Google API removed to avoid costs)  
 - Render account (API + Cron Jobs) voor deploys/workers fileciteturn0file6
 
 ---
@@ -61,7 +61,7 @@ OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4.1-mini
 
 # Google Places
-GOOGLE_API_KEY=...
+# GOOGLE_API_KEY removed to avoid costs
 GOOGLE_PLACES_LANGUAGE=nl
 GOOGLE_PLACES_REGION=nl
 

@@ -15,7 +15,7 @@ defaults:
   # Standaard grid- en searchinstellingen die DiscoveryBot kan gebruiken
   &rotterdam_defaults
   grid_span_km: 8         # totale breedte/hoogte van het grid per wijk (kan per wijk worden overschreven)
-  nearby_radius_m: 1000   # straal voor Google Nearby Search
+  nearby_radius_m: 1000   # straal voor OSM search
   max_per_cell_per_category: 20
   inter_call_sleep_s: 0.15
 

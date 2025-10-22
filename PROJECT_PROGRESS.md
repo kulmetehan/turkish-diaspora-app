@@ -6,7 +6,7 @@
 ## 🧭 Master Plan Overview
 **Goal:**  
 Develop an AI-driven platform that automatically discovers, verifies, and displays Turkish-oriented businesses and community locations across Europe, starting in Rotterdam.  
-The system combines **FastAPI + Supabase (Backend)**, **React + Vite + Tailwind (Frontend)**, and **AI automation** (OpenAI + Google APIs).
+The system combines **FastAPI + Supabase (Backend)**, **React + Vite + Tailwind (Frontend)**, and **AI automation** (OpenAI + OSM APIs).
 
 ### Key Layers
 | Layer | Purpose | Tech |
@@ -40,11 +40,11 @@ The system combines **FastAPI + Supabase (Backend)**, **React + Vite + Tailwind 
 ### 🔍 Legal Discovery & Ingestion
 | Story | Summary | Status |
 |--------|----------|---------|
-| **E2-S1 Google Places Service** | Robust async integration with retries, backoff, field masks. | ✅ |
+| **E2-S1 OSM Places Service** | Robust async integration with retries, backoff, OSM Overpass API. | ✅ |
 | **E2-S2 DiscoveryBot** | Grid-based search across Rotterdam; idempotent inserts of CANDIDATE records. | ✅ |
 | **E2-S3 Automated Category Runs** | GitHub Actions matrix workflow automating daily runs per category. | ✅ |
 | **E2-S4 City Grid Configs** | YAML for 11 Rotterdam districts + validation scripts. | ✅ |
-| **E2-S5 Google Type Mapping** | Unified type mapping YAML linking Google place types to internal categories. | ✅ |
+| **E2-S5 OSM Type Mapping** | Unified type mapping YAML linking OSM tags to internal categories. | ✅ |
 
 ### 🧠 AI Classification & Verification
 | Story | Summary | Status |

@@ -1,26 +1,26 @@
-name: TDA Discovery (weekly, chunked)
+name: TDA Discovery Fast (daily, high-value categories)
 
 on:
   schedule:
-    - cron: "0 0 * * 6"     # wekelijks
+    - cron: "0 2 * * *"     # daily at 2 AM
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: "tda-discovery"
+  group: "tda-discovery-fast"
   cancel-in-progress: true
 
 jobs:
   discovery:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food]
-        chunk_index: [0, 1, 2, 3, 4, 5]   # 6 chunks -> pas aan indien nodig
+        category: [restaurant, supermarket, bakery]
+        chunk_index: [0, 1, 2]   # 3 chunks for faster execution
     defaults:
       run:
         working-directory: Backend
@@ -47,7 +47,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
+      - name: Run Fast Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -57,21 +57,21 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           PYTHONUNBUFFERED: "1"
           PYTHONPATH: .
-          # Optimized discovery settings
-          DISCOVERY_RATE_LIMIT_QPS: "0.15"
-          DISCOVERY_SLEEP_BASE_S: "3.0"
-          DISCOVERY_SLEEP_JITTER_PCT: "0.20"
-          OVERPASS_TIMEOUT_S: "30"
-          DISCOVERY_MAX_RESULTS: "25"
+          # Optimized fast discovery settings
+          DISCOVERY_RATE_LIMIT_QPS: "0.20"
+          DISCOVERY_SLEEP_BASE_S: "2.0"
+          DISCOVERY_SLEEP_JITTER_PCT: "0.15"
+          OVERPASS_TIMEOUT_S: "25"
+          DISCOVERY_MAX_RESULTS: "20"
         run: >
           python -m app.workers.discovery_bot
           --city rotterdam
           --categories ${{ matrix.category }}
-          --nearby-radius-m 1200
-          --grid-span-km 6
-          --max-per-cell-per-category 25
-          --inter-call-sleep-s 0.05
-          --max-cells-per-category 50
-          --max-total-inserts 500
-          --chunks 6
+          --nearby-radius-m 1000
+          --grid-span-km 4
+          --max-per-cell-per-category 20
+          --inter-call-sleep-s 0.03
+          --max-cells-per-category 30
+          --max-total-inserts 200
+          --chunks 3
           --chunk-index ${{ matrix.chunk_index }}

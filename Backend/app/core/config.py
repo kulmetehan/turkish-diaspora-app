@@ -13,10 +13,8 @@ class Settings(BaseSettings):
     NEXT_PUBLIC_SUPABASE_URL: Optional[str] = None
     NEXT_PUBLIC_SUPABASE_ANON_KEY: Optional[str] = None
 
-    # Google Places
-    GOOGLE_API_KEY: str
-    GOOGLE_PLACES_LANGUAGE: str = "nl"
-    GOOGLE_PLACES_REGION: str = "NL"
+    # Google API removed to avoid costs
+    # All discovery now uses free OSM Overpass API
 
     # Pydantic v2 settings
     model_config = SettingsConfigDict(

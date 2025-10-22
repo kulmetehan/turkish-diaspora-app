@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 DiscoveryBot — Grid-based discovery met YAML category-mapping + district support
-- Leest Infra/config/categories.yml als bron voor diaspora->Google place_types
+- Leest Infra/config/categories.yml als bron voor diaspora->OSM tags
 - Leest Infra/config/cities.yml voor district-bounding boxes
 - CLI flags: chunking, caps per categorie, district-selectie
-- Inclusief sanitization + self-heal voor ongeldige Google types
+- OSM-only discovery using free Overpass API
 
 Pad: Backend/app/workers/discovery_bot.py
 """
@@ -80,9 +80,8 @@ engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------
-# Places provider (Google or OSM)
+# Places provider (OSM only)
 # ---------------------------------------------------------------------------
-from app.services.provider_factory import get_places_provider
 from services.osm_service import OsmPlacesService
 
 # ---------------------------------------------------------------------------
@@ -158,18 +157,15 @@ def pick_chunk(points: List[Tuple[float, float]], chunks: int, chunk_index: int)
 # ---------------------------------------------------------------------------
 # Mapping helpers
 # ---------------------------------------------------------------------------
-def map_google_place_to_row(p: Dict[str, Any], category_hint: str) -> Dict[str, Any]:
+def map_place_to_row(p: Dict[str, Any], category_hint: str) -> Dict[str, Any]:
     display_name = p.get("displayName")
     name = display_name.get("text") if isinstance(display_name, dict) else display_name
     loc = p.get("location") or {}
     now = datetime.now(timezone.utc)
     
-    # Determine source based on place_id format
+    # All places are from OSM Overpass API
     place_id = p.get("id", "")
-    if "/" in str(place_id):  # OSM format: node/123, way/456, relation/789
-        source = "OSM_OVERPASS"
-    else:
-        source = "GOOGLE_PLACES"
+    source = "OSM_OVERPASS"
     
     return {
         "place_id": place_id,
@@ -279,7 +275,6 @@ class DiscoveryBot:
     def __init__(self, cfg: DiscoveryConfig, cfg_yaml: Dict[str, Any]):
         self.cfg = cfg
         self.yaml = cfg_yaml
-        self.provider = get_places_provider()
         
         # Initialize OSM service for enhanced discovery
         self.osm_service = OsmPlacesService(
@@ -302,18 +297,15 @@ class DiscoveryBot:
         if self.cfg.district:
             print(f"[DiscoveryBot] District: {self.cfg.district}")
 
-        # Check if we should use OSM discovery (default to OSM when unset)
-        use_osm = os.getenv("DATA_PROVIDER", "osm").lower() == "osm"
-        
-        if use_osm:
-            print(f"[DiscoveryBot] Using OSM discovery with subdivision")
-            return await self._run_osm_discovery(points, seen, total_inserted)
-        else:
-            print(f"[DiscoveryBot] Using Google Places discovery")
-            return await self._run_google_discovery(points, seen, total_inserted)
+        # Use OSM discovery (free, open-source)
+        print(f"[DiscoveryBot] Using OSM discovery with subdivision")
+        return await self._run_osm_discovery(points, seen, total_inserted)
 
     async def _run_osm_discovery(self, points: List[Tuple[float, float]], seen: Set[str], total_inserted: int) -> int:
         """Run OSM-based discovery with adaptive subdivision."""
+        start_time = time.time()
+        safety_timeout_s = 25 * 60  # 25 minutes safety timeout
+        
         for cat_key in self.cfg.categories:
             cat_def = (self.yaml.get("categories") or {}).get(cat_key)
             if not cat_def:
@@ -335,6 +327,12 @@ class DiscoveryBot:
             processed_cells = 0
 
             for i, (lat, lng) in enumerate(points, start=1):
+                # Check safety timeout
+                elapsed_time = time.time() - start_time
+                if elapsed_time > safety_timeout_s:
+                    print(f"[DiscoveryBot] Safety timeout bereikt ({elapsed_time:.1f}s). Stoppen om GitHub Actions timeout te voorkomen.")
+                    return total_inserted
+                
                 if self.cfg.max_cells_per_category > 0 and processed_cells >= self.cfg.max_cells_per_category:
                     print(f"[DiscoveryBot] Max cellen voor {cat_key} bereikt: {processed_cells}")
                     break
@@ -363,7 +361,7 @@ class DiscoveryBot:
                     if not pid or pid in seen:
                         continue
                     seen.add(pid)
-                    batch.append(map_google_place_to_row(p, cat_key))
+                    batch.append(map_place_to_row(p, cat_key))
 
                 if batch:
                     try:
@@ -376,8 +374,10 @@ class DiscoveryBot:
 
                 processed_cells += 1
 
-                if i % 50 == 0:
-                    print(f"[DiscoveryBot] {cat_key}: {i}/{len(points)} cellen, totaal ingevoegd={total_inserted}")
+                # Progress reporting every 10 cells (more frequent)
+                if i % 10 == 0:
+                    elapsed_time = time.time() - start_time
+                    print(f"[DiscoveryBot] {cat_key}: {i}/{len(points)} cellen, totaal ingevoegd={total_inserted}, elapsed={elapsed_time:.1f}s")
 
                 if self.cfg.max_total_inserts > 0 and total_inserted >= self.cfg.max_total_inserts:
                     print(f"[DiscoveryBot] Max totaal inserts bereikt: {total_inserted}. Stoppen.")
@@ -388,97 +388,6 @@ class DiscoveryBot:
 
         return total_inserted
 
-    async def _run_google_discovery(self, points: List[Tuple[float, float]], seen: Set[str], total_inserted: int) -> int:
-        """Run Google Places-based discovery (original logic)."""
-        for cat_key in self.cfg.categories:
-            cat_def = (self.yaml.get("categories") or {}).get(cat_key)
-            if not cat_def:
-                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' niet gevonden in YAML; overslaan.")
-                continue
-
-            google_types = sanitize_types(cat_def.get("google_types") or [])
-            if not google_types:
-                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' heeft geen geldige google_types; overslaan.")
-                continue
-
-            print(f"\n[DiscoveryBot] === {cat_key} ===  (google_types={google_types})")
-            processed_cells = 0
-
-            for i, (lat, lng) in enumerate(points, start=1):
-                if self.cfg.max_cells_per_category > 0 and processed_cells >= self.cfg.max_cells_per_category:
-                    print(f"[DiscoveryBot] Max cellen voor {cat_key} bereikt: {processed_cells}")
-                    break
-
-                try:
-                    places = await self.provider.search_nearby(
-                        lat=lat,
-                        lng=lng,
-                        radius=self.cfg.nearby_radius_m,
-                        included_types=google_types,
-                        max_results=max(1, int(self.cfg.max_per_cell_per_category)),
-                        language=self.cfg.language,
-                    )
-                except Exception as e:
-                    msg = str(e)
-                    error_class = type(e).__name__
-                    # Self-heal bij "Unsupported types: X"
-                    if "Unsupported types:" in msg:
-                        bad = msg.split("Unsupported types:")[-1].strip().strip(".").strip()
-                        if bad in google_types:
-                            print(f"[DiscoveryBot] Unsupported type gedetecteerd: {bad} → opnieuw zonder dit type")
-                            google_types = [t for t in google_types if t != bad]
-                            if not google_types:
-                                print(f"[DiscoveryBot] Geen valide google_types meer voor {cat_key}; sla cel over.")
-                                processed_cells += 1
-                                continue
-                            try:
-                                places = await self.provider.search_nearby(
-                                    lat=lat, lng=lng, radius=self.cfg.nearby_radius_m,
-                                    included_types=google_types,
-                                    max_results=max(1, int(self.cfg.max_per_cell_per_category)),
-                                    language=self.cfg.language,
-                                )
-                            except Exception as e2:
-                                print(f"[DiscoveryBot] {cat_key} @({lat:.5f},{lng:.5f}) retry: {type(e2).__name__}")
-                                places = []
-                        else:
-                            print(f"[DiscoveryBot] {cat_key} @({lat:.5f},{lng:.5f}) {error_class}: {e}")
-                            places = []
-                    else:
-                        print(f"[DiscoveryBot] {cat_key} @({lat:.5f},{lng:.5f}) {error_class}: {e}")
-                        places = []
-
-                batch: List[Dict[str, Any]] = []
-                for p in places or []:
-                    pid = p.get("id")
-                    if not pid or pid in seen:
-                        continue
-                    seen.add(pid)
-                    batch.append(map_google_place_to_row(p, cat_key))
-
-                if batch:
-                    try:
-                        ins = await insert_candidates(batch)
-                        total_inserted += ins
-                        if ins > 0:
-                            print(f"[DiscoveryBot] Insert: batch={len(batch)} inserted={ins} total={total_inserted}")
-                    except Exception as e:
-                        print(f"[DiscoveryBot] Insert fout (batch={len(batch)}): {e}")
-
-                processed_cells += 1
-
-                if i % 50 == 0:
-                    print(f"[DiscoveryBot] {cat_key}: {i}/{len(points)} cellen, totaal ingevoegd={total_inserted}")
-
-                if self.cfg.max_total_inserts > 0 and total_inserted >= self.cfg.max_total_inserts:
-                    print(f"[DiscoveryBot] Max totaal inserts bereikt: {total_inserted}. Stoppen.")
-                    return total_inserted
-
-                if self.cfg.inter_call_sleep_s:
-                    await asyncio.sleep(self.cfg.inter_call_sleep_s)
-
-        print(f"\n[DiscoveryBot] ✓ Klaar. Totaal nieuw (idempotent) ingevoegd: {total_inserted}")
-        return total_inserted
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -497,7 +406,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--categories", help="Komma-gescheiden interne categorieën (anders: alle uit categories.yml)")
     ap.add_argument("--center-lat", type=float, help="Override center latitude")
     ap.add_argument("--center-lng", type=float, help="Override center longitude")
-    ap.add_argument("--nearby-radius-m", type=int, help="Google Nearby radius (meter)")
+    ap.add_argument("--nearby-radius-m", type=int, help="OSM search radius (meter)")
     ap.add_argument("--grid-span-km", type=float, help="Grid-span (km, zijde)")
     ap.add_argument("--max-per-cell-per-category", type=int, help="Cap resultaten per cel per categorie")
     ap.add_argument("--inter-call-sleep-s", type=float, help="Sleep tussen calls")

@@ -7,11 +7,10 @@
 DATABASE_URL=postgresql://username:password@localhost:5432/turkish_diaspora
 
 # =============================================================================
-# GOOGLE PLACES API CONFIGURATION
+# GOOGLE PLACES API REMOVED
 # =============================================================================
-GOOGLE_API_KEY=your_google_api_key_here
-GOOGLE_PLACES_LANGUAGE=nl
-GOOGLE_PLACES_REGION=NL
+# Google API support has been removed to avoid costs.
+# All discovery now uses the free OSM Overpass API.
 
 # =============================================================================
 # OPENAI CONFIGURATION
@@ -22,7 +21,7 @@ OPENAI_MODEL=gpt-4o-mini
 # =============================================================================
 # OSM/OVERPASS API CONFIGURATION
 # =============================================================================
-# Data provider selection: "google" or "osm"
+# Data provider: OSM only (Google API removed to avoid costs)
 DATA_PROVIDER=osm
 
 # Overpass API User Agent (REQUIRED for OSM compliance)

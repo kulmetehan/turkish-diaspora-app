@@ -25,7 +25,7 @@ The Turkish Diaspora App (TDA) is an AI-driven location discovery and mapping ap
          ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐
 │  Discovery APIs │    │  Classification  │
-│ (OSM/Google)    │    │   & Validation   │
+│ (OSM/Overpass)  │    │   & Validation   │
 └─────────────────┘    └─────────────────┘
 ```
 
@@ -47,7 +47,7 @@ The Turkish Diaspora App (TDA) is an AI-driven location discovery and mapping ap
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   OSM/Google   │    │   OpenAI API    │    │   Frontend      │
+│   OSM/Overpass │    │   OpenAI API    │    │   Frontend      │
 │   APIs          │    │   Integration   │    │   Display       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
@@ -58,7 +58,7 @@ The Turkish Diaspora App (TDA) is an AI-driven location discovery and mapping ap
 - **Framework**: FastAPI with async/await patterns
 - **Database**: Supabase (PostgreSQL) with async connection pooling
 - **AI Integration**: OpenAI API for classification and validation
-- **Discovery APIs**: OSM Overpass API + Google Places API
+- **Discovery APIs**: OSM Overpass API (free, open-source)
 - **Logging**: Structured logging with request ID tracking
 - **Workers**: Background tasks for discovery and verification
 
@@ -143,7 +143,7 @@ npm run dev
 ### Backend Structure
 - `app/main.py` - FastAPI application entry point
 - `app/workers/` - Discovery and verification bots
-- `app/services/` - Core business logic (AI, OSM, Google)
+- `app/services/` - Core business logic (AI, OSM)
 - `api/routers/` - FastAPI endpoints
 - `app/core/` - Logging and request ID management
 
@@ -175,7 +175,7 @@ npm run dev
 
 ### Discovery Process
 1. **Grid-based Discovery**: Systematic coverage of target areas
-2. **Multi-source Data**: OSM Overpass + Google Places API
+2. **Open-source Data**: OSM Overpass API (free, no costs)
 3. **AI Classification**: Automated Turkish business identification
 4. **Verification**: AI validation and state promotion
 5. **Audit Trail**: Complete logging of all operations

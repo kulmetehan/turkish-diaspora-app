@@ -1,15 +1,16 @@
-# Turkish Diaspora App – Google Type Mapping Config
+# Turkish Diaspora App – OSM Category Mapping Config
 # Generated 2025-10-18
 # Author: LaMarka Digital
-# Description: Maps Google place_types to internal diaspora categories
+# Description: Maps OSM tags to internal diaspora categories
 # Encoding: UTF-8 (no tabs)
 
 version: 1
-source_of_truth: "Google Places types (v1) + project categories"
+source_of_truth: "OSM tags + project categories"
 notes:
-  - "Primary driver = included_types in DiscoveryBot (TDA-7)."
+  - "Primary driver = OSM tags in DiscoveryBot for free discovery."
   - "AI-laag (TDA-10) mag category labels ongewijzigd behouden voor continuïteit."
   - "Admin/gold records (TDA-18) volgen dezelfde category keys."
+  - "Google API support removed to avoid costs."
 
 defaults:
   language: "nl"
@@ -22,8 +23,6 @@ categories:
   bakery:
     label: "bakkerij"
     description: "Bakkerij en bakkerswinkels met (Turkse) brood- en patisserie-assortiment."
-    google_types:
-      - "bakery"
     osm_tags:
       any:
         - { shop: "bakery" }
@@ -39,8 +38,6 @@ categories:
   restaurant:
     label: "restaurant"
     description: "Restaurants en eethuizen met (Turkse) keuken."
-    google_types:
-      - "restaurant"
     osm_tags:
       any:
         - { amenity: "restaurant" }
@@ -58,8 +55,6 @@ categories:
   supermarket:
     label: "supermarkt"
     description: "Supermarkten en levensmiddelenzaken."
-    google_types:
-      - "supermarket"
     osm_tags:
       any:
         - { shop: "supermarket" }
@@ -75,8 +70,6 @@ categories:
   barber:
     label: "kapper"
     description: "Kappers en barbershops."
-    google_types:
-      - "hair_care"
       # NB: sommige datasets hanteren barbershop binnen hair_care
     osm_tags:
       any:
@@ -93,9 +86,7 @@ categories:
   mosque:
     label: "moskee"
     description: "Religieuze locaties – moskeeën."
-    google_types:
       - "mosque"
-      - "place_of_worship"
     osm_tags:
       all:
         - { amenity: "place_of_worship" }
@@ -110,8 +101,6 @@ categories:
   travel_agency:
     label: "reisbureau"
     description: "Reisbureaus en ticketing."
-    google_types:
-      - "travel_agency"
     osm_tags:
       any:
         - { office: "travel_agent" }
@@ -126,8 +115,6 @@ categories:
   butcher:
     label: "slagerij"
     description: "Slagerijen en vleeswinkels."
-    google_types:
-      - "butcher"
     osm_tags:
       any:
         - { shop: "butcher" }

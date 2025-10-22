@@ -103,7 +103,7 @@ def _include_if_present(mod_path: str, router_attr: str = "router") -> bool:
 # Dev/utility routers
 _include_if_present("api.routers.dev_ai")
 _include_if_present("api.routers.dev_classify")
-_include_if_present("api.routers.google_dev")  # <-- belangrijk voor /dev/google/nearby
+# Google dev router removed to avoid costs
 
 # Locations + Admin
 try:
