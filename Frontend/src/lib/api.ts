@@ -8,14 +8,54 @@ const DEV = import.meta.env.DEV;
 // Let op: geen trailing slash in VITE_API_BASE_URL
 const PROD_ORIGIN = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
 
+// Fallback to demo data when no backend is configured
 const API_ROOT = DEV ? "" : (PROD_ORIGIN ?? "");
 export const API_BASE = `${API_ROOT}/api/v1`;
+
+/** Demo data for Bangkok locations when backend is not available */
+const DEMO_DATA = {
+  "/locations/": {
+    data: [
+      {
+        id: 1,
+        name: "Demo Turkish Restaurant",
+        lat: 13.7563,
+        lng: 100.5018,
+        category: "restaurant",
+        state: "VERIFIED",
+        rating: 4.5,
+        confidence_score: 0.95,
+        is_turkish: true
+      },
+      {
+        id: 2,
+        name: "Demo Turkish Bakery",
+        lat: 13.7563,
+        lng: 100.5018,
+        category: "bakery",
+        state: "VERIFIED",
+        rating: 4.3,
+        confidence_score: 0.90,
+        is_turkish: true
+      }
+    ],
+    total: 2
+  }
+};
 
 /** Kleine helper voor fetch-calls naar onze API */
 export async function apiFetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
+  // If no backend is configured, return demo data
+  if (!PROD_ORIGIN && !DEV) {
+    const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
+    if (demoResponse) {
+      return demoResponse as T;
+    }
+  }
+
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     headers: {

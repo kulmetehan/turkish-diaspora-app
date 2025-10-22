@@ -1,10 +1,10 @@
 // Frontend/vite.config.ts
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from 'vite'
 
 // Vite config met alias '@' → 'src' en standaard React plugin.
-// Geen extra aannames (geen base/publicPath wijzigingen).
+// Configured for GitHub Pages deployment
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -12,6 +12,8 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
+  // GitHub Pages configuration
+  base: process.env.NODE_ENV === 'production' ? '/Turkish-Diaspora-App/' : '/',
   // Optioneel: wat vriendelijkere build warnings
   build: {
     sourcemap: false,

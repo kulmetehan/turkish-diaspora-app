@@ -36,7 +36,9 @@ jobs:
         run: |
           : > .env.production
           # Zet hier je productie API-origin. Geen trailing slash.
-          echo "VITE_API_BASE_URL=${{ secrets.API_BASE_URL }}" >> .env.production
+          echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" >> .env.production
+          echo "VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }}" >> .env.production
+          echo "VITE_MAPBOX_STYLE=${{ secrets.VITE_MAPBOX_STYLE }}" >> .env.production
           echo "Created Frontend/.env.production"
 
       - name: Install dependencies

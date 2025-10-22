@@ -12,7 +12,7 @@ function normalizeApiBase(raw: string | undefined): string {
 export const CONFIG = {
   API_BASE_URL: normalizeApiBase(import.meta.env.VITE_API_BASE_URL as string | undefined),
 
-  MAPBOX_TOKEN: (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ?? "",
+  MAPBOX_TOKEN: (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ?? "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw",
   MAPBOX_STYLE:
     (import.meta.env.VITE_MAPBOX_STYLE as string | undefined) ??
     "mapbox://styles/mapbox/light-v11",
