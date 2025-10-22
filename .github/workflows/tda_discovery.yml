@@ -51,11 +51,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          GOOGLE_PLACES_LANGUAGE: nl
-          GOOGLE_PLACES_REGION: NL
+          DATA_PROVIDER: osm
           PYTHONUNBUFFERED: "1"
           PYTHONPATH: .
         run: >
