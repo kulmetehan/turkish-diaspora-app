@@ -23,6 +23,8 @@ categories:
   bakery:
     label: "bakkerij"
     description: "Bakkerij en bakkerswinkels met (Turkse) brood- en patisserie-assortiment."
+    google_types:
+      - "bakery"
     osm_tags:
       any:
         - { shop: "bakery" }
@@ -38,6 +40,8 @@ categories:
   restaurant:
     label: "restaurant"
     description: "Restaurants en eethuizen met (Turkse) keuken."
+    google_types:
+      - "restaurant"
     osm_tags:
       any:
         - { amenity: "restaurant" }
@@ -55,6 +59,8 @@ categories:
   supermarket:
     label: "supermarkt"
     description: "Supermarkten en levensmiddelenzaken."
+    google_types:
+      - "grocery_or_supermarket"
     osm_tags:
       any:
         - { shop: "supermarket" }
@@ -70,7 +76,8 @@ categories:
   barber:
     label: "kapper"
     description: "Kappers en barbershops."
-      # NB: sommige datasets hanteren barbershop binnen hair_care
+    google_types:
+      - "hair_care"
     osm_tags:
       any:
         - { shop: "hairdresser" }
@@ -86,6 +93,7 @@ categories:
   mosque:
     label: "moskee"
     description: "Religieuze locaties – moskeeën."
+    google_types:
       - "mosque"
     osm_tags:
       all:
@@ -101,6 +109,8 @@ categories:
   travel_agency:
     label: "reisbureau"
     description: "Reisbureaus en ticketing."
+    google_types:
+      - "travel_agency"
     osm_tags:
       any:
         - { office: "travel_agent" }
@@ -115,6 +125,8 @@ categories:
   butcher:
     label: "slagerij"
     description: "Slagerijen en vleeswinkels."
+    google_types:
+      - "store"
     osm_tags:
       any:
         - { shop: "butcher" }
