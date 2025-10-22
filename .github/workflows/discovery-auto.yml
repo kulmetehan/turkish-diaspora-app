@@ -16,7 +16,7 @@ jobs:
         category: [bakery, restaurant, supermarket, barber, mosque, travel_agency]
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      DATA_PROVIDER: osm
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
     steps:
@@ -35,7 +35,7 @@ jobs:
       - name: Run DiscoveryBot (${{ matrix.category }})
         run: |
           cd Backend
-          echo "=== Starting DiscoveryBot for ${{ matrix.category }} ==="
+          echo "=== Starting DiscoveryBot (OSM) for ${{ matrix.category }} ==="
           python -m app.workers.discovery_bot \
             --city rotterdam \
             --categories ${{ matrix.category }} \
