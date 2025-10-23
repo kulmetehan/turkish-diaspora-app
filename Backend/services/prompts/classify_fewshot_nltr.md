@@ -62,20 +62,34 @@ EXPECTED_JSON:
 {"action":"keep","category":"travel_agency","confidence_score":0.84,"reason":"Reisbureau vaak TR routes."}
 
 ### EXAMPLE 10
+Naam: "Bakkerij Avrasya"
+Adres: "Rotterdam"
+Type: "bakery"
+EXPECTED_JSON:
+{"action":"keep","category":"bakery","confidence_score":0.88,"reason":"Avrasya = Turkse naam (Eurazië)."}
+
+### EXAMPLE 11
+Naam: "Bakkerij Enes"
+Adres: "Den Haag"
+Type: "bakery"
+EXPECTED_JSON:
+{"action":"keep","category":"bakery","confidence_score":0.85,"reason":"Enes = veelvoorkomende Turkse naam."}
+
+### EXAMPLE 12
 Naam: "Bakkerij Kees"
 Adres: "Nieuw-Beijerland"
 Type: "bakery"
 EXPECTED_JSON:
 {"action":"ignore","category":"other","confidence_score":0.70,"reason":"Geen TR indicaties, generiek NL."}
 
-### EXAMPLE 11
+### EXAMPLE 13
 Naam: "Pizzeria Napoli"
 Adres: "Rotterdam"
 Type: "restaurant"
 EXPECTED_JSON:
 {"action":"ignore","category":"other","confidence_score":0.75,"reason":"Italiaans; geen TR signalen."}
 
-### EXAMPLE 12
+### EXAMPLE 14
 Naam: "Barber Bros"
 Adres: "Rotterdam"
 Type: "hair_care"

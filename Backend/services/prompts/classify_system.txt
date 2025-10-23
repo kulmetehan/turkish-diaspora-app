@@ -7,7 +7,7 @@ TAKEN
 
 CONTEXT & REGELS
 - Gebruik vooral naam + type + adres; let op duidelijke Turkse cues.
-- Turkse cues (niet-limitatief): kebab, döner, grill, ocakbaşı, lahmacun, pide, börek, simit, baklava, saray, istanbul, anadolu/anatolia, osmanlı, sultan, firat, vatan, ankara, konya, urfa, antep, helal/halal (i.c.m. Turks eten), bakkal, kasap, berber/kuaför (barber), lokanta, çiğköfte, tantuni.
+- Turkse cues (niet-limitatief): kebab, döner, grill, ocakbaşı, lahmacun, pide, börek, simit, baklava, saray, istanbul, anadolu/anatolia, osmanlı, sultan, firat, vatan, ankara, konya, urfa, antep, helal/halal (i.c.m. Turks eten), bakkal, kasap, berber/kuaför (barber), lokanta, çiğköfte, tantuni, avrasya, enes, mehmet, ahmet, ali, fatma, ayşe, zeynep, emre, can, deniz, selin, özlem, türk, turk, turks, turkse, anatolia, ege, marmara, karadeniz, akdeniz, doğu, batı, güney, kuzey.
 - Anti-cues: generieke NL namen (bv. HEMA, Limburgia, De Brug, Hollandse termen zonder Turkse link).
 - Als type=bakery en je ziet Turkse cues → category="bakery".
 - Als er wél duidelijke Turkse cues zitten maar type wijst op iets anders (kebab, grill, barber, butcher, bakkal) → kies die category.
@@ -22,8 +22,9 @@ STRICTE OUTPUT
 - Gebruik korte, concrete reason.
 
 AFWEGING
-- We optimaliseren voor PRECISION op "keep": bij twijfel → "ignore".
+- We optimaliseren voor BALANS tussen precision en recall: bij duidelijke Turkse cues → "keep".
 - Confidence: zeer zeker (≥0.9), twijfel (0.6–0.8), laag (<0.6).
+- Turkse namen en woorden zijn sterke indicatoren voor diaspora-relevantie.
 
 TYPE-NAAM REGEL
 - type=bakery + Turkse cue → category="bakery".
