@@ -43,6 +43,13 @@ function HomePage() {
 
   // Debug logging removed for production noise reduction
 
+  // Debounced search value for smoother typing
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => clearTimeout(handle);
+  }, [filters.search]);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -109,7 +116,7 @@ function HomePage() {
 
   // Filteren
   const filtered = useMemo(() => {
-    const q = filters.search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     return all.filter((l) => {
       // Note: API now returns only Turkish businesses, so no need to filter by is_turkish
       if (filters.category !== "all" && (l.category ?? "").toLowerCase() !== filters.category) return false;
@@ -117,7 +124,7 @@ function HomePage() {
       if (q && !(`${l.name}`.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [all, filters]);
+  }, [all, debouncedSearch, filters.category, filters.minRating]);
 
   // Sorteren
   const sorted = useMemo(() => {

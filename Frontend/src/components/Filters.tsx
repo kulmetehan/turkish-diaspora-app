@@ -2,20 +2,29 @@ import { useMemo } from "react";
 
 type Props = {
   search: string;
-  category: string | null;
+  category: string;
   minRating: number | null;
   onlyTurkish: boolean;
   loading?: boolean;
   onChange: (patch: Partial<{
     search: string;
-    category: string | null;
+    category: string;
     minRating: number | null;
     onlyTurkish: boolean;
   }>) => void;
 };
 
-// Eventuele categorieën die je wilt tonen (pas aan op je data)
-const KNOWN_CATEGORIES = ["restaurant", "bakery", "market", "cafe", "shop", "other"];
+// Officiële categorieën (TDA-107)
+const KNOWN_CATEGORIES = [
+  "restaurant",
+  "bakery",
+  "supermarket",
+  "barber",
+  "mosque",
+  "travel_agency",
+  "butcher",
+  "fast_food",
+];
 
 export default function Filters({
   search,
@@ -29,6 +38,7 @@ export default function Filters({
 
   const categories = useMemo(() => {
     // Zorg dat de huidige category (als die buiten de lijst valt) toch zichtbaar is.
+    if (category === "all") return KNOWN_CATEGORIES;
     return category && !KNOWN_CATEGORIES.includes(category)
       ? [category, ...KNOWN_CATEGORIES]
       : KNOWN_CATEGORIES;
@@ -55,10 +65,10 @@ export default function Filters({
           id="category-select"
           name="category"
           className="rounded-md border px-3 py-2"
-          value={category ?? ""}
-          onChange={(e) => onChange({ category: e.target.value || null })}
+          value={category}
+          onChange={(e) => onChange({ category: e.target.value })}
         >
-          <option value="">Alle categorieën</option>
+          <option value="all">Alle categorieën</option>
           {categories.map((c) => (
             <option key={c} value={c}>
               {c.charAt(0).toUpperCase() + c.slice(1)}

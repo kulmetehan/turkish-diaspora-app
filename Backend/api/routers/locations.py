@@ -81,3 +81,74 @@ async def list_locations(
         # Log and signal temporary unavailability so clients can retry/backoff
         print(f"[locations] query failed: {e}")  # plaatsvervanger voor structlog
         raise HTTPException(status_code=503, detail="database unavailable")
+
+
+@router.get("/stats")
+async def locations_stats(
+    state: str = Query("VERIFIED", description="Filter op state (comma-separated for multiple)"),
+    recent_limit: int = Query(100, gt=10, le=2000, description="Aantal recente records om te groeperen"),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """
+    Simpele statistieken t.b.v. verificatie/monitoring:
+    - totaal aantal VERIFIED (of opgegeven states)
+    - aantallen per category
+    - distinct categories
+    - recent_per_category: recente voorbeelden (max 5 per category) uit de laatste `recent_limit` records
+    """
+    states = [s.strip() for s in state.split(',')]
+    state_placeholders = ','.join([f':state_{i}' for i in range(len(states))])
+
+    try:
+        # Total
+        sql_total = text(f"SELECT COUNT(*) AS c FROM locations WHERE state IN ({state_placeholders})")
+        params = {f"state_{i}": states[i] for i in range(len(states))}
+        total_row = (await db.execute(sql_total, params)).mappings().first()
+        total_verified = int(total_row["c"]) if total_row and total_row.get("c") is not None else 0
+
+        # By category
+        sql_by_cat = text(
+            f"""
+            SELECT COALESCE(category, 'unknown') AS category, COUNT(*) AS c
+            FROM locations
+            WHERE state IN ({state_placeholders})
+            GROUP BY category
+            ORDER BY c DESC
+            """
+        )
+        by_cat_rows = (await db.execute(sql_by_cat, params)).mappings().all()
+        by_category = [{"category": r["category"], "count": int(r["c"]) } for r in by_cat_rows]
+
+        # Distinct categories
+        distinct_categories = [r["category"] for r in by_cat_rows if r.get("category")] 
+
+        # Recent sample to show examples per category
+        sql_recent = text(
+            f"""
+            SELECT id, name, COALESCE(category, 'unknown') AS category
+            FROM locations
+            WHERE state IN ({state_placeholders})
+            ORDER BY id DESC
+            LIMIT :lim
+            """
+        )
+        recent_params = {**params, "lim": recent_limit}
+        recent_rows = (await db.execute(sql_recent, recent_params)).mappings().all()
+
+        # Group top 5 examples per category
+        recent_per_category: dict[str, list[dict[str, Any]]] = {}
+        for r in recent_rows:
+            cat = r["category"]
+            bucket = recent_per_category.setdefault(cat, [])
+            if len(bucket) < 5:
+                bucket.append({"id": int(r["id"]), "name": r["name"]})
+
+        return {
+            "total_verified": total_verified,
+            "by_category": by_category,
+            "distinct_categories": distinct_categories,
+            "recent_per_category": recent_per_category,
+        }
+    except Exception as e:
+        print(f"[locations.stats] query failed: {e}")
+        raise HTTPException(status_code=503, detail="database unavailable")

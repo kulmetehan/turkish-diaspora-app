@@ -1,0 +1,65 @@
+.tda-bs-root {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    will-change: transform, opacity;
+    contain: layout paint;
+    transform: translateY(0);
+    background: var(--bs-bg, var(--background, #fff));
+    border-top-left-radius: var(--bs-radius, 16px);
+    border-top-right-radius: var(--bs-radius, 16px);
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, calc(0.08 + (var(--bs-elevation, 0) * 0.08)));
+    height: 100dvh;
+    /* sheet uses translateY, not height anim */
+    padding-bottom: env(safe-area-inset-bottom);
+    pointer-events: none;
+}
+
+.tda-bs-handle {
+    touch-action: none;
+    /* allow manual y panning */
+    cursor: grab;
+    user-select: none;
+    pointer-events: auto;
+}
+
+.tda-bs-handle:active {
+    cursor: grabbing;
+}
+
+.tda-bs-handle-bar {
+    width: 32px;
+    height: 4px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, currentColor 24%, transparent);
+}
+
+.tda-bs-content {
+    overflow: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    height: calc(100dvh - 28px);
+    /* handle area */
+    pointer-events: auto;
+}
+
+.tda-bs-backdrop {
+    position: fixed;
+    inset: 0;
+    background: var(--bs-backdrop, rgba(0, 0, 0, 0.4));
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease;
+}
+
+.tda-bs-backdrop.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Prevent body scroll when full */
+.bs-lock-scroll,
+.bs-lock-scroll body {
+    overflow: hidden;
+}
