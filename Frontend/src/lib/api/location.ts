@@ -1,4 +1,5 @@
 // src/lib/api/location.ts
+import { API_BASE, apiFetch } from '../api';
 
 /**
  * Basis type voor een locatie-item zoals de frontend het gebruikt.
@@ -40,7 +41,8 @@ export function normalizeLocation(raw: any): Location {
  * Je kunt filters hier later uitbreiden zonder alle call-sites te wijzigen.
  */
 function buildLocationsUrl() {
-  const base = "http://localhost:8000/api/v1/locations/";
+  // Use the centralized API configuration
+  const base = `${API_BASE}/locations/`;
   const params = new URLSearchParams({
     state: "VERIFIED",
     limit: "1000",
@@ -66,11 +68,7 @@ function buildLocationsUrl() {
  */
 export async function fetchLocations(): Promise<Location[]> {
   const url = buildLocationsUrl();
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch locations (${res.status} ${res.statusText})`);
-  }
-  const json = await res.json();
+  const json = await apiFetch<any>(url);
 
   const list: any[] = Array.isArray(json) ? json : Array.isArray(json?.results) ? json.results : [];
   return list.map(normalizeLocation).filter((l) => Number.isFinite(l.id) && Number.isFinite(l.lat) && Number.isFinite(l.lng));

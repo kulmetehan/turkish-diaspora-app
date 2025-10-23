@@ -37,7 +37,10 @@ export default function Filters({
   return (
     <div className="rounded-xl border bg-card p-3 flex flex-col gap-3">
       <div className="flex items-center gap-2">
+        <label htmlFor="search-input" className="sr-only">Zoek op naam of categorie</label>
         <input
+          id="search-input"
+          name="search"
           className="w-full rounded-md border px-3 py-2"
           type="text"
           placeholder="Zoek op naam of categorie…"
@@ -47,7 +50,10 @@ export default function Filters({
       </div>
 
       <div className="flex items-center gap-2">
+        <label htmlFor="category-select" className="sr-only">Selecteer categorie</label>
         <select
+          id="category-select"
+          name="category"
           className="rounded-md border px-3 py-2"
           value={category ?? ""}
           onChange={(e) => onChange({ category: e.target.value || null })}
@@ -61,8 +67,10 @@ export default function Filters({
         </select>
 
         <div className="flex items-center gap-2">
-          <label className="text-sm whitespace-nowrap">Min. rating</label>
+          <label htmlFor="rating-range" className="text-sm whitespace-nowrap">Min. rating</label>
           <input
+            id="rating-range"
+            name="minRating"
             className="w-40"
             type="range"
             min={0}
