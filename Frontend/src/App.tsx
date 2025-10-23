@@ -40,8 +40,7 @@ function HomePage() {
   // Responsive breakpoint detection
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
-  // Debug logging
-  console.log('isDesktop:', isDesktop, 'window.innerWidth:', window.innerWidth);
+  // Debug logging removed for production noise reduction
 
   useEffect(() => {
     let alive = true;
@@ -165,7 +164,7 @@ function HomePage() {
               selectedId={selectedId}
               onSelect={(id) => setSelectedId(id)}
               autoScrollToSelected
-              emptyText={loading ? "Laden..." : error ?? "Geen resultaten"}
+              emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
             />
           </div>
         </aside>
@@ -230,7 +229,7 @@ function HomePage() {
                 selectedId={selectedId}
                 onSelect={handleLocationSelect}
                 autoScrollToSelected
-                emptyText={loading ? "Laden..." : error ?? "Geen resultaten"}
+                emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
               />
             </div>
           </div>

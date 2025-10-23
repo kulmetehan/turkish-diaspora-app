@@ -71,6 +71,12 @@ export async function fetchLocations(): Promise<Location[]> {
   const url = buildLocationsUrl();
   const json = await apiFetch<any>(url);
 
-  const list: any[] = Array.isArray(json) ? json : Array.isArray(json?.results) ? json.results : [];
+  const list: any[] = Array.isArray(json)
+    ? json
+    : Array.isArray(json?.results)
+      ? json.results
+      : Array.isArray(json?.data)
+        ? json.data
+        : [];
   return list.map(normalizeLocation).filter((l) => Number.isFinite(l.id) && Number.isFinite(l.lat) && Number.isFinite(l.lng));
 }

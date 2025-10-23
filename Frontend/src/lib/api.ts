@@ -8,7 +8,7 @@ const DEV = import.meta.env.DEV;
 // Let op: geen trailing slash in VITE_API_BASE_URL
 const PROD_ORIGIN = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
 
-// Fallback to demo data when no backend is configured
+// Fallback to dev proxy in development, absolute origin in production
 const API_ROOT = DEV ? "" : (PROD_ORIGIN ?? "");
 export const API_BASE = `${API_ROOT}/api/v1`;
 
@@ -20,11 +20,6 @@ if (!DEV) {
     API_BASE,
     hasBackend: !!PROD_ORIGIN
   });
-
-  // If backend is configured but not working, fall back to demo data
-  if (PROD_ORIGIN) {
-    console.log('Backend configured, but will test connection first...');
-  }
 }
 
 /** Demo data for Bangkok locations when backend is not available */
@@ -63,61 +58,69 @@ export async function apiFetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  // If no backend is configured, return demo data
-  if (!PROD_ORIGIN && !DEV) {
-    console.warn('No backend configured (VITE_API_BASE_URL not set), using demo data');
-    const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
-    if (demoResponse) {
-      return demoResponse as T;
-    }
-    // If no demo data available, throw a more helpful error
-    throw new Error(`No backend configured and no demo data available for ${path}`);
+  // In production, require a configured backend
+  if (!DEV && !PROD_ORIGIN) {
+    throw new Error('Backend not configured (VITE_API_BASE_URL not set)');
   }
 
   const url = `${API_BASE}${path}`;
 
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-      ...init,
-    });
+  // Simple retry/backoff for cold starts or transient failures
+  const maxAttempts = 3;
+  const delays = [500, 1500]; // ms between attempts (after first failure)
 
-    if (!res.ok) {
-      // If backend is not available, fall back to demo data
-      if (res.status === 502 || res.status === 503 || res.status === 504) {
-        console.warn(`Backend not available (${res.status}), falling back to demo data`);
-        const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
-        if (demoResponse) {
-          return demoResponse as T;
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {}),
+        },
+        ...init,
+      });
+
+      if (!res.ok) {
+        // Retry on typical warm-up statuses
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          const text = await res.text().catch(() => "");
+          lastError = new Error(
+            `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
+          );
+          // fall through to retry logic
+        } else {
+          const text = await res.text().catch(() => "");
+          throw new Error(
+            `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
+          );
         }
+      } else {
+        // Als er geen body is, niet proberen te parsen
+        const ct = res.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) {
+          const text = await res.text().catch(() => "");
+          return text as unknown as T;
+        }
+        return (await res.json()) as T;
       }
-
-      const text = await res.text().catch(() => "");
-      throw new Error(
-        `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
-      );
+    } catch (err) {
+      // Network/CORS/etc.
+      lastError = err;
     }
 
-    // Als er geen body is, niet proberen te parsen
-    const ct = res.headers.get("content-type") || "";
-    if (!ct.includes("application/json")) {
-      // sommige endpoints geven leeg terug (204 / text)
-      const text = await res.text().catch(() => "");
-      return text as unknown as T;
+    if (attempt < maxAttempts) {
+      const wait = delays[attempt - 1] ?? 1500;
+      await new Promise((r) => setTimeout(r, wait));
     }
-    return (await res.json()) as T;
-  } catch (error) {
-    // If fetch fails completely (network error, CORS, etc.), fall back to demo data
-    console.warn(`Network error fetching from backend, falling back to demo data:`, error);
-    const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
-    if (demoResponse) {
-      return demoResponse as T;
-    }
-    throw error;
   }
+
+  // Development-only demo fallback to keep local UI usable when backend missing
+  if (DEV) {
+    const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
+    if (demoResponse) return demoResponse as T;
+  }
+
+  throw (lastError ?? new Error('Failed to fetch API'));
 }
 
 /** Admin-key uit localStorage ophalen (niet bundelen) */

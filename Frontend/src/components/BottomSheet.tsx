@@ -1,4 +1,4 @@
-import { motion, PanInfo, useMotionValue, useTransform } from "framer-motion";
+import { motion, PanInfo, useDragControls, useMotionValue } from "framer-motion";
 import { ReactNode, useEffect, useState } from "react";
 
 export type SnapPoint = "collapsed" | "half" | "full";
@@ -26,12 +26,15 @@ export default function BottomSheet({
 }: Props) {
     const [isDragging, setIsDragging] = useState(false);
     const [currentHeight, setCurrentHeight] = useState(0);
+    const dragControls = useDragControls();
     const y = useMotionValue(0);
+
+    const getViewportHeight = () => (window.visualViewport?.height ?? window.innerHeight);
 
     // Calculate snap point heights
     const getSnapHeight = (snap: SnapPoint) => {
         if (snap === "collapsed") return SNAP_POINTS.collapsed;
-        const viewportHeight = window.innerHeight;
+        const viewportHeight = getViewportHeight();
         return snap === "half"
             ? viewportHeight * SNAP_POINTS.half
             : viewportHeight * SNAP_POINTS.full;
@@ -39,7 +42,7 @@ export default function BottomSheet({
 
     // Get current snap point based on height
     const getCurrentSnapPoint = (height: number): SnapPoint => {
-        const viewportHeight = window.innerHeight;
+        const viewportHeight = getViewportHeight();
         const collapsedHeight = SNAP_POINTS.collapsed;
         const halfHeight = viewportHeight * SNAP_POINTS.half;
         const fullHeight = viewportHeight * SNAP_POINTS.full;
@@ -54,7 +57,7 @@ export default function BottomSheet({
         setIsDragging(false);
         const velocity = info.velocity.y;
         const currentY = y.get();
-        const viewportHeight = window.innerHeight;
+        const viewportHeight = getViewportHeight();
         const currentHeight = viewportHeight - currentY;
 
         let targetSnap: SnapPoint;
@@ -96,49 +99,69 @@ export default function BottomSheet({
     useEffect(() => {
         if (!isDragging) {
             const targetHeight = getSnapHeight(snapPoint);
-            const viewportHeight = window.innerHeight;
+            const viewportHeight = getViewportHeight();
             const targetY = viewportHeight - targetHeight;
             y.set(targetY);
             setCurrentHeight(targetHeight);
         }
     }, [snapPoint, isDragging, y]);
 
-    // Calculate opacity for overlay - much lighter overlay
-    const overlayOpacity = useTransform(
-        y,
-        [window.innerHeight * 0.92, window.innerHeight * 0.55],
-        [0.1, 0.02]
-    );
+    // Recalculate on viewport resize/orientation changes
+    useEffect(() => {
+        const onResize = () => {
+            const targetHeight = getSnapHeight(snapPoint);
+            const vh = getViewportHeight();
+            const targetY = vh - targetHeight;
+            y.set(targetY);
+            setCurrentHeight(targetHeight);
+        };
+        window.addEventListener('resize', onResize);
+        window.addEventListener('orientationchange', onResize);
+        // visualViewport for mobile address bar changes
+        const vv = window.visualViewport;
+        vv?.addEventListener('resize', onResize);
+        return () => {
+            window.removeEventListener('resize', onResize);
+            window.removeEventListener('orientationchange', onResize);
+            vv?.removeEventListener('resize', onResize);
+        };
+    }, [snapPoint, y]);
 
     if (!open) return null;
 
     return (
         <div className="fixed inset-0 z-50">
-            {/* Overlay */}
-            <motion.div
-                className="fixed inset-0 bg-black"
-                style={{ opacity: overlayOpacity }}
-                onClick={onClose}
-            />
+            {/* Overlay only at full, very light */}
+            {snapPoint === 'full' && (
+                <div
+                    className="fixed inset-0 bg-black"
+                    style={{ opacity: 0.04 }}
+                    onClick={onClose}
+                />
+            )}
 
             {/* Bottom Sheet */}
             <motion.div
                 className="fixed bottom-0 left-0 right-0 bg-background border-t border-border rounded-t-xl shadow-xl"
                 style={{
                     y,
-                    height: "100vh",
+                    height: "100dvh",
                 }}
                 drag="y"
-                dragConstraints={{
-                    top: window.innerHeight * 0.08, // Allow dragging to almost full screen
-                    bottom: 0
+                dragControls={dragControls}
+                dragListener={false}
+                dragConstraints={() => {
+                    const vh = getViewportHeight();
+                    const top = vh - getSnapHeight('full');
+                    const bottom = vh - getSnapHeight('collapsed');
+                    return { top, bottom };
                 }}
                 dragElastic={{ top: 0.1, bottom: 0.1 }}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                initial={{ y: window.innerHeight - getSnapHeight("collapsed") }}
+                initial={{ y: getViewportHeight() - getSnapHeight("collapsed") }}
                 animate={{
-                    y: window.innerHeight - getSnapHeight(snapPoint),
+                    y: getViewportHeight() - getSnapHeight(snapPoint),
                 }}
                 transition={{
                     type: "spring",
@@ -148,12 +171,15 @@ export default function BottomSheet({
                 }}
             >
                 {/* Drag handle */}
-                <div className="flex justify-center p-2 cursor-grab active:cursor-grabbing">
+                <div
+                    className="flex justify-center p-2 cursor-grab active:cursor-grabbing"
+                    onPointerDown={(e) => dragControls.start(e)}
+                >
                     <div className="w-8 h-1 bg-muted-foreground/30 rounded-full" />
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-hidden h-[calc(100vh-24px)]">
+                <div className="flex-1 overflow-hidden h-[calc(100dvh-24px)]">
                     {children}
                 </div>
             </motion.div>
