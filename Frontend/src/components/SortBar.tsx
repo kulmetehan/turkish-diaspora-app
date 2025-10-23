@@ -13,8 +13,10 @@ export default function SortBar({ sort, total, onChange }: Props) {
         {total} resultaat{total === 1 ? "" : "en"}
       </div>
       <div className="flex items-center gap-2">
-        <label className="text-sm">Sorteer op</label>
+        <label htmlFor="sort-select" className="text-sm">Sorteer op</label>
         <select
+          id="sort-select"
+          name="sort"
           className="rounded-md border px-3 py-1.5"
           value={sort}
           onChange={(e) => onChange(e.target.value as SortKey)}

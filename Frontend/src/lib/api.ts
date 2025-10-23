@@ -12,6 +12,16 @@ const PROD_ORIGIN = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
 const API_ROOT = DEV ? "" : (PROD_ORIGIN ?? "");
 export const API_BASE = `${API_ROOT}/api/v1`;
 
+// Debug logging to help troubleshoot
+if (!DEV) {
+  console.log('Production API Configuration:', {
+    PROD_ORIGIN,
+    API_ROOT,
+    API_BASE,
+    hasBackend: !!PROD_ORIGIN
+  });
+}
+
 /** Demo data for Bangkok locations when backend is not available */
 const DEMO_DATA = {
   "/locations/": {
@@ -50,10 +60,13 @@ export async function apiFetch<T>(
 ): Promise<T> {
   // If no backend is configured, return demo data
   if (!PROD_ORIGIN && !DEV) {
+    console.warn('No backend configured (VITE_API_BASE_URL not set), using demo data');
     const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
     if (demoResponse) {
       return demoResponse as T;
     }
+    // If no demo data available, throw a more helpful error
+    throw new Error(`No backend configured and no demo data available for ${path}`);
   }
 
   const url = `${API_BASE}${path}`;
