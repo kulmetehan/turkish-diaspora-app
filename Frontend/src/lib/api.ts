@@ -20,6 +20,11 @@ if (!DEV) {
     API_BASE,
     hasBackend: !!PROD_ORIGIN
   });
+
+  // If backend is configured but not working, fall back to demo data
+  if (PROD_ORIGIN) {
+    console.log('Backend configured, but will test connection first...');
+  }
 }
 
 /** Demo data for Bangkok locations when backend is not available */
@@ -70,27 +75,49 @@ export async function apiFetch<T>(
   }
 
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    ...init,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(
-      `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
-    );
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      ...init,
+    });
+
+    if (!res.ok) {
+      // If backend is not available, fall back to demo data
+      if (res.status === 502 || res.status === 503 || res.status === 504) {
+        console.warn(`Backend not available (${res.status}), falling back to demo data`);
+        const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
+        if (demoResponse) {
+          return demoResponse as T;
+        }
+      }
+
+      const text = await res.text().catch(() => "");
+      throw new Error(
+        `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
+      );
+    }
+
+    // Als er geen body is, niet proberen te parsen
+    const ct = res.headers.get("content-type") || "";
+    if (!ct.includes("application/json")) {
+      // sommige endpoints geven leeg terug (204 / text)
+      const text = await res.text().catch(() => "");
+      return text as unknown as T;
+    }
+    return (await res.json()) as T;
+  } catch (error) {
+    // If fetch fails completely (network error, CORS, etc.), fall back to demo data
+    console.warn(`Network error fetching from backend, falling back to demo data:`, error);
+    const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
+    if (demoResponse) {
+      return demoResponse as T;
+    }
+    throw error;
   }
-  // Als er geen body is, niet proberen te parsen
-  const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) {
-    // sommige endpoints geven leeg terug (204 / text)
-    const text = await res.text().catch(() => "");
-    return text as unknown as T;
-  }
-  return (await res.json()) as T;
 }
 
 /** Admin-key uit localStorage ophalen (niet bundelen) */

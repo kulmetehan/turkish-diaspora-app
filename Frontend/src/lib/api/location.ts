@@ -41,8 +41,7 @@ export function normalizeLocation(raw: any): Location {
  * Je kunt filters hier later uitbreiden zonder alle call-sites te wijzigen.
  */
 function buildLocationsUrl() {
-  // Use the centralized API configuration
-  const base = `${API_BASE}/locations/`;
+  // Return relative path - apiFetch will prepend API_BASE
   const params = new URLSearchParams({
     state: "VERIFIED",
     limit: "1000",
@@ -59,7 +58,9 @@ function buildLocationsUrl() {
       "is_turkish",
     ].join(","),
   });
-  return `${base}?${params.toString()}`;
+  const url = `/locations/?${params.toString()}`;
+  console.log('buildLocationsUrl constructed:', { API_BASE, url });
+  return url;
 }
 
 /**
