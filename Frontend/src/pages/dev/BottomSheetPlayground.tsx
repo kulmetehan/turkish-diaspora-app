@@ -11,9 +11,7 @@ export default function BottomSheetPlayground() {
     useEffect(() => {
         let raf: number;
         const tick = () => {
-            // @ts-expect-error internal debug
             const v = (ref.current as any)?._controller?.debug?.getVelocity?.() ?? 0;
-            // @ts-expect-error internal debug
             const t = (ref.current as any)?._controller?.debug?.getTargetState?.() ?? null;
             setVelocity(Math.round(v));
             setTarget(t);
