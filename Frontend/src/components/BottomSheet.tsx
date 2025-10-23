@@ -150,11 +150,9 @@ export default function BottomSheet({
                 drag="y"
                 dragControls={dragControls}
                 dragListener={false}
-                dragConstraints={() => {
-                    const vh = getViewportHeight();
-                    const top = vh - getSnapHeight('full');
-                    const bottom = vh - getSnapHeight('collapsed');
-                    return { top, bottom };
+                dragConstraints={{
+                    top: getViewportHeight() - getSnapHeight('full'),
+                    bottom: getViewportHeight() - getSnapHeight('collapsed')
                 }}
                 dragElastic={{ top: 0.1, bottom: 0.1 }}
                 onDragStart={handleDragStart}
