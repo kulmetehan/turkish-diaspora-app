@@ -1,7 +1,7 @@
 // src/components/MarkerLayer.tsx
-import { useEffect, useMemo, useRef } from "react";
-import type { Map as MapboxMap, MapboxGeoJSONFeature, LngLatLike } from "mapbox-gl";
 import type { Location } from "@/lib/api/location";
+import type { LngLatLike, MapboxGeoJSONFeature, Map as MapboxMap } from "mapbox-gl";
+import { useEffect, useMemo, useRef } from "react";
 
 type Props = {
   map: MapboxMap;
@@ -145,6 +145,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
 
       // Interactie handlers (1x, types bewust generiek gehouden i.v.m. mapbox-gl typings)
       const onClusterClick = (e: any) => {
+        try { e.preventDefault?.(); e.originalEvent?.preventDefault?.(); } catch { }
         const feats = map.queryRenderedFeatures(e.point, { layers: [L_CLUSTER] }) as
           | MapboxGeoJSONFeature[]
           | undefined;
@@ -162,6 +163,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
       };
 
       const onPointClick = (e: any) => {
+        try { e.preventDefault?.(); e.originalEvent?.preventDefault?.(); } catch { }
         const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT] }) as
           | MapboxGeoJSONFeature[]
           | undefined;
@@ -174,12 +176,12 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
       const onEnter = () => {
         try {
           map.getCanvas().style.cursor = "pointer";
-        } catch {}
+        } catch { }
       };
       const onLeave = () => {
         try {
           map.getCanvas().style.cursor = "";
-        } catch {}
+        } catch { }
       };
 
       // Register event handlers after a small delay to ensure layers are fully rendered
@@ -203,7 +205,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
           map.off("click", L_POINT, onPointClick as any);
           map.off("mouseenter", L_POINT, onEnter as any);
           map.off("mouseleave", L_POINT, onLeave as any);
-        } catch {}
+        } catch { }
       };
     };
 
@@ -213,7 +215,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
       return () => {
         try {
           map.off("load", init as any);
-        } catch {}
+        } catch { }
       };
     }
 
@@ -242,7 +244,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
     const id = Number.isFinite(selectedId) ? (selectedId as number) : -1;
     try {
       map.setFilter(L_HI, ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], id]]);
-    } catch {}
+    } catch { }
   }, [map, selectedId]);
 
   return null;

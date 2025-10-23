@@ -71,9 +71,8 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
     // Calculate offset to keep marker visible above bottom sheet
     let offsetY = 0;
     if (bottomSheetHeight && bottomSheetHeight > 0) {
-      const viewportHeight = window.innerHeight;
-      const visibleMapHeight = viewportHeight - bottomSheetHeight;
-      offsetY = (viewportHeight - visibleMapHeight) / 2;
+      // Place target above center by ~half of the sheet height
+      offsetY = -Math.round(bottomSheetHeight / 2);
     }
 
     map.easeTo({
