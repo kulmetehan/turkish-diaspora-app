@@ -95,11 +95,10 @@ export async function apiFetch<T>(
           );
         }
       } else {
-        // Als er geen body is, niet proberen te parsen
+        // Alleen JSON is geldig; non-JSON behandelen als fout (bv. warm-up HTML)
         const ct = res.headers.get("content-type") || "";
         if (!ct.includes("application/json")) {
-          const text = await res.text().catch(() => "");
-          return text as unknown as T;
+          throw new Error(`Invalid response content-type for ${path}: ${ct || "<none>"}`);
         }
         return (await res.json()) as T;
       }

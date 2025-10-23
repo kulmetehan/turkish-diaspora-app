@@ -9,7 +9,7 @@ import MapView from "@/components/MapView";
 import SortBar from "@/components/SortBar";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
-import { fetchLocations, type Location } from "@/lib/api/location";
+import { fetchLocations, getCachedLocations, type Location } from "@/lib/api/location";
 
 // Sorteersleutel zoals in jouw SortBar gebruikt
 export type SortKey = "relevance" | "rating_desc" | "name_asc";
@@ -18,6 +18,7 @@ function HomePage() {
   const [all, setAll] = useState<Location[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [usingCache, setUsingCache] = useState(false);
 
   // UI-filters (komen overeen met Filters.tsx props)
   const [filters, setFilters] = useState({
@@ -46,21 +47,40 @@ function HomePage() {
     let alive = true;
     setLoading(true);
     setError(null);
+    setUsingCache(false);
 
-    // Haal locaties op (API heeft standaard filters ingebouwd)
-    fetchLocations()
-      .then((rows) => {
+    const load = async () => {
+      try {
+        const rows = await fetchLocations();
         if (!alive) return;
         setAll(rows);
-      })
-      .catch((e) => {
+      } catch (e: any) {
         if (!alive) return;
-        setError(e instanceof Error ? e.message : "Onbekende fout");
-      })
-      .finally(() => {
+        // Try cached data as fallback
+        const cached = getCachedLocations();
+        if (cached && cached.length > 0) {
+          setAll(cached);
+          setUsingCache(true);
+          // Silent retry after short delay to update live data if available
+          setTimeout(async () => {
+            try {
+              const fresh = await fetchLocations();
+              if (!alive) return;
+              setAll(fresh);
+              setUsingCache(false);
+              setError(null);
+            } catch { }
+          }, 2000);
+        } else {
+          setError(e instanceof Error ? e.message : "Onbekende fout");
+        }
+      } finally {
         if (!alive) return;
         setLoading(false);
-      });
+      }
+    };
+
+    void load();
 
     return () => {
       alive = false;
@@ -154,6 +174,11 @@ function HomePage() {
             />
           </div>
 
+          {usingCache && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              Showing cached data; retrying in background…
+            </div>
+          )}
           <div className="p-3 border-b">
             <SortBar sort={sort} onChange={(key) => setSort(key)} total={sorted.length} />
           </div>
@@ -219,6 +244,11 @@ function HomePage() {
               />
             </div>
 
+            {usingCache && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">
+                Showing cached data; retrying in background…
+              </div>
+            )}
             <div className="p-3 border-b">
               <SortBar sort={sort} onChange={(key) => setSort(key)} total={sorted.length} />
             </div>

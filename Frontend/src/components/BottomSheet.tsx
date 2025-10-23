@@ -130,11 +130,11 @@ export default function BottomSheet({
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50 pointer-events-none">
             {/* Overlay only at full, very light */}
             {snapPoint === 'full' && (
                 <div
-                    className="fixed inset-0 bg-black"
+                    className="fixed inset-0 bg-black pointer-events-auto"
                     style={{ opacity: 0.04 }}
                     onClick={onClose}
                 />
@@ -142,7 +142,7 @@ export default function BottomSheet({
 
             {/* Bottom Sheet */}
             <motion.div
-                className="fixed bottom-0 left-0 right-0 bg-background border-t border-border rounded-t-xl shadow-xl"
+                className="fixed bottom-0 left-0 right-0 bg-background border-t border-border rounded-t-xl shadow-xl pointer-events-auto"
                 style={{
                     y,
                     height: "100dvh",

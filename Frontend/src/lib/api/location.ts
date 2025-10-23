@@ -17,6 +17,32 @@ export type Location = {
   is_turkish?: boolean | null;
 };
 
+const CACHE_KEY = "TDA_LOCATIONS_CACHE_V1";
+const CACHE_TTL_MS = 120_000; // 2 minutes
+
+function setCache(data: any) {
+  try {
+    const payload = { ts: Date.now(), data };
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+  } catch { }
+}
+
+export function getCachedLocations(): Location[] | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    if (!payload || typeof payload.ts !== "number") return null;
+    if (Date.now() - payload.ts > CACHE_TTL_MS) return null;
+    const list = Array.isArray(payload.data) ? payload.data : [];
+    return list
+      .map(normalizeLocation)
+      .filter((l) => Number.isFinite(l.id) && Number.isFinite(l.lat) && Number.isFinite(l.lng));
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Normaliseert ruwe API-data naar ons Location-type.
  * - forceert id → number
@@ -68,6 +94,11 @@ function buildLocationsUrl() {
  * Backend kan array of {results: []} teruggeven — beide worden ondersteund.
  */
 export async function fetchLocations(): Promise<Location[]> {
+  // Best-effort warm-up ping (does not block)
+  try {
+    void apiFetch<any>(`/locations/ping`);
+  } catch { }
+
   const url = buildLocationsUrl();
   const json = await apiFetch<any>(url);
 
@@ -78,5 +109,11 @@ export async function fetchLocations(): Promise<Location[]> {
       : Array.isArray(json?.data)
         ? json.data
         : [];
-  return list.map(normalizeLocation).filter((l) => Number.isFinite(l.id) && Number.isFinite(l.lat) && Number.isFinite(l.lng));
+  const normalized = list
+    .map(normalizeLocation)
+    .filter((l) => Number.isFinite(l.id) && Number.isFinite(l.lat) && Number.isFinite(l.lng));
+
+  // Cache last-known-good
+  try { setCache(list); } catch { }
+  return normalized;
 }
