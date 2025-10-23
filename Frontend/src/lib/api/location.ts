@@ -22,6 +22,8 @@ const CACHE_TTL_MS = 120_000; // 2 minutes
 
 function setCache(data: any) {
   try {
+    // Don't cache empty arrays
+    if (Array.isArray(data) && data.length === 0) return;
     const payload = { ts: Date.now(), data };
     sessionStorage.setItem(CACHE_KEY, JSON.stringify(payload));
   } catch { }

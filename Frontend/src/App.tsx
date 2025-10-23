@@ -53,6 +53,26 @@ function HomePage() {
       try {
         const rows = await fetchLocations();
         if (!alive) return;
+        // If API returns empty but we have cached data, prefer cache and retry
+        if (rows.length === 0) {
+          const cached = getCachedLocations();
+          if (cached && cached.length > 0) {
+            setAll(cached);
+            setUsingCache(true);
+            setTimeout(async () => {
+              try {
+                const fresh = await fetchLocations();
+                if (!alive) return;
+                if (fresh.length > 0) {
+                  setAll(fresh);
+                  setUsingCache(false);
+                  setError(null);
+                }
+              } catch { }
+            }, 2000);
+            return;
+          }
+        }
         setAll(rows);
       } catch (e: any) {
         if (!alive) return;

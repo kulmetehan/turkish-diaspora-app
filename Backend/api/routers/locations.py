@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from typing import Any, List
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -20,8 +20,14 @@ async def get_db() -> AsyncSession:
         yield session
 
 @router.get("/ping")
-async def ping() -> dict[str, Any]:
-    return {"ok": True, "router": "locations"}
+async def ping(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """DB-aware ping: verifies DB connectivity."""
+    try:
+        await db.execute(text("SELECT 1"))
+        return {"ok": True, "router": "locations", "db": True}
+    except Exception:
+        # reflect DB readiness accurately
+        raise HTTPException(status_code=503, detail="database unavailable")
 
 @router.get("/", response_model=List[dict])
 async def list_locations(
@@ -72,7 +78,6 @@ async def list_locations(
                 r["rating"] = float(r["rating"])
         return rows
     except Exception as e:
-        # Geen 500 naar buiten; liever lege lijst dan crash
-        # (Je structlog/observability pakt dit verder op; zie TDA-20)
+        # Log and signal temporary unavailability so clients can retry/backoff
         print(f"[locations] query failed: {e}")  # plaatsvervanger voor structlog
-        return []
+        raise HTTPException(status_code=503, detail="database unavailable")
