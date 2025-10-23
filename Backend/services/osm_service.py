@@ -299,7 +299,8 @@ class OsmPlacesService:
         radius: int,
         osm_tags_list: List[List[Dict[str, Any]]],
         max_results: int,
-        timeout_s: int = 25
+        timeout_s: int = 25,
+        included_types: Optional[List[str]] = None
     ) -> str:
         """Build a single Overpass query that combines multiple categories."""
         all_filter_snippets = []
@@ -314,9 +315,22 @@ class OsmPlacesService:
                     all_selector = self._render_filters_all(tag_group["all"])
                     all_filter_snippets.append(all_selector)
         
-        # Add Turkish hints if enabled
+        # Add Turkish hints (restrictive AND) for food categories
         turkish_filters = self._get_turkish_hints_filters()
-        all_filter_snippets.extend(turkish_filters)
+        if self.turkish_hints and turkish_filters:
+            food_keys = {"restaurant", "fast_food", "bakery", "butcher", "supermarket"}
+            if included_types and any(k in food_keys for k in included_types):
+                # Combine each base selector with each hint using AND semantics
+                combined_snippets: List[str] = []
+                for s in all_filter_snippets or []:
+                    for h in turkish_filters:
+                        combined_snippets.append(s + h)  # AND in Overpass = concatenated filters
+                if combined_snippets:
+                    all_filter_snippets = combined_snippets
+            else:
+                # For non-food categories, keep hints optional (or skip entirely)
+                # all_filter_snippets.extend(turkish_filters)
+                pass
         
         if not all_filter_snippets:
             # Fallback to basic place types if no filters
@@ -496,7 +510,7 @@ out center;
                 ]
             }]]
         
-        query = self._build_union_query(lat, lng, radius, osm_tags_list, max_results, self.timeout_s)
+        query = self._build_union_query(lat, lng, radius, osm_tags_list, max_results, self.timeout_s, included_types)
         
         if OSM_LOG_QUERIES:
             logger.debug("osm_query_rendered", provider="osm", query=query)
