@@ -55,14 +55,15 @@ def _resolve_database_url() -> str:
         pass
     raise RuntimeError("DATABASE_URL ontbreekt (env of config).")
 
-DATABASE_URL = _resolve_database_url()
-if DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+DATABASE_URL = normalize_database_url(_resolve_database_url())
+log_dsn_debug("discovery_bot_legacy", DATABASE_URL)
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import text
+from sqlalchemy.pool import NullPool
+from app.utils.db_url import normalize_database_url, log_dsn_debug
 
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
+engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True, poolclass=NullPool)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------

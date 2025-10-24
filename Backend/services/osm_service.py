@@ -198,13 +198,18 @@ class OsmPlacesService:
         try:
             # Import here to avoid circular imports
             from sqlalchemy import text
-            
+            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+            from sqlalchemy.pool import NullPool
+            try:
+                from app.utils.db_url import normalize_database_url, log_dsn_debug  # type: ignore
+            except Exception:
+                # Fallback import if relative paths differ
+                from app.utils.db_url import normalize_database_url, log_dsn_debug  # type: ignore
+
             if not self._db_session:
-                from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-                database_url = os.getenv("DATABASE_URL")
-                if database_url and database_url.startswith("postgresql://"):
-                    database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-                engine = create_async_engine(database_url, pool_pre_ping=True, future=True)
+                database_url = normalize_database_url(os.getenv("DATABASE_URL") or "")
+                log_dsn_debug("osm_telemetry", database_url)
+                engine = create_async_engine(database_url, pool_pre_ping=True, future=True, poolclass=NullPool)
                 self._db_session = async_sessionmaker(engine, expire_on_commit=False)
             
             # Create safe preview string for DB storage
