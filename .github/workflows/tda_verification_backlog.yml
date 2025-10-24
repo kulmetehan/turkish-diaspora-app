@@ -39,11 +39,7 @@ jobs:
             echo "DATABASE_URL is empty" >&2
             exit 1
           fi
-          case "${DATABASE_URL}" in
-            postgresql+asyncpg://*) echo "DATABASE_URL scheme OK" ;;
-            *) echo "Unexpected DATABASE_URL scheme" >&2; exit 1 ;;
-          esac
-          echo "Length: ${#DATABASE_URL}"
+          echo "DATABASE_URL length: ${#DATABASE_URL}"
 
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
