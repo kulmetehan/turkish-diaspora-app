@@ -19,6 +19,7 @@ jobs:
       DATA_PROVIDER: osm
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      OSM_TURKISH_HINTS: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
