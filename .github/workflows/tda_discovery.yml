@@ -18,7 +18,6 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      max-parallel: 4
       matrix:
         category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food]
         chunk_index: [0, 1, 2, 3, 4, 5]   # 6 chunks -> pas aan indien nodig
@@ -30,18 +29,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.11
+      - name: Setup Python 3.13
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.11-${{ hashFiles('Backend/requirements.txt') }}
+          key: pip-${{ runner.os }}-py3.13-${{ hashFiles('Backend/requirements.txt') }}
           restore-keys: |
-            pip-${{ runner.os }}-py3.11-
+            pip-${{ runner.os }}-py3.13-
 
       - name: Install deps
         run: |
@@ -64,8 +63,6 @@ jobs:
           DISCOVERY_SLEEP_JITTER_PCT: "0.20"
           OVERPASS_TIMEOUT_S: "30"
           DISCOVERY_MAX_RESULTS: "25"
-          OSM_TURKISH_HINTS: "true"
-          OSM_TELEMETRY: "0"
         run: >
           python -m app.workers.discovery_bot
           --city rotterdam
