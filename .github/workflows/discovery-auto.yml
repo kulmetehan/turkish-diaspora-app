@@ -12,6 +12,9 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      max-parallel: 2
+    strategy:
+      fail-fast: false
       matrix:
         category: [bakery, restaurant, supermarket, barber, mosque, travel_agency]
     env:
@@ -20,6 +23,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       OSM_TURKISH_HINTS: "true"
+      OSM_TELEMETRY: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

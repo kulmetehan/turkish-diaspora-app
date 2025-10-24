@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlencode
 
 import httpx
+OSM_TELEMETRY_ENABLED = os.getenv("OSM_TELEMETRY", "1") == "1"
 import structlog
 
 logger = structlog.get_logger()
@@ -192,6 +193,8 @@ class OsmPlacesService:
         raw_preview: Optional[str] = None
     ):
         """Log Overpass API call to database for telemetry."""
+        if not OSM_TELEMETRY_ENABLED:
+            return
         try:
             # Import here to avoid circular imports
             from sqlalchemy import text

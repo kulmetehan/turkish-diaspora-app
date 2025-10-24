@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 
 # --------------------------------------------------------------------
 # DB engine
@@ -23,6 +24,7 @@ async_engine = create_async_engine(
     future=True,
     echo=False,         # zet True voor debug SQL
     pool_pre_ping=True,
+    poolclass=NullPool,
 )
 
 # --------------------------------------------------------------------
