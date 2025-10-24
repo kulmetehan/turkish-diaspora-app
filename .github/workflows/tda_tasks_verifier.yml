@@ -2,11 +2,7 @@ name: TDA Tasks Verifier (every 30m)
 
 on:
   schedule:
-<<<<<<< HEAD
     - cron: "15/30 * * * *"
-=======
-    - cron: "15/30 * * * *"  # :15 and :45 each hour
->>>>>>> 1ea9571359f4fac4929caa13ccb77de3471f46e2
   workflow_dispatch:
 
 permissions:
@@ -47,5 +43,3 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: >
           python -m app.workers.task_verifier --limit 500
-
-
