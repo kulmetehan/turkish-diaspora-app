@@ -47,39 +47,10 @@ if str(BACKEND_DIR) not in sys.path:
 # ---------------------------------------------------------------------------
 # DB (async)
 # ---------------------------------------------------------------------------
-def _resolve_database_url() -> str:
-    for key in ("DATABASE_URL", "DB_URL"):
-        v = os.getenv(key)
-        if v:
-            return v
-    try:
-        from app.config import settings  # type: ignore
-        for attr in ("DATABASE_URL", "database_url", "DB_URL"):
-            if hasattr(settings, attr):
-                val = getattr(settings, attr)
-                if isinstance(val, str) and val:
-                    return val
-    except Exception:
-        pass
-    try:
-        from app.config import Config  # type: ignore
-        for attr in ("DATABASE_URL", "database_url", "DB_URL"):
-            if hasattr(Config, attr):
-                val = getattr(Config, attr)
-                if isinstance(val, str) and val:
-                    return val
-    except Exception:
-        pass
-    raise RuntimeError("DATABASE_URL ontbreekt (env of config).")
-
-DATABASE_URL = _resolve_database_url()
-if DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from app.db import engine  # reuse normalized engine with SSL handling
+from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy import text
 
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------
