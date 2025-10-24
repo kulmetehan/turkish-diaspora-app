@@ -156,11 +156,20 @@ class OsmPlacesService:
         """Get additional filters for Turkish hints when enabled."""
         if not self.turkish_hints:
             return []
-        
-        # Turkish cuisine and food-related filters
+
+        # Expanded Turkish cuisine/brand/name hints
+        name_regex = (
+            "kebab|döner|doner|baklava|börek|borek|simit|pide|lahmacun|ocakbaşı|ocakbasi|lokum|"
+            "adana|urfa|antep|gaziantep|maras|maraş|ankara|izmir|istanbul|saray|konyali|konya|"
+            "anadolu|anatolia|turk|turks|turkish|mevlana|haci|hacı|sultan|vali|pasha|paşa|hatay|"
+            "mangal|ocak|donair|iskender|çiğköfte|cigkofte|tantuni|sütlaç|sutlac|kunefe|künefe|"
+            "gözleme|gozleme|dövmeci|firin|fırın|pastane|kuyumcu|kasap|bakkal|market|ankara döner|"
+            "uludag|uludağ|marmara|ege|karadeniz|dicle|firat|firat|kardesler|kardeşler|usta"
+        )
+
         turkish_filters = [
             '["cuisine"="turkish"]',
-            '["name"~"kebab|döner|doner|baklava|börek|borek|simit|pide|lahmacun|ocakbaşı|ocakbasi|lokum",i]',
+            f'["name"~"{name_regex}",i]',
             '["name:tr"]'
         ]
         return turkish_filters
