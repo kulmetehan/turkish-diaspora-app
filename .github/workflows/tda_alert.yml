@@ -57,10 +57,4 @@ jobs:
           ALERT_CHANNEL: ops
           PYTHONUNBUFFERED: "1"
         run: >
-          # Single-shot behavior for GitHub Actions:
-          # 1) run once
-          # 2) sleep to allow one more scrape/window tick
-          # 3) exit within 4 minutes total
-          set -e
-          python app/workers/alert_bot.py || true
-          sleep 60
+          python app/workers/alert_bot.py --once
