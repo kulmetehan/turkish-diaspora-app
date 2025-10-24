@@ -78,8 +78,14 @@ if DATABASE_URL.startswith("postgresql://"):
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import text
+from sqlalchemy.pool import NullPool
 
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    future=True,
+    poolclass=NullPool,
+)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------
