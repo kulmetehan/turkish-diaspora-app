@@ -21,7 +21,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 # Load environment variables from .env file
 from dotenv import load_dotenv, find_dotenv
@@ -74,33 +73,13 @@ def _resolve_database_url() -> str:
     raise RuntimeError("DATABASE_URL ontbreekt (env of config).")
 
 DATABASE_URL = _resolve_database_url()
-def _normalize_database_url(raw: str) -> str:
-    s = (raw or "").strip().strip('"').strip("'")
-    if not s:
-        raise RuntimeError("DATABASE_URL is empty")
-    if s.startswith("postgresql://"):
-        s = s.replace("postgresql://", "postgresql+asyncpg://", 1)
-    u = urlparse(s)
-    q = dict(parse_qsl(u.query, keep_blank_values=True))
-    if "sslmode" in q:
-        q.pop("sslmode", None)
-        q["ssl"] = "true"
-    if ("pooler.supabase.com" in (u.hostname or "")) and "ssl" not in q:
-        q["ssl"] = "true"
-    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
-
-DATABASE_URL = _normalize_database_url(DATABASE_URL)
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import text
-from sqlalchemy.pool import NullPool
 
-engine = create_async_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    future=True,
-    poolclass=NullPool,
-)
+engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------
@@ -183,33 +162,6 @@ async def update_location_to_verified(
     async with engine.begin() as conn:
         result = await conn.execute(update_sql, params)
         return result.rowcount > 0
-
-async def retire_location(
-    location_id: int,
-    reason: Optional[str] = None,
-    dry_run: bool = False
-) -> bool:
-    """Mark a location as retired and annotate notes; noop when dry_run."""
-    if dry_run:
-        return True
-    now = datetime.now(timezone.utc)
-    sql = text(
-        """
-        UPDATE locations
-        SET is_retired = true,
-            last_verified_at = :now,
-            notes = COALESCE(notes, '') || :suffix
-        WHERE id = :id
-        """
-    )
-    params = {
-        "id": location_id,
-        "now": now,
-        "suffix": f"\nretired: {reason or 'not_turkish'} @ {now.isoformat()}"
-    }
-    async with engine.begin() as conn:
-        res = await conn.execute(sql, params)
-        return res.rowcount > 0
 
 async def process_location(
     location: Dict[str, Any],
@@ -299,20 +251,17 @@ async def process_location(
         else:
             # Not eligible for promotion
             if action != "keep":
-                # Retire clear non-Turkish candidates to reduce backlog noise
-                retired = await retire_location(location_id, reason="not_turkish", dry_run=dry_run)
-                result["new_state"] = "CANDIDATE"
-                result["reason"] = "Not Turkish business"
-                result["success"] = retired or result["success"]
-
-                # Audit
+                result["new_state"] = "CANDIDATE"  # Keep as candidate
+                result["reason"] = f"Not Turkish business (action: {action})"
+                
+                # Log audit entry for non-Turkish business
                 if not dry_run:
                     await audit_service.log(
-                        action_type="verify_locations.retire_not_turkish",
+                        action_type="verify_locations.skip_not_turkish",
                         actor="verify_locations_bot",
                         location_id=location_id,
                         before={"state": "CANDIDATE"},
-                        after={"state": "CANDIDATE", "retired": True},
+                        after={"state": "CANDIDATE"},
                         is_success=True,
                         meta={
                             "classification_result": classification_result.model_dump(),

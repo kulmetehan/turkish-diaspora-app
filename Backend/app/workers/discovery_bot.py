@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Dict, Any, Set, Tuple, Optional
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 # --- Uniform logging ---
 from app.core.logging import configure_logging, get_logger
@@ -71,33 +70,13 @@ def _resolve_database_url() -> str:
     raise RuntimeError("DATABASE_URL ontbreekt (env of config).")
 
 DATABASE_URL = _resolve_database_url()
-def _normalize_database_url(raw: str) -> str:
-    s = (raw or "").strip().strip('"').strip("'")
-    if not s:
-        raise RuntimeError("DATABASE_URL is empty")
-    if s.startswith("postgresql://"):
-        s = s.replace("postgresql://", "postgresql+asyncpg://", 1)
-    u = urlparse(s)
-    q = dict(parse_qsl(u.query, keep_blank_values=True))
-    if "sslmode" in q:
-        q.pop("sslmode", None)
-        q["ssl"] = "true"
-    if ("pooler.supabase.com" in (u.hostname or "")) and "ssl" not in q:
-        q["ssl"] = "true"
-    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
-
-DATABASE_URL = _normalize_database_url(DATABASE_URL)
+if DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import text
-from sqlalchemy.pool import NullPool
 
-engine = create_async_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    future=True,
-    poolclass=NullPool,
-)
+engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
 Session = async_sessionmaker(engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------

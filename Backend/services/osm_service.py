@@ -22,7 +22,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urlencode
 
 import httpx
-OSM_TELEMETRY_ENABLED = os.getenv("OSM_TELEMETRY", "1") == "1"
 import structlog
 
 logger = structlog.get_logger()
@@ -157,20 +156,11 @@ class OsmPlacesService:
         """Get additional filters for Turkish hints when enabled."""
         if not self.turkish_hints:
             return []
-
-        # Expanded Turkish cuisine/brand/name hints
-        name_regex = (
-            "kebab|döner|doner|baklava|börek|borek|simit|pide|lahmacun|ocakbaşı|ocakbasi|lokum|"
-            "adana|urfa|antep|gaziantep|maras|maraş|ankara|izmir|istanbul|saray|konyali|konya|"
-            "anadolu|anatolia|turk|turks|turkish|mevlana|haci|hacı|sultan|vali|pasha|paşa|hatay|"
-            "mangal|ocak|donair|iskender|çiğköfte|cigkofte|tantuni|sütlaç|sutlac|kunefe|künefe|"
-            "gözleme|gozleme|dövmeci|firin|fırın|pastane|kuyumcu|kasap|bakkal|market|ankara döner|"
-            "uludag|uludağ|marmara|ege|karadeniz|dicle|firat|firat|kardesler|kardeşler|usta"
-        )
-
+        
+        # Turkish cuisine and food-related filters
         turkish_filters = [
             '["cuisine"="turkish"]',
-            f'["name"~"{name_regex}",i]',
+            '["name"~"kebab|döner|doner|baklava|börek|borek|simit|pide|lahmacun|ocakbaşı|ocakbasi|lokum",i]',
             '["name:tr"]'
         ]
         return turkish_filters
@@ -193,23 +183,16 @@ class OsmPlacesService:
         raw_preview: Optional[str] = None
     ):
         """Log Overpass API call to database for telemetry."""
-        if not OSM_TELEMETRY_ENABLED:
-            return
         try:
             # Import here to avoid circular imports
             from sqlalchemy import text
-            from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-            from sqlalchemy.pool import NullPool
-            try:
-                from app.utils.db_url import normalize_database_url, log_dsn_debug  # type: ignore
-            except Exception:
-                # Fallback import if relative paths differ
-                from app.utils.db_url import normalize_database_url, log_dsn_debug  # type: ignore
-
+            
             if not self._db_session:
-                database_url = normalize_database_url(os.getenv("DATABASE_URL") or "")
-                log_dsn_debug("osm_telemetry", database_url)
-                engine = create_async_engine(database_url, pool_pre_ping=True, future=True, poolclass=NullPool)
+                from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+                database_url = os.getenv("DATABASE_URL")
+                if database_url and database_url.startswith("postgresql://"):
+                    database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+                engine = create_async_engine(database_url, pool_pre_ping=True, future=True)
                 self._db_session = async_sessionmaker(engine, expire_on_commit=False)
             
             # Create safe preview string for DB storage
@@ -316,8 +299,7 @@ class OsmPlacesService:
         radius: int,
         osm_tags_list: List[List[Dict[str, Any]]],
         max_results: int,
-        timeout_s: int = 25,
-        included_types: Optional[List[str]] = None
+        timeout_s: int = 25
     ) -> str:
         """Build a single Overpass query that combines multiple categories."""
         all_filter_snippets = []
@@ -332,22 +314,9 @@ class OsmPlacesService:
                     all_selector = self._render_filters_all(tag_group["all"])
                     all_filter_snippets.append(all_selector)
         
-        # Add Turkish hints (restrictive AND) for food categories
+        # Add Turkish hints if enabled
         turkish_filters = self._get_turkish_hints_filters()
-        if self.turkish_hints and turkish_filters:
-            food_keys = {"restaurant", "fast_food", "bakery", "butcher", "supermarket"}
-            if included_types and any(k in food_keys for k in included_types):
-                # Combine each base selector with each hint using AND semantics
-                combined_snippets: List[str] = []
-                for s in all_filter_snippets or []:
-                    for h in turkish_filters:
-                        combined_snippets.append(s + h)  # AND in Overpass = concatenated filters
-                if combined_snippets:
-                    all_filter_snippets = combined_snippets
-            else:
-                # For non-food categories, keep hints optional (or skip entirely)
-                # all_filter_snippets.extend(turkish_filters)
-                pass
+        all_filter_snippets.extend(turkish_filters)
         
         if not all_filter_snippets:
             # Fallback to basic place types if no filters
@@ -527,7 +496,7 @@ out center;
                 ]
             }]]
         
-        query = self._build_union_query(lat, lng, radius, osm_tags_list, max_results, self.timeout_s, included_types)
+        query = self._build_union_query(lat, lng, radius, osm_tags_list, max_results, self.timeout_s)
         
         if OSM_LOG_QUERIES:
             logger.debug("osm_query_rendered", provider="osm", query=query)

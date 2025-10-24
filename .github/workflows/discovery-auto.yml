@@ -12,7 +12,6 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      max-parallel: 2
       matrix:
         category: [bakery, restaurant, supermarket, barber, mosque, travel_agency]
     env:
@@ -20,12 +19,6 @@ jobs:
       DATA_PROVIDER: osm
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      OSM_TURKISH_HINTS: "true"
-      OSM_TELEMETRY: "0"
-    defaults:
-      run:
-        working-directory: Backend
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -37,15 +30,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r Backend/requirements.txt
 
       - name: Run DiscoveryBot (${{ matrix.category }})
-        env:
-          OSM_TURKISH_HINTS: "true"
-          OSM_TELEMETRY: "0"
-          PYTHONUNBUFFERED: "1"
         run: |
+          cd Backend
           echo "=== Starting DiscoveryBot (OSM) for ${{ matrix.category }} ==="
           python -m app.workers.discovery_bot \
             --city rotterdam \
