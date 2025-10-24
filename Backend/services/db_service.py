@@ -8,6 +8,15 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
+import ssl
+from typing import cast
+
+try:
+    import certifi  # type: ignore
+    _CERTIFI_CAFILE: Optional[str] = cast(Optional[str], certifi.where())
+except Exception:
+    _CERTIFI_CAFILE = None
 
 # --------------------------------------------------------------------
 # DB engine
@@ -17,12 +26,67 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL not set in environment/.env")
 
+# Normalize DB URL for asyncpg: ensure driver, drop ssl/sslmode from query
+def _normalize_db_url(url: str) -> str:
+    # Ensure asyncpg scheme for SQLAlchemy
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    # Parse and sanitize query for asyncpg
+    parsed = urlparse(url)
+    q = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+    # Drop ssl/sslmode so they don't propagate as kwargs
+    q.pop("sslmode", None)
+    q.pop("ssl", None)
+
+    new_query = urlencode(q)
+    url = urlunparse(parsed._replace(query=new_query))
+    return url
+
+DATABASE_URL = _normalize_db_url(DATABASE_URL)
+
 # SQLAlchemy async engine (2.x style)
+# Build SSL context using certifi CA bundle when available (fixes macOS trust issues)
+def _build_ssl_context() -> ssl.SSLContext:
+    # Allow local override to disable verification (development only)
+    # Default: disable verification locally, keep verification on in CI
+    no_verify_default = "0" if os.getenv("CI", "").strip().lower() in ("1", "true") else "1"
+    no_verify = os.getenv("DATABASE_SSL_NO_VERIFY", no_verify_default).strip().lower() in ("1", "true", "yes")
+
+    # Prefer explicit CA bundle envs if provided
+    ca_env_keys = (
+        "DATABASE_SSL_CAFILE",
+        "PGSSLROOTCERT",
+        "SSL_CERT_FILE",
+        "REQUESTS_CA_BUNDLE",
+    )
+    cafile: Optional[str] = None
+    for k in ca_env_keys:
+        v = os.getenv(k)
+        if v and os.path.exists(v):
+            cafile = v
+            break
+
+    if cafile:
+        ctx = ssl.create_default_context(cafile=cafile)
+    elif _CERTIFI_CAFILE:
+        ctx = ssl.create_default_context(cafile=_CERTIFI_CAFILE)
+    else:
+        ctx = ssl.create_default_context()
+
+    if no_verify:
+        # Dangerous: only for local troubleshooting
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
 async_engine = create_async_engine(
     DATABASE_URL,
     future=True,
     echo=False,         # zet True voor debug SQL
     pool_pre_ping=True,
+    connect_args={"ssl": _build_ssl_context()},
 )
 
 # --------------------------------------------------------------------
