@@ -42,4 +42,4 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           PYTHONUNBUFFERED: "1"
         run: >
-          python -m app.workers.task_verifier --limit 500
+          python -m app.workers.task_verifier --limit 500 --min-confidence 0.70

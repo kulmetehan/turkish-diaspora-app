@@ -228,6 +228,9 @@ async def enqueue_verification_tasks(cfg: MonitorSettings) -> tuple[int, int]:
 
     async with async_engine.begin() as conn:
         for r in due_rows:
+            # Only enqueue verification tasks for VERIFIED locations
+            if (r.get("state") or "").upper() != "VERIFIED":
+                continue
             # 1) enqueue taak
             if not cfg.DRY_RUN:
                 await conn.execute(

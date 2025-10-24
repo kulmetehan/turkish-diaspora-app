@@ -188,6 +188,15 @@ async def process_task(
     loc = await _get_location(location_id)
     if not loc:
         return False, f"location_id {location_id} not found"
+    if (loc.get("state") or "").upper() != "VERIFIED":
+        # Only recheck VERIFIED; drain the task without changing state
+        if not dry_run:
+            try:
+                await _ensure_schema_detection()
+                await _mark_task_done(task_id)
+            except Exception as e2:
+                logger.warning("mark_task_done_failed", task_id=task_id, error=str(e2))
+        return True, None
 
     classify = ClassifyService(model=model)
     try:
