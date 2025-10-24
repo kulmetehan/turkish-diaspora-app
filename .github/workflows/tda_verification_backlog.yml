@@ -41,18 +41,18 @@ jobs:
           fi
           echo "DATABASE_URL length: ${#DATABASE_URL}"
 
-      - name: Setup Python 3.13
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11"
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.13-${{ hashFiles('Backend/requirements.txt') }}
+          key: pip-${{ runner.os }}-py3.11-${{ hashFiles('Backend/requirements.txt') }}
           restore-keys: |
-            pip-${{ runner.os }}-py3.13-
+            pip-${{ runner.os }}-py3.11-
 
       - name: Install deps
         run: |
