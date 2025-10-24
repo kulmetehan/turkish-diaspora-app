@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -136,4 +137,10 @@ async def run_forever() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(run_forever())
+    run_once = ("--once" in sys.argv) or (os.getenv("ALERT_RUN_ONCE", "0").strip() in ("1", "true", "yes", "y"))
+    if run_once:
+        with with_run_id() as rid:
+            cfg = _env_cfg()
+            asyncio.run(check_and_alert_once(cfg))
+    else:
+        asyncio.run(run_forever())
