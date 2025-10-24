@@ -70,12 +70,27 @@ def _resolve_database_url() -> str:
     raise RuntimeError("DATABASE_URL ontbreekt (env of config).")
 
 DATABASE_URL = _resolve_database_url()
-if DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+def _normalize_database_url(raw: str) -> str:
+    s = (raw or "").strip().strip('"').strip("'")
+    if not s:
+        raise RuntimeError("DATABASE_URL is empty")
+    if s.startswith("postgresql://"):
+        s = s.replace("postgresql://", "postgresql+asyncpg://", 1)
+    u = urlparse(s)
+    q = dict(parse_qsl(u.query, keep_blank_values=True))
+    if "sslmode" in q:
+        q.pop("sslmode", None)
+        q["ssl"] = "true"
+    if (u.hostname or "").find("pooler.supabase.com") != -1 and "ssl" not in q:
+        q["ssl"] = "true"
+    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
+
+DATABASE_URL = _normalize_database_url(DATABASE_URL)
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from sqlalchemy import text
 from sqlalchemy.pool import NullPool
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 engine = create_async_engine(
     DATABASE_URL,

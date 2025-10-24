@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 # --------------------------------------------------------------------
 # DB engine
@@ -17,6 +18,24 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL not set in environment/.env")
+
+# Normalize DATABASE_URL for asyncpg compatibility
+def _normalize_database_url(raw: str) -> str:
+    s = (raw or '').strip().strip('"').strip("'")
+    if not s:
+        raise RuntimeError('DATABASE_URL is empty')
+    if s.startswith('postgresql://'):
+        s = s.replace('postgresql://', 'postgresql+asyncpg://', 1)
+    u = urlparse(s)
+    q = dict(parse_qsl(u.query, keep_blank_values=True))
+    if 'sslmode' in q:
+        q.pop('sslmode', None)
+        q['ssl'] = 'true'
+    if ('pooler.supabase.com' in (u.hostname or '')) and 'ssl' not in q:
+        q['ssl'] = 'true'
+    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
+
+DATABASE_URL = _normalize_database_url(DATABASE_URL)
 
 # SQLAlchemy async engine (2.x style)
 async_engine = create_async_engine(
