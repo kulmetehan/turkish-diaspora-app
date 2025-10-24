@@ -26,6 +26,7 @@ from services.ai_validation import validate_classification_payload
 # ------------------------------
 # SQL helpers
 # ------------------------------
+HAS_IS_SUCCESS: bool | None = None
 SQL_FETCH_TASKS = text(
     """
     SELECT id, location_id
@@ -68,21 +69,72 @@ SQL_UPDATE_LOCATION_RETIRED = text(
     """
 )
 
-SQL_TASK_DONE = text(
+SQL_TASK_DONE_BASE = text(
     """
     UPDATE tasks
-    SET status = 'DONE', is_success = true, error_message = NULL, updated_at = NOW()
+    SET status = 'DONE',
+        error_message = NULL,
+        updated_at = NOW()
     WHERE id = :id
     """
 )
 
-SQL_TASK_FAILED = text(
+SQL_TASK_FAILED_BASE = text(
     """
     UPDATE tasks
-    SET status = 'FAILED', is_success = false, error_message = :err, updated_at = NOW()
+    SET status = 'FAILED',
+        error_message = :err,
+        updated_at = NOW()
     WHERE id = :id
     """
 )
+
+SQL_TASK_DONE_WITH_SUCCESS = text(
+    """
+    UPDATE tasks
+    SET status = 'DONE',
+        is_success = true,
+        error_message = NULL,
+        updated_at = NOW()
+    WHERE id = :id
+    """
+)
+
+SQL_TASK_FAILED_WITH_SUCCESS = text(
+    """
+    UPDATE tasks
+    SET status = 'FAILED',
+        is_success = false,
+        error_message = :err,
+        updated_at = NOW()
+    WHERE id = :id
+    """
+)
+
+async def _detect_tasks_has_is_success() -> bool:
+    q = text(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'tasks'
+          AND column_name = 'is_success'
+        LIMIT 1
+        """
+    )
+    async with async_engine.begin() as conn:
+        row = (await conn.execute(q)).first()
+        return bool(row)
+
+async def _ensure_schema_detection() -> None:
+    global HAS_IS_SUCCESS
+    if HAS_IS_SUCCESS is None:
+        try:
+            HAS_IS_SUCCESS = await _detect_tasks_has_is_success()
+            logger.info("tasks_schema_detected", has_is_success=HAS_IS_SUCCESS)
+        except Exception as e:
+            HAS_IS_SUCCESS = False
+            logger.warning("tasks_schema_detection_failed", error=str(e))
 
 
 async def _fetch_pending_verification_tasks(limit: int) -> List[Dict[str, Any]]:
@@ -98,13 +150,17 @@ async def _get_location(location_id: int) -> Optional[Dict[str, Any]]:
 
 
 async def _mark_task_done(task_id: int) -> None:
+    await _ensure_schema_detection()
+    sql = SQL_TASK_DONE_WITH_SUCCESS if HAS_IS_SUCCESS else SQL_TASK_DONE_BASE
     async with async_engine.begin() as conn:
-        await conn.execute(SQL_TASK_DONE, {"id": task_id})
+        await conn.execute(sql, {"id": task_id})
 
 
 async def _mark_task_failed(task_id: int, error: str) -> None:
+    await _ensure_schema_detection()
+    sql = SQL_TASK_FAILED_WITH_SUCCESS if HAS_IS_SUCCESS else SQL_TASK_FAILED_BASE
     async with async_engine.begin() as conn:
-        await conn.execute(SQL_TASK_FAILED, {"id": task_id, "err": error[:1000]})
+        await conn.execute(sql, {"id": task_id, "err": error[:1000]})
 
 
 async def _update_location_verified(location_id: int, category: str, confidence: float, dry_run: bool) -> None:
@@ -243,6 +299,11 @@ async def main_async() -> None:
     with with_run_id() as rid:
         logger.info("worker_started")
         args = parse_args()
+        # Optional: detect schema once at startup for clearer logs
+        try:
+            await _ensure_schema_detection()
+        except Exception:
+            pass
         res = await run_tasks(
             limit=int(args.limit),
             min_confidence=float(args.min_confidence),
