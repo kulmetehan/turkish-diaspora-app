@@ -63,6 +63,7 @@ jobs:
           DISCOVERY_SLEEP_JITTER_PCT: "0.15"
           OVERPASS_TIMEOUT_S: "25"
           DISCOVERY_MAX_RESULTS: "20"
+          OSM_TURKISH_HINTS: "true"
         run: >
           python -m app.workers.discovery_bot
           --city rotterdam

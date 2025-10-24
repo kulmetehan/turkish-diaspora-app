@@ -163,6 +163,33 @@ async def update_location_to_verified(
         result = await conn.execute(update_sql, params)
         return result.rowcount > 0
 
+async def retire_location(
+    location_id: int,
+    reason: Optional[str] = None,
+    dry_run: bool = False
+) -> bool:
+    """Mark a location as retired and annotate notes; noop when dry_run."""
+    if dry_run:
+        return True
+    now = datetime.now(timezone.utc)
+    sql = text(
+        """
+        UPDATE locations
+        SET is_retired = true,
+            last_verified_at = :now,
+            notes = COALESCE(notes, '') || :suffix
+        WHERE id = :id
+        """
+    )
+    params = {
+        "id": location_id,
+        "now": now,
+        "suffix": f"\nretired: {reason or 'not_turkish'} @ {now.isoformat()}"
+    }
+    async with engine.begin() as conn:
+        res = await conn.execute(sql, params)
+        return res.rowcount > 0
+
 async def process_location(
     location: Dict[str, Any],
     classify_service: ClassifyService,
@@ -251,17 +278,20 @@ async def process_location(
         else:
             # Not eligible for promotion
             if action != "keep":
-                result["new_state"] = "CANDIDATE"  # Keep as candidate
-                result["reason"] = f"Not Turkish business (action: {action})"
-                
-                # Log audit entry for non-Turkish business
+                # Retire clear non-Turkish candidates to reduce backlog noise
+                retired = await retire_location(location_id, reason="not_turkish", dry_run=dry_run)
+                result["new_state"] = "CANDIDATE"
+                result["reason"] = "Not Turkish business"
+                result["success"] = retired or result["success"]
+
+                # Audit
                 if not dry_run:
                     await audit_service.log(
-                        action_type="verify_locations.skip_not_turkish",
+                        action_type="verify_locations.retire_not_turkish",
                         actor="verify_locations_bot",
                         location_id=location_id,
                         before={"state": "CANDIDATE"},
-                        after={"state": "CANDIDATE"},
+                        after={"state": "CANDIDATE", "retired": True},
                         is_success=True,
                         meta={
                             "classification_result": classification_result.model_dump(),
