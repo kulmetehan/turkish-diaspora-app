@@ -1,38 +1,3 @@
-name: TDA Monitor
-
-on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 * * * *'
-
-jobs:
-  monitor:
-    runs-on: ubuntu-latest
-    env:
-      PYTHONUNBUFFERED: "1"
-      PYTHONPATH: .
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      DB_SSL_VERIFY: "0"
-      MONITOR_MAX_PER_RUN: ${{ secrets.MONITOR_MAX_PER_RUN || 200 }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Python 3.11.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11.9'
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r Backend/requirements.txt
-      - name: Run Monitor Bot
-        working-directory: Backend
-        run: |
-          python -m app.workers.monitor_bot --limit ${{ env.MONITOR_MAX_PER_RUN || 200 }}
-
 name: TDA Monitor (hourly)
 
 on:
