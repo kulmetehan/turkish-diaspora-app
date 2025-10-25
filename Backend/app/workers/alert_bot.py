@@ -78,7 +78,7 @@ async def _task_error_rate(window_minutes: int) -> float:
         """
         SELECT COUNT(*) AS n
         FROM ai_logs
-        WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
+        WHERE created_at >= NOW() - (($1::int || ' minutes')::interval)
         """
     )
     rows_total = await fetch(logs_total, int(window_minutes))
@@ -88,8 +88,8 @@ async def _task_error_rate(window_minutes: int) -> float:
         """
         SELECT COUNT(*) AS n
         FROM ai_logs
-        WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
-          AND (is_success = false OR error IS NOT NULL)
+        WHERE created_at >= NOW() - (($1::int || ' minutes')::interval)
+          AND (is_success = false OR error_message IS NOT NULL)
         """
     )
     rows_err = await fetch(logs_errors, int(window_minutes))
@@ -105,13 +105,11 @@ async def _google429_bursts(window_minutes: int) -> int:
         """
         SELECT COUNT(*) AS n
         FROM ai_logs
-        WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
-          AND (provider = 'google_places' OR provider = 'google')
+        WHERE created_at >= NOW() - (($1::int || ' minutes')::interval)
           AND (
-                status_code = 429
-             OR error ILIKE '%429%'
-             OR error ILIKE '%quota%'
-             OR error ILIKE '%over query limit%'
+                error_message ILIKE '%429%'
+             OR (raw_response ? 'statusCode' AND (raw_response->>'statusCode')::int = 429)
+             OR (raw_response ? 'error' AND (raw_response->'error'->>'code') = 'RESOURCE_EXHAUSTED')
           )
         """
     )
