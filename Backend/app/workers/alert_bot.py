@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import os
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -72,83 +72,51 @@ def _fmt_ratio(val: float) -> str:
 
 
 async def _task_error_rate(window_minutes: int) -> float:
-    """Compute task error rate from tasks; fallback to ai_logs if tasks empty."""
-    window_td = timedelta(minutes=int(window_minutes))
-    # Try tasks
-    total_sql = (
-        """
-        SELECT COUNT(*)::int AS total
-        FROM tasks
-        WHERE created_at >= (NOW() - $1)
-        """
-    )
-    failed_sql = (
-        """
-        SELECT COUNT(*)::int AS failed
-        FROM tasks
-        WHERE created_at >= (NOW() - $1)
-          AND (status = 'FAILED' OR is_success = false)
-        """
-    )
-    try:
-        rows_t = await fetch(total_sql, window_td)
-        rows_f = await fetch(failed_sql, window_td)
-        total = int((rows_t[0]["total"] if rows_t else 0) or 0)
-        failed = int((rows_f[0]["failed"] if rows_f else 0) or 0)
-        if total > 0:
-            return failed / float(total)
-    except Exception:
-        pass
+    # window_minutes is already an int
 
-    # Fallback: ai_logs
     logs_total = (
         """
-        SELECT COUNT(*)::int AS total
+        SELECT COUNT(*) AS n
         FROM ai_logs
-        WHERE created_at >= (NOW() - $1)
-          AND (
-            action_type ILIKE 'worker.%' OR
-            action_type ILIKE 'bot.%' OR
-            action_type ILIKE 'task.%'
-          )
+        WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
         """
     )
-    logs_failed = (
+    rows_total = await fetch(logs_total, int(window_minutes))
+    total = rows_total[0]["n"] if rows_total else 0
+
+    logs_errors = (
         """
-        SELECT COUNT(*)::int AS failed
+        SELECT COUNT(*) AS n
         FROM ai_logs
-        WHERE created_at >= (NOW() - $1)
-          AND (
-            action_type ILIKE 'worker.%' OR
-            action_type ILIKE 'bot.%' OR
-            action_type ILIKE 'task.%'
-          )
-          AND is_success = false
+        WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
+          AND (is_success = false OR error IS NOT NULL)
         """
     )
-    rows_lt = await fetch(logs_total, window_td)
-    rows_lf = await fetch(logs_failed, window_td)
-    total = int((rows_lt[0]["total"] if rows_lt else 0) or 0)
-    failed = int((rows_lf[0]["failed"] if rows_lf else 0) or 0)
-    return (failed / float(total)) if total > 0 else 0.0
+    rows_err = await fetch(logs_errors, int(window_minutes))
+    err = rows_err[0]["n"] if rows_err else 0
+
+    if total == 0:
+        return 0.0
+    return float(err) / float(total)
 
 
 async def _google429_bursts(window_minutes: int) -> int:
-    window_td = timedelta(minutes=int(window_minutes))
     sql = (
         """
-        SELECT COUNT(*)::int AS cnt
+        SELECT COUNT(*) AS n
         FROM ai_logs
-        WHERE created_at >= (NOW() - $1)
+        WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
+          AND (provider = 'google_places' OR provider = 'google')
           AND (
-            error_message ILIKE '%429%' OR
-            (raw_response ? 'statusCode' AND (raw_response->>'statusCode')::int = 429) OR
-            (raw_response ? 'error' AND (raw_response->'error'->>'code') = 'RESOURCE_EXHAUSTED')
+                status_code = 429
+             OR error ILIKE '%429%'
+             OR error ILIKE '%quota%'
+             OR error ILIKE '%over query limit%'
           )
         """
     )
-    rows = await fetch(sql, window_td)
-    return int((rows[0]["cnt"] if rows else 0) or 0)
+    rows = await fetch(sql, int(window_minutes))
+    return rows[0]["n"] if rows else 0
 
 
 async def check_and_alert_once(cfg: AlertConfig) -> Dict[str, Any]:
