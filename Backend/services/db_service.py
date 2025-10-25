@@ -5,7 +5,7 @@ import os
 import json
 from typing import Any, Dict, List, Optional
 import asyncio
-from urllib.parse import urlparse, parse_qsl, urlunparse, urlencode
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 import logging
@@ -20,91 +20,75 @@ if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL not set in environment/.env")
 
 
-# --------------------------------------------------------------------
-# Connection string normalization (exported)
-# --------------------------------------------------------------------
-def _normalize_scheme(url: str) -> str:
-    # Force postgresql:// scheme (strip postgresql+asyncpg:// if present)
-    if url.startswith("postgresql+asyncpg://"):
-        return url.replace("postgresql+asyncpg://", "postgresql://", 1)
-    return url
-
-
-def normalize_db_url(raw_url: str) -> dict:
+def normalize_database_url(raw_dsn: str) -> str:
     """
-    Normalize DATABASE_URL to a postgresql:// DSN and return parsed parts:
-    {
-        "user", "password", "host", "port", "database", "sslmode"
-    }
-    Rules:
-    - Force scheme to postgresql://
-    - Rewrite port 6543 -> 5432
-    - Preserve or add sslmode=require
+    Keep Supabase username EXACT (ex: postgres.shkzerlxzuzourbxujwx),
+    keep encoded password EXACT,
+    keep host/port/db EXACT,
+    just rewrite scheme from postgresql+asyncpg:// → postgresql:// if needed.
+    No other rewriting. No default user. No port swapping.
     """
-    coerced = _normalize_scheme(raw_url)
-    parsed = urlparse(coerced)
-
-    # Some providers may include non-standard ports
-    port = parsed.port or 5432
-    if port == 6543:
-        port = 5432
-
-    # Ensure sslmode=require in query
-    q = dict(parse_qsl(parsed.query))
-    if "sslmode" not in q or not q.get("sslmode"):
-        q["sslmode"] = "require"
-
-    user = parsed.username or ""
-    password = parsed.password or ""
-    host = parsed.hostname or ""
-    database = (parsed.path or "/postgres").lstrip("/") or "postgres"
-
-    return {
-        "user": user,
-        "password": password,
-        "host": host,
-        "port": port,
-        "database": database,
-        "sslmode": q.get("sslmode", "require"),
-    }
+    raw_dsn = raw_dsn.strip()
+    if raw_dsn.startswith("postgresql+asyncpg://"):
+        raw_dsn = "postgresql://" + raw_dsn[len("postgresql+asyncpg://"):]
+    return raw_dsn
 
 logger = logging.getLogger(__name__)
 
-# Normalize early (dict conf)
-DB_CONF = normalize_db_url(DATABASE_URL)
-
-_masked_pw = "***" if DB_CONF.get("password") else ""
-logger.info(
-    "db_engine_normalized_url",
-    extra={
-        "url": f"postgresql://{DB_CONF['user']}:{_masked_pw}@{DB_CONF['host']}:{DB_CONF['port']}/{DB_CONF['database']}?sslmode={DB_CONF['sslmode']}"
-    },
-)
+# No DSN rebuilding here; we keep DATABASE_URL as-is and only normalize scheme at pool creation time.
 
 # --------------------------------------------------------------------
 # Lightweight asyncpg pool + helpers (pool size clamped to 1)
 # --------------------------------------------------------------------
 _pool: asyncpg.Pool | None = None
-_init_lock = asyncio.Lock()
+_pool_lock = asyncio.Lock()
 
 async def ensure_pool() -> asyncpg.Pool:
     global _pool
-    if _pool is None:
-        async with _init_lock:
-            if _pool is None:
-                logger.info("Initializing asyncpg connection pool (min=1, max=1)...")
-                _pool = await asyncpg.create_pool(
-                    user=DB_CONF["user"],
-                    password=DB_CONF["password"],
-                    host=DB_CONF["host"],
-                    port=DB_CONF["port"],
-                    database=DB_CONF["database"],
-                    ssl="require" if DB_CONF["sslmode"] != "disable" else False,
-                    min_size=1,
-                    max_size=1,
-                    statement_cache_size=0,
-                )
-    return _pool
+    if _pool is not None:
+        return _pool
+
+    async with _pool_lock:
+        if _pool is not None:
+            return _pool
+
+        raw_dsn = os.getenv("DATABASE_URL", "").strip()
+        final_dsn = normalize_database_url(raw_dsn)
+
+        # --- DEBUG START ---
+        try:
+            parsed = urlparse(final_dsn)
+            debug_user = parsed.username
+            debug_host = parsed.hostname
+            debug_port = parsed.port
+            print(
+                "db_engine_debug_user_host_port",
+                debug_user,
+                debug_host,
+                debug_port,
+                flush=True,
+            )
+            # print DSN prefix without leaking host/password
+            print(
+                "db_engine_debug_prefix",
+                final_dsn.split("@")[0],
+                flush=True,
+            )
+        except Exception as e:
+            print("db_engine_debug_parse_error", str(e), flush=True)
+        # --- DEBUG END ---
+
+        logger.info("Initializing asyncpg connection pool (min=1, max=1)...")
+        _pool = await asyncpg.create_pool(
+            dsn=final_dsn,
+            min_size=1,
+            max_size=1,
+            command_timeout=60,
+            timeout=60,
+            statement_cache_size=0,
+            max_inactive_connection_lifetime=30,
+        )
+        return _pool
 
 async def init_db_pool() -> asyncpg.Pool:
     # Backwards-compatible wrapper; safe to call multiple times
