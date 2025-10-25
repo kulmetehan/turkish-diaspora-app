@@ -49,7 +49,7 @@ jobs:
           OPENAI_MODEL: gpt-4.1-mini
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          CLASSIFY_MIN_CONF: "0.80"
+          CLASSIFY_MIN_CONF: "0.70"
           PYTHONUNBUFFERED: "1"
           DB_SSL_VERIFY: "0"
         run: >
