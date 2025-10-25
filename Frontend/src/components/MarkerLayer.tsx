@@ -1,13 +1,13 @@
 // src/components/MarkerLayer.tsx
-import type { Location } from "@/lib/api/location";
+import type { LocationMarker } from "@/api/fetchLocations";
 import type { LngLatLike, MapboxGeoJSONFeature, Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useMemo, useRef } from "react";
 
 type Props = {
   map: MapboxMap;
-  locations: Location[];
-  selectedId: number | null;
-  onSelect?: (id: number) => void;
+  locations: LocationMarker[];
+  selectedId: string | null;
+  onSelect?: (id: string) => void;
 };
 
 /** IDs voor source & layers (éénmaal gebruiken in hele app) */
@@ -37,20 +37,21 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
   const data = useMemo(
     () => ({
       type: "FeatureCollection" as const,
-      features: locations.map((l) => ({
-        type: "Feature" as const,
-        properties: {
-          id: l.id,
-          name: l.name,
-          category: l.category ?? "",
-          rating: l.rating ?? null,
-          confidence: l.confidence_score ?? null,
-        },
-        geometry: {
-          type: "Point" as const,
-          coordinates: [l.lng, l.lat] as [number, number],
-        },
-      })),
+      features: locations
+        .filter((l) => typeof l.lat === "number" && typeof l.lng === "number")
+        .map((l) => ({
+          type: "Feature" as const,
+          properties: {
+            id: String(l.id),
+            name: l.name,
+            category: l.category ?? "",
+            confidence: l.confidence_score ?? null,
+          },
+          geometry: {
+            type: "Point" as const,
+            coordinates: [l.lng as number, l.lat as number] as [number, number],
+          },
+        })),
     }),
     [locations]
   );
@@ -133,7 +134,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
           id: L_HI,
           type: "circle",
           source: SRC_ID,
-          filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], -1]],
+          filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "__none__"]],
           paint: {
             "circle-color": "#22c55e",
             "circle-radius": 10,
@@ -167,10 +168,8 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT] }) as
           | MapboxGeoJSONFeature[]
           | undefined;
-        const id = Number(feats?.[0]?.properties?.id);
-        if (Number.isFinite(id)) {
-          onSelect?.(id);
-        }
+        const id = feats?.[0]?.properties?.id as string | undefined;
+        if (id) onSelect?.(id);
       };
 
       const onEnter = () => {
@@ -241,7 +240,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
     if (!hasStyleObject(map)) return;
     if (!map.getLayer(L_HI)) return;
 
-    const id = Number.isFinite(selectedId) ? (selectedId as number) : -1;
+    const id = selectedId ?? "__none__";
     try {
       map.setFilter(L_HI, ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], id]]);
     } catch { }

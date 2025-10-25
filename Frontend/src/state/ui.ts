@@ -9,7 +9,7 @@ import { useSyncExternalStore } from "react";
 
 // ---------- Types ----------
 
-export type SortBy = "distance" | "rating";
+export type SortBy = "none" | "distance";
 
 export interface UIState {
   /** Currently selected location id (syncs list <-> map). */
@@ -30,7 +30,7 @@ const listeners = new Set<() => void>();
 let state: UIState = {
   selectedLocationId: null,
   selectedCategories: [],
-  sortBy: "rating",
+  sortBy: "none",
 };
 
 function emit() {
@@ -110,7 +110,7 @@ export function __resetUIState() {
   state = {
     selectedLocationId: null,
     selectedCategories: [],
-    sortBy: "rating",
+    sortBy: "none",
   };
   emit();
 }

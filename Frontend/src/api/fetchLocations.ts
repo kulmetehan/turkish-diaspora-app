@@ -6,6 +6,7 @@ export interface LocationMarker {
     lng: number | null;
     category: string;
     state: string;
+    // rating is legacy (Google). The frontend does not display or use it.
     rating: number | null;
     confidence_score: number | null;
     is_turkish: boolean;

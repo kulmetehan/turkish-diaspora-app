@@ -3,13 +3,11 @@ import { useMemo } from "react";
 type Props = {
   search: string;
   category: string;
-  minRating: number | null;
   onlyTurkish: boolean;
   loading?: boolean;
   onChange: (patch: Partial<{
     search: string;
     category: string;
-    minRating: number | null;
     onlyTurkish: boolean;
   }>) => void;
 };
@@ -29,12 +27,11 @@ const KNOWN_CATEGORIES = [
 export default function Filters({
   search,
   category,
-  minRating,
   onlyTurkish,
   loading,
   onChange,
 }: Props) {
-  const ratingValue = minRating ?? 0;
+
 
   const categories = useMemo(() => {
     // Zorg dat de huidige category (als die buiten de lijst valt) toch zichtbaar is.
@@ -75,22 +72,6 @@ export default function Filters({
             </option>
           ))}
         </select>
-
-        <div className="flex items-center gap-2">
-          <label htmlFor="rating-range" className="text-sm whitespace-nowrap">Min. rating</label>
-          <input
-            id="rating-range"
-            name="minRating"
-            className="w-40"
-            type="range"
-            min={0}
-            max={5}
-            step={0.5}
-            value={ratingValue}
-            onChange={(e) => onChange({ minRating: Number(e.target.value) || 0 })}
-          />
-          <span className="w-8 text-center text-sm">{ratingValue.toFixed(1)}</span>
-        </div>
 
         {loading ? (
           <span className="text-xs text-muted-foreground">Laden…</span>

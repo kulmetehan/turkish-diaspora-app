@@ -1,10 +1,10 @@
+import type { LocationMarker } from "@/api/fetchLocations";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import type { Location } from "@/lib/api/location";
 
 type Props = {
-    location: Location;
+    location: LocationMarker;
     onBackToList: () => void;
 };
 
@@ -29,15 +29,10 @@ export default function LocationDetail({ location, onBackToList }: Props) {
             <div className="flex-1 overflow-auto p-4">
                 <Card className="p-4 mb-4">
                     <div className="space-y-3">
-                        {/* Name and rating */}
+                        {/* Name */}
                         <div className="flex items-start justify-between">
                             <h2 className="text-xl font-semibold">{location.name}</h2>
-                            {typeof location.rating === "number" && (
-                                <div className="flex items-center gap-1 text-sm px-2 py-1 rounded bg-emerald-600/10 text-emerald-700 border border-emerald-600/20">
-                                    <Icon name="Star" className="h-3 w-3 fill-current" />
-                                    {location.rating.toFixed(1)}
-                                </div>
-                            )}
+                            {/* rating removed */}
                         </div>
 
                         {/* Category */}
@@ -81,7 +76,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                         <div className="text-sm text-muted-foreground">
                             <p>• Address and contact information</p>
                             <p>• Directions and distance</p>
-                            <p>• Photos and reviews</p>
+                            {/* reviews removed */}
                             <p>• Opening hours</p>
                         </div>
                     </div>

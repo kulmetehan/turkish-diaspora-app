@@ -1,5 +1,5 @@
 // src/components/MapView.tsx
-import type { Location } from "@/lib/api/location";
+import type { LocationMarker } from "@/api/fetchLocations";
 import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useRef, useState } from "react";
 import MarkerLayer from "./MarkerLayer";
@@ -8,9 +8,9 @@ import MarkerLayer from "./MarkerLayer";
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
 type Props = {
-  locations: Location[];
-  selectedId: number | null;
-  onSelect?: (id: number) => void;
+  locations: LocationMarker[];
+  selectedId: string | null;
+  onSelect?: (id: string) => void;
   onMapClick?: () => void;
   bottomSheetHeight?: number;
 };
@@ -65,7 +65,7 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
     const map = mapRef.current;
     if (!map) return;
 
-    const loc = locations.find((l) => Number(l.id) === Number(selectedId));
+    const loc = locations.find((l) => String(l.id) === String(selectedId));
     if (!loc) return;
 
     // Calculate offset to keep marker visible above bottom sheet
@@ -93,7 +93,7 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
         <div class="text-sm">
           <div class="font-semibold mb-1">${String(loc.name ?? "Onbekend")}</div>
           <div class="text-muted-foreground">${String(loc.category ?? "—")}</div>
-          ${typeof loc.rating === "number" ? `<div class="mt-1">★ ${loc.rating.toFixed(1)}</div>` : ""}
+          
         </div>
       `;
       const popup = new mapboxgl.Popup({ closeOnClick: false, offset: 12 })

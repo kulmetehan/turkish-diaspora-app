@@ -1,10 +1,10 @@
 // Frontend/src/lib/map/marker-icons.tsx
+import type { LocationMarker } from "@/api/fetchLocations";
 import { Badge } from "@/components/ui/badge";
-import type { Location } from "@/lib/api/location";
 import { cn } from "@/lib/utils"; // uit je design system (shadcn helper)
 import { AlertTriangle, CheckCircle2, CircleDot, Clock } from "lucide-react";
 
-type Props = { loc: Location; selected?: boolean };
+type Props = { loc: LocationMarker; selected?: boolean };
 
 export function MarkerIcon({ loc, selected }: Props) {
   const status = loc.state;
@@ -33,7 +33,7 @@ export function MarkerIcon({ loc, selected }: Props) {
   );
 }
 
-export function MarkerBadge({ loc }: { loc: Location }) {
+export function MarkerBadge({ loc }: { loc: LocationMarker }) {
   const tone =
     loc.state === "VERIFIED" ? "default" :
       loc.state === "PENDING_VERIFICATION" ? "secondary" : "outline";

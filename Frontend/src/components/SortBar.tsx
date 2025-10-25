@@ -1,4 +1,4 @@
-type SortKey = "relevance" | "rating_desc" | "name_asc";
+type SortKey = "relevance" | "name_asc";
 
 type Props = {
   sort: SortKey;
@@ -22,7 +22,6 @@ export default function SortBar({ sort, total, onChange }: Props) {
           onChange={(e) => onChange(e.target.value as SortKey)}
         >
           <option value="relevance">Relevantie</option>
-          <option value="rating_desc">Rating (hoog → laag)</option>
           <option value="name_asc">Naam (A → Z)</option>
         </select>
       </div>

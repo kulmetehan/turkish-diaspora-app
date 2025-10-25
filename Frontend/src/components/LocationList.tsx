@@ -1,10 +1,10 @@
+import type { LocationMarker } from "@/api/fetchLocations";
 import { useEffect, useMemo, useRef } from "react";
-import type { Location } from "@/lib/api/location";
 
 type Props = {
-  locations: Location[];
-  selectedId: number | null;
-  onSelect?: (id: number) => void;
+  locations: LocationMarker[];
+  selectedId: string | null;
+  onSelect?: (id: string) => void;
   autoScrollToSelected?: boolean;
   emptyText?: string;
 };
@@ -17,7 +17,7 @@ export default function LocationList({
   emptyText = "Geen resultaten",
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Zorg dat onze refs altijd up-to-date zijn met de zichtbare lijst
   const ids = useMemo(() => locations.map((l) => l.id).join(","), [locations]);
@@ -25,7 +25,7 @@ export default function LocationList({
   useEffect(() => {
     // Cleanup refs van items die niet meer bestaan
     const keep = new Set(locations.map((l) => l.id));
-    for (const id of itemRefs.current.keys()) {
+    for (const id of Array.from(itemRefs.current.keys())) {
       if (!keep.has(id)) itemRefs.current.delete(id);
     }
   }, [ids, locations]);
@@ -52,7 +52,7 @@ export default function LocationList({
         {emptyText}
       </div>
     );
-    }
+  }
 
   return (
     <div
@@ -75,11 +75,7 @@ export default function LocationList({
           >
             <div className="flex items-center justify-between">
               <div className="font-medium">{l.name}</div>
-              {typeof l.rating === "number" ? (
-                <div className="text-xs px-2 py-0.5 rounded bg-emerald-600/10 text-emerald-700 border border-emerald-600/20">
-                  ★ {l.rating.toFixed(1)}
-                </div>
-              ) : null}
+              {/* rating removed */}
             </div>
             <div className="text-xs text-muted-foreground">
               {l.category ?? "—"} • {l.is_turkish ? "Turks" : "—"}

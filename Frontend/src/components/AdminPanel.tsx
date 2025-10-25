@@ -1,10 +1,10 @@
 // Frontend/src/components/AdminPanel.tsx
-import { useState } from "react";
-import { API_BASE, apiFetch, getAdminKey } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { API_BASE, apiFetch, getAdminKey } from "@/lib/api";
+import { useState } from "react";
 
 type CreatePayload = {
   name: string;
@@ -13,8 +13,6 @@ type CreatePayload = {
   lng: number;
   category: string;
   business_status?: string;
-  rating?: number | null;
-  user_ratings_total?: number | null;
   notes?: string | null;
   is_probable_not_open_yet?: boolean | null;
 };
@@ -32,8 +30,6 @@ export default function AdminPanel() {
     lng: 5.0,
     category: "bakery",
     business_status: "OPERATIONAL",
-    rating: null,
-    user_ratings_total: null,
     notes: "",
     is_probable_not_open_yet: false,
   });
@@ -134,32 +130,7 @@ export default function AdminPanel() {
                 onChange={(e) => setCreateForm({ ...createForm, business_status: e.target.value })}
               />
             </div>
-            <div className="space-y-1">
-              <Label>Rating</Label>
-              <Input
-                type="number"
-                value={createForm.rating ?? ""}
-                onChange={(e) =>
-                  setCreateForm({
-                    ...createForm,
-                    rating: e.target.value ? parseFloat(e.target.value) : null,
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>User Ratings Total</Label>
-              <Input
-                type="number"
-                value={createForm.user_ratings_total ?? ""}
-                onChange={(e) =>
-                  setCreateForm({
-                    ...createForm,
-                    user_ratings_total: e.target.value ? parseInt(e.target.value) : null,
-                  })
-                }
-              />
-            </div>
+
             <div className="md:col-span-2 space-y-1">
               <Label>Notes</Label>
               <Input
@@ -254,30 +225,7 @@ export default function AdminPanel() {
                 }
               />
             </div>
-            <div className="space-y-1">
-              <Label>rating</Label>
-              <Input
-                type="number"
-                onChange={(e) =>
-                  setUpdateForm({
-                    ...updateForm,
-                    rating: e.target.value ? parseFloat(e.target.value) : undefined,
-                  })
-                }
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>user_ratings_total</Label>
-              <Input
-                type="number"
-                onChange={(e) =>
-                  setUpdateForm({
-                    ...updateForm,
-                    user_ratings_total: e.target.value ? parseInt(e.target.value) : undefined,
-                  })
-                }
-              />
-            </div>
+
             <div className="space-y-1">
               <Label>confidence_score</Label>
               <Input
