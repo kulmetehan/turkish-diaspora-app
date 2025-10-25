@@ -1,14 +1,25 @@
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
-import time
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import httpx
 from pydantic import BaseModel, Field, ConfigDict
+
+# ---------------------------------------------------------------------------
+# Pathing zodat 'app.*' en 'services.*' werken (CI, GH Actions, lokale run)
+# ---------------------------------------------------------------------------
+THIS_FILE = Path(__file__).resolve()
+APP_DIR = THIS_FILE.parent.parent           # .../Backend/app
+BACKEND_DIR = APP_DIR.parent                # .../Backend
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))    # .../Backend
 
 # --- Uniform logging voor workers ---
 from app.core.logging import configure_logging, get_logger
@@ -16,16 +27,10 @@ from app.core.request_id import with_run_id
 
 configure_logging(service_name="worker")
 logger = get_logger()
-logger = logger.bind(worker="alert_bot")  # vaste workernaam-bind
+logger = logger.bind(worker="alert_bot")
 
-# Belangrijk: importeer vanuit 'services' omdat metrics_service in Backend/services/ staat.
-from services.metrics_service import (
-    generate_metrics_snapshot,
-    TimeWindow,
-)
-
-# Gebruik de centrale logger ALLES
-log = logger
+# DB helpers (asyncpg)
+from services.db_service import init_db_pool, fetch, execute  # noqa: E402
 
 DEFAULT_ERR_RATE_THRESHOLD = 0.10  # 10% in window
 DEFAULT_429_BURST_THRESHOLD = 5    # "burst" drempel
@@ -59,47 +64,123 @@ async def _post_webhook(url: str, payload: Dict[str, Any]) -> None:
         async with httpx.AsyncClient(timeout=10) as client:
             await client.post(url, json=payload)
     except Exception as e:
-        log.warning("alert_webhook_post_failed", error=str(e))
+        logger.warning("alert_webhook_post_failed", error=str(e))
 
 
 def _fmt_ratio(val: float) -> str:
     return f"{val:.2%}"
 
 
-async def check_and_alert_once(cfg: AlertConfig) -> Dict[str, Any]:
-    snapshot = await generate_metrics_snapshot(
-        weeks_for_new=8,
-        conversion_days=14,
-        error_rate_window=TimeWindow(minutes=cfg.err_rate_window_minutes),
-        latency_window=TimeWindow(minutes=cfg.err_rate_window_minutes),
-        google_window=TimeWindow(minutes=cfg.google429_window_minutes),
+async def _task_error_rate(minutes: int) -> float:
+    """Compute task error rate from tasks; fallback to ai_logs if tasks empty."""
+    # Try tasks
+    total_sql = (
+        """
+        SELECT COUNT(*)::int AS total
+        FROM tasks
+        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+        """
     )
+    failed_sql = (
+        """
+        SELECT COUNT(*)::int AS failed
+        FROM tasks
+        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+          AND (status = 'FAILED' OR is_success = false)
+        """
+    )
+    try:
+        rows_t = await fetch(total_sql, int(minutes))
+        rows_f = await fetch(failed_sql, int(minutes))
+        total = int((rows_t[0]["total"] if rows_t else 0) or 0)
+        failed = int((rows_f[0]["failed"] if rows_f else 0) or 0)
+        if total > 0:
+            return failed / float(total)
+    except Exception:
+        pass
 
-    # Relevante KPI's ophalen
-    err_rate = next((k for k in snapshot.kpis if k.name == "task_error_rate"), None)
-    g429 = next((k for k in snapshot.kpis if k.name == "google_api_429_count"), None)
+    # Fallback: ai_logs
+    logs_total = (
+        """
+        SELECT COUNT(*)::int AS total
+        FROM ai_logs
+        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+          AND (
+            action_type ILIKE 'worker.%' OR
+            action_type ILIKE 'bot.%' OR
+            action_type ILIKE 'task.%'
+          )
+        """
+    )
+    logs_failed = (
+        """
+        SELECT COUNT(*)::int AS failed
+        FROM ai_logs
+        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+          AND (
+            action_type ILIKE 'worker.%' OR
+            action_type ILIKE 'bot.%' OR
+            action_type ILIKE 'task.%'
+          )
+          AND is_success = false
+        """
+    )
+    rows_lt = await fetch(logs_total, int(minutes))
+    rows_lf = await fetch(logs_failed, int(minutes))
+    total = int((rows_lt[0]["total"] if rows_lt else 0) or 0)
+    failed = int((rows_lf[0]["failed"] if rows_lf else 0) or 0)
+    return (failed / float(total)) if total > 0 else 0.0
 
-    alerts = []
-    if err_rate and isinstance(err_rate.value, float) and err_rate.value >= cfg.err_rate_threshold:
-        alerts.append({
-            "type": "TASK_FAILURE_SPIKE",
-            "message": f"Task error rate {_fmt_ratio(err_rate.value)} >= threshold {_fmt_ratio(cfg.err_rate_threshold)} in last {cfg.err_rate_window_minutes}m.",
-            "kpi": err_rate.model_dump(),
-        })
 
-    if g429 and isinstance(g429.value, int) and g429.value >= cfg.google429_threshold:
-        alerts.append({
-            "type": "GOOGLE_429_BURST",
-            "message": f"Detected {g429.value} Google API 429 events in last {cfg.google429_window_minutes}m (>= {cfg.google429_threshold}).",
-            "kpi": g429.model_dump(),
-        })
+async def _google_429_count(minutes: int) -> int:
+    sql = (
+        """
+        SELECT COUNT(*)::int AS cnt
+        FROM ai_logs
+        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+          AND (
+            error_message ILIKE '%429%' OR
+            (raw_response ? 'statusCode' AND (raw_response->>'statusCode')::int = 429) OR
+            (raw_response ? 'error' AND (raw_response->'error'->>'code') = 'RESOURCE_EXHAUSTED')
+          )
+        """
+    )
+    rows = await fetch(sql, int(minutes))
+    return int((rows[0]["cnt"] if rows else 0) or 0)
+
+
+async def check_and_alert_once(cfg: AlertConfig) -> Dict[str, Any]:
+    err_rate = await _task_error_rate(cfg.err_rate_window_minutes)
+    g429 = await _google_429_count(cfg.google429_window_minutes)
 
     # Altijd snapshot loggen
-    log.info("metrics_snapshot", snapshot=snapshot.model_dump())
+    snapshot = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "kpis": {
+            "task_error_rate": err_rate,
+            "google_api_429_count": g429,
+        },
+        "windows": {
+            "err_rate_minutes": cfg.err_rate_window_minutes,
+            "google_minutes": cfg.google429_window_minutes,
+        },
+    }
+    logger.info("metrics_snapshot", snapshot=snapshot)
 
-    # Alerts uitsturen (console + optioneel webhook)
+    alerts: list[dict[str, Any]] = []
+    if err_rate >= cfg.err_rate_threshold:
+        alerts.append({
+            "type": "TASK_FAILURE_SPIKE",
+            "message": f"Task error rate {_fmt_ratio(err_rate)} >= threshold {_fmt_ratio(cfg.err_rate_threshold)} in last {cfg.err_rate_window_minutes}m.",
+        })
+    if g429 >= cfg.google429_threshold:
+        alerts.append({
+            "type": "GOOGLE_429_BURST",
+            "message": f"Detected {g429} Google API 429 events in last {cfg.google429_window_minutes}m (>= {cfg.google429_threshold}).",
+        })
+
     for a in alerts:
-        log.warning("alert_triggered", alert=a)
+        logger.warning("alert_triggered", alert=a)
         if cfg.webhook_url:
             payload = {
                 "text": f"[TDA-20 ALERT] {a['type']}: {a['message']}",
@@ -109,38 +190,39 @@ async def check_and_alert_once(cfg: AlertConfig) -> Dict[str, Any]:
             }
             await _post_webhook(cfg.webhook_url, payload)
 
-    return {
-        "alerts_triggered": len(alerts),
-        "alerts": alerts,
-        "snapshot": snapshot.model_dump(),
-    }
+    return {"alerts_triggered": len(alerts), "alerts": alerts, "snapshot": snapshot}
 
 
-async def run_forever() -> None:
-    # let op: daemon; worker_finished wordt hier bewust nooit gelogd
+def _parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="TDA Alert Bot")
+    p.add_argument("--once", action="store_true", help="Run one check and exit")
+    return p.parse_args()
+
+
+async def main_async() -> None:
     with with_run_id() as rid:
-        log.info("worker_started")
+        logger.info("worker_started")
+        await init_db_pool()
         cfg = _env_cfg()
-        log.info("alert_worker_config", cfg=cfg.model_dump())
+        logger.info("alert_worker_config", cfg=cfg.model_dump())
+
+        args = _parse_args()
+        run_once = args.once or (os.getenv("ALERT_RUN_ONCE", "0").strip().lower() in ("1", "true", "yes", "y"))
+        if run_once:
+            await check_and_alert_once(cfg)
+            return
 
         cycle = 0
         while True:
             try:
                 res = await check_and_alert_once(cfg)
-                # Heartbeat elke 20 cycli (optioneel)
                 if cycle % 20 == 0:
-                    log.info("worker_heartbeat", alerts_triggered=res["alerts_triggered"])
+                    logger.info("worker_heartbeat", alerts_triggered=res["alerts_triggered"]) 
                 cycle += 1
             except Exception as e:
-                log.error("alert_cycle_error", error=str(e))
+                logger.error("alert_cycle_error", error=str(e))
             await asyncio.sleep(cfg.check_interval_seconds)
 
 
 if __name__ == "__main__":
-    run_once = ("--once" in sys.argv) or (os.getenv("ALERT_RUN_ONCE", "0").strip() in ("1", "true", "yes", "y"))
-    if run_once:
-        with with_run_id() as rid:
-            cfg = _env_cfg()
-            asyncio.run(check_and_alert_once(cfg))
-    else:
-        asyncio.run(run_forever())
+    asyncio.run(main_async())

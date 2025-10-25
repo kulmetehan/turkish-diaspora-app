@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import json
 from typing import Any, Dict, List, Optional
+import asyncio
 
 from dotenv import load_dotenv
 import logging
@@ -70,29 +71,36 @@ logger.info(
 )
 
 # --------------------------------------------------------------------
-# Lightweight asyncpg pool + helpers
+# Lightweight asyncpg pool + helpers (pool size clamped to 1)
 # --------------------------------------------------------------------
-pool: asyncpg.Pool | None = None
+_pool: asyncpg.Pool | None = None
+_init_lock = asyncio.Lock()
+
+async def ensure_pool() -> asyncpg.Pool:
+    global _pool
+    if _pool is None:
+        async with _init_lock:
+            if _pool is None:
+                logger.info("Initializing asyncpg connection pool (min=1, max=1)...")
+                _pool = await asyncpg.create_pool(
+                    user=DB_CONF["user"],
+                    password=DB_CONF["password"],
+                    host=DB_CONF["host"],
+                    port=DB_CONF["port"],
+                    database=DB_CONF["database"],
+                    ssl="require" if DB_CONF["sslmode"] != "disable" else False,
+                    min_size=1,
+                    max_size=1,
+                    statement_cache_size=0,
+                )
+    return _pool
 
 async def init_db_pool() -> asyncpg.Pool:
-    global pool
-    if pool is None:
-        logger.info("Initializing asyncpg connection pool...")
-        pool = await asyncpg.create_pool(
-            user=DB_CONF["user"],
-            password=DB_CONF["password"],
-            host=DB_CONF["host"],
-            port=DB_CONF["port"],
-            database=DB_CONF["database"],
-            ssl="require" if DB_CONF["sslmode"] != "disable" else False,
-            min_size=2,
-            max_size=10,
-            statement_cache_size=0,
-        )
-    return pool
+    # Backwards-compatible wrapper; safe to call multiple times
+    return await ensure_pool()
 
 async def fetch(query: str, *args):
-    p = await init_db_pool()
+    p = await ensure_pool()
     conn = await p.acquire()
     try:
         return await conn.fetch(query, *args)
@@ -100,7 +108,7 @@ async def fetch(query: str, *args):
         await p.release(conn)
 
 async def execute(query: str, *args):
-    p = await init_db_pool()
+    p = await ensure_pool()
     conn = await p.acquire()
     try:
         return await conn.execute(query, *args)

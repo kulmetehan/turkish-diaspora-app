@@ -1,25 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-VerifyLocationsBot — Promote PENDING_VERIFICATION locations to VERIFIED or RETIRED
-- Fetches PENDING_VERIFICATION rows from locations table
-- (Re)classifies each using existing ClassifyService
-- Validates using existing AI validation
-- Promotes eligible rows to VERIFIED (else RETIRED)
-- Logs all actions via AuditService
-
-Usage:
-    python -m app.workers.verify_locations --limit 200 --dry-run 0
-"""
-
-"""
-STATE MACHINE (canonical):
-- CANDIDATE: raw discovered location, unreviewed.
-- PENDING_VERIFICATION: AI thinks it's Turkish (confidence >=0.80) but not yet promoted.
-- VERIFIED: approved and visible in the app.
-- RETIRED: explicitly considered not relevant / no longer valid.
-Only VERIFIED locations are sent to the frontend.
-"""
-
 from __future__ import annotations
 
 import argparse

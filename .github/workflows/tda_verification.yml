@@ -52,6 +52,7 @@ jobs:
           CLASSIFY_MIN_CONF: "0.70"
           PYTHONUNBUFFERED: "1"
           DB_SSL_VERIFY: "0"
+          PYTHONPATH: .
         run: >
           python -m app.workers.verify_locations
           --limit 1500

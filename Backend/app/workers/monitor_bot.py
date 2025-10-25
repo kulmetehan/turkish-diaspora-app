@@ -12,9 +12,20 @@ import asyncio
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional, Sequence
+from pathlib import Path
+import sys
 
 from pydantic import BaseModel, Field
-from sqlalchemy import text, bindparam
+
+# ---------------------------------------------------------------------------
+# Pathing zodat 'app.*' en 'services.*' werken (CI, GH Actions, lokale run)
+# ---------------------------------------------------------------------------
+THIS_FILE = Path(__file__).resolve()
+APP_DIR = THIS_FILE.parent.parent           # .../Backend/app
+BACKEND_DIR = APP_DIR.parent                # .../Backend
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))    # .../Backend
 
 # --- Uniform logging voor workers ---
 from app.core.logging import configure_logging, get_logger
@@ -24,8 +35,8 @@ configure_logging(service_name="worker")
 logger = get_logger()
 logger = logger.bind(worker="monitor_bot")
 
-# Hergebruik de bestaande async engine uit jullie project
-from services.db_service import async_engine
+# DB helpers (asyncpg)
+from services.db_service import init_db_pool, fetch, execute  # noqa: E402
 
 UTC = timezone.utc
 TERMINAL_STATES: tuple[str, ...] = ("RETIRED", "SUSPENDED")
@@ -137,52 +148,33 @@ SELECT_COLS = """
 
 
 async def _fetch_bootstrap_rows(limit: int) -> Sequence[Mapping[str, Any]]:
-    # BELANGRIJK: gebruik bindparam(expanding=True) voor NOT IN (â€¦) met parameters
-    query = (
-        text(
-            f"""
-            SELECT {SELECT_COLS}
-            FROM locations
-            WHERE next_check_at IS NULL
-              AND state NOT IN :terminal
-            ORDER BY COALESCE(last_verified_at, NOW()) ASC
-            LIMIT :lim
-            """
-        )
-        .bindparams(bindparam("terminal", expanding=True))
+    sql = (
+        f"""
+        SELECT {SELECT_COLS}
+        FROM locations
+        WHERE next_check_at IS NULL
+          AND state NOT IN ('RETIRED', 'SUSPENDED')
+        ORDER BY COALESCE(last_verified_at, NOW()) ASC
+        LIMIT $1
+        """
     )
-    async with async_engine.begin() as conn:
-        rows = (
-            await conn.execute(
-                query,
-                {"terminal": list(TERMINAL_STATES), "lim": limit},
-            )
-        ).mappings().all()
-    return rows
+    rows = await fetch(sql, int(limit))
+    return [dict(r) for r in rows]
 
 
 async def _fetch_due_rows(limit: int) -> Sequence[Mapping[str, Any]]:
-    query = (
-        text(
-            f"""
-            SELECT {SELECT_COLS}
-            FROM locations
-            WHERE next_check_at <= NOW()
-              AND state NOT IN :terminal
-            ORDER BY next_check_at ASC
-            LIMIT :lim
-            """
-        )
-        .bindparams(bindparam("terminal", expanding=True))
+    sql = (
+        f"""
+        SELECT {SELECT_COLS}
+        FROM locations
+        WHERE next_check_at <= NOW()
+          AND state NOT IN ('RETIRED', 'SUSPENDED')
+        ORDER BY next_check_at ASC
+        LIMIT $1
+        """
     )
-    async with async_engine.begin() as conn:
-        rows = (
-            await conn.execute(
-                query,
-                {"terminal": list(TERMINAL_STATES), "lim": limit},
-            )
-        ).mappings().all()
-    return rows
+    rows = await fetch(sql, int(limit))
+    return [dict(r) for r in rows]
 
 
 # ------------------------------
@@ -197,21 +189,19 @@ async def bootstrap_missing_next_check(cfg: MonitorSettings) -> int:
     if not rows:
         return 0
 
-    async with async_engine.begin() as conn:
-        for r in rows:
-            nca = compute_next_check_at(r, cfg)
-            total_updated += 1
-            if not cfg.DRY_RUN:
-                await conn.execute(
-                    text(
-                        """
-                        UPDATE locations
-                        SET next_check_at = :nca
-                        WHERE id = :id
-                        """
-                    ),
-                    {"nca": nca, "id": r["id"]},
-                )
+    for r in rows:
+        nca = compute_next_check_at(r, cfg)
+        total_updated += 1
+        if not cfg.DRY_RUN:
+            await execute(
+                """
+                UPDATE locations
+                SET next_check_at = $1
+                WHERE id = $2
+                """,
+                nca,
+                int(r["id"]),
+            )
     return total_updated
 
 
@@ -226,71 +216,59 @@ async def enqueue_verification_tasks(cfg: MonitorSettings) -> tuple[int, int]:
     if not due_rows:
         return (0, 0)
 
-    async with async_engine.begin() as conn:
-        for r in due_rows:
-            # Only enqueue verification tasks for VERIFIED locations
-            if (r.get("state") or "").upper() != "VERIFIED":
-                continue
-            # 1) enqueue taak
-            if not cfg.DRY_RUN:
-                await conn.execute(
-                    text(
-                        """
-                        INSERT INTO tasks (task_type, location_id, status, created_at)
-                        VALUES ('VERIFICATION', :loc_id, 'PENDING', NOW())
-                        ON CONFLICT DO NOTHING
-                        """
-                    ),
-                    {"loc_id": r["id"]},
-                )
-            made_tasks += 1
+    for r in due_rows:
+        # Only enqueue verification tasks for VERIFIED locations
+        if (r.get("state") or "").upper() != "VERIFIED":
+            continue
+        # 1) enqueue taak
+        if not cfg.DRY_RUN:
+            await execute(
+                """
+                INSERT INTO tasks (task_type, location_id, status, created_at)
+                VALUES ('VERIFICATION', $1, 'PENDING', NOW())
+                ON CONFLICT DO NOTHING
+                """,
+                int(r["id"]),
+            )
+        made_tasks += 1
 
-            # 2) bump next_check_at volgens policy
-            nca = compute_next_check_at(r, cfg)
-            if not cfg.DRY_RUN:
-                await conn.execute(
-                    text(
-                        """
-                        UPDATE locations
-                        SET next_check_at = :nca
-                        WHERE id = :id
-                        """
-                    ),
-                    {"nca": nca, "id": r["id"]},
-                )
-            bumped += 1
+        # 2) bump next_check_at volgens policy
+        nca = compute_next_check_at(r, cfg)
+        if not cfg.DRY_RUN:
+            await execute(
+                """
+                UPDATE locations
+                SET next_check_at = $1
+                WHERE id = $2
+                """,
+                nca,
+                int(r["id"]),
+            )
+        bumped += 1
 
     return (made_tasks, bumped)
 
 
 async def stats_after() -> Mapping[str, Any]:
-    async with async_engine.begin() as conn:
-        older = (
-            await conn.execute(
-                text(
-                    """
-                    SELECT COUNT(*)::int AS cnt
-                    FROM locations
-                    WHERE next_check_at IS NOT NULL
-                      AND next_check_at < NOW() - INTERVAL '90 days'
-                    """
-                )
-            )
-        ).mappings().first()
-        oldest_due = (
-            await conn.execute(
-                text(
-                    """
-                    SELECT MIN(next_check_at) AS oldest_due
-                    FROM locations
-                    WHERE next_check_at <= NOW()
-                      AND state NOT IN :terminal
-                    """
-                ).bindparams(bindparam("terminal", expanding=True)),
-                {"terminal": list(TERMINAL_STATES)},
-            )
-        ).mappings().first()
-    return {"older_than_90d": older["cnt"], "oldest_due": oldest_due["oldest_due"]}
+    older_rows = await fetch(
+        """
+        SELECT COUNT(*)::int AS cnt
+        FROM locations
+        WHERE next_check_at IS NOT NULL
+          AND next_check_at < NOW() - INTERVAL '90 days'
+        """
+    )
+    oldest_rows = await fetch(
+        """
+        SELECT MIN(next_check_at) AS oldest_due
+        FROM locations
+        WHERE next_check_at <= NOW()
+          AND state NOT IN ('RETIRED', 'SUSPENDED')
+        """
+    )
+    older_cnt = int((older_rows[0]["cnt"] if older_rows else 0) or 0)
+    oldest_due = oldest_rows[0]["oldest_due"] if oldest_rows else None
+    return {"older_than_90d": older_cnt, "oldest_due": oldest_due}
 
 
 # ------------------------------
@@ -300,6 +278,7 @@ async def main_async(limit: Optional[int], dry_run: Optional[bool]) -> None:
     t0 = time.perf_counter()
     with with_run_id() as rid:
         logger.info("worker_started")
+        await init_db_pool()
         cfg = MonitorSettings.from_env()
         if limit is not None:
             cfg.MONITOR_MAX_PER_RUN = int(limit)

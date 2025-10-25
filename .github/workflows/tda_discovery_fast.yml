@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 20
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         category: [restaurant, supermarket, bakery]
         chunk_index: [0, 1, 2]   # 3 chunks for faster execution
