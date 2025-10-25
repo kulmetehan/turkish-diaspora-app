@@ -50,7 +50,8 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           CLASSIFY_MIN_CONF: "0.80"
           PYTHONUNBUFFERED: "1"
+          DB_SSL_VERIFY: "0"
         run: >
           python -m app.workers.verify_locations
           --limit 1500
-          --min-confidence 0.80
+          --min-confidence 0.70

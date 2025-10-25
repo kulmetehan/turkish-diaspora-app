@@ -47,11 +47,9 @@ if str(BACKEND_DIR) not in sys.path:
 # ---------------------------------------------------------------------------
 # DB (async)
 # ---------------------------------------------------------------------------
-from app.db import engine  # reuse normalized engine with SSL handling
-from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy import text
-
-Session = async_sessionmaker(engine, expire_on_commit=False)
+# Reuse the central async engine which already normalizes URL and SSL
+from services.db_service import async_engine as engine
 
 # ---------------------------------------------------------------------------
 # Services

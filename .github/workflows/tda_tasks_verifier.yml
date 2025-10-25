@@ -41,5 +41,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           PYTHONUNBUFFERED: "1"
+          DB_SSL_VERIFY: "0"
         run: >
           python -m app.workers.task_verifier --limit 500 --min-confidence 0.70

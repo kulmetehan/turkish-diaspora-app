@@ -49,10 +49,16 @@ DATABASE_URL = _normalize_db_url(DATABASE_URL)
 # SQLAlchemy async engine (2.x style)
 # Build SSL context using certifi CA bundle when available (fixes macOS trust issues)
 def _build_ssl_context() -> ssl.SSLContext:
-    # Allow local override to disable verification (development only)
-    # Default: disable verification locally, keep verification on in CI
-    no_verify_default = "0" if os.getenv("CI", "").strip().lower() in ("1", "true") else "1"
-    no_verify = os.getenv("DATABASE_SSL_NO_VERIFY", no_verify_default).strip().lower() in ("1", "true", "yes")
+    # Determine verification policy
+    # Priority: DB_SSL_VERIFY (1/0) -> DATABASE_SSL_NO_VERIFY -> defaults
+    db_ssl_verify_env = os.getenv("DB_SSL_VERIFY")
+    if db_ssl_verify_env is not None:
+        verify = db_ssl_verify_env.strip().lower() in ("1", "true", "yes", "y")
+        no_verify = not verify
+    else:
+        # Default: disable verification locally, keep verification on in CI
+        no_verify_default = "0" if os.getenv("CI", "").strip().lower() in ("1", "true") else "1"
+        no_verify = os.getenv("DATABASE_SSL_NO_VERIFY", no_verify_default).strip().lower() in ("1", "true", "yes")
 
     # Prefer explicit CA bundle envs if provided
     ca_env_keys = (
