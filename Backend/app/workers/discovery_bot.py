@@ -42,42 +42,9 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))    # .../Backend
 
 # ---------------------------------------------------------------------------
-# DB (async)
+# DB (asyncpg helpers)
 # ---------------------------------------------------------------------------
-def _resolve_database_url() -> str:
-    for key in ("DATABASE_URL", "DB_URL"):
-        v = os.getenv(key)
-        if v:
-            return v
-    try:
-        from app.config import settings  # type: ignore
-        for attr in ("DATABASE_URL", "database_url", "DB_URL"):
-            if hasattr(settings, attr):
-                val = getattr(settings, attr)
-                if isinstance(val, str) and val:
-                    return val
-    except Exception:
-        pass
-    try:
-        from app.config import Config  # type: ignore
-        for attr in ("DATABASE_URL", "database_url", "DB_URL"):
-            if hasattr(Config, attr):
-                val = getattr(Config, attr)
-                if isinstance(val, str) and val:
-                    return val
-    except Exception:
-        pass
-    raise RuntimeError("DATABASE_URL ontbreekt (env of config).")
-
-DATABASE_URL = _resolve_database_url()
-if DATABASE_URL.startswith("postgresql://"):
-    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
-
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy import text
-
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
-Session = async_sessionmaker(engine, expire_on_commit=False)
+from services.db_service import init_db_pool, fetch, execute
 
 # ---------------------------------------------------------------------------
 # Places provider (OSM only)
@@ -191,34 +158,80 @@ def map_place_to_row(p: Dict[str, Any], category_hint: str) -> Dict[str, Any]:
         "is_retired": False,
     }
 
-INSERT_SQL = text("""
-INSERT INTO locations (
-    place_id, source, name, address, lat, lng, category,
-    business_status, rating, user_ratings_total, state,
-    confidence_score, is_probable_not_open_yet,
-    first_seen_at, last_seen_at, last_verified_at,
-    next_check_at, freshness_score, evidence_urls, notes, is_retired
-) VALUES (
-    :place_id, :source, :name, :address, :lat, :lng, :category,
-    :business_status, :rating, :user_ratings_total, :state,
-    :confidence_score, :is_probable_not_open_yet,
-    :first_seen_at, :last_seen_at, :last_verified_at,
-    :next_check_at, :freshness_score, :evidence_urls, :notes, :is_retired
-)
-ON CONFLICT (place_id) DO NOTHING
-RETURNING id;
-""")
+async def _exists_by_place_id(place_id: Optional[str]) -> bool:
+    if not place_id:
+        return False
+    sql = "SELECT 1 FROM locations WHERE place_id = $1 LIMIT 1"
+    rows = await fetch(sql, place_id)
+    return bool(rows)
+
+async def _exists_by_fuzzy(name: Optional[str], lat: Optional[float], lng: Optional[float]) -> bool:
+    if not name or lat is None or lng is None:
+        return False
+    sql = (
+        """
+        SELECT 1 FROM locations
+        WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+          AND ROUND(CAST(lat AS numeric), 4) = ROUND(CAST($2 AS numeric), 4)
+          AND ROUND(CAST(lng AS numeric), 4) = ROUND(CAST($3 AS numeric), 4)
+        LIMIT 1
+        """
+    )
+    rows = await fetch(sql, name, float(lat), float(lng))
+    return bool(rows)
 
 async def insert_candidates(rows: List[Dict[str, Any]]) -> int:
     if not rows:
         return 0
     inserted = 0
-    async with Session() as session:
-        async with session.begin():
-            for row in rows:
-                res = await session.execute(INSERT_SQL, row)
-                if res.scalar_one_or_none() is not None:
-                    inserted += 1
+    # Ensure pool ready
+    await init_db_pool()
+    for row in rows:
+        place_id = row.get("place_id")
+        name = row.get("name")
+        lat = row.get("lat")
+        lng = row.get("lng")
+        # Skip if already exists by place_id or fallback fuzzy key
+        if await _exists_by_place_id(place_id) or await _exists_by_fuzzy(name, lat, lng):
+            continue
+        # Insert as new candidate
+        sql = (
+            """
+            INSERT INTO locations (
+                place_id, source, name, address, lat, lng, category,
+                business_status, rating, user_ratings_total, state,
+                confidence_score, is_probable_not_open_yet,
+                first_seen_at, last_seen_at, last_verified_at,
+                next_check_at, freshness_score, evidence_urls, notes, is_retired
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7,
+                $8, $9, $10, 'CANDIDATE',
+                NULL, $11,
+                NOW(), NOW(), NULL,
+                $12, $13, $14, $15, FALSE
+            )
+            ON CONFLICT (place_id) DO NOTHING
+            """
+        )
+        await execute(
+            sql,
+            row.get("place_id"),
+            row.get("source"),
+            row.get("name"),
+            row.get("address"),
+            row.get("lat"),
+            row.get("lng"),
+            row.get("category") or "other",
+            row.get("business_status"),
+            row.get("rating"),
+            row.get("user_ratings_total"),
+            row.get("is_probable_not_open_yet"),
+            row.get("next_check_at"),
+            row.get("freshness_score"),
+            row.get("evidence_urls"),
+            row.get("notes"),
+        )
+        inserted += 1
     return inserted
 
 # ---------------------------------------------------------------------------
@@ -495,6 +508,8 @@ async def main_async():
             print(f"  Max cellen/categorie: {cfg.max_cells_per_category}")
         print(f"  Chunks: {cfg.chunks} (index={cfg.chunk_index})\n")
 
+        # Ensure DB pool ready before inserts
+        await init_db_pool()
         bot = DiscoveryBot(cfg, yml)
         await bot.run()
 

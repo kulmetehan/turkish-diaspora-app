@@ -15,6 +15,16 @@ from starlette.responses import Response as StarletteResponse
 
 from app.core.logging import configure_logging, logger
 from app.core.request_id import set_request_id, clear_request_id
+from services.db_service import init_db_pool
+
+# Routers (import APIRouter instances directly)
+from api.routers.locations import router as locations_router
+from api.routers.dev_classify import router as dev_classify_router
+try:
+    from api.routers.dev_ai import router as dev_ai_router  # optional, may not exist
+except Exception:
+    dev_ai_router = None  # type: ignore
+from api.routers.admin import router as admin_router
 
 # --- sys.path fix (root toevoegen) ---
 THIS_FILE = Path(__file__).resolve()
@@ -31,6 +41,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+@app.on_event("startup")
+async def _startup_db_pool() -> None:
+    await init_db_pool()
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -85,37 +99,11 @@ async def health():
 async def any_preflight(rest_of_path: str) -> Response:
     return Response(status_code=204)
 
-# --- Routers includen ---
-def _include_if_present(mod_path: str, router_attr: str = "router") -> bool:
-    try:
-        module = __import__(mod_path, fromlist=[router_attr])
-    except ModuleNotFoundError:
-        logger.info("router_missing", module=mod_path)
-        return False
-    router = getattr(module, router_attr, None)
-    if router is not None:
-        app.include_router(router)
-        logger.info("router_included", module=mod_path)
-        return True
-    logger.info("router_attr_missing", module=mod_path)
-    return False
+# --- Routers includen (direct) ---
+app.include_router(locations_router)
+app.include_router(dev_classify_router)
+if dev_ai_router is not None:
+    app.include_router(dev_ai_router)
+app.include_router(admin_router)
 
-# Dev/utility routers
-_include_if_present("api.routers.dev_ai")
-_include_if_present("api.routers.dev_classify")
-# Google dev router removed to avoid costs
-
-# Locations + Admin
-try:
-    from api.routers.locations import router as locations_router
-    app.include_router(locations_router)
-    logger.info("router_included", module="api.routers.locations")
-except ModuleNotFoundError:
-    logger.info("router_missing", module="api.routers.locations")
-
-try:
-    from api.routers import admin as admin_router
-    app.include_router(admin_router.router, prefix="/api/v1")
-    logger.info("router_included", module="api.routers.admin")
-except ModuleNotFoundError:
-    logger.info("router_missing", module="api.routers.admin")
+logger.info("routers_registered", routers=["locations", "dev_classify", "dev_ai", "admin"])

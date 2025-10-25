@@ -60,10 +60,34 @@ if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
+from sqlalchemy.engine.url import make_url
 from sqlalchemy import text
+from services.db_service import normalize_db_url
+import asyncpg
 
-engine = create_async_engine(DATABASE_URL, pool_pre_ping=True, future=True)
-Session = async_sessionmaker(engine, expire_on_commit=False)
+# Normalize and enforce sslmode=require if missing
+DATABASE_URL = normalize_db_url(DATABASE_URL)
+try:
+    masked = str(make_url(DATABASE_URL).set(password="***"))
+    print(f"[DiscoveryBot] DB URL: {masked}")
+except Exception:
+    pass
+
+async def _asyncpg_creator():
+    return await asyncpg.connect(DATABASE_URL)
+
+async_engine = create_async_engine(
+    "postgresql+asyncpg://",
+    echo=False,
+    future=True,
+    pool_pre_ping=True,
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        "creator": _asyncpg_creator,
+    },
+)
+Session = async_sessionmaker(async_engine, expire_on_commit=False)
 
 # ---------------------------------------------------------------------------
 # Google service (fallback-safe)

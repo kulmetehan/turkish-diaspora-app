@@ -23,18 +23,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.13
+      - name: Setup Python 3.11.9
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11.9"
 
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.13-${{ hashFiles('Backend/requirements.txt') }}
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
           restore-keys: |
-            pip-${{ runner.os }}-py3.13-
+            pip-${{ runner.os }}-py3.11.9-
 
       - name: Install deps
         run: |
@@ -45,6 +45,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           OPENAI_MODEL: gpt-4.1-mini
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -54,4 +55,4 @@ jobs:
         run: >
           python -m app.workers.verify_locations
           --limit 1500
-          --min-confidence 0.70
+          --min-confidence 0.80

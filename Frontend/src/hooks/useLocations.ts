@@ -1,9 +1,9 @@
 // src/hooks/useLocations.ts
+import { fetchLocations, type LocationMarker } from "@/api/fetchLocations";
 import { useEffect, useState } from "react";
-import { fetchLocations, type Location } from "@/lib/api/location";
 
 export function useLocations() {
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [locations, setLocations] = useState<LocationMarker[]>([]);
   const [isLoading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

@@ -16,6 +16,15 @@ configure_logging(service_name="worker")
 logger = get_logger()
 logger = logger.bind(worker="classify_bot")
 
+"""
+STATE MACHINE (canonical):
+- CANDIDATE: raw discovered location, unreviewed.
+- PENDING_VERIFICATION: AI thinks it's Turkish (confidence >=0.80) but not yet promoted.
+- VERIFIED: approved and visible in the app.
+- RETIRED: explicitly considered not relevant / no longer valid.
+Only VERIFIED locations are sent to the frontend.
+"""
+
 # jouw bestaande services (toplevel 'services' package)
 from services.db_service import (
     fetch_candidates_for_classification,
@@ -26,6 +35,192 @@ from services.classify_service import ClassifyService
 # Unified AI schema entrypoints via services (met structlog)
 from services.ai_validation import validate_classification_payload
 from app.models.ai import AIClassification
+
+# ---- Category normalization helpers ----
+# Map raw model outputs / heuristics to our canonical categories.
+# Keys should all be lowercase.
+CATEGORY_NORMALIZATION_MAP = {
+    # --- BUTCHER / MEAT SHOPS ---
+    "butcher": "butcher",
+    "butchery": "butcher",
+    "halal butcher": "butcher",
+    "halal butchery": "butcher",
+    "slager": "butcher",
+    "slagerij": "butcher",
+    "vleeshandel": "butcher",
+    # Turkish variants
+    "kasap": "butcher",
+    "kasaplar": "butcher",
+    "etçi": "butcher",
+    "etci": "butcher",
+    "et dükkânı": "butcher",
+    "et dukkanı": "butcher",
+    "et dukkani": "butcher",
+    "et market": "butcher",
+
+    # --- SUPERMARKET / GROCERY / BAKKAL ---
+    "supermarket": "supermarket",
+    "supermarkt": "supermarket",
+    "supermarkt (halal)": "supermarket",
+    "market": "supermarket",
+    "mini market": "supermarket",
+    "minimarket": "supermarket",
+    "mini-market": "supermarket",
+    "grocery": "supermarket",
+    "grocery store": "supermarket",
+    "halal shop": "supermarket",
+    "halal supermarkt": "supermarket",
+    "bakkal": "supermarket",
+    "şarküteri": "supermarket",
+    "sarkuteri": "supermarket",
+    "gıda": "supermarket",
+    "gida": "supermarket",
+
+    # --- BAKERY / PATISSERIE ---
+    "bakery": "bakery",
+    "baker": "bakery",
+    "bakkerij": "bakery",
+    "patisserie": "bakery",
+    "pâtisserie": "bakery",
+    "baklava shop": "bakery",
+    "baklava": "bakery",
+    "baklavacı": "bakery",
+    "baklavaci": "bakery",
+    "simitçi": "bakery",
+    "simitci": "bakery",
+    "simit bakery": "bakery",
+    "pastane": "bakery",
+    "pasta & börek": "bakery",
+    "börekçi": "bakery",
+    "borekci": "bakery",
+    "börek": "bakery",
+    "borek": "bakery",
+
+    # --- RESTAURANT / EATERY ---
+    "restaurant": "restaurant",
+    "grill": "restaurant",
+    "grillroom": "restaurant",
+    "kebab": "restaurant",
+    "kebap": "restaurant",
+    "doner": "restaurant",
+    "döner": "restaurant",
+    "doner kebab": "restaurant",
+    "shawarma": "restaurant",
+    "pide salonu": "restaurant",
+    "pide": "restaurant",
+    "lahmacun": "restaurant",
+    "ocakbaşı": "restaurant",
+    "ocakbasi": "restaurant",
+    "meze bar": "restaurant",
+    "lokanta": "restaurant",
+    "sofrasi": "restaurant",
+    "sofrası": "restaurant",
+    "antep cuisine": "restaurant",
+    "gaziantep cuisine": "restaurant",
+    "adana grill": "restaurant",
+    "adana kebap": "restaurant",
+    "bakery & restaurant": "restaurant",
+
+    # --- BARBERSHOP / HAIR ---
+    "barbershop": "barbershop",
+    "barber": "barbershop",
+    "barber shop": "barbershop",
+    "barbier": "barbershop",
+    "kapper": "barbershop",
+    "kappers": "barbershop",
+    "kapsalon": "barbershop",
+    "hairdresser": "barbershop",
+    "hair salon": "barbershop",
+    "salon": "barbershop",
+    # Turkish
+    "berber": "barbershop",
+    "kuaför": "barbershop",
+    "kuafor": "barbershop",
+    "erkek kuaförü": "barbershop",
+    "erkek kuaforu": "barbershop",
+    "bayan kuaförü": "barbershop",
+    "bayan kuaforu": "barbershop",
+
+    # --- MOSQUE / RELIGIOUS / COMMUNITY ---
+    "mosque": "mosque",
+    "masjid": "mosque",
+    "camii": "mosque",
+    "cami": "mosque",
+    "moskee": "mosque",
+    "islamitisch centrum": "mosque",
+    "islamic center": "mosque",
+    "diyanet": "mosque",
+    "alevi cultural center": "mosque",
+    "cemevi": "mosque",
+    "alevi gemeenschap": "mosque",
+    "kulturzentrum": "mosque",
+
+    # --- TRAVEL AGENCY / TICKETS ---
+    "travel agency": "travel_agency",
+    "reisbureau": "travel_agency",
+    "reis kantoor": "travel_agency",
+    "reizbüro": "travel_agency",
+    "uçak bileti": "travel_agency",
+    "bilet acentası": "travel_agency",
+    "bilet acentasi": "travel_agency",
+    "acente": "travel_agency",
+    "acenta": "travel_agency",
+
+    # fallback
+    "other": "other",
+}
+
+def normalize_category(raw_cat: str) -> str:
+    """
+    Take a raw category guess from the AI ("butcher", "kasap", "berber", etc)
+    and normalize it using CATEGORY_NORMALIZATION_MAP.
+    If we don't know it, just pass it through lowercase.
+    If it's empty/None, return "other".
+    """
+    if not raw_cat:
+        return "other"
+    key = raw_cat.strip().lower()
+    mapped = CATEGORY_NORMALIZATION_MAP.get(key)
+    if mapped:
+        return mapped
+    # not in map, just use the model's lowercase guess
+    return key
+
+
+def should_force_promote(row: dict) -> Optional[dict]:
+    diaspora_cats = {"bakery", "butcher", "barbershop", "mosque", "supermarket", "restaurant", "travel_agency"}
+    state = str(row.get("state") or "")
+    conf = row.get("confidence_score")
+    is_retired = row.get("is_retired")
+    category_raw = row.get("category") or ""
+    normalized_category = normalize_category(category_raw)
+
+    if state not in ("PENDING_VERIFICATION", "CANDIDATE"):
+        return None
+    try:
+        if conf is None or float(conf) < 0.90:
+            return None
+    except Exception:
+        return None
+    if is_retired is True:
+        return None
+    if normalized_category not in diaspora_cats:
+        return None
+
+    text = f"{row.get('name') or ''} \n {row.get('notes') or ''}"
+    low = text.lower()
+    turkish_hits = [
+        "turk", "turks", "turkse", "diyanet", "ulu", "cami", "camii", "moskee", "islamitisch centrum", "islamic center", "cemevi", "alevi",
+        "simit", "firin", "firini", "kapadokya", "avrasya", "tetik", "korfez", "usta", "anadolu", "yufka", "saray", "öz", "oz"
+    ]
+    if any(k in low for k in turkish_hits):
+        return {
+            "action": "keep",
+            "category": normalized_category,
+            "confidence": float(conf),
+            "reason": "auto-promotion: high score + turkish heuristic",
+        }
+    return None
 
 
 def _bbox(args):
@@ -41,7 +236,46 @@ def _bbox(args):
     return center_lat - 0.02, center_lat + 0.02, center_lng - 0.03, center_lng + 0.03
 
 
-async def run(limit: int, min_conf: float, dry_run: bool, model: Optional[str], args=None) -> None:
+def classify_location_with_ai(*, name: str, address: str, existing_category: str, model: Optional[str]) -> Dict[str, Any]:
+    svc = ClassifyService(model=model)
+    raw_payload, _meta = svc.classify(
+        name=name,
+        address=address,
+        typ=existing_category,
+        location_id=None,
+    )
+
+    # Prefer validated model, but gracefully fallback if enum mismatches (e.g., 'barber', 'kasap').
+    try:
+        if isinstance(raw_payload, AIClassification):
+            parsed = raw_payload
+        else:
+            if hasattr(raw_payload, "model_dump"):
+                raw_dict: Dict[str, Any] = raw_payload.model_dump()  # type: ignore[attr-defined]
+            else:
+                raw_dict = dict(raw_payload) if isinstance(raw_payload, dict) else {"__raw__": raw_payload}
+            parsed = validate_classification_payload(raw_dict)
+        action = parsed.action.value
+        category = parsed.category.value
+        confidence = float(parsed.confidence_score or 0.0)
+        reason = parsed.reason or ""
+        return {"action": action, "category": category, "confidence": confidence, "reason": reason}
+    except Exception:
+        # Fallback: extract best-effort fields without enforcing enum
+        if isinstance(raw_payload, dict):
+            raw_dict = raw_payload
+        elif hasattr(raw_payload, "model_dump"):
+            raw_dict = raw_payload.model_dump()  # type: ignore[attr-defined]
+        else:
+            raw_dict = {}
+        action = str(raw_dict.get("action", "ignore")).lower()
+        category = str(raw_dict.get("category", "other"))
+        confidence = float(raw_dict.get("confidence_score") or raw_dict.get("confidence") or 0.0)
+        reason = str(raw_dict.get("reason") or "")
+        return {"action": action, "category": category, "confidence": confidence, "reason": reason}
+
+
+async def run(limit: int, min_conf: float, dry_run: bool, model: str, args) -> None:
     """
     Batch-classifier:
       - haalt CANDIDATE records op
@@ -54,40 +288,49 @@ async def run(limit: int, min_conf: float, dry_run: bool, model: Optional[str], 
     
     # Use new filtering logic if args provided, otherwise fall back to original
     if args:
-        from services.db_service import async_engine
-        from sqlalchemy import text
-        
-        lat_min, lat_max, lng_min, lng_max = _bbox(args)
-        params = {
-            "limit": limit,
-            "lat_min": lat_min, "lat_max": lat_max,
-            "lng_min": lng_min, "lng_max": lng_max,
-        }
-        filters = ["state='CANDIDATE'",
-                   "(lat BETWEEN :lat_min AND :lat_max)",
-                   "(lng BETWEEN :lng_min AND :lng_max)"]
-        if args.source:
-            filters.append("source = :source")
-            params["source"] = args.source
-        # Note: city column doesn't exist in current schema, skipping city filter
-        # if args.city:
-        #     filters.append("lower(city) = lower(:city)")
-        #     params["city"] = args.city
+        from services.db_service import fetch
 
-        where = " AND ".join(filters)
+        lat_min, lat_max, lng_min, lng_max = _bbox(args)
+        filters = [
+            "state = 'CANDIDATE'",
+            "(lat BETWEEN $1 AND $2)",
+            "(lng BETWEEN $3 AND $4)",
+        ]
+        params = [lat_min, lat_max, lng_min, lng_max]
+
+        if getattr(args, "source", None):
+            filters.append("source = $5")
+            params.append(args.source)
+
+        where_sql = " AND ".join(filters)
+
+        limit_param_index = len(params) + 1
+        params.append(limit)
+
         sql = f"""
-            SELECT id, name, address, category, source, state, lat, lng
+            SELECT id, name, address, category, source, state, lat, lng, confidence_score, is_retired, notes
             FROM locations
-            WHERE {where}
+            WHERE {where_sql}
             ORDER BY first_seen_at DESC
-            LIMIT :limit
+            LIMIT ${limit_param_index}
         """
-        
-        async with async_engine.begin() as conn:
-            q = await conn.execute(text(sql), params)
-            rows = [dict(r) for r in q.mappings().all()]
+
+        raw_rows = await fetch(sql, *params)
+        rows = [dict(r) for r in raw_rows]
     else:
-        rows = await fetch_candidates_for_classification(limit=limit)
+        # Fallback: pull recent candidates/pending with required fields
+        from services.db_service import fetch as _fetch
+        sql = (
+            """
+            SELECT id, name, address, category, source, state, lat, lng, confidence_score, is_retired, notes
+            FROM locations
+            WHERE state IN ('CANDIDATE','PENDING_VERIFICATION')
+            ORDER BY first_seen_at DESC
+            LIMIT $1
+            """
+        )
+        raw_rows = await _fetch(sql, limit)
+        rows = [dict(r) for r in raw_rows]
 
     if not rows:
         print("No candidates found (state=CANDIDATE & confidence_score IS NULL).")
@@ -100,35 +343,41 @@ async def run(limit: int, min_conf: float, dry_run: bool, model: Optional[str], 
     for r in rows:
         total += 1
 
-        # 1) Vraag classificatie op bij de service
-        raw_payload, _meta = svc.classify(
-            name=r["name"],
-            address=r.get("address"),
-            typ=r.get("type"),
-            location_id=r["id"],
+        name = r.get("name") or ""
+        address = r.get("address") or ""
+        existing_cat = r.get("category") or r.get("type") or ""
+
+        # Auto-promotion path before LLM
+        promo = should_force_promote(r)
+        if promo:
+            print(f"[autopromote] id={r['id']} name='{name}' -> category={promo['category']} conf={promo['confidence']:.2f}")
+            if not dry_run:
+                await update_location_classification(
+                    id=r["id"],
+                    action="keep",
+                    category=promo["category"],
+                    confidence_score=promo["confidence"],
+                    reason=promo["reason"],
+                )
+            continue
+
+        result = classify_location_with_ai(
+            name=name,
+            address=address,
+            existing_category=existing_cat,
+            model=model,
         )
 
-        # 2) Valideer via unified schema (accepteert dict of model)
-        if isinstance(raw_payload, AIClassification):
-            parsed = raw_payload
-        else:
-            # best-effort dict
-            if hasattr(raw_payload, "model_dump"):
-                raw_dict: Dict[str, Any] = raw_payload.model_dump()  # type: ignore[attr-defined]
-            else:
-                raw_dict = dict(raw_payload) if isinstance(raw_payload, dict) else {"__raw__": raw_payload}
-            parsed = validate_classification_payload(raw_dict)
-
-        # 3) Gebruik enums veilig (.value) en min_conf-drempel
-        action = parsed.action.value
-        category = parsed.category.value
-        conf = float(parsed.confidence_score or 0.0)
+        action = result["action"]
+        raw_category = result["category"]
+        final_category = normalize_category(raw_category)
+        conf = float(result["confidence"]) 
 
         if conf < min_conf:
             skipped_low_conf += 1
             print(
                 f"[skip <{min_conf:.2f}] id={r['id']} name={r['name']!r} "
-                f"-> {action}/{category} conf={conf:.2f}"
+                f"-> {action}/{final_category} conf={conf:.2f}"
             )
             continue
 
@@ -138,16 +387,16 @@ async def run(limit: int, min_conf: float, dry_run: bool, model: Optional[str], 
         elif action == "ignore":
             ignore_cnt += 1
 
-        print(f"[apply] id={r['id']} -> action={action} category={category} conf={conf:.2f}")
+        print(f"[apply] id={r['id']} -> action={action} category={final_category} conf={conf:.2f}")
 
         # 4) Persist (tenzij dry-run)
         if not dry_run:
             await update_location_classification(
                 id=r["id"],
                 action=action,
-                category=category,
+                category=final_category,
                 confidence_score=conf,
-                reason=parsed.reason,
+                reason=result.get("reason", ""),
             )
 
     avg_keep_conf = (keep_conf_sum / keep_cnt) if keep_cnt else 0.0

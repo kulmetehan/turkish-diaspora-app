@@ -23,13 +23,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.11.9"
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.13-${{ hashFiles('Backend/requirements.txt') }}
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
           restore-keys: |
-            pip-${{ runner.os }}-py3.13-
+            pip-${{ runner.os }}-py3.11.9-
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
@@ -43,4 +43,4 @@ jobs:
           PYTHONUNBUFFERED: "1"
           DB_SSL_VERIFY: "0"
         run: >
-          python -m app.workers.task_verifier --limit 500 --min-confidence 0.70
+          python -m app.workers.task_verifier --limit 500 --min-confidence 0.80

@@ -7,7 +7,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy.engine.url import make_url
 import structlog
+from services.db_service import normalize_db_url
+import asyncpg
 
 # Logger (JSON via structlog)
 logger = structlog.get_logger()
@@ -62,8 +65,28 @@ def get_engine() -> AsyncEngine:
             "DATABASE_URL is niet gezet. Zet bijv.: "
             "export DATABASE_URL='postgresql+asyncpg://user:pass@host:5432/dbname'"
         )
-    db_url = _coerce_to_asyncpg(db_url)
-    _ENGINE = create_async_engine(db_url, echo=False, pool_pre_ping=True)
+    # Normalize URL and enforce sslmode=require if missing
+    db_url = normalize_db_url(db_url)
+
+    async def _asyncpg_creator():
+        return await asyncpg.connect(db_url)
+
+    _ENGINE = create_async_engine(
+        "postgresql+asyncpg://",
+        echo=False,
+        future=True,
+        pool_pre_ping=True,
+        connect_args={
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
+            "creator": _asyncpg_creator,
+        },
+    )
+    try:
+        masked = str(make_url(db_url).set(password="***"))
+        logger.info("metrics_engine_initialized", url=masked)
+    except Exception:
+        pass
     return _ENGINE
 
 

@@ -1,55 +1,60 @@
-# Backend/api/routers/locations.py
 from __future__ import annotations
 
 from typing import Any, List
-from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from fastapi import APIRouter, HTTPException, Query
 
-# Gebruik de gedeelde async engine (zoals beschreven in TDA-10)
-# services/db_service.py definieert async_engine
-from services.db_service import async_engine  # noqa: F401
+from services.db_service import fetch
 
-router = APIRouter(prefix="/api/v1/locations", tags=["locations"])
-
-# Lokale sessionmaker op basis van de gedeelde engine
-AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False)
-
-async def get_db() -> AsyncSession:
-    async with AsyncSessionLocal() as session:
-        yield session
+router = APIRouter(
+    prefix="/api/v1/locations",
+    tags=["locations"],
+)
 
 @router.get("/ping")
-async def ping(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
-    """DB-aware ping: verifies DB connectivity."""
+async def ping() -> dict[str, Any]:
+    """
+    Health check that also verifies DB connectivity.
+    """
     try:
-        await db.execute(text("SELECT 1"))
+        await fetch("SELECT 1")
         return {"ok": True, "router": "locations", "db": True}
     except Exception:
-        # reflect DB readiness accurately
         raise HTTPException(status_code=503, detail="database unavailable")
 
-@router.get("/", response_model=List[dict])
+
+@router.get("", response_model=List[dict])
 async def list_locations(
-    state: str = Query("VERIFIED", description="Filter op state (comma-separated for multiple)"),
-    limit: int = Query(200, gt=1, le=2000, description="Max aantal records (2..2000)"),
-    db: AsyncSession = Depends(get_db),
+    state: str = Query(
+        "VERIFIED",
+        description="Client hint only. Server enforces its own visibility rules.",
+    ),
+    limit: int = Query(
+        200,
+        gt=1,
+        le=2000,
+        description="Max number of records to return (2..2000)",
+    ),
 ):
     """
-    Minimale, veilige listing:
-    - Alleen kolommen waarvan we zeker weten dat ze bestaan (geen 'website').
-    - Eenvoudige state-filter en limit.
-    - Geen crash bij DB-fout: log & return [].
+    Public list of diaspora locations for the map.
+
+    Visibility rules:
+    - Always include rows that are already VERIFIED and not retired,
+      with confidence_score >= 0.80.
+    - ALSO include high-confidence (>=0.90) rows that are still
+      PENDING_VERIFICATION or CANDIDATE and not retired.
+      These are auto-surfaced “almost certainly Turkish” places.
+
+    We never return RETIRED and we skip anything with low/null confidence.
+
+    NOTE: we are using asyncpg via services.db_service.fetch(), not SQLAlchemy.
     """
-    # Let op: geen 'website' selecteren (TDA-8 mapping gebruikt die kolom niet)
-    # Support multiple states separated by comma
-    states = [s.strip() for s in state.split(',')]
-    state_placeholders = ','.join([f':state_{i}' for i in range(len(states))])
-    
-    sql = f"""
+
+    sql = """
         SELECT
             id,
             name,
+            address,
             lat,
             lng,
             category,
@@ -57,98 +62,76 @@ async def list_locations(
             state,
             confidence_score
         FROM locations
-        WHERE state IN ({state_placeholders})
+        WHERE (
+            state = 'VERIFIED'
+            AND (confidence_score IS NOT NULL AND confidence_score >= 0.80)
+            AND (is_retired = false OR is_retired IS NULL)
+        ) OR (
+            state IN ('PENDING_VERIFICATION', 'CANDIDATE')
+            AND (confidence_score IS NOT NULL AND confidence_score >= 0.90)
+            AND (is_retired = false OR is_retired IS NULL)
+        )
         ORDER BY id DESC
-        LIMIT :limit
+        LIMIT $1
     """
-    params = {f"state_{i}": states[i] for i in range(len(states))}
-    params["limit"] = limit
 
     try:
-        result = await db.execute(text(sql), params)
-        rows = [dict(r) for r in result.mappings().all()]
-        # Normaliseer types die de frontend verwacht
+        data = await fetch(sql, limit)
+        rows = [dict(r) for r in data]
+
+        # Normalize field types for the frontend
         for r in rows:
+            # force id to string for React key stability
             r["id"] = str(r.get("id"))
-            # Zorg dat lat/lng numeriek zijn
-            r["lat"] = float(r.get("lat")) if r.get("lat") is not None else None
-            r["lng"] = float(r.get("lng")) if r.get("lng") is not None else None
-            # Optionele velden die de frontend aankan
-            if "rating" in r and r["rating"] is not None:
-                r["rating"] = float(r["rating"])
+
+            # lat / lng to floats
+            if r.get("lat") is not None:
+                try:
+                    r["lat"] = float(r["lat"])
+                except Exception:
+                    r["lat"] = None
+            else:
+                r["lat"] = None
+
+            if r.get("lng") is not None:
+                try:
+                    r["lng"] = float(r["lng"])
+                except Exception:
+                    r["lng"] = None
+            else:
+                r["lng"] = None
+
+            # numeric fields that might come back as Decimal / str
+            if r.get("rating") is not None:
+                try:
+                    r["rating"] = float(r["rating"])
+                except Exception:
+                    r["rating"] = None
+
+            if r.get("confidence_score") is not None:
+                try:
+                    r["confidence_score"] = float(r["confidence_score"])
+                except Exception:
+                    pass
+
         return rows
+
     except Exception as e:
-        # Log and signal temporary unavailability so clients can retry/backoff
-        print(f"[locations] query failed: {e}")  # plaatsvervanger voor structlog
+        print(f"[locations] query failed: {e}")
         raise HTTPException(status_code=503, detail="database unavailable")
 
 
-@router.get("/stats")
-async def locations_stats(
-    state: str = Query("VERIFIED", description="Filter op state (comma-separated for multiple)"),
-    recent_limit: int = Query(100, gt=10, le=2000, description="Aantal recente records om te groeperen"),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    """
-    Simpele statistieken t.b.v. verificatie/monitoring:
-    - totaal aantal VERIFIED (of opgegeven states)
-    - aantallen per category
-    - distinct categories
-    - recent_per_category: recente voorbeelden (max 5 per category) uit de laatste `recent_limit` records
-    """
-    states = [s.strip() for s in state.split(',')]
-    state_placeholders = ','.join([f':state_{i}' for i in range(len(states))])
-
-    try:
-        # Total
-        sql_total = text(f"SELECT COUNT(*) AS c FROM locations WHERE state IN ({state_placeholders})")
-        params = {f"state_{i}": states[i] for i in range(len(states))}
-        total_row = (await db.execute(sql_total, params)).mappings().first()
-        total_verified = int(total_row["c"]) if total_row and total_row.get("c") is not None else 0
-
-        # By category
-        sql_by_cat = text(
-            f"""
-            SELECT COALESCE(category, 'unknown') AS category, COUNT(*) AS c
-            FROM locations
-            WHERE state IN ({state_placeholders})
-            GROUP BY category
-            ORDER BY c DESC
-            """
-        )
-        by_cat_rows = (await db.execute(sql_by_cat, params)).mappings().all()
-        by_category = [{"category": r["category"], "count": int(r["c"]) } for r in by_cat_rows]
-
-        # Distinct categories
-        distinct_categories = [r["category"] for r in by_cat_rows if r.get("category")] 
-
-        # Recent sample to show examples per category
-        sql_recent = text(
-            f"""
-            SELECT id, name, COALESCE(category, 'unknown') AS category
-            FROM locations
-            WHERE state IN ({state_placeholders})
-            ORDER BY id DESC
-            LIMIT :lim
-            """
-        )
-        recent_params = {**params, "lim": recent_limit}
-        recent_rows = (await db.execute(sql_recent, recent_params)).mappings().all()
-
-        # Group top 5 examples per category
-        recent_per_category: dict[str, list[dict[str, Any]]] = {}
-        for r in recent_rows:
-            cat = r["category"]
-            bucket = recent_per_category.setdefault(cat, [])
-            if len(bucket) < 5:
-                bucket.append({"id": int(r["id"]), "name": r["name"]})
-
-        return {
-            "total_verified": total_verified,
-            "by_category": by_category,
-            "distinct_categories": distinct_categories,
-            "recent_per_category": recent_per_category,
-        }
-    except Exception as e:
-        print(f"[locations.stats] query failed: {e}")
-        raise HTTPException(status_code=503, detail="database unavailable")
+@router.get("/", response_model=List[dict])
+async def list_locations_slash(
+    state: str = Query(
+        "VERIFIED",
+        description="Client hint only. Server enforces its own visibility rules.",
+    ),
+    limit: int = Query(
+        200,
+        gt=1,
+        le=2000,
+        description="Max number of records to return (2..2000)",
+    ),
+):
+    return await list_locations(state=state, limit=limit)

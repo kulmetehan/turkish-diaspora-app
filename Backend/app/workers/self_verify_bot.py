@@ -1,4 +1,9 @@
 # Backend/app/workers/self_verify_bot.py
+"""
+DEPRECATED AS PRIMARY VERIFICATION PIPELINE.
+This worker should not be scheduled automatically.
+Use classify_bot.py -> PENDING_VERIFICATION then verify_locations.py -> VERIFIED.
+"""
 # Self-Verifying AI Loop (classify + verify/enrich + promote)
 from __future__ import annotations
 

@@ -188,12 +188,9 @@ class OsmPlacesService:
             from sqlalchemy import text
             
             if not self._db_session:
-                from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-                database_url = os.getenv("DATABASE_URL")
-                if database_url and database_url.startswith("postgresql://"):
-                    database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-                engine = create_async_engine(database_url, pool_pre_ping=True, future=True)
-                self._db_session = async_sessionmaker(engine, expire_on_commit=False)
+                from sqlalchemy.ext.asyncio import async_sessionmaker
+                from services.db_service import async_engine as shared_engine  # reuse shared engine with proper connect_args
+                self._db_session = async_sessionmaker(shared_engine, expire_on_commit=False)
             
             # Create safe preview string for DB storage
             safe_preview = None

@@ -6,94 +6,106 @@ import json
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
-import ssl
-from typing import cast
-
-try:
-    import certifi  # type: ignore
-    _CERTIFI_CAFILE: Optional[str] = cast(Optional[str], certifi.where())
-except Exception:
-    _CERTIFI_CAFILE = None
+import logging
+from sqlalchemy.engine.url import make_url, URL
+import asyncpg
 
 # --------------------------------------------------------------------
-# DB engine
+# DB config
 # --------------------------------------------------------------------
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL not set in environment/.env")
 
-# Normalize DB URL for asyncpg: ensure driver, drop ssl/sslmode from query
-def _normalize_db_url(url: str) -> str:
-    # Ensure asyncpg scheme for SQLAlchemy
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    # Parse and sanitize query for asyncpg
-    parsed = urlparse(url)
-    q = dict(parse_qsl(parsed.query, keep_blank_values=True))
+# --------------------------------------------------------------------
+# Connection string normalization (exported)
+# --------------------------------------------------------------------
+def normalize_db_url(raw_url: str) -> dict:
+    """
+    Parse DATABASE_URL from .env and return a dict with:
+    {
+        "user": ...,
+        "password": ...,
+        "host": ...,
+        "port": ...,
+        "database": ...,
+        "sslmode": ... (defaults to "require"),
+    }
+    We ignore the driver part and we force sslmode=require if missing.
+    """
+    u = make_url(raw_url)
 
-    # Drop ssl/sslmode so they don't propagate as kwargs
-    q.pop("sslmode", None)
-    q.pop("ssl", None)
+    user = u.username or ""
+    password = u.password or ""
+    host = u.host or ""
+    port = u.port or 5432
+    database = u.database or "postgres"
 
-    new_query = urlencode(q)
-    url = urlunparse(parsed._replace(query=new_query))
-    return url
+    # turn existing query params into a dict
+    query = dict(getattr(u, "query", {}) or {})
+    sslmode = query.get("sslmode", "require")
 
-DATABASE_URL = _normalize_db_url(DATABASE_URL)
+    return {
+        "user": user,
+        "password": password,
+        "host": host,
+        "port": port,
+        "database": database,
+        "sslmode": sslmode,
+    }
 
-# SQLAlchemy async engine (2.x style)
-# Build SSL context using certifi CA bundle when available (fixes macOS trust issues)
-def _build_ssl_context() -> ssl.SSLContext:
-    # Determine verification policy
-    # Priority: DB_SSL_VERIFY (1/0) -> DATABASE_SSL_NO_VERIFY -> defaults
-    db_ssl_verify_env = os.getenv("DB_SSL_VERIFY")
-    if db_ssl_verify_env is not None:
-        verify = db_ssl_verify_env.strip().lower() in ("1", "true", "yes", "y")
-        no_verify = not verify
-    else:
-        # Default: disable verification locally, keep verification on in CI
-        no_verify_default = "0" if os.getenv("CI", "").strip().lower() in ("1", "true") else "1"
-        no_verify = os.getenv("DATABASE_SSL_NO_VERIFY", no_verify_default).strip().lower() in ("1", "true", "yes")
+logger = logging.getLogger(__name__)
 
-    # Prefer explicit CA bundle envs if provided
-    ca_env_keys = (
-        "DATABASE_SSL_CAFILE",
-        "PGSSLROOTCERT",
-        "SSL_CERT_FILE",
-        "REQUESTS_CA_BUNDLE",
-    )
-    cafile: Optional[str] = None
-    for k in ca_env_keys:
-        v = os.getenv(k)
-        if v and os.path.exists(v):
-            cafile = v
-            break
+# Normalize early (dict conf)
+DB_CONF = normalize_db_url(DATABASE_URL)
 
-    if cafile:
-        ctx = ssl.create_default_context(cafile=cafile)
-    elif _CERTIFI_CAFILE:
-        ctx = ssl.create_default_context(cafile=_CERTIFI_CAFILE)
-    else:
-        ctx = ssl.create_default_context()
-
-    if no_verify:
-        # Dangerous: only for local troubleshooting
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-    return ctx
-
-async_engine = create_async_engine(
-    DATABASE_URL,
-    future=True,
-    echo=False,         # zet True voor debug SQL
-    pool_pre_ping=True,
-    connect_args={"ssl": _build_ssl_context()},
+_masked_pw = "***" if DB_CONF.get("password") else ""
+logger.info(
+    "db_engine_normalized_url",
+    extra={
+        "url": f"postgresql://{DB_CONF['user']}:{_masked_pw}@{DB_CONF['host']}:{DB_CONF['port']}/{DB_CONF['database']}?sslmode={DB_CONF['sslmode']}"
+    },
 )
+
+# --------------------------------------------------------------------
+# Lightweight asyncpg pool + helpers
+# --------------------------------------------------------------------
+pool: asyncpg.Pool | None = None
+
+async def init_db_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        logger.info("Initializing asyncpg connection pool...")
+        pool = await asyncpg.create_pool(
+            user=DB_CONF["user"],
+            password=DB_CONF["password"],
+            host=DB_CONF["host"],
+            port=DB_CONF["port"],
+            database=DB_CONF["database"],
+            ssl="require" if DB_CONF["sslmode"] != "disable" else False,
+            min_size=2,
+            max_size=10,
+            statement_cache_size=0,
+        )
+    return pool
+
+async def fetch(query: str, *args):
+    p = await init_db_pool()
+    conn = await p.acquire()
+    try:
+        return await conn.fetch(query, *args)
+    finally:
+        await p.release(conn)
+
+async def execute(query: str, *args):
+    p = await init_db_pool()
+    conn = await p.acquire()
+    try:
+        return await conn.execute(query, *args)
+    finally:
+        await p.release(conn)
 
 # --------------------------------------------------------------------
 # AI log helper
@@ -113,41 +125,45 @@ async def ai_log(
     Schrijf een auditlog-rij naar ai_logs.
     prompt/raw_response/validated_output worden als JSONB opgeslagen.
     """
-    q = text("""
-        INSERT INTO ai_logs (
+    try:
+        sql = (
+            """
+            INSERT INTO ai_logs (
+                location_id,
+                action_type,
+                prompt,
+                raw_response,
+                validated_output,
+                model_used,
+                is_success,
+                error_message
+            ) VALUES (
+                $1,
+                $2,
+                CAST($3 AS JSONB),
+                CAST($4 AS JSONB),
+                CAST($5 AS JSONB),
+                $6,
+                $7,
+                $8
+            )
+            """
+        )
+
+        await execute(
+            sql,
             location_id,
             action_type,
-            prompt,
-            raw_response,
-            validated_output,
+            json.dumps(prompt, ensure_ascii=False) if prompt is not None else None,
+            json.dumps(raw_response, ensure_ascii=False) if raw_response is not None else None,
+            json.dumps(validated_output, ensure_ascii=False) if validated_output is not None else None,
             model_used,
             is_success,
-            error_message
-        ) VALUES (
-            :location_id,
-            :action_type,
-            CAST(:prompt AS JSONB),
-            CAST(:raw_response AS JSONB),
-            CAST(:validated_output AS JSONB),
-            :model_used,
-            :is_success,
-            :error_message
+            error_message,
         )
-    """)
-
-    params = {
-        "location_id": location_id,
-        "action_type": action_type,
-        "prompt": json.dumps(prompt, ensure_ascii=False) if prompt is not None else None,
-        "raw_response": json.dumps(raw_response, ensure_ascii=False) if raw_response is not None else None,
-        "validated_output": json.dumps(validated_output, ensure_ascii=False) if validated_output is not None else None,
-        "model_used": model_used,
-        "is_success": is_success,
-        "error_message": error_message,
-    }
-
-    async with async_engine.begin() as conn:
-        await conn.execute(q, params)
+    except Exception as e:
+        logger.warning("ai_log failed", exc_info=e)
+        return
 
 # --------------------------------------------------------------------
 # Fetch candidates to classify
@@ -157,19 +173,20 @@ async def fetch_candidates_for_classification(limit: int = 100) -> List[Dict[str
     Haal CANDIDATE rows op die nog geen confidence_score hebben.
     Pas de WHERE aan als je (her)classificatie wil.
     """
-    q = text("""
+    sql = (
+        """
         SELECT id, name, address, category AS type
         FROM locations
         WHERE state = 'CANDIDATE' AND confidence_score IS NULL
         ORDER BY first_seen_at ASC
-        LIMIT :limit
-    """)
-    async with async_engine.begin() as conn:
-        rows = (await conn.execute(q, {"limit": limit})).mappings().all()
-        return [dict(r) for r in rows]
+        LIMIT $1
+        """
+    )
+    rows = await fetch(sql, limit)
+    return [dict(r) for r in rows]
 
 # --------------------------------------------------------------------
-# Update classification result on a location  (FIXED)
+# Update classification result on a location (idempotent + no-downgrade)
 # --------------------------------------------------------------------
 async def update_location_classification(
     *,
@@ -180,42 +197,100 @@ async def update_location_classification(
     reason: Optional[str] = None,
 ) -> None:
     """
-    Schrijf classificatie terug en update state:
-      - keep   -> PENDING_VERIFICATION
-      - ignore -> RETIRED
-    Appende reason (indien niet leeg) aan notes met een newline.
+    Persist AI/manual classification while enforcing:
+      - State thresholds (keep=VERIFIED/PENDING_VERIFICATION/CANDIDATE by confidence; ignore=RETIRED)
+      - No downgrade of VERIFIED, no resurrection of RETIRED
+      - Always stamps last_verified_at = NOW()
+      - Appends reason into notes (newline-separated)
     """
 
-    # 1) State
-    new_state = "PENDING_VERIFICATION" if action == "keep" else "RETIRED"
+    # Fetch current state to enforce no-downgrade/no-resurrection
+    row_sql = """
+        SELECT state, COALESCE(is_retired, false) AS is_retired
+        FROM locations
+        WHERE id = $1
+    """
+    rows = await fetch(row_sql, int(id))
+    current_state = None
+    is_retired = False
+    if rows:
+        rec = dict(rows[0])
+        current_state = (rec.get("state") or "").upper()
+        is_retired = bool(rec.get("is_retired"))
 
-    # 2) Zorg dat reason altijd een STRING is voor Postgres/asyncpg
-    reason_text = reason or ""   # <-- cruciaal: nooit None doorgeven
+    # Derive desired target state from action + confidence
+    action_l = (action or "").strip().lower()
+    if action_l == "ignore":
+        desired_state = "RETIRED"
+    elif action_l == "keep":
+        if float(confidence_score) >= 0.90:
+            desired_state = "VERIFIED"
+        elif float(confidence_score) >= 0.80:
+            desired_state = "PENDING_VERIFICATION"
+        else:
+            desired_state = "CANDIDATE"
+    else:
+        desired_state = "CANDIDATE"
 
-    # 3) Update
-    # Geen casts of :param::text meer nodig; we gebruiken één tekstparam.
-    q = text("""
+    # Enforce no-downgrade/no-resurrection
+    final_state = desired_state
+    if current_state == "VERIFIED":
+        final_state = "VERIFIED"  # never demote VERIFIED
+    elif current_state == "RETIRED" or is_retired:
+        final_state = "RETIRED"   # never resurrect RETIRED
+
+    reason_text = reason or ""
+
+    # Update with stamp
+    sql = (
+        """
         UPDATE locations
         SET
-            category = :category,
-            confidence_score = :score,
-            state = :new_state,
+            category = $1,
+            confidence_score = $2,
+            state = $3,
             notes = CASE
-                      WHEN :reason_text = '' THEN notes
+                      WHEN $4 = '' THEN notes
                       ELSE COALESCE(notes, '')
                            || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\\n' END
-                           || :reason_text
+                           || $4
+                    END,
+            last_verified_at = NOW()
+        WHERE id = $5
+        """
+    )
+
+    await execute(
+        sql,
+        category,
+        float(confidence_score),
+        final_state,
+        reason_text,
+        int(id),
+    )
+
+
+# --------------------------------------------------------------------
+# Mark as inspected without changing classification
+# --------------------------------------------------------------------
+async def mark_last_verified(id: int, note: Optional[str] = None) -> None:
+    """
+    Set last_verified_at = NOW() and optionally append a note, without changing
+    confidence_score/state/category. Use to avoid reprocessing items repeatedly.
+    """
+    note_text = note or ""
+    sql = (
+        """
+        UPDATE locations
+        SET
+            last_verified_at = NOW(),
+            notes = CASE
+                      WHEN $1 = '' THEN notes
+                      ELSE COALESCE(notes, '')
+                           || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\\n' END
+                           || $1
                     END
-        WHERE id = :id
-    """)
-
-    params = {
-        "id": id,
-        "category": category,
-        "score": confidence_score,
-        "new_state": new_state,
-        "reason_text": reason_text,   # <-- altijd string
-    }
-
-    async with async_engine.begin() as conn:
-        await conn.execute(q, params)
+        WHERE id = $2
+        """
+    )
+    await execute(sql, note_text, int(id))

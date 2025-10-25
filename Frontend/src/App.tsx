@@ -9,13 +9,13 @@ import MapView from "@/components/MapView";
 import SortBar from "@/components/SortBar";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
-import { fetchLocations, getCachedLocations, type Location } from "@/lib/api/location";
+import { fetchLocations, type LocationMarker } from "@/api/fetchLocations";
 
 // Sorteersleutel zoals in jouw SortBar gebruikt
 export type SortKey = "relevance" | "rating_desc" | "name_asc";
 
 function HomePage() {
-  const [all, setAll] = useState<Location[]>([]);
+  const [all, setAll] = useState<LocationMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [usingCache, setUsingCache] = useState(false);
@@ -54,53 +54,14 @@ function HomePage() {
     let alive = true;
     setLoading(true);
     setError(null);
-    setUsingCache(false);
-
     const load = async () => {
       try {
         const rows = await fetchLocations();
         if (!alive) return;
-        // If API returns empty but we have cached data, prefer cache and retry
-        if (rows.length === 0) {
-          const cached = getCachedLocations();
-          if (cached && cached.length > 0) {
-            setAll(cached);
-            setUsingCache(true);
-            setTimeout(async () => {
-              try {
-                const fresh = await fetchLocations();
-                if (!alive) return;
-                if (fresh.length > 0) {
-                  setAll(fresh);
-                  setUsingCache(false);
-                  setError(null);
-                }
-              } catch { }
-            }, 2000);
-            return;
-          }
-        }
         setAll(rows);
       } catch (e: any) {
         if (!alive) return;
-        // Try cached data as fallback
-        const cached = getCachedLocations();
-        if (cached && cached.length > 0) {
-          setAll(cached);
-          setUsingCache(true);
-          // Silent retry after short delay to update live data if available
-          setTimeout(async () => {
-            try {
-              const fresh = await fetchLocations();
-              if (!alive) return;
-              setAll(fresh);
-              setUsingCache(false);
-              setError(null);
-            } catch { }
-          }, 2000);
-        } else {
-          setError(e instanceof Error ? e.message : "Onbekende fout");
-        }
+        setError(e instanceof Error ? e.message : "Onbekende fout");
       } finally {
         if (!alive) return;
         setLoading(false);

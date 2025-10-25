@@ -1,14 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-VerifyLocationsBot — Classify and promote CANDIDATE locations to VERIFIED
-- Fetches CANDIDATE rows from locations table
-- Classifies each using existing ClassifyService
+VerifyLocationsBot — Promote PENDING_VERIFICATION locations to VERIFIED or RETIRED
+- Fetches PENDING_VERIFICATION rows from locations table
+- (Re)classifies each using existing ClassifyService
 - Validates using existing AI validation
-- Promotes eligible rows to VERIFIED state
+- Promotes eligible rows to VERIFIED (else RETIRED)
 - Logs all actions via AuditService
 
 Usage:
-    python -m app.workers.verify_locations --city rotterdam --limit 200 --dry-run 0
+    python -m app.workers.verify_locations --limit 200 --dry-run 0
+"""
+
+"""
+STATE MACHINE (canonical):
+- CANDIDATE: raw discovered location, unreviewed.
+- PENDING_VERIFICATION: AI thinks it's Turkish (confidence >=0.80) but not yet promoted.
+- VERIFIED: approved and visible in the app.
+- RETIRED: explicitly considered not relevant / no longer valid.
+Only VERIFIED locations are sent to the frontend.
 """
 
 from __future__ import annotations
@@ -45,11 +54,15 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))    # .../Backend
 
 # ---------------------------------------------------------------------------
-# DB (async)
+# DB (asyncpg helpers)
 # ---------------------------------------------------------------------------
-from sqlalchemy import text
-# Reuse the central async engine which already normalizes URL and SSL
-from services.db_service import async_engine as engine
+from services.db_service import (
+    init_db_pool,
+    fetch,
+    execute,
+    update_location_classification,
+    mark_last_verified,
+)
 
 # ---------------------------------------------------------------------------
 # Services
@@ -62,75 +75,55 @@ from services.audit_service import audit_service
 # Worker Logic
 # ---------------------------------------------------------------------------
 async def fetch_candidates(
+    *,
     limit: int,
-    offset: int = 0,
-    city: Optional[str] = None,
-    source: Optional[str] = None
+    min_confidence: float,
 ) -> List[Dict[str, Any]]:
-    """Fetch CANDIDATE locations that need verification."""
-    filters = ["state = 'CANDIDATE'", "is_retired = false"]
-    params = {"limit": limit, "offset": offset}
-    
-    if city:
-        # Note: city column may not exist in current schema, so we'll skip this filter
-        # filters.append("LOWER(city) = LOWER(:city)")
-        # params["city"] = city
-        pass
-    
-    if source:
-        filters.append("source = :source")
-        params["source"] = source
-    
-    where_clause = " AND ".join(filters)
-    
-    sql = text(f"""
-        SELECT id, name, address, category, source, state, lat, lng, 
-               confidence_score, first_seen_at, last_seen_at
+    """Fetch locations that are worth sending to OpenAI per cost-aware rules."""
+    sql = (
+        """
+        SELECT id,
+               name,
+               address,
+               lat,
+               lng,
+               category,
+               state,
+               confidence_score,
+               notes
         FROM locations
-        WHERE {where_clause}
-        ORDER BY first_seen_at ASC
-        LIMIT :limit OFFSET :offset
-    """)
-    
-    async with engine.begin() as conn:
-        result = await conn.execute(sql, params)
-        rows = result.mappings().all()
-        return [dict(row) for row in rows]
+        WHERE state IN ('CANDIDATE', 'PENDING_VERIFICATION')
+          AND (confidence_score IS NULL OR confidence_score < $1)
+          AND (is_retired = false OR is_retired IS NULL)
+          AND (
+                last_verified_at IS NULL
+                OR last_verified_at < NOW() - INTERVAL '24 hours'
+              )
+        ORDER BY first_seen_at DESC
+        LIMIT $2
+        """
+    )
+    rows = await fetch(sql, float(min_confidence), int(limit))
+    return [dict(r) for r in rows]
 
-async def update_location_to_verified(
+async def _apply_classification(
+    *,
     location_id: int,
+    action: str,
     category: str,
-    confidence_score: float,
-    reason: Optional[str] = None,
-    dry_run: bool = False
-) -> bool:
-    """Update location to VERIFIED state with audit logging."""
+    confidence: float,
+    reason: Optional[str],
+    dry_run: bool,
+) -> None:
     if dry_run:
-        return True
-    
-    now = datetime.now(timezone.utc)
-    
-    # Update the location
-    update_sql = text("""
-        UPDATE locations
-        SET 
-            state = 'VERIFIED',
-            category = :category,
-            confidence_score = :confidence_score,
-            last_verified_at = :last_verified_at
-        WHERE id = :id
-    """)
-    
-    params = {
-        "id": location_id,
-        "category": category,
-        "confidence_score": confidence_score,
-        "last_verified_at": now
-    }
-    
-    async with engine.begin() as conn:
-        result = await conn.execute(update_sql, params)
-        return result.rowcount > 0
+        return
+    await update_location_classification(
+        id=int(location_id),
+        action=action,
+        category=category,
+        confidence_score=float(confidence),
+        reason=reason or "verify_locations: applied",
+    )
 
 async def process_location(
     location: Dict[str, Any],
@@ -165,87 +158,61 @@ async def process_location(
             typ=category,
             location_id=location_id
         )
-        
+
         # 2. Validate using existing validation
         validated_classification = validate_classification_payload(
             classification_result.model_dump()
         )
-        
+
         action = validated_classification.action.value
         category_result = validated_classification.category.value
         confidence = float(validated_classification.confidence_score)
         reason = validated_classification.reason
-        
+
         result.update({
             "action": action,
             "category": category_result,
             "confidence": confidence,
             "reason": reason
         })
-        
-        # 3. Check if eligible for promotion (Turkish-only enforcement)
-        if action == "keep" and confidence >= min_confidence:
-            # Update to VERIFIED (only Turkish businesses)
-            success = await update_location_to_verified(
+
+        # Apply via central helper (handles state computation + stamping)
+        await _apply_classification(
+            location_id=location_id,
+            action=action,
+            category=category_result,
+            confidence=confidence,
+            reason=reason,
+            dry_run=dry_run,
+        )
+
+        result.update({
+            "new_state": None,  # state is computed centrally; keep for logs
+            "success": True,
+        })
+
+        if not dry_run:
+            await audit_service.log(
+                action_type="verify_locations.classified",
+                actor="verify_locations_bot",
                 location_id=location_id,
-                category=category_result,
-                confidence_score=confidence,
-                reason=reason,
-                dry_run=dry_run
+                before=None,
+                after={"action": action, "category": category_result, "confidence_score": confidence},
+                is_success=True,
+                meta={
+                    "confidence_threshold": min_confidence
+                }
             )
-            
-            if success:
-                result.update({
-                    "new_state": "VERIFIED",
-                    "success": True
-                })
-                
-                # Log audit entry
-                if not dry_run:
-                    await audit_service.log(
-                        action_type="verify_locations.promote",
-                        actor="verify_locations_bot",
-                        location_id=location_id,
-                        before={"state": "CANDIDATE"},
-                        after={"state": "VERIFIED", "category": category_result, "confidence_score": confidence},
-                        is_success=True,
-                        meta={
-                            "classification_result": classification_result.model_dump(),
-                            "confidence_threshold": min_confidence,
-                            "turkish_verification": "enforced"
-                        }
-                    )
-            else:
-                result["error"] = "Failed to update location"
-        else:
-            # Not eligible for promotion
-            if action != "keep":
-                result["new_state"] = "CANDIDATE"  # Keep as candidate
-                result["reason"] = f"Not Turkish business (action: {action})"
-                
-                # Log audit entry for non-Turkish business
-                if not dry_run:
-                    await audit_service.log(
-                        action_type="verify_locations.skip_not_turkish",
-                        actor="verify_locations_bot",
-                        location_id=location_id,
-                        before={"state": "CANDIDATE"},
-                        after={"state": "CANDIDATE"},
-                        is_success=True,
-                        meta={
-                            "classification_result": classification_result.model_dump(),
-                            "reason": "not_turkish"
-                        }
-                    )
-            else:
-                result["new_state"] = "CANDIDATE"  # Keep as candidate
-                result["reason"] = f"Confidence {confidence:.2f} < {min_confidence:.2f}"
-            
-            result["success"] = True  # Processing succeeded, just not promoted
-            
+
     except Exception as e:
         result["error"] = str(e)
         logger.error("process_location_error", location_id=location_id, error=str(e))
+        # Edge: stamp so we don't retry forever in a tight loop
+        try:
+            if not dry_run:
+                await mark_last_verified(location_id, note="skipped by verify_locations: insufficient data or error")
+        except Exception:
+            pass
     
     return result
 
@@ -262,12 +229,7 @@ async def run_verification(
     classify_service = ClassifyService(model=model)
     
     # Fetch candidates
-    candidates = await fetch_candidates(
-        limit=limit,
-        offset=offset,
-        city=city,
-        source=source
-    )
+    candidates = await fetch_candidates(limit=limit, min_confidence=min_confidence)
     
     if not candidates:
         return {
@@ -278,7 +240,7 @@ async def run_verification(
             "results": []
         }
     
-    print(f"[VerifyLocationsBot] Processing {len(candidates)} candidates...")
+    print(f"[VerifyLocationsBot] Processing {len(candidates)} pending verifications...")
     
     results = []
     promoted = 0
@@ -301,10 +263,10 @@ async def run_verification(
                 promoted += 1
                 print(f"[PROMOTE] id={result['id']} name={result['name']!r} "
                       f"-> {result['category']} conf={result['confidence']:.2f}")
-            else:
+            elif result["new_state"] == "RETIRED":
                 skipped += 1
-                print(f"[SKIP] id={result['id']} name={result['name']!r} "
-                      f"-> {result['reason']}")
+                print(f"[RETIRE] id={result['id']} name={result['name']!r} "
+                      f"-> reason={result.get('reason') or 'not_keep_or_low_conf'}")
         else:
             errors += 1
             print(f"[ERROR] id={result['id']} name={result['name']!r} "
@@ -322,7 +284,7 @@ async def run_verification(
 # CLI
 # ---------------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="VerifyLocationsBot — classify and promote CANDIDATE locations")
+    ap = argparse.ArgumentParser(description="VerifyLocationsBot — promote PENDING_VERIFICATION to VERIFIED or RETIRED")
     ap.add_argument("--city", help="Filter by city (if supported by schema)")
     ap.add_argument("--source", help="Filter by source (e.g., OSM_OVERPASS, GOOGLE_PLACES)")
     ap.add_argument("--limit", type=int, default=200, help="Max items to process")
@@ -359,6 +321,8 @@ async def main_async():
         print(f"  Dry run: {bool(args.dry_run)}")
         print(f"  Model: {args.model or 'default'}\n")
         
+        # Ensure DB pool is ready
+        await init_db_pool()
         result = await run_verification(
             limit=actual_limit,
             offset=actual_offset,
