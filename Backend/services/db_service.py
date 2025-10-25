@@ -5,10 +5,10 @@ import os
 import json
 from typing import Any, Dict, List, Optional
 import asyncio
+from urllib.parse import urlparse, parse_qsl, urlunparse, urlencode
 
 from dotenv import load_dotenv
 import logging
-from sqlalchemy.engine.url import make_url, URL
 import asyncpg
 
 # --------------------------------------------------------------------
@@ -23,30 +23,41 @@ if not DATABASE_URL:
 # --------------------------------------------------------------------
 # Connection string normalization (exported)
 # --------------------------------------------------------------------
+def _normalize_scheme(url: str) -> str:
+    # Force postgresql:// scheme (strip postgresql+asyncpg:// if present)
+    if url.startswith("postgresql+asyncpg://"):
+        return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    return url
+
+
 def normalize_db_url(raw_url: str) -> dict:
     """
-    Parse DATABASE_URL from .env and return a dict with:
+    Normalize DATABASE_URL to a postgresql:// DSN and return parsed parts:
     {
-        "user": ...,
-        "password": ...,
-        "host": ...,
-        "port": ...,
-        "database": ...,
-        "sslmode": ... (defaults to "require"),
+        "user", "password", "host", "port", "database", "sslmode"
     }
-    We ignore the driver part and we force sslmode=require if missing.
+    Rules:
+    - Force scheme to postgresql://
+    - Rewrite port 6543 -> 5432
+    - Preserve or add sslmode=require
     """
-    u = make_url(raw_url)
+    coerced = _normalize_scheme(raw_url)
+    parsed = urlparse(coerced)
 
-    user = u.username or ""
-    password = u.password or ""
-    host = u.host or ""
-    port = u.port or 5432
-    database = u.database or "postgres"
+    # Some providers may include non-standard ports
+    port = parsed.port or 5432
+    if port == 6543:
+        port = 5432
 
-    # turn existing query params into a dict
-    query = dict(getattr(u, "query", {}) or {})
-    sslmode = query.get("sslmode", "require")
+    # Ensure sslmode=require in query
+    q = dict(parse_qsl(parsed.query))
+    if "sslmode" not in q or not q.get("sslmode"):
+        q["sslmode"] = "require"
+
+    user = parsed.username or ""
+    password = parsed.password or ""
+    host = parsed.hostname or ""
+    database = (parsed.path or "/postgres").lstrip("/") or "postgres"
 
     return {
         "user": user,
@@ -54,7 +65,7 @@ def normalize_db_url(raw_url: str) -> dict:
         "host": host,
         "port": port,
         "database": database,
-        "sslmode": sslmode,
+        "sslmode": q.get("sslmode", "require"),
     }
 
 logger = logging.getLogger(__name__)
@@ -100,20 +111,14 @@ async def init_db_pool() -> asyncpg.Pool:
     return await ensure_pool()
 
 async def fetch(query: str, *args):
-    p = await ensure_pool()
-    conn = await p.acquire()
-    try:
+    pool = await ensure_pool()
+    async with pool.acquire() as conn:
         return await conn.fetch(query, *args)
-    finally:
-        await p.release(conn)
 
 async def execute(query: str, *args):
-    p = await ensure_pool()
-    conn = await p.acquire()
-    try:
+    pool = await ensure_pool()
+    async with pool.acquire() as conn:
         return await conn.execute(query, *args)
-    finally:
-        await p.release(conn)
 
 # --------------------------------------------------------------------
 # AI log helper

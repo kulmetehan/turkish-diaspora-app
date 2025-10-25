@@ -13,14 +13,6 @@ from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv(), override=False)
 
-# --- Uniform logging ---
-from app.core.logging import configure_logging, get_logger
-from app.core.request_id import with_run_id
-
-configure_logging(service_name="worker")
-logger = get_logger()
-logger = logger.bind(worker="verify_locations")
-
 # ---------------------------------------------------------------------------
 # Pathing zodat 'app.*' en 'services.*' werken
 # ---------------------------------------------------------------------------
@@ -30,6 +22,14 @@ BACKEND_DIR = APP_DIR.parent                # .../Backend
 
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))    # .../Backend
+
+# --- Uniform logging ---
+from app.core.logging import configure_logging, get_logger
+from app.core.request_id import with_run_id
+
+configure_logging(service_name="worker")
+logger = get_logger()
+logger = logger.bind(worker="verify_locations")
 
 # ---------------------------------------------------------------------------
 # DB (asyncpg helpers)

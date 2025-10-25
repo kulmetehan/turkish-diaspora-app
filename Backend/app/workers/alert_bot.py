@@ -78,20 +78,21 @@ async def _task_error_rate(minutes: int) -> float:
         """
         SELECT COUNT(*)::int AS total
         FROM tasks
-        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+        WHERE created_at >= (NOW() - $1::interval)
         """
     )
     failed_sql = (
         """
         SELECT COUNT(*)::int AS failed
         FROM tasks
-        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+        WHERE created_at >= (NOW() - $1::interval)
           AND (status = 'FAILED' OR is_success = false)
         """
     )
     try:
-        rows_t = await fetch(total_sql, int(minutes))
-        rows_f = await fetch(failed_sql, int(minutes))
+        window = f"{int(minutes)} minutes"
+        rows_t = await fetch(total_sql, window)
+        rows_f = await fetch(failed_sql, window)
         total = int((rows_t[0]["total"] if rows_t else 0) or 0)
         failed = int((rows_f[0]["failed"] if rows_f else 0) or 0)
         if total > 0:
@@ -104,7 +105,7 @@ async def _task_error_rate(minutes: int) -> float:
         """
         SELECT COUNT(*)::int AS total
         FROM ai_logs
-        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+        WHERE created_at >= (NOW() - $1::interval)
           AND (
             action_type ILIKE 'worker.%' OR
             action_type ILIKE 'bot.%' OR
@@ -116,7 +117,7 @@ async def _task_error_rate(minutes: int) -> float:
         """
         SELECT COUNT(*)::int AS failed
         FROM ai_logs
-        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+        WHERE created_at >= (NOW() - $1::interval)
           AND (
             action_type ILIKE 'worker.%' OR
             action_type ILIKE 'bot.%' OR
@@ -125,8 +126,9 @@ async def _task_error_rate(minutes: int) -> float:
           AND is_success = false
         """
     )
-    rows_lt = await fetch(logs_total, int(minutes))
-    rows_lf = await fetch(logs_failed, int(minutes))
+    window2 = f"{int(minutes)} minutes"
+    rows_lt = await fetch(logs_total, window2)
+    rows_lf = await fetch(logs_failed, window2)
     total = int((rows_lt[0]["total"] if rows_lt else 0) or 0)
     failed = int((rows_lf[0]["failed"] if rows_lf else 0) or 0)
     return (failed / float(total)) if total > 0 else 0.0
@@ -137,7 +139,7 @@ async def _google_429_count(minutes: int) -> int:
         """
         SELECT COUNT(*)::int AS cnt
         FROM ai_logs
-        WHERE created_at >= (NOW() - ($1::text || ' minutes')::interval)
+        WHERE created_at >= (NOW() - $1::interval)
           AND (
             error_message ILIKE '%429%' OR
             (raw_response ? 'statusCode' AND (raw_response->>'statusCode')::int = 429) OR
@@ -145,7 +147,8 @@ async def _google_429_count(minutes: int) -> int:
           )
         """
     )
-    rows = await fetch(sql, int(minutes))
+    window = f"{int(minutes)} minutes"
+    rows = await fetch(sql, window)
     return int((rows[0]["cnt"] if rows else 0) or 0)
 
 

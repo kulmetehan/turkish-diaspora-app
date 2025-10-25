@@ -6,10 +6,7 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
-
-from services.db_service import async_engine
+from services.db_service import execute, init_db_pool
 
 
 def _json_sanitize(obj: Any) -> Any:
@@ -48,8 +45,8 @@ class AuditService:
       - model_used='admin'
     """
 
-    def __init__(self, engine: AsyncEngine | None = None):
-        self.engine = engine or async_engine
+    def __init__(self) -> None:
+        pass
 
     async def log(
         self,
@@ -73,31 +70,43 @@ class AuditService:
         }
         validated_output_json = json.dumps(payload, ensure_ascii=False)
 
-        # Gebruik overal named binds + CAST om param styles niet te mixen
-        sql = text("""
+        await init_db_pool()
+        sql = (
+            """
             INSERT INTO ai_logs (
-                location_id, action_type, prompt, raw_response,
-                validated_output, model_used, is_success, error_message, created_at
+                location_id,
+                action_type,
+                prompt,
+                raw_response,
+                validated_output,
+                model_used,
+                is_success,
+                error_message,
+                created_at
+            ) VALUES (
+                $1,
+                $2,
+                $3,
+                CAST($4 AS JSONB),
+                CAST($5 AS JSONB),
+                $6,
+                $7,
+                $8,
+                NOW()
             )
-            VALUES (
-                :location_id, :action_type, :prompt, :raw_response,
-                CAST(:validated_output AS JSONB), :model_used, :is_success, :error_message, NOW()
-            )
-        """)
-
-        params = {
-            "location_id": location_id,
-            "action_type": action_type,
-            "prompt": "",                      # niet gebruikt voor admin
-            "raw_response": "{}",              # schema consistent houden
-            "validated_output": validated_output_json,
-            "model_used": "admin",
-            "is_success": is_success,
-            "error_message": error_message,
-        }
-
-        async with self.engine.begin() as conn:
-            await conn.execute(sql, params)
+            """
+        )
+        await execute(
+            sql,
+            location_id,
+            action_type,
+            "",
+            None,
+            validated_output_json,
+            "admin",
+            bool(is_success),
+            error_message,
+        )
 
 
 audit_service = AuditService()

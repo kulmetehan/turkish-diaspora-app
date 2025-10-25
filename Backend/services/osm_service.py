@@ -108,8 +108,8 @@ class OsmPlacesService:
             headers={"User-Agent": self.user_agent}
         )
         
-        # Database connection for telemetry
-        self._db_session = None
+        # Telemetry uses shared asyncpg helpers (no per-instance pool)
+        self._db_session = None  # kept for backward compat; unused
 
     async def aclose(self):
         await self._client.aclose()
@@ -184,53 +184,49 @@ class OsmPlacesService:
     ):
         """Log Overpass API call to database for telemetry."""
         try:
-            # Import here to avoid circular imports
-            from sqlalchemy import text
-            
-            if not self._db_session:
-                from sqlalchemy.ext.asyncio import async_sessionmaker
-                from services.db_service import async_engine as shared_engine  # reuse shared engine with proper connect_args
-                self._db_session = async_sessionmaker(shared_engine, expire_on_commit=False)
-            
+            from services.db_service import execute
+
             # Create safe preview string for DB storage
             safe_preview = None
             if raw_preview is not None:
                 try:
-                    safe_preview = str(raw_preview)[:4000]  # Truncate for DB
+                    safe_preview = str(raw_preview)[:4000]
                 except Exception:
                     safe_preview = "preview_error"
-            
-            async with self._db_session() as session:
-                await session.execute(text("""
-                    INSERT INTO overpass_calls (
-                        endpoint, bbox_or_center, radius_m, query_bytes, status_code,
-                        found, normalized, category_set, cell_id, attempt, duration_ms,
-                        error_message, retry_after_s, user_agent, timeout_s, max_results, raw_preview
-                    ) VALUES (
-                        :endpoint, :bbox_or_center, :radius_m, :query_bytes, :status_code,
-                        :found, :normalized, :category_set, :cell_id, :attempt, :duration_ms,
-                        :error_message, :retry_after_s, :user_agent, :timeout_s, :max_results, :raw_preview
-                    )
-                """), {
-                    "endpoint": endpoint,
-                    "bbox_or_center": bbox_or_center,
-                    "radius_m": radius_m,
-                    "query_bytes": query_bytes,
-                    "status_code": status_code,
-                    "found": found,
-                    "normalized": normalized,
-                    "category_set": category_set,
-                    "cell_id": cell_id,
-                    "attempt": attempt,
-                    "duration_ms": duration_ms,
-                    "error_message": error_message,
-                    "retry_after_s": retry_after_s,
-                    "user_agent": self.user_agent,
-                    "timeout_s": self.timeout_s,
-                    "max_results": self.max_results,
-                    "raw_preview": safe_preview
-                })
-                await session.commit()
+
+            sql = (
+                """
+                INSERT INTO overpass_calls (
+                    endpoint, bbox_or_center, radius_m, query_bytes, status_code,
+                    found, normalized, category_set, cell_id, attempt, duration_ms,
+                    error_message, retry_after_s, user_agent, timeout_s, max_results, raw_preview
+                ) VALUES (
+                    $1, $2, $3, $4, $5,
+                    $6, $7, $8, $9, $10, $11,
+                    $12, $13, $14, $15, $16, $17
+                )
+                """
+            )
+            await execute(
+                sql,
+                endpoint,
+                bbox_or_center,
+                int(radius_m),
+                int(query_bytes),
+                int(status_code),
+                int(found),
+                int(normalized),
+                category_set or [],
+                cell_id,
+                int(attempt),
+                int(duration_ms),
+                error_message,
+                retry_after_s,
+                self.user_agent,
+                int(self.timeout_s),
+                int(self.max_results),
+                safe_preview,
+            )
         except Exception as e:
             logger.warning("osm_telemetry_log_failed", error=str(e))
 
