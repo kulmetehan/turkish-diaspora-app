@@ -70,11 +70,23 @@ function HomePage() {
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
     return all.filter((l) => {
-      if (filters.category !== "all" && (l.category ?? "").toLowerCase() !== filters.category) return false;
+      const key = (l.category_key ?? l.category ?? "").toLowerCase();
+      if (filters.category !== "all" && key !== filters.category) return false;
       if (q && !(`${l.name}`.toLowerCase().includes(q))) return false;
       return true;
     });
   }, [all, debouncedSearch, filters.category]);
+  // Build category options from data (canonical key + label)
+  const categoryOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of all) {
+      const key = (l.category_key ?? l.category ?? "").toLowerCase();
+      if (!key || key === "other") continue;
+      const label = l.category_label || key;
+      if (!map.has(key)) map.set(key, label);
+    }
+    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
+  }, [all]);
 
   // Huidige selectie-object
   const selected = useMemo(() => filtered.find((l) => l.id === selectedId) ?? null, [filtered, selectedId]);
@@ -129,6 +141,7 @@ function HomePage() {
               category={filters.category}
               onlyTurkish={filters.onlyTurkish}
               loading={loading}
+              categoryOptions={categoryOptions}
               onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
             />
           </div>
@@ -188,6 +201,7 @@ function HomePage() {
                 category={filters.category}
                 onlyTurkish={filters.onlyTurkish}
                 loading={loading}
+                categoryOptions={categoryOptions}
                 onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
               />
             </div>

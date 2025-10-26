@@ -4,6 +4,7 @@ from typing import Any, List
 from fastapi import APIRouter, HTTPException, Query
 
 from services.db_service import fetch
+from app.services.category_map import normalize_category
 
 router = APIRouter(
     prefix="/api/v1/locations",
@@ -113,6 +114,24 @@ async def list_locations(
                     r["confidence_score"] = float(r["confidence_score"])
                 except Exception:
                     pass
+
+            # Category normalization enrichment for frontend
+            try:
+                cat_info = normalize_category(str(r.get("category") or ""))
+                r["category_raw"] = cat_info.get("category_raw")
+                r["category_key"] = cat_info.get("category_key")
+                r["category_label"] = cat_info.get("category_label")
+            except Exception:
+                # Best-effort fallback to raw values if normalization fails
+                raw = r.get("category")
+                r["category_raw"] = raw
+                r["category_key"] = str(raw).strip().lower().replace("/", "_").replace(" ", "_") if raw else "other"
+                # Simple labelization
+                try:
+                    tmp = str(raw or "").replace("/", " ").replace("_", " ").strip()
+                    r["category_label"] = " ".join([t[:1].upper() + t[1:].lower() for t in tmp.split()]) or "Overig"
+                except Exception:
+                    r["category_label"] = "Overig"
 
         return rows
 

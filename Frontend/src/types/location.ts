@@ -29,7 +29,10 @@ export interface Location {
   lng: number;
 
   /** Classification */
-  category?: string;
+  category?: string; // legacy/raw
+  category_raw?: string;
+  category_key?: string;
+  category_label?: string;
 
   /** Ratings (Google-style) */
   rating?: number | null;

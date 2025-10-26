@@ -61,7 +61,7 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
       <div className="loc-card__meta">
         <div className="loc-card__row">
           <span className="loc-card__label">Categorie</span>
-          <span className="loc-card__value">{location.category ?? "—"}</span>
+          <span className="loc-card__value">{location.category_label ?? location.category ?? "—"}</span>
         </div>
       </div>
     </div>

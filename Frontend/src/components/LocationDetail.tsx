@@ -36,10 +36,10 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                         </div>
 
                         {/* Category */}
-                        {location.category && (
+                        {(location.category_label || location.category) && (
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Icon name="Tag" className="h-4 w-4" />
-                                <span className="capitalize">{location.category}</span>
+                                <span className="capitalize">{location.category_label ?? location.category}</span>
                             </div>
                         )}
 

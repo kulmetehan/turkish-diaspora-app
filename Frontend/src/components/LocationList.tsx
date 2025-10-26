@@ -78,7 +78,7 @@ export default function LocationList({
               {/* rating removed */}
             </div>
             <div className="text-xs text-muted-foreground">
-              {l.category ?? "—"} • {l.is_turkish ? "Turks" : "—"}
+              {l.category_label ?? l.category ?? "—"} • {l.is_turkish ? "Turks" : "—"}
             </div>
           </div>
         );
