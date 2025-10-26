@@ -45,9 +45,16 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
     map.on("click", (e) => {
       if (!onMapClick) return;
       try {
-        const feats = map.queryRenderedFeatures(e.point);
-        const hit = Array.isArray(feats) && feats.some((f: any) => f?.source === "tda-locations");
-        if (hit) return; // let layer-specific handlers handle marker/cluster clicks
+        const feats = map.queryRenderedFeatures(e.point) as any[];
+        // If click hits actual interactive layers, let their handlers run.
+        const interactiveHit = Array.isArray(feats) && feats.some((f) => f?.layer?.id === "tda-unclustered-point" || f?.layer?.id === "tda-clusters" || f?.layer?.id === "tda-cluster-count");
+        if (interactiveHit) return;
+        // If the only thing hit is the highlight ring, treat it as a background click to allow deselect
+        const hiHit = Array.isArray(feats) && feats.some((f) => f?.layer?.id === "tda-highlight");
+        if (hiHit) {
+          onMapClick();
+          return;
+        }
       } catch { /* ignore */ }
       onMapClick();
     });

@@ -146,7 +146,6 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
 
       // Interactie handlers (1x, types bewust generiek gehouden i.v.m. mapbox-gl typings)
       const onClusterClick = (e: any) => {
-        try { e.preventDefault?.(); e.originalEvent?.preventDefault?.(); } catch { }
         const feats = map.queryRenderedFeatures(e.point, { layers: [L_CLUSTER] }) as
           | MapboxGeoJSONFeature[]
           | undefined;
@@ -164,7 +163,6 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
       };
 
       const onPointClick = (e: any) => {
-        try { e.preventDefault?.(); e.originalEvent?.preventDefault?.(); } catch { }
         const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT] }) as
           | MapboxGeoJSONFeature[]
           | undefined;

@@ -157,6 +157,7 @@ function HomePage() {
             locations={filtered}
             selectedId={selectedId}
             onSelect={(id) => setSelectedId(id)}
+            onMapClick={() => setSelectedId(null)}
             bottomSheetHeight={0}
           />
         </main>
