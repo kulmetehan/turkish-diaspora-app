@@ -70,7 +70,7 @@ export default function LocationList({
               else itemRefs.current.delete(l.id);
             }}
             role="button"
-            className={`px-4 py-3 cursor-pointer hover:bg-accent/40 ${active ? "bg-accent/60" : ""}`}
+            className={`px-4 py-3 cursor-pointer hover:bg-accent/40 transition-colors ${active ? "bg-accent/60" : ""}`}
             onClick={() => onSelect?.(l.id)}
           >
             <div className="flex items-center justify-between">

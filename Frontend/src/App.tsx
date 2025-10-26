@@ -7,6 +7,7 @@ import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useSearch } from "@/hooks/useSearch";
 
 import { fetchLocations, type LocationMarker } from "@/api/fetchLocations";
 
@@ -34,12 +35,14 @@ function HomePage() {
 
   // Debug logging removed for production noise reduction
 
-  // Debounced search value for smoother typing
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  useEffect(() => {
-    const handle = setTimeout(() => setDebouncedSearch(filters.search), 300);
-    return () => clearTimeout(handle);
-  }, [filters.search]);
+  // Search + filter with debounce and session cache
+  const { debouncedQuery, filtered, suggestions } = useSearch({
+    locations: all,
+    search: filters.search,
+    category: filters.category,
+    debounceMs: 350,
+    cacheSize: 30,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -66,16 +69,7 @@ function HomePage() {
     };
   }, []);
 
-  // Filteren (keep API order; no client sorting)
-  const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    return all.filter((l) => {
-      const key = (l.category_key ?? l.category ?? "").toLowerCase();
-      if (filters.category !== "all" && key !== filters.category) return false;
-      if (q && !(`${l.name}`.toLowerCase().includes(q))) return false;
-      return true;
-    });
-  }, [all, debouncedSearch, filters.category]);
+  // filtered comes from useSearch; keep API order (no client sorting)
   // Build category options from data (canonical key + label)
   const categoryOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -142,6 +136,7 @@ function HomePage() {
               onlyTurkish={filters.onlyTurkish}
               loading={loading}
               categoryOptions={categoryOptions}
+              suggestions={suggestions}
               onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
             />
           </div>
@@ -202,6 +197,7 @@ function HomePage() {
                 onlyTurkish={filters.onlyTurkish}
                 loading={loading}
                 categoryOptions={categoryOptions}
+                suggestions={suggestions}
                 onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
               />
             </div>
