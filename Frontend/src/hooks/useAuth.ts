@@ -8,6 +8,22 @@ export function useAuth() {
 
     useEffect(() => {
         let active = true;
+        // Handle Supabase tokens delivered via URL hash (magic link / recovery)
+        // Example: #access_token=..&refresh_token=..&type=recovery
+        const hash = window.location.hash || "";
+        if (hash && !hash.startsWith("#/")) {
+            const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+            const params = new URLSearchParams(raw);
+            const at = params.get("access_token");
+            const rt = params.get("refresh_token");
+            if (at && rt) {
+                void supabase.auth.setSession({ access_token: at, refresh_token: rt }).then(() => {
+                    // Clean up the URL hash to a normal app route
+                    const cleaned = window.location.pathname + window.location.search + "#/";
+                    window.history.replaceState(null, "", cleaned);
+                }).catch(() => {/* no-op */ });
+            }
+        }
         supabase.auth.getSession().then(({ data }) => {
             if (!active) return;
             const s = data.session;

@@ -1,7 +1,7 @@
 // Frontend/src/main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import "leaflet/dist/leaflet.css";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -17,13 +17,14 @@ import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
 
 // Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
+// With HashRouter, basename ensures generated links include the base path before the hash.
 const basename = import.meta.env.BASE_URL || "/";
 
 initTheme();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter basename={basename}>
+    <HashRouter basename={basename}>
       <Header />
       <Routes>
         <Route path="/" element={<App />} />
@@ -34,6 +35,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />
-    </BrowserRouter>
+    </HashRouter>
   </React.StrictMode>
 );

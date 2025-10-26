@@ -54,7 +54,7 @@ Backend:
 1) In Supabase Dashboard, ensure an admin user exists (e.g. `wwwlamarkanl@gmail.com`). Put the same email in `ALLOWED_ADMIN_EMAILS`.
 
 2) Frontend:
-- Navigate to `/login`.
+- On GitHub Pages builds we use hash routing. Navigate to `#/login`.
 - Sign in with email/password. You should be redirected to `/admin`.
 
 3) From the admin page (or console), call:
@@ -73,6 +73,7 @@ The backend should validate the token and reply:
 4) Logout or remove session and try to visit `/admin` → you should be redirected back to `/login`.
 
 ## Notes
+- GitHub Pages production uses HashRouter; deep links look like `#/login` and `#/admin`.
 - No public signup in UI.
 - No ORM added; backend continues to use async DB access.
 - Real security is server-side via JWT verification and email allowlist.
