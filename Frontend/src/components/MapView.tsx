@@ -41,12 +41,15 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
     map.on("load", () => setMapReady(true));
 
-    // Add map click handler
+    // Add map click handler (robust hit test: only treat as background click when no featured hit)
     map.on("click", (e) => {
-      // Only trigger if not clicking on a marker
-      if (onMapClick && !e.originalEvent.defaultPrevented) {
-        onMapClick();
-      }
+      if (!onMapClick) return;
+      try {
+        const feats = map.queryRenderedFeatures(e.point);
+        const hit = Array.isArray(feats) && feats.some((f: any) => f?.source === "tda-locations");
+        if (hit) return; // let layer-specific handlers handle marker/cluster clicks
+      } catch { /* ignore */ }
+      onMapClick();
     });
 
     mapRef.current = map;
@@ -61,9 +64,16 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
 
   // Vloeiend centreren bij klik op lijst-item
   useEffect(() => {
-    if (!mapReady || !selectedId || !locations?.length) return;
+    if (!mapReady || !locations?.length) return;
     const map = mapRef.current;
     if (!map) return;
+
+    // If deselected → remove popup (if any) and bail
+    if (!selectedId) {
+      try { popupRef.current?.remove(); } catch { }
+      popupRef.current = null;
+      return;
+    }
 
     const loc = locations.find((l) => String(l.id) === String(selectedId));
     if (!loc) return;
@@ -100,6 +110,10 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
         .setLngLat([loc.lng, loc.lat])
         .setHTML(html)
         .addTo(map);
+      // When the user closes the popup, treat it like a background tap (deselect)
+      try {
+        popup.on("close", () => { try { onMapClick?.(); } catch { } });
+      } catch { }
       popupRef.current = popup;
     } catch { }
   }, [selectedId, mapReady, locations, bottomSheetHeight]);

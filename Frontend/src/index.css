@@ -14,22 +14,33 @@
    ========================================================================== */
 :root {
   /* Hoogtes */
-  --tda-header-h: 56px;          /* hoogte van evt. topbar/header (pas aan of laat op 0) */
-  --tda-min-map-h: 72vh;         /* minimum hoogte van de kaart */
-  --tda-min-map-h-mobile: 60vh;  /* minimum hoogte van de kaart op mobiel */
+  --tda-header-h: 56px;
+  /* hoogte van evt. topbar/header (pas aan of laat op 0) */
+  --tda-min-map-h: 72vh;
+  /* minimum hoogte van de kaart */
+  --tda-min-map-h-mobile: 60vh;
+  /* minimum hoogte van de kaart op mobiel */
 
   /* Breedtes */
-  --tda-sidebar-w: 380px;        /* vaste breedte van de lijst/filters desktop */
-  --tda-content-max: 1600px;     /* optionele max breedte van de gehele app */
+  --tda-sidebar-w: 380px;
+  /* vaste breedte van de lijst/filters desktop */
+  --tda-content-max: 1600px;
+  /* optionele max breedte van de gehele app */
 
   /* Kleur-tokens (licht) */
   --tda-bg: #ffffff;
-  --tda-surface: #f8fafc;        /* lichtgrijs voor panel-achtergrond */
-  --tda-border: #e5e7eb;         /* randjes / dividers */
-  --tda-text: #0f172a;           /* bijna-zwart tekst */
-  --tda-muted: #64748b;          /* secundaire tekst */
-  --tda-accent: #2563eb;         /* blauw accent (links/hover) */
-  --tda-accent-weak: #dbeafe;    /* lichtblauw achtergrond (hover/select) */
+  --tda-surface: #f8fafc;
+  /* lichtgrijs voor panel-achtergrond */
+  --tda-border: #e5e7eb;
+  /* randjes / dividers */
+  --tda-text: #0f172a;
+  /* bijna-zwart tekst */
+  --tda-muted: #64748b;
+  /* secundaire tekst */
+  --tda-accent: #2563eb;
+  /* blauw accent (links/hover) */
+  --tda-accent-weak: #dbeafe;
+  /* lichtblauw achtergrond (hover/select) */
 
   /* Tailwind CSS variables (light mode) */
   --background: 0 0% 100%;
@@ -127,11 +138,14 @@
    --------------------------------------------------------------------------
    Zorgt dat de app "strak" begint, en dat #root 100% hoogte kan nemen.
    ========================================================================== */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 
-html, body {
+html,
+body {
   padding: 0;
   margin: 0;
   background: var(--tda-bg);
@@ -159,7 +173,8 @@ html, body {
 .tda-app {
   display: grid;
   grid-template-columns: minmax(320px, var(--tda-sidebar-w)) 1fr;
-  gap: 0;                               /* geen gat tussen lijst en kaart */
+  gap: 0;
+  /* geen gat tussen lijst en kaart */
   min-height: calc(100dvh - var(--tda-header-h));
 }
 
@@ -177,7 +192,8 @@ html, body {
   background: var(--tda-surface);
   border-right: 1px solid var(--tda-border);
   min-height: calc(100dvh - var(--tda-header-h));
-  overflow: hidden;            /* we scrollen binnenin het body-gedeelte */
+  overflow: hidden;
+  /* we scrollen binnenin het body-gedeelte */
   display: flex;
   flex-direction: column;
 }
@@ -206,7 +222,8 @@ html, body {
 .map-wrap,
 .tda-map .map-wrap {
   position: absolute;
-  inset: 0;        /* top:0; right:0; bottom:0; left:0 */
+  inset: 0;
+  /* top:0; right:0; bottom:0; left:0 */
   width: 100%;
   height: 100%;
 }
@@ -243,7 +260,8 @@ html, body {
 /* Een item in de lijst */
 .tda-item {
   display: grid;
-  grid-template-columns: 1fr auto; /* tekst links, afstand/pil of actie rechts */
+  grid-template-columns: 1fr auto;
+  /* tekst links, afstand/pil of actie rechts */
   gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--tda-border);
@@ -306,6 +324,15 @@ html, body {
   border-bottom-color: var(--tda-surface) !important;
 }
 
+/* Ensure popup does not block map interactions outside its own content */
+.mapboxgl-popup {
+  pointer-events: none;
+}
+
+.mapboxgl-popup * {
+  pointer-events: auto;
+}
+
 /* Marker highlight ring (voeg in JS de class .tda-marker--highlighted toe) */
 .tda-marker--highlighted {
   position: relative;
@@ -323,9 +350,20 @@ html, body {
 }
 
 @keyframes tdaPulse {
-  0%   { opacity: 0.6; transform: scale(0.92); }
-  70%  { opacity: 0.15; transform: scale(1.2); }
-  100% { opacity: 0; transform: scale(1.3); }
+  0% {
+    opacity: 0.6;
+    transform: scale(0.92);
+  }
+
+  70% {
+    opacity: 0.15;
+    transform: scale(1.2);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
 }
 
 /* Clusters (optioneel, als je eigen HTML/CSS clusters gebruikt) */
@@ -339,13 +377,14 @@ html, body {
   width: 36px;
   height: 36px;
   font-weight: 700;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
 }
 
 /* ==========================================================================
    6) Buttons/inputs global (kleine polish)
    -------------------------------------------------------------------------- */
-button, .btn {
+button,
+.btn {
   cursor: pointer;
 }
 
@@ -353,6 +392,7 @@ a {
   color: var(--tda-accent);
   text-decoration: none;
 }
+
 a:hover {
   text-decoration: underline;
 }
@@ -386,8 +426,8 @@ a:hover {
    --------------------------------------------------------------------------
    Soms plaatsen libraries/wrappers extra divs; forceer de map om te rekken.
    ========================================================================== */
-.tda-map > div,
-.tda-map > div > canvas,
+.tda-map>div,
+.tda-map>div>canvas,
 .tda-map .mapboxgl-canvas {
   width: 100% !important;
   height: 100% !important;
