@@ -58,6 +58,17 @@ async def list_admin_locations(
     return {"rows": data, "total": total}
 
 
+@router.get("/", response_model=Dict[str, Any])
+async def list_admin_locations_slash(
+    search: Optional[str] = Query(default=None),
+    state: Optional[str] = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    admin: AdminUser = Depends(verify_admin_user),
+) -> Dict[str, Any]:
+    return await list_admin_locations(search=search, state=state, limit=limit, offset=offset, admin=admin)
+
+
 @router.get("/{location_id}", response_model=AdminLocationDetail)
 async def get_admin_location(
     location_id: int,
@@ -153,7 +164,7 @@ async def retire_admin_location(
         UPDATE locations
         SET state = 'RETIRED',
             notes = COALESCE(notes, '')
-                   || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\n' END
+                   || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\\n' END
                    || $1
         WHERE id = $2
         """
@@ -169,5 +180,3 @@ async def retire_admin_location(
     await audit_admin_action(admin.email, int(location_id), "admin_retire", before, after)
 
     return {"ok": True}
-
-

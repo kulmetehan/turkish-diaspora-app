@@ -1,27 +1,8 @@
 // Frontend/src/lib/api.ts
 import { supabase } from "@/lib/supabaseClient";
 
-// In development gebruiken we de Vite dev-proxy op "/api".
-// In productie gebruiken we een absolute origin uit VITE_API_BASE_URL.
-// BASE-pad van endpoints blijft altijd "/api/v1".
-const DEV = import.meta.env.DEV;
-
-// Let op: geen trailing slash in VITE_API_BASE_URL
-const PROD_ORIGIN = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "");
-
-// Fallback to dev proxy in development, absolute origin in production
-const API_ROOT = DEV ? "" : (PROD_ORIGIN ?? "");
-export const API_BASE = `${API_ROOT}/api/v1`;
-
-// Debug logging to help troubleshoot
-if (!DEV) {
-  console.log('Production API Configuration:', {
-    PROD_ORIGIN,
-    API_ROOT,
-    API_BASE,
-    hasBackend: !!PROD_ORIGIN
-  });
-}
+// Always use explicit API base from env; must include /api/v1
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 
 /** Demo data for Bangkok locations when backend is not available */
 const DEMO_DATA = {
@@ -59,8 +40,8 @@ export async function apiFetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  // In production, require a configured backend
-  if (!DEV && !PROD_ORIGIN) {
+  // Require a configured backend in all modes
+  if (!API_BASE) {
     throw new Error('Backend not configured (VITE_API_BASE_URL not set)');
   }
 
@@ -82,6 +63,9 @@ export async function apiFetch<T>(
       });
 
       if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          try { await supabase.auth.signOut(); } catch { }
+        }
         // Retry on typical warm-up statuses
         if (res.status === 502 || res.status === 503 || res.status === 504) {
           const text = await res.text().catch(() => "");
@@ -99,7 +83,7 @@ export async function apiFetch<T>(
         // Alleen JSON is geldig; non-JSON behandelen als fout (bv. warm-up HTML)
         const ct = res.headers.get("content-type") || "";
         if (!ct.includes("application/json")) {
-          throw new Error(`Invalid response content-type for ${path}: ${ct || "<none>"}`);
+          throw new Error(`Invalid response content-type for ${path}: ${ct || "<none>"} @ ${url}`);
         }
         return (await res.json()) as T;
       }
@@ -132,6 +116,11 @@ export async function authFetch<T>(path: string, init?: RequestInit): Promise<T>
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Not authenticated");
+  if (import.meta.env.DEV) {
+    // Helpful during local debugging
+    // eslint-disable-next-line no-console
+    console.debug("authFetch →", `${API_BASE}${path}`);
+  }
   return apiFetch<T>(path, {
     ...init,
     headers: {
