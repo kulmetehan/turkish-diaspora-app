@@ -50,12 +50,15 @@
     background: var(--bs-backdrop, rgba(0, 0, 0, 0.4));
     opacity: 0;
     pointer-events: none;
+    display: none;
+    /* prevent invisible hitbox over the map when not visible */
     transition: opacity 140ms ease;
 }
 
 .tda-bs-backdrop.visible {
     opacity: 1;
     pointer-events: auto;
+    display: block;
 }
 
 /* Prevent body scroll when full */
