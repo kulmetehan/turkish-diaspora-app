@@ -25,6 +25,7 @@ try:
 except Exception:
     dev_ai_router = None  # type: ignore
 from api.routers.admin import router as admin_router
+from api.routers.admin_auth import router as admin_auth_router
 
 # --- sys.path fix (root toevoegen) ---
 THIS_FILE = Path(__file__).resolve()
@@ -105,5 +106,6 @@ app.include_router(dev_classify_router)
 if dev_ai_router is not None:
     app.include_router(dev_ai_router)
 app.include_router(admin_router)
+app.include_router(admin_auth_router)
 
-logger.info("routers_registered", routers=["locations", "dev_classify", "dev_ai", "admin"])
+logger.info("routers_registered", routers=["locations", "dev_classify", "dev_ai", "admin", "admin_auth"])

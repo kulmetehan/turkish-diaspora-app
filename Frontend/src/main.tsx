@@ -1,17 +1,20 @@
 // Frontend/src/main.tsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import App from "./App";
-import "./index.css";
 import "leaflet/dist/leaflet.css";
 import "mapbox-gl/dist/mapbox-gl.css";
+import App from "./App";
+import "./index.css";
 
-import UiKit from "@/pages/UiKit";
+import RequireAdmin from "@/components/auth/RequireAdmin";
 import { Header } from "@/components/Header";
 import { Toaster } from "@/components/ui/toaster";
 import { initTheme } from "@/lib/theme/darkMode";
+import AdminHomePage from "@/pages/AdminHomePage";
+import LoginPage from "@/pages/LoginPage";
+import UiKit from "@/pages/UiKit";
 
 // Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
 const basename = import.meta.env.BASE_URL || "/";
@@ -25,6 +28,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route path="/" element={<App />} />
         <Route path="/ui-kit" element={<UiKit />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/admin" element={<RequireAdmin><AdminHomePage /></RequireAdmin>} />
         {/* Catch-all naar home */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

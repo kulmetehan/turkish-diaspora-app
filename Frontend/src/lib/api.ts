@@ -1,4 +1,5 @@
 // Frontend/src/lib/api.ts
+import { supabase } from "@/lib/supabaseClient";
 
 // In development gebruiken we de Vite dev-proxy op "/api".
 // In productie gebruiken we een absolute origin uit VITE_API_BASE_URL.
@@ -125,4 +126,21 @@ export async function apiFetch<T>(
 /** Admin-key uit localStorage ophalen (niet bundelen) */
 export function getAdminKey(): string {
   return localStorage.getItem("ADMIN_API_KEY") || "";
+}
+
+export async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error("Not authenticated");
+  return apiFetch<T>(path, {
+    ...init,
+    headers: {
+      ...(init?.headers ?? {}),
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
+  return authFetch("/admin/whoami");
 }

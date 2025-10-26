@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: Optional[str] = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
     OPENAI_MODEL: str = "gpt-4.1-mini"
 
+    # ---- Admin Auth (Supabase) ----
+    SUPABASE_JWT_SECRET: str
+    ALLOWED_ADMIN_EMAILS: str
+
     # Pydantic v2 configuratie
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),          # absoluut pad
