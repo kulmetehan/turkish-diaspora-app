@@ -17,14 +17,12 @@ import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
 
 // Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
-// With HashRouter, basename ensures generated links include the base path before the hash.
-const basename = import.meta.env.BASE_URL || "/";
 
 initTheme();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <HashRouter basename={basename}>
+    <HashRouter>
       <Header />
       <Routes>
         <Route path="/" element={<App />} />

@@ -39,5 +39,3 @@ export function useAuth() {
 
     return { userEmail, accessToken, isAuthenticated };
 }
-
-
