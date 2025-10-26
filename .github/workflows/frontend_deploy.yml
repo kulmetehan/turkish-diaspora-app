@@ -31,21 +31,26 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
+      # Maak .env.production zodat Vite tijdens build alle runtime vars kent
       - name: Create .env.production
         working-directory: Frontend
         run: |
           : > .env.production
-          # Zet hier je productie API-origin. Geen trailing slash.
+          # Backend API base (zonder trailing slash)
           echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" >> .env.production
+          # Mapbox tokens/style
           echo "VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }}" >> .env.production
           echo "VITE_MAPBOX_STYLE=${{ secrets.VITE_MAPBOX_STYLE }}" >> .env.production
+          # Supabase Auth config (PUBLIC values intended for browser)
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env.production
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env.production
           echo "Created Frontend/.env.production"
 
       - name: Install dependencies
         working-directory: Frontend
         run: npm ci
 
-      # >>> Belangrijk: forceer base via CLI (overrulet config) <<<
+      # Explicit base because we deploy to /turkish-diaspora-app/
       - name: Build with explicit base
         working-directory: Frontend
         run: npm run build -- --base=/turkish-diaspora-app/
@@ -58,7 +63,7 @@ jobs:
           echo "-------------------------------------------"
           grep -q '/turkish-diaspora-app/assets/' Frontend/dist/index.html || (echo 'ERROR: base path not applied' && exit 1)
 
-      # 404 fallback voor SPA routing
+      # 404 fallback voor SPA routing on GH Pages
       - name: Create 404.html for SPA
         run: cp Frontend/dist/index.html Frontend/dist/404.html
 
