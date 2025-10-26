@@ -110,3 +110,46 @@ class AuditService:
 
 
 audit_service = AuditService()
+
+
+async def audit_admin_action(user_email: str, location_id: int, action: str, before: Optional[Dict[str, Any]], after: Optional[Dict[str, Any]]) -> None:
+    """
+    Inserts an audit entry into ai_logs using direct Postgres SQL.
+    """
+    await init_db_pool()
+    sql = (
+        """
+        INSERT INTO ai_logs (
+            location_id,
+            action_type,
+            prompt,
+            raw_response,
+            validated_output,
+            model_used,
+            is_success,
+            error_message,
+            created_at
+        ) VALUES (
+            $1,
+            $2,
+            $3,
+            CAST($4 AS JSONB),
+            CAST($5 AS JSONB),
+            'admin_manual',
+            true,
+            NULL,
+            NOW()
+        )
+        """
+    )
+    payload_before = _json_sanitize(before)
+    payload_after = _json_sanitize(after)
+    prompt = f"{user_email} performed {action}"
+    await execute(
+        sql,
+        int(location_id),
+        action,
+        prompt,
+        json.dumps(payload_before, ensure_ascii=False) if payload_before is not None else None,
+        json.dumps(payload_after, ensure_ascii=False) if payload_after is not None else None,
+    )
