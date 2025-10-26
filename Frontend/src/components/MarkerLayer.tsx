@@ -34,6 +34,11 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
   // keep latest onSelect without re-binding map listeners
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
 
+  // Stable handler refs so we attach/detach the same function instances
+  const clusterClickRef = useRef<((e: any) => void) | null>(null);
+  const pointClickRef = useRef<((e: any) => void) | null>(null);
+  const mouseMoveRef = useRef<((e: any) => void) | null>(null);
+
   /** Minimale “signatuur” zodat setData alleen triggert als de set echt wijzigt */
   const idsSignature = useMemo(() => locations.map((l) => l.id).join(","), [locations]);
 
@@ -136,42 +141,48 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         });
       }
 
-      // Stable handlers using refs
-      const clusterClick = (e: any) => {
-        const feats = map.queryRenderedFeatures(e.point, { layers: [L_CLUSTER] }) as
-          | MapboxGeoJSONFeature[]
-          | undefined;
-        const clusterId = feats?.[0]?.properties?.cluster_id;
-        if (clusterId == null) return;
-        const src: any = map.getSource(SRC_ID);
-        if (!src?.getClusterExpansionZoom) return;
-        src.getClusterExpansionZoom(clusterId, (err: unknown, zoom: number) => {
-          if (err) return;
-          const center = (feats![0].geometry as any).coordinates as LngLatLike;
-          map.easeTo({ center, zoom });
-        });
-      };
+      // Define handlers ONCE and store them in refs (stable function identities)
+      if (!clusterClickRef.current) {
+        clusterClickRef.current = (e: any) => {
+          const feats = map.queryRenderedFeatures(e.point, { layers: [L_CLUSTER] }) as
+            | MapboxGeoJSONFeature[]
+            | undefined;
+          const clusterId = feats?.[0]?.properties?.cluster_id;
+          if (clusterId == null) return;
+          const src: any = map.getSource(SRC_ID);
+          if (!src?.getClusterExpansionZoom) return;
+          src.getClusterExpansionZoom(clusterId, (err: unknown, zoom: number) => {
+            if (err) return;
+            const center = (feats![0].geometry as any).coordinates as LngLatLike;
+            map.easeTo({ center, zoom });
+          });
+        };
+      }
 
-      const pointClick = (e: any) => {
-        const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT] }) as
-          | MapboxGeoJSONFeature[]
-          | undefined;
-        const id = feats?.[0]?.properties?.id as string | undefined;
-        if (id) onSelectRef.current?.(id);
-      };
+      if (!pointClickRef.current) {
+        pointClickRef.current = (e: any) => {
+          const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT] }) as
+            | MapboxGeoJSONFeature[]
+            | undefined;
+          const id = feats?.[0]?.properties?.id as string | undefined;
+          if (id) onSelectRef.current?.(id);
+        };
+      }
 
-      const mouseMove = (e: any) => {
-        try {
-          const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT] }) as any[];
-          const hit = Array.isArray(feats) && feats.length > 0;
-          map.getCanvas().style.cursor = hit ? "pointer" : "";
-        } catch { }
-      };
+      if (!mouseMoveRef.current) {
+        mouseMoveRef.current = (e: any) => {
+          try {
+            const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT] }) as any[];
+            const hit = Array.isArray(feats) && feats.length > 0;
+            map.getCanvas().style.cursor = hit ? "pointer" : "";
+          } catch { }
+        };
+      }
 
       if (!handlersAttached.current) {
-        map.on("click", L_CLUSTER, clusterClick as any);
-        map.on("click", L_POINT, pointClick as any);
-        map.on("mousemove", mouseMove as any);
+        if (clusterClickRef.current) map.on("click", L_CLUSTER, clusterClickRef.current as any);
+        if (pointClickRef.current) map.on("click", L_POINT, pointClickRef.current as any);
+        if (mouseMoveRef.current) map.on("mousemove", mouseMoveRef.current as any);
         handlersAttached.current = true;
       }
 
@@ -191,9 +202,9 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
       // Only on unmount
       if (handlersAttached.current) {
         try {
-          map.off("click", L_CLUSTER, clusterClick as any);
-          map.off("click", L_POINT, pointClick as any);
-          map.off("mousemove", mouseMove as any);
+          if (clusterClickRef.current) map.off("click", L_CLUSTER, clusterClickRef.current as any);
+          if (pointClickRef.current) map.off("click", L_POINT, pointClickRef.current as any);
+          if (mouseMoveRef.current) map.off("mousemove", mouseMoveRef.current as any);
         } catch { }
         handlersAttached.current = false;
       }
