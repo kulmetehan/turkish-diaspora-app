@@ -27,14 +27,24 @@ const KNOWN_CATEGORIES = [
   { key: "fast_food", label: "Fastfood" },
 ] satisfies CategoryOption[];
 
-function toLabelFromKey(key: string): string {
-  // Fallback titlecase for when no label is provided
-  const parts = String(key || "")
-    .replaceAll("/", " ")
-    .replaceAll("_", " ")
-    .trim()
-    .split(/\s+/);
-  return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(" ");
+function humanizeCategoryLabel(input: string | undefined | null): string {
+  if (!input) return "—";
+
+  let s = input as string;
+
+  // Replace "_" and "/" with spaces (global)
+  s = s.replace(/[_/]/g, " ");
+
+  // Collapse multiple spaces and trim
+  s = s.replace(/\s+/g, " ").trim();
+
+  // Capitalize each word
+  s = s
+    .split(" ")
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+
+  return s;
 }
 
 export default function Filters({
@@ -55,7 +65,7 @@ export default function Filters({
     // Zorg dat de huidige category (als die buiten de lijst valt) toch zichtbaar is.
     if (!category || category === "all") return base;
     if (!base.some((c) => c.key === category)) {
-      return [{ key: category, label: toLabelFromKey(category) }, ...base];
+      return [{ key: category, label: humanizeCategoryLabel(category) }, ...base];
     }
     return base;
   }, [category, categoryOptions]);
@@ -85,11 +95,14 @@ export default function Filters({
           onChange={(e) => onChange({ category: e.target.value })}
         >
           <option value="all">Alle categorieën</option>
-          {categories.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.label}
-            </option>
-          ))}
+          {categories.map((c) => {
+            const displayName = c.label || humanizeCategoryLabel(c.key);
+            return (
+              <option key={c.key} value={c.key}>
+                {displayName}
+              </option>
+            );
+          })}
         </select>
 
         {loading ? (
