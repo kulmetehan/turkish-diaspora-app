@@ -10,11 +10,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-const STATES = ["", "VERIFIED", "CANDIDATE", "PENDING_VERIFICATION", "RETIRED"] as const;
+const STATES = ["ALL", "VERIFIED", "CANDIDATE", "PENDING_VERIFICATION", "RETIRED"] as const;
 
 export default function AdminLocationsTable() {
     const [search, setSearch] = useState("");
-    const [state, setState] = useState<string>("");
+    const [stateFilter, setStateFilter] = useState<(typeof STATES)[number]>("ALL");
     const [limit, setLimit] = useState(20);
     const [offset, setOffset] = useState(0);
     const [rows, setRows] = useState<AdminLocationListItem[]>([]);
@@ -29,7 +29,8 @@ export default function AdminLocationsTable() {
     async function load() {
         setLoading(true);
         try {
-            const res = await listAdminLocations({ search, state, limit, offset });
+            const effectiveStateParam = stateFilter === "ALL" ? undefined : stateFilter;
+            const res = await listAdminLocations({ search, state: effectiveStateParam, limit, offset });
             setRows(res.rows);
             setTotal(res.total);
         } catch (e: any) {
@@ -44,7 +45,7 @@ export default function AdminLocationsTable() {
         }
     }
 
-    useEffect(() => { void load(); }, [search, state, limit, offset]);
+    useEffect(() => { void load(); }, [search, stateFilter, limit, offset]);
 
     const canPrev = offset > 0;
     const canNext = offset + limit < total;
@@ -56,12 +57,14 @@ export default function AdminLocationsTable() {
                     <div className="flex-1 min-w-[220px]">
                         <Input placeholder="Zoek op naam of adres…" value={search} onChange={e => { setOffset(0); setSearch(e.target.value); }} />
                     </div>
-                    <Select value={state} onValueChange={(v) => { setOffset(0); setState(v); }}>
-                        <SelectTrigger className="w-[220px]">{state || "Alle staten"}</SelectTrigger>
+                    <Select value={stateFilter} onValueChange={(val) => { setOffset(0); setStateFilter(val as any); }}>
+                        <SelectTrigger className="w-[220px]">{stateFilter === "ALL" ? "All" : stateFilter}</SelectTrigger>
                         <SelectContent>
-                            {STATES.map(s => (
-                                <SelectItem key={s || "ALL"} value={s}>{s || "Alle staten"}</SelectItem>
-                            ))}
+                            <SelectItem value="ALL">All</SelectItem>
+                            <SelectItem value="VERIFIED">VERIFIED</SelectItem>
+                            <SelectItem value="CANDIDATE">CANDIDATE</SelectItem>
+                            <SelectItem value="PENDING_VERIFICATION">PENDING_VERIFICATION</SelectItem>
+                            <SelectItem value="RETIRED">RETIRED</SelectItem>
                         </SelectContent>
                     </Select>
                     <div className="ml-auto flex items-center gap-2">
