@@ -170,25 +170,20 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         if (id) onSelect?.(id);
       };
 
-      const onEnter = () => {
+      // Cursor management: set pointer only when hovering interactive features
+      const onMouseMove = (e: any) => {
         try {
-          map.getCanvas().style.cursor = "pointer";
-        } catch { }
-      };
-      const onLeave = () => {
-        try {
-          map.getCanvas().style.cursor = "";
+          const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT] }) as any[];
+          const hit = Array.isArray(feats) && feats.length > 0;
+          map.getCanvas().style.cursor = hit ? "pointer" : "";
         } catch { }
       };
 
       // Register event handlers after a small delay to ensure layers are fully rendered
       setTimeout(() => {
         map.on("click", L_CLUSTER, onClusterClick as any);
-        map.on("mouseenter", L_CLUSTER, onEnter as any);
-        map.on("mouseleave", L_CLUSTER, onLeave as any);
         map.on("click", L_POINT, onPointClick as any);
-        map.on("mouseenter", L_POINT, onEnter as any);
-        map.on("mouseleave", L_POINT, onLeave as any);
+        map.on("mousemove", onMouseMove as any);
       }, 100);
 
       initialized.current = true;
@@ -197,11 +192,8 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
       return () => {
         try {
           map.off("click", L_CLUSTER, onClusterClick as any);
-          map.off("mouseenter", L_CLUSTER, onEnter as any);
-          map.off("mouseleave", L_CLUSTER, onLeave as any);
           map.off("click", L_POINT, onPointClick as any);
-          map.off("mouseenter", L_POINT, onEnter as any);
-          map.off("mouseleave", L_POINT, onLeave as any);
+          map.off("mousemove", onMouseMove as any);
         } catch { }
       };
     };

@@ -79,6 +79,7 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
     if (!selectedId) {
       try { popupRef.current?.remove(); } catch { }
       popupRef.current = null;
+      try { map.getCanvas().style.cursor = ""; } catch { }
       return;
     }
 
