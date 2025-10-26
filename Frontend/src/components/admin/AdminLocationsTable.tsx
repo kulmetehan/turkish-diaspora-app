@@ -34,12 +34,19 @@ export default function AdminLocationsTable() {
             setRows(res.rows);
             setTotal(res.total);
         } catch (e: any) {
-            if (e?.message?.includes("401") || e?.message?.includes("403")) {
+            if (e?.message?.includes("401") || e?.message?.includes("403") || e?.message?.startsWith?.("AUTH_")) {
                 await supabase.auth.signOut();
                 nav("/login", { replace: true });
-                return;
+            } else {
+                if (import.meta.env.DEV) {
+                    // eslint-disable-next-line no-console
+                    console.error("Failed to load admin locations", e);
+                }
+                toast.error(e?.message || "Kon data niet laden");
             }
-            toast.error(e?.message || "Kon data niet laden");
+            // Reset table to empty on error to avoid spinner loop
+            setRows([]);
+            setTotal(0);
         } finally {
             setLoading(false);
         }

@@ -1,8 +1,15 @@
 # Backend/app/main.py
 from __future__ import annotations
 
+# --- ensure project root is on sys.path so `api.*` and `app.*` are both importable ---
 import sys
 from pathlib import Path
+THIS_FILE = Path(__file__).resolve()
+BACKEND_ROOT = THIS_FILE.parents[1]  # .../Backend
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+# -------------------------------------------------------------------------
+
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env")
 from fastapi import FastAPI, Response
@@ -17,7 +24,7 @@ from app.core.logging import configure_logging, logger
 from app.core.request_id import set_request_id, clear_request_id
 from services.db_service import init_db_pool
 
-# Routers (import APIRouter instances directly)
+# Routers from the top-level `api/routers` package:
 from api.routers.locations import router as locations_router
 from api.routers.dev_classify import router as dev_classify_router
 try:
@@ -28,11 +35,7 @@ from api.routers.admin import router as admin_router
 from api.routers.admin_auth import router as admin_auth_router
 from api.routers.admin_locations import router as admin_locations_router
 
-# --- sys.path fix (root toevoegen) ---
-THIS_FILE = Path(__file__).resolve()
-BACKEND_ROOT = THIS_FILE.parents[1]  # .../Backend
-if str(BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT))
+# Import path prepared above for both `api.*` and `app.*`
 
 # Configureer logging voor de API
 configure_logging(service_name="api")

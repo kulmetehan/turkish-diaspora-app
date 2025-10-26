@@ -1,7 +1,8 @@
 // Frontend/src/lib/api.ts
 import { supabase } from "@/lib/supabaseClient";
+import { toast } from "sonner";
 
-// Always use explicit API base from env; must include /api/v1
+// API_BASE should be just the backend origin (no trailing slash, no /api/v1)
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
 
 /** Demo data for Bangkok locations when backend is not available */
@@ -46,6 +47,10 @@ export async function apiFetch<T>(
   }
 
   const url = `${API_BASE}${path}`;
+  if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
+    console.debug("[apiFetch] →", url, init?.method || "GET");
+  }
 
   // Simple retry/backoff for cold starts or transient failures
   const maxAttempts = 3;
@@ -61,10 +66,19 @@ export async function apiFetch<T>(
         },
         ...init,
       });
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.debug("[apiFetch] status", res.status, "for", url);
+      }
 
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.warn("[apiFetch] auth rejected", res.status, url);
+          }
           try { await supabase.auth.signOut(); } catch { }
+          throw new Error(`AUTH_${res.status} ${url}`);
         }
         // Retry on typical warm-up statuses
         if (res.status === 502 || res.status === 503 || res.status === 504) {
@@ -99,7 +113,7 @@ export async function apiFetch<T>(
   }
 
   // Development-only demo fallback to keep local UI usable when backend missing
-  if (DEV) {
+  if (import.meta.env.DEV) {
     const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
     if (demoResponse) return demoResponse as T;
   }
@@ -121,15 +135,26 @@ export async function authFetch<T>(path: string, init?: RequestInit): Promise<T>
     // eslint-disable-next-line no-console
     console.debug("authFetch →", `${API_BASE}${path}`);
   }
-  return apiFetch<T>(path, {
-    ...init,
-    headers: {
-      ...(init?.headers ?? {}),
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  try {
+    return await apiFetch<T>(path, {
+      ...init,
+      headers: {
+        ...(init?.headers ?? {}),
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch (err: any) {
+    if (typeof err?.message === "string" && err.message.startsWith("AUTH_")) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.error("[authFetch] admin auth failed", err);
+      }
+      toast.error("Not authorized as admin (401/403).");
+    }
+    throw err;
+  }
 }
 
 export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
-  return authFetch("/admin/whoami");
+  return authFetch("/api/v1/admin/whoami");
 }
