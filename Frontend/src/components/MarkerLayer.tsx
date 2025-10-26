@@ -29,6 +29,10 @@ const hasStyleObject = (m: MapboxMap) => {
 
 export default function MarkerLayer({ map, locations, selectedId, onSelect }: Props) {
   const initialized = useRef(false);
+  const handlersAttached = useRef(false);
+  const onSelectRef = useRef<typeof onSelect>(onSelect);
+  // keep latest onSelect without re-binding map listeners
+  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
 
   /** Minimale “signatuur” zodat setData alleen triggert als de set echt wijzigt */
   const idsSignature = useMemo(() => locations.map((l) => l.id).join(","), [locations]);
@@ -56,32 +60,29 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
     [locations]
   );
 
-  /** Eénmalige init zodra style er is */
+  /** Eénmalige init + handlers; persist across selects/deselects */
   useEffect(() => {
     if (initialized.current) return;
 
-    const init = () => {
-      if (initialized.current) return;
-
-      // Zorg dat de style écht geladen is. Zo niet: wacht nog één keer.
+    const attachAll = () => {
+      // Ensure style is loaded
       if (!map.isStyleLoaded?.()) {
-        // Sommige styles emitten 'style.load' nadat 'load' al geweest is (bv. style switch).
-        map.once("style.load", init as any);
+        map.once("style.load", attachAll as any);
         return;
       }
 
-      // Source toevoegen (1x)
+      // Add source if missing
       if (!map.getSource(SRC_ID)) {
         map.addSource(SRC_ID, {
           type: "geojson",
-          data: data as any,
+          data: { type: "FeatureCollection", features: [] } as any,
           cluster: true,
           clusterMaxZoom: 14,
           clusterRadius: 50,
         });
       }
 
-      // Cluster laag
+      // Layers
       if (!map.getLayer(L_CLUSTER)) {
         map.addLayer({
           id: L_CLUSTER,
@@ -96,23 +97,16 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
           },
         });
       }
-
-      // Cluster count laag
       if (!map.getLayer(L_CLUSTER_COUNT)) {
         map.addLayer({
           id: L_CLUSTER_COUNT,
           type: "symbol",
           source: SRC_ID,
           filter: ["has", "point_count"],
-          layout: {
-            "text-field": ["get", "point_count_abbreviated"],
-            "text-size": 12,
-          },
+          layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 },
           paint: { "text-color": "#083269" },
         });
       }
-
-      // Punten laag (on-clustered)
       if (!map.getLayer(L_POINT)) {
         map.addLayer({
           id: L_POINT,
@@ -127,8 +121,6 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
           },
         });
       }
-
-      // Highlight laag
       if (!map.getLayer(L_HI)) {
         map.addLayer({
           id: L_HI,
@@ -144,17 +136,15 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         });
       }
 
-      // Interactie handlers (1x, types bewust generiek gehouden i.v.m. mapbox-gl typings)
-      const onClusterClick = (e: any) => {
+      // Stable handlers using refs
+      const clusterClick = (e: any) => {
         const feats = map.queryRenderedFeatures(e.point, { layers: [L_CLUSTER] }) as
           | MapboxGeoJSONFeature[]
           | undefined;
         const clusterId = feats?.[0]?.properties?.cluster_id;
         if (clusterId == null) return;
-
         const src: any = map.getSource(SRC_ID);
         if (!src?.getClusterExpansionZoom) return;
-
         src.getClusterExpansionZoom(clusterId, (err: unknown, zoom: number) => {
           if (err) return;
           const center = (feats![0].geometry as any).coordinates as LngLatLike;
@@ -162,16 +152,15 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         });
       };
 
-      const onPointClick = (e: any) => {
+      const pointClick = (e: any) => {
         const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT] }) as
           | MapboxGeoJSONFeature[]
           | undefined;
         const id = feats?.[0]?.properties?.id as string | undefined;
-        if (id) onSelect?.(id);
+        if (id) onSelectRef.current?.(id);
       };
 
-      // Cursor management: set pointer only when hovering interactive features
-      const onMouseMove = (e: any) => {
+      const mouseMove = (e: any) => {
         try {
           const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT] }) as any[];
           const hit = Array.isArray(feats) && feats.length > 0;
@@ -179,39 +168,37 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         } catch { }
       };
 
-      // Register event handlers after a small delay to ensure layers are fully rendered
-      setTimeout(() => {
-        map.on("click", L_CLUSTER, onClusterClick as any);
-        map.on("click", L_POINT, onPointClick as any);
-        map.on("mousemove", onMouseMove as any);
-      }, 100);
+      if (!handlersAttached.current) {
+        map.on("click", L_CLUSTER, clusterClick as any);
+        map.on("click", L_POINT, pointClick as any);
+        map.on("mousemove", mouseMove as any);
+        handlersAttached.current = true;
+      }
 
       initialized.current = true;
-
-      // Cleanup handlers bij unmount
-      return () => {
-        try {
-          map.off("click", L_CLUSTER, onClusterClick as any);
-          map.off("click", L_POINT, onPointClick as any);
-          map.off("mousemove", onMouseMove as any);
-        } catch { }
-      };
     };
 
-    // Wachten tot er überhaupt een style is (voorkomt de “no style added” warning)
     if (!hasStyleObject(map)) {
-      map.once("load", init as any);
+      map.once("load", attachAll as any);
       return () => {
-        try {
-          map.off("load", init as any);
-        } catch { }
+        try { map.off("load", attachAll as any); } catch { }
       };
     }
 
-    // Style-object bestaat al → init proberen
-    const cleanup = init();
-    return cleanup;
-  }, [map, data, onSelect]);
+    attachAll();
+
+    return () => {
+      // Only on unmount
+      if (handlersAttached.current) {
+        try {
+          map.off("click", L_CLUSTER, clusterClick as any);
+          map.off("click", L_POINT, pointClick as any);
+          map.off("mousemove", mouseMove as any);
+        } catch { }
+        handlersAttached.current = false;
+      }
+    };
+  }, [map]);
 
   /** Alleen data updaten wanneer de set wijzigt */
   useEffect(() => {
