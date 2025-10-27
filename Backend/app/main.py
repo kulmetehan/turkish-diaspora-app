@@ -117,6 +117,17 @@ async def any_preflight(rest_of_path: str) -> Response:
 # This guarantees that e.g. GET /api/v1/admin/locations maps to list_admin_locations.
 api_v1_router = APIRouter(prefix="/api/v1")
 
+# Debug-only endpoint to verify that the versioned router is active in production.
+# Safe to remove after verifying Render serves the new router structure.
+@api_v1_router.get("/_whoami")
+async def whoami():
+    # This route exists ONLY for debugging prod deployment/version and can be removed later.
+    return {
+        "ok": True,
+        "router_mode": "api_v1_enabled",
+        "note": "If you can see this in prod at /api/v1/_whoami, Render is serving the new router structure.",
+    }
+
 # Routers that are externally consumed by frontend/clients
 api_v1_router.include_router(locations_router)
 api_v1_router.include_router(admin_auth_router)
