@@ -34,6 +34,7 @@ except Exception:
 from api.routers.admin import router as admin_router
 from api.routers.admin_auth import router as admin_auth_router
 from api.routers.admin_locations import router as admin_locations_router
+from api.routers.admin_metrics import router as admin_metrics_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -80,7 +81,7 @@ app.add_middleware(
         "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -110,5 +111,6 @@ if dev_ai_router is not None:
 app.include_router(admin_router)
 app.include_router(admin_auth_router)
 app.include_router(admin_locations_router)
+app.include_router(admin_metrics_router)
 
-logger.info("routers_registered", routers=["locations", "dev_classify", "dev_ai", "admin", "admin_auth", "admin_locations"])
+logger.info("routers_registered", routers=["locations", "dev_classify", "dev_ai", "admin", "admin_auth", "admin_locations", "admin_metrics"])

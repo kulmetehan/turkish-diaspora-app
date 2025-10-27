@@ -1,6 +1,8 @@
 import AdminLocationsTable from "@/components/admin/AdminLocationsTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { lazy, Suspense } from "react";
+const MetricsDashboard = lazy(() => import("@/components/admin/MetricsDashboard"));
 
 export default function AdminHomePage() {
     return (
@@ -25,7 +27,9 @@ export default function AdminHomePage() {
                                 <AdminLocationsTable />
                             </TabsContent>
                             <TabsContent value="metrics">
-                                <div className="text-sm text-muted-foreground">Metrics dashboard komt hier binnenkort.</div>
+                                <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading metrics…</div>}>
+                                    <MetricsDashboard />
+                                </Suspense>
                             </TabsContent>
                             <TabsContent value="audit">
                                 <div className="text-sm text-muted-foreground">Audit log UI wordt later toegevoegd.</div>

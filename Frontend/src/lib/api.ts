@@ -158,3 +158,33 @@ export async function authFetch<T>(path: string, init?: RequestInit): Promise<T>
 export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
   return authFetch("/api/v1/admin/whoami");
 }
+
+// --- Metrics ---
+export interface MetricsSnapshot {
+  city_progress: {
+    rotterdam: {
+      verified_count: number;
+      candidate_count: number;
+      coverage_ratio: number;
+      growth_weekly: number;
+    };
+  };
+  quality: {
+    conversion_rate_verified_14d: number;
+    task_error_rate_60m: number;
+    google429_last60m: number;
+  };
+  discovery: {
+    new_candidates_per_week: number;
+  };
+  latency: {
+    p50_ms: number;
+    avg_ms: number;
+    max_ms: number;
+  };
+  weekly_candidates?: { week_start: string; count: number }[];
+}
+
+export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {
+  return apiFetch<MetricsSnapshot>("/admin/metrics/snapshot");
+}
