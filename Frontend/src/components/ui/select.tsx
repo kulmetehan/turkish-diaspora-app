@@ -1,9 +1,10 @@
-import * as React from "react";
-import * as SelectPrimitive from "@radix-ui/react-select";
-import { ChevronDown, Check } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
+import * as SelectPrimitive from "@radix-ui/react-select";
+import { Check, ChevronDown } from "lucide-react";
+import * as React from "react";
 
 export const Select = SelectPrimitive.Root;
+export const SelectValue = SelectPrimitive.Value;
 
 export const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
@@ -32,7 +33,7 @@ export const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
-        "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-background text-foreground shadow-soft animate-scale-in",
+        "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-background text-foreground shadow-soft animate-scale-in data-[state=closed]:pointer-events-none",
         className
       )}
       {...props}

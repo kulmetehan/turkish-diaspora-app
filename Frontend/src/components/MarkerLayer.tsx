@@ -1,238 +1,290 @@
 // src/components/MarkerLayer.tsx
 import type { LocationMarker } from "@/api/fetchLocations";
-import type { LngLatLike, MapboxGeoJSONFeature, Map as MapboxMap } from "mapbox-gl";
+import type {
+    LngLatLike,
+    MapboxGeoJSONFeature,
+    Map as MapboxMap,
+} from "mapbox-gl";
 import { useEffect, useMemo, useRef } from "react";
 
 type Props = {
-  map: MapboxMap;
-  locations: LocationMarker[];
-  selectedId: string | null;
-  onSelect?: (id: string) => void;
+    map: MapboxMap;
+    locations: LocationMarker[];
+    selectedId: string | null;
+    onSelect?: (id: string) => void;
 };
 
-/** IDs voor source & layers (éénmaal gebruiken in hele app) */
+// Stable IDs for source/layers
 const SRC_ID = "tda-locations";
 const L_CLUSTER = "tda-clusters";
 const L_CLUSTER_COUNT = "tda-cluster-count";
 const L_POINT = "tda-unclustered-point";
 const L_HI = "tda-highlight";
 
-/** Veilige style-checks zonder console-warnings */
-const hasStyleObject = (m: MapboxMap) => {
-  try {
-    const s = m.getStyle();
-    return !!s && !!(s as any).sources;
-  } catch {
-    return false;
-  }
-};
+// Safely check if style exists on the map
+function hasStyleObject(m: MapboxMap) {
+    try {
+        const s = m.getStyle?.();
+        return !!s && !!(s as any).sources;
+    } catch {
+        return false;
+    }
+}
 
 export default function MarkerLayer({ map, locations, selectedId, onSelect }: Props) {
-  const initialized = useRef(false);
-  const handlersAttached = useRef(false);
-  const onSelectRef = useRef<typeof onSelect>(onSelect);
-  // keep latest onSelect without re-binding map listeners
-  useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
+    // Have we already added source/layers to THIS map instance?
+    const layersReady = useRef(false);
+    // Have we already attached event handlers to THIS map instance?
+    const handlersReady = useRef(false);
+    // Keep latest onSelect so handlers always call the newest callback
+    const onSelectRef = useRef<typeof onSelect>(onSelect);
+    useEffect(() => {
+        onSelectRef.current = onSelect;
+    }, [onSelect]);
 
-  // Stable handler refs so we attach/detach the same function instances
-  const clusterClickRef = useRef<((e: any) => void) | null>(null);
-  const pointClickRef = useRef<((e: any) => void) | null>(null);
-  const mouseMoveRef = useRef<((e: any) => void) | null>(null);
-
-  /** Minimale “signatuur” zodat setData alleen triggert als de set echt wijzigt */
-  const idsSignature = useMemo(() => locations.map((l) => l.id).join(","), [locations]);
-
-  /** GeoJSON om in de source te stoppen */
-  const data = useMemo(
-    () => ({
-      type: "FeatureCollection" as const,
-      features: locations
-        .filter((l) => typeof l.lat === "number" && typeof l.lng === "number")
-        .map((l) => ({
-          type: "Feature" as const,
-          properties: {
-            id: String(l.id),
-            name: l.name,
-            category: l.category ?? "",
-            confidence: l.confidence_score ?? null,
-          },
-          geometry: {
-            type: "Point" as const,
-            coordinates: [l.lng as number, l.lat as number] as [number, number],
-          },
-        })),
-    }),
-    [locations]
-  );
-
-  /** Eénmalige init + handlers; persist across selects/deselects */
-  useEffect(() => {
-    if (initialized.current) return;
-
-    const attachAll = () => {
-      // Ensure style is loaded
-      if (!map.isStyleLoaded?.()) {
-        map.once("style.load", attachAll as any);
-        return;
-      }
-
-      // Add source if missing
-      if (!map.getSource(SRC_ID)) {
-        map.addSource(SRC_ID, {
-          type: "geojson",
-          data: { type: "FeatureCollection", features: [] } as any,
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 50,
-        });
-      }
-
-      // Layers
-      if (!map.getLayer(L_CLUSTER)) {
-        map.addLayer({
-          id: L_CLUSTER,
-          type: "circle",
-          source: SRC_ID,
-          filter: ["has", "point_count"],
-          paint: {
-            "circle-color": ["step", ["get", "point_count"], "#88c0ff", 25, "#5599ff", 100, "#2b6fe3"],
-            "circle-radius": ["step", ["get", "point_count"], 16, 25, 22, 100, 28],
-            "circle-stroke-color": "#fff",
-            "circle-stroke-width": 2,
-          },
-        });
-      }
-      if (!map.getLayer(L_CLUSTER_COUNT)) {
-        map.addLayer({
-          id: L_CLUSTER_COUNT,
-          type: "symbol",
-          source: SRC_ID,
-          filter: ["has", "point_count"],
-          layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 },
-          paint: { "text-color": "#083269" },
-        });
-      }
-      if (!map.getLayer(L_POINT)) {
-        map.addLayer({
-          id: L_POINT,
-          type: "circle",
-          source: SRC_ID,
-          filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": "#e11d48",
-            "circle-radius": 6,
-            "circle-stroke-color": "#fff",
-            "circle-stroke-width": 2,
-          },
-        });
-      }
-      if (!map.getLayer(L_HI)) {
-        map.addLayer({
-          id: L_HI,
-          type: "circle",
-          source: SRC_ID,
-          filter: ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], "__none__"]],
-          paint: {
-            "circle-color": "#22c55e",
-            "circle-radius": 10,
-            "circle-stroke-color": "#14532d",
-            "circle-stroke-width": 2,
-          },
-        });
-      }
-
-      // Define handlers ONCE and store them in refs (stable function identities)
-      if (!clusterClickRef.current) {
-        clusterClickRef.current = (e: any) => {
-          const feats = map.queryRenderedFeatures(e.point, { layers: [L_CLUSTER] }) as
-            | MapboxGeoJSONFeature[]
-            | undefined;
-          const clusterId = feats?.[0]?.properties?.cluster_id;
-          if (clusterId == null) return;
-          const src: any = map.getSource(SRC_ID);
-          if (!src?.getClusterExpansionZoom) return;
-          src.getClusterExpansionZoom(clusterId, (err: unknown, zoom: number) => {
-            if (err) return;
-            const center = (feats![0].geometry as any).coordinates as LngLatLike;
-            map.easeTo({ center, zoom });
-          });
+    // Build GeoJSON for current locations
+    const data = useMemo(() => {
+        return {
+            type: "FeatureCollection" as const,
+            features: locations
+                .filter((l) => typeof l.lat === "number" && typeof l.lng === "number")
+                .map((l) => ({
+                    type: "Feature" as const,
+                    properties: {
+                        id: String(l.id),
+                        name: l.name,
+                        category: l.category ?? "",
+                        confidence: l.confidence_score ?? null,
+                    },
+                    geometry: {
+                        type: "Point" as const,
+                        coordinates: [l.lng as number, l.lat as number] as [number, number],
+                    },
+                })),
         };
-      }
+    }, [locations]);
 
-      if (!pointClickRef.current) {
-        pointClickRef.current = (e: any) => {
-          const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT] }) as
-            | MapboxGeoJSONFeature[]
-            | undefined;
-          const id = feats?.[0]?.properties?.id as string | undefined;
-          if (id) onSelectRef.current?.(id);
+    // 1. Create source + layers once per map
+    useEffect(() => {
+        function tryInitLayers() {
+            if (layersReady.current) return;
+
+            // Source
+            if (!map.getSource(SRC_ID)) {
+                map.addSource(SRC_ID, {
+                    type: "geojson",
+                    data: { type: "FeatureCollection", features: [] },
+                    cluster: true,
+                    clusterMaxZoom: 14,
+                    clusterRadius: 50,
+                } as any);
+            }
+
+            // Cluster circles
+            if (!map.getLayer(L_CLUSTER)) {
+                map.addLayer({
+                    id: L_CLUSTER,
+                    type: "circle",
+                    source: SRC_ID,
+                    filter: ["has", "point_count"],
+                    paint: {
+                        "circle-color": [
+                            "step",
+                            ["get", "point_count"],
+                            "#88c0ff",
+                            25,
+                            "#5599ff",
+                            100,
+                            "#2b6fe3",
+                        ],
+                        "circle-radius": [
+                            "step",
+                            ["get", "point_count"],
+                            16,
+                            25,
+                            22,
+                            100,
+                            28,
+                        ],
+                        "circle-stroke-color": "#fff",
+                        "circle-stroke-width": 2,
+                    },
+                });
+            }
+
+            // Cluster count labels
+            if (!map.getLayer(L_CLUSTER_COUNT)) {
+                map.addLayer({
+                    id: L_CLUSTER_COUNT,
+                    type: "symbol",
+                    source: SRC_ID,
+                    filter: ["has", "point_count"],
+                    layout: {
+                        "text-field": ["get", "point_count_abbreviated"],
+                        "text-size": 12,
+                    },
+                    paint: { "text-color": "#083269" },
+                });
+            }
+
+            // Individual point markers
+            if (!map.getLayer(L_POINT)) {
+                map.addLayer({
+                    id: L_POINT,
+                    type: "circle",
+                    source: SRC_ID,
+                    filter: ["!", ["has", "point_count"]],
+                    paint: {
+                        "circle-color": "#e11d48",
+                        "circle-radius": 6,
+                        "circle-stroke-color": "#fff",
+                        "circle-stroke-width": 2,
+                    },
+                });
+            }
+
+            // Highlight ring for selected point
+            if (!map.getLayer(L_HI)) {
+                map.addLayer({
+                    id: L_HI,
+                    type: "circle",
+                    source: SRC_ID,
+                    filter: [
+                        "all",
+                        ["!", ["has", "point_count"]],
+                        ["==", ["get", "id"], "__none__"],
+                    ],
+                    paint: {
+                        "circle-color": "#22c55e",
+                        "circle-radius": 10,
+                        "circle-stroke-color": "#14532d",
+                        "circle-stroke-width": 2,
+                    },
+                });
+            }
+
+            layersReady.current = true;
+        }
+
+        if (!hasStyleObject(map)) {
+            // Style not ready yet: wait for load, then init
+            const handleLoad = () => {
+                tryInitLayers();
+            };
+            map.once("load", handleLoad);
+            return () => {
+                try {
+                    map.off("load", handleLoad);
+                } catch {
+                    /* ignore */
+                }
+            };
+        }
+
+        tryInitLayers();
+    }, [map]);
+
+    // 2. Sync GeoJSON data when locations change
+    useEffect(() => {
+        if (!layersReady.current) return;
+        if (!hasStyleObject(map)) return;
+        const src: any = map.getSource(SRC_ID);
+        if (src && src.setData) {
+            src.setData(data as any);
+        }
+    }, [map, data, locations]);
+
+    // 3. Attach interactivity handlers once
+    useEffect(() => {
+        if (!layersReady.current) return;
+        if (handlersReady.current) return;
+
+        const onClusterClick = (e: any) => {
+            const feats = map.queryRenderedFeatures(e.point, {
+                layers: [L_CLUSTER],
+            }) as MapboxGeoJSONFeature[] | undefined;
+            const clusterId = feats?.[0]?.properties?.cluster_id;
+            if (clusterId == null) return;
+            const src: any = map.getSource(SRC_ID);
+            if (!src?.getClusterExpansionZoom) return;
+            src.getClusterExpansionZoom(clusterId, (err: unknown, zoom: number) => {
+                if (err) return;
+                const center = (feats![0].geometry as any).coordinates as LngLatLike;
+                map.easeTo({ center, zoom });
+            });
         };
-      }
 
-      if (!mouseMoveRef.current) {
-        mouseMoveRef.current = (e: any) => {
-          try {
-            const feats = map.queryRenderedFeatures(e.point, { layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT] }) as any[];
-            const hit = Array.isArray(feats) && feats.length > 0;
-            map.getCanvas().style.cursor = hit ? "pointer" : "";
-          } catch { }
+        const onPointClick = (e: any) => {
+            const feats = map.queryRenderedFeatures(e.point, {
+                layers: [L_POINT],
+            }) as MapboxGeoJSONFeature[] | undefined;
+            const id = feats?.[0]?.properties?.id as string | undefined;
+            if (id && onSelectRef.current) {
+                onSelectRef.current(id);
+            }
         };
-      }
 
-      if (!handlersAttached.current) {
-        if (clusterClickRef.current) map.on("click", L_CLUSTER, clusterClickRef.current as any);
-        if (pointClickRef.current) map.on("click", L_POINT, pointClickRef.current as any);
-        if (mouseMoveRef.current) map.on("mousemove", mouseMoveRef.current as any);
-        handlersAttached.current = true;
-      }
+        const onMouseMove = (e: any) => {
+            try {
+                const feats = map.queryRenderedFeatures(e.point, {
+                    layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT],
+                }) as any[];
+                const hit = Array.isArray(feats) && feats.length > 0;
+                map.getCanvas().style.cursor = hit ? "pointer" : "";
+            } catch {
+                /* ignore */
+            }
+        };
 
-      initialized.current = true;
-    };
+        const forcePointer = () => {
+            try {
+                map.getCanvas().style.cursor = "pointer";
+            } catch {
+                /* ignore */
+            }
+        };
+        const clearPointer = () => {
+            try {
+                map.getCanvas().style.cursor = "";
+            } catch {
+                /* ignore */
+            }
+        };
 
-    if (!hasStyleObject(map)) {
-      map.once("load", attachAll as any);
-      return () => {
-        try { map.off("load", attachAll as any); } catch { }
-      };
-    }
+        map.on("click", L_CLUSTER, onClusterClick as any);
+        map.on("click", L_POINT, onPointClick as any);
+        map.on("mousemove", onMouseMove as any);
 
-    attachAll();
+        map.on("mouseenter", L_POINT, forcePointer as any);
+        map.on("mouseleave", L_POINT, clearPointer as any);
+        map.on("mouseenter", L_CLUSTER, forcePointer as any);
+        map.on("mouseleave", L_CLUSTER, clearPointer as any);
 
-    return () => {
-      // Only on unmount
-      if (handlersAttached.current) {
+        handlersReady.current = true;
+
+        // IMPORTANT:
+        // We intentionally do NOT clean these up in a return() cleanup.
+        // The map instance persists across React StrictMode fake-unmount/remount,
+        // so removing handlers here would break interactivity in dev.
+    }, [map]);
+
+    // 4. Sync highlight ring with selectedId
+    useEffect(() => {
+        if (!layersReady.current) return;
+        if (!hasStyleObject(map)) return;
+        if (!map.getLayer(L_HI)) return;
+        const selId = selectedId ?? "__none__";
         try {
-          if (clusterClickRef.current) map.off("click", L_CLUSTER, clusterClickRef.current as any);
-          if (pointClickRef.current) map.off("click", L_POINT, pointClickRef.current as any);
-          if (mouseMoveRef.current) map.off("mousemove", mouseMoveRef.current as any);
-        } catch { }
-        handlersAttached.current = false;
-      }
-    };
-  }, [map]);
+            map.setFilter(L_HI, [
+                "all",
+                ["!", ["has", "point_count"]],
+                ["==", ["get", "id"], selId],
+            ]);
+        } catch {
+            /* ignore */
+        }
+    }, [map, selectedId, locations]);
 
-  /** Alleen data updaten wanneer de set wijzigt */
-  useEffect(() => {
-    if (!initialized.current) return;
-    if (!hasStyleObject(map)) return;
-
-    const src: any = map.getSource(SRC_ID);
-    if (src?.setData) {
-      src.setData(data as any);
-    }
-  }, [map, idsSignature, data]);
-
-  /** Alleen highlight-filter aanpassen op selectie */
-  useEffect(() => {
-    if (!initialized.current) return;
-    if (!hasStyleObject(map)) return;
-    if (!map.getLayer(L_HI)) return;
-
-    const id = selectedId ?? "__none__";
-    try {
-      map.setFilter(L_HI, ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], id]]);
-    } catch { }
-  }, [map, selectedId]);
-
-  return null;
+    return null;
 }
+

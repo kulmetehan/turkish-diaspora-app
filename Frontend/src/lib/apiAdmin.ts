@@ -38,7 +38,7 @@ export async function getAdminLocation(id: number): Promise<AdminLocationDetail>
 }
 
 export type AdminLocationUpdateRequest = Partial<Pick<AdminLocationDetail,
-    "name" | "address" | "category" | "state" | "notes" | "business_status" | "is_probable_not_open_yet"
+    "name" | "address" | "category" | "state" | "notes" | "business_status" | "is_probable_not_open_yet" | "confidence_score"
 >>;
 
 export async function updateAdminLocation(id: number, payload: AdminLocationUpdateRequest): Promise<AdminLocationDetail> {
@@ -57,6 +57,10 @@ export async function retireAdminLocation(id: number): Promise<{ ok: boolean }> 
 
 export async function seedDevLocation(): Promise<{ ok: boolean; id?: number }> {
     return authFetch(`/api/v1/admin/locations/dev-seed`, { method: "POST" });
+}
+
+export async function listLocationStates(): Promise<{ states: { value: string; label: string }[] }> {
+    return authFetch(`/api/v1/admin/location-states`);
 }
 
 

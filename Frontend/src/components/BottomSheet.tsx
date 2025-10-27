@@ -50,7 +50,7 @@ const BottomSheet = forwardRef<ControllerRef, Props>(function BottomSheet({ open
             />
             <div
                 ref={refs.rootRef}
-                className="tda-bs-root bg-background border-t border-border"
+                className="tda-bs-root bg-background border-t border-border pointer-events-auto"
                 onPointerDown={handlers.onRootPointerDown}
                 role="dialog"
                 aria-modal="false"

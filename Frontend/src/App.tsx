@@ -123,98 +123,89 @@ function HomePage() {
     }
   };
 
-  if (isDesktop) {
-    // Desktop layout: side-by-side
-    return (
-      <div className="flex flex-col lg:grid lg:grid-cols-2 gap-0 min-h-[calc(100dvh-56px)]">
-        {/* Linker kolom: lijst en filters */}
-        <aside className="border-r bg-background lg:order-1 order-1 lg:h-auto h-[40vh] flex flex-col">
-          <div className="p-3 border-b">
-            <Filters
-              search={filters.search}
-              category={filters.category}
-              onlyTurkish={filters.onlyTurkish}
-              loading={loading}
-              categoryOptions={categoryOptions}
-              suggestions={suggestions}
-              onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-            />
-          </div>
-          <div className="overflow-auto flex-1">
-            <LocationList
-              locations={filtered}
-              selectedId={selectedId}
-              onSelect={(id) => setSelectedId(id)}
-              autoScrollToSelected
-              emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
-            />
-          </div>
-        </aside>
-
-        {/* Rechter kolom: kaart */}
-        <main className="relative lg:h-auto h-[60vh]">
-          <MapView
+  return (
+    <div className="relative min-h-[calc(100dvh-56px)] lg:grid lg:grid-cols-2">
+      {/* Left panel (filters + list) - desktop only */}
+      <aside className="hidden lg:flex lg:flex-col border-r bg-background">
+        <div className="p-3 border-b">
+          <Filters
+            search={filters.search}
+            category={filters.category}
+            onlyTurkish={filters.onlyTurkish}
+            loading={loading}
+            categoryOptions={categoryOptions}
+            suggestions={suggestions}
+            onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+          />
+        </div>
+        <div className="overflow-auto flex-1">
+          <LocationList
             locations={filtered}
             selectedId={selectedId}
             onSelect={(id) => setSelectedId(id)}
-            onMapClick={() => setSelectedId(null)}
-            bottomSheetHeight={0}
+            autoScrollToSelected
+            emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
           />
-        </main>
+        </div>
+      </aside>
+
+      {/* Map panel (always rendered) */}
+      <main className="fixed inset-0 h-screen w-screen z-0 lg:static lg:h-auto lg:w-auto lg:flex-1">
+        <MapView
+          locations={filtered}
+          selectedId={selectedId}
+          onSelect={(id) => { setSelectedId(id); if (!isDesktop) setSheetSnapPoint("collapsed"); }}
+          onMapClick={() => {
+            if (!isDesktop) {
+              setSelectedId(null);
+              setSheetSnapPoint("half");
+            } else {
+              setSelectedId(null);
+            }
+          }}
+          bottomSheetHeight={isDesktop ? 0 : bottomSheetHeight}
+        />
+      </main>
+
+      {/* BottomSheet mobile overlay (list/detail UI) - mobile only */}
+      <div className="lg:hidden">
+        <BottomSheet
+          open={isSheetOpen}
+          snapPoint={sheetSnapPoint}
+          onSnapPointChange={setSheetSnapPoint}
+          onClose={() => setIsSheetOpen(false)}
+        >
+          {selectedId && selected ? (
+            <LocationDetail
+              location={selected}
+              onBackToList={handleBackToList}
+            />
+          ) : (
+            <div className="flex flex-col h-full">
+              <div className="p-3 border-b">
+                <Filters
+                  search={filters.search}
+                  category={filters.category}
+                  onlyTurkish={filters.onlyTurkish}
+                  loading={loading}
+                  categoryOptions={categoryOptions}
+                  suggestions={suggestions}
+                  onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+                />
+              </div>
+              <div className="overflow-auto flex-1">
+                <LocationList
+                  locations={filtered}
+                  selectedId={selectedId}
+                  onSelect={(id) => { setSelectedId(id); setSheetSnapPoint("collapsed"); }}
+                  autoScrollToSelected
+                  emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
+                />
+              </div>
+            </div>
+          )}
+        </BottomSheet>
       </div>
-    );
-  }
-
-  // Mobile layout: full-screen map with bottom sheet
-  return (
-    <div className="relative w-full h-[calc(100dvh-56px)]">
-      {/* Full-screen map */}
-      <MapView
-        locations={filtered}
-        selectedId={selectedId}
-        onSelect={handleLocationSelect}
-        onMapClick={handleMapClick}
-        bottomSheetHeight={bottomSheetHeight}
-      />
-
-      {/* Bottom sheet overlay */}
-      <BottomSheet
-        open={isSheetOpen}
-        snapPoint={sheetSnapPoint}
-        onSnapPointChange={setSheetSnapPoint}
-        onClose={() => setIsSheetOpen(false)}
-      >
-        {selectedId && selected ? (
-          <LocationDetail
-            location={selected}
-            onBackToList={handleBackToList}
-          />
-        ) : (
-          <div className="flex flex-col h-full">
-            <div className="p-3 border-b">
-              <Filters
-                search={filters.search}
-                category={filters.category}
-                onlyTurkish={filters.onlyTurkish}
-                loading={loading}
-                categoryOptions={categoryOptions}
-                suggestions={suggestions}
-                onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-              />
-            </div>
-
-            <div className="overflow-auto flex-1">
-              <LocationList
-                locations={filtered}
-                selectedId={selectedId}
-                onSelect={handleLocationSelect}
-                autoScrollToSelected
-                emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
-              />
-            </div>
-          </div>
-        )}
-      </BottomSheet>
     </div>
   );
 }

@@ -31,5 +31,6 @@ class AdminLocationUpdateRequest(BaseModel):
     notes: Optional[str] = None
     business_status: Optional[str] = None
     is_probable_not_open_yet: Optional[bool] = None
+    confidence_score: Optional[float] = None
 
 

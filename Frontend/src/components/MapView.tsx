@@ -28,7 +28,8 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
 
   // Init Map slechts één keer
   useEffect(() => {
-    if (mapRef.current || !mapContainerRef.current) return;
+    if (!mapContainerRef.current) return;
+    if (mapRef.current) return; // guard against StrictMode double-invoke
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
@@ -38,34 +39,32 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
       attributionControl: false,
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
-    map.on("load", () => setMapReady(true));
+    mapRef.current = map;
 
-    // Add map click handler (robust hit test: only treat as background click when no featured hit)
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+
+    // Background click logic
     map.on("click", (e) => {
       if (!onMapClick) return;
       try {
         const feats = map.queryRenderedFeatures(e.point) as any[];
-        // If click hits actual interactive layers, let their handlers run.
         const interactiveHit = Array.isArray(feats) && feats.some((f) => f?.layer?.id === "tda-unclustered-point" || f?.layer?.id === "tda-clusters" || f?.layer?.id === "tda-cluster-count");
         if (interactiveHit) return;
-        // If the only thing hit is the highlight ring, treat it as a background click to allow deselect
         const hiHit = Array.isArray(feats) && feats.some((f) => f?.layer?.id === "tda-highlight");
-        if (hiHit) {
-          onMapClick();
-          return;
-        }
-      } catch { /* ignore */ }
+        if (hiHit) { onMapClick(); return; }
+      } catch { }
       onMapClick();
     });
 
-    mapRef.current = map;
+    map.on("load", () => {
+      setMapReady(true);
+    });
 
     return () => {
-      try {
-        map.remove();
-      } catch { }
-      mapRef.current = null;
+      if (mapRef.current) {
+        try { mapRef.current.remove(); } catch { }
+        mapRef.current = null;
+      }
     };
   }, []);
 

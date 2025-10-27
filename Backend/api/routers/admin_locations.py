@@ -37,7 +37,9 @@ async def list_admin_locations(
         SELECT id, name, category, state, confidence_score, last_verified_at
         FROM locations
         WHERE ($1::text IS NULL OR $1 = '' OR name ILIKE '%' || $1 || '%' OR address ILIKE '%' || $1 || '%')
-          AND ($2::text IS NULL OR $2 = '' OR state = $2)
+          AND (
+            $2::text IS NULL OR $2 = '' OR state = $2::location_state
+          )
         ORDER BY id DESC
         LIMIT $3 OFFSET $4
         """
@@ -50,7 +52,9 @@ async def list_admin_locations(
         SELECT COUNT(1) AS total
         FROM locations
         WHERE ($1::text IS NULL OR $1 = '' OR name ILIKE '%' || $1 || '%' OR address ILIKE '%' || $1 || '%')
-          AND ($2::text IS NULL OR $2 = '' OR state = $2)
+          AND (
+            $2::text IS NULL OR $2 = '' OR state = $2::location_state
+          )
         """
     )
     total_rows = await fetch(sql_count, search_val, state_val)
