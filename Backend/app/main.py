@@ -12,7 +12,7 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from dotenv import load_dotenv
 load_dotenv(dotenv_path=".env")
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Response, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 
 # --- Logging & request-id ---
@@ -103,14 +103,24 @@ async def health():
 async def any_preflight(rest_of_path: str) -> Response:
     return Response(status_code=204)
 
-# --- Routers includen (direct) ---
-app.include_router(locations_router)
+# --- API v1 router ---
+# Centralize public/external API routes under a single versioned router.
+# This guarantees that e.g. GET /api/v1/admin/locations maps to list_admin_locations.
+api_v1_router = APIRouter(prefix="/api/v1")
+
+# Routers that are externally consumed by frontend/clients
+api_v1_router.include_router(locations_router)
+api_v1_router.include_router(admin_auth_router)
+api_v1_router.include_router(admin_locations_router)
+api_v1_router.include_router(admin_metrics_router)
+
+# Mount the versioned API once on the app
+app.include_router(api_v1_router)
+
+# Keep dev/local-only routers mounted at top-level (not versioned)
 app.include_router(dev_classify_router)
 if dev_ai_router is not None:
     app.include_router(dev_ai_router)
 app.include_router(admin_router)
-app.include_router(admin_auth_router)
-app.include_router(admin_locations_router)
-app.include_router(admin_metrics_router)
 
-logger.info("routers_registered", routers=["locations", "dev_classify", "dev_ai", "admin", "admin_auth", "admin_locations", "admin_metrics"])
+logger.info("routers_registered", routers=["api_v1(locations,admin_auth,admin_locations,admin_metrics)", "dev_classify", "dev_ai", "admin"]) 

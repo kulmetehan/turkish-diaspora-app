@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from app.core.auth import verify_admin_user, AdminUser
 
 router = APIRouter(
-    prefix="/api/v1/admin",
+    prefix="/admin",
     tags=["admin"],
 )
 

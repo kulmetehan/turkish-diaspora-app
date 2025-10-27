@@ -7,7 +7,7 @@ from services.db_service import fetch
 from app.services.category_map import normalize_category
 
 router = APIRouter(
-    prefix="/api/v1/locations",
+    prefix="/locations",
     tags=["locations"],
 )
 

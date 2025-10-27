@@ -15,7 +15,7 @@ from services.db_service import fetch, execute
 
 
 router = APIRouter(
-    prefix="/api/v1/admin/locations",
+    prefix="/admin/locations",
     tags=["admin-locations"],
 )
 
