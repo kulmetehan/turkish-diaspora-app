@@ -42,9 +42,7 @@ jobs:
             EFFECTIVE_DATABASE_URL="${DATABASE_URL}?sslmode=require"
           fi
 
-          SQL=$'DELETE FROM public.ai_logs\nWHERE id IN (\n  SELECT id\n  FROM public.ai_logs\n  WHERE created_at < NOW() - INTERVAL \'7 days\'\n  ORDER BY created_at ASC\n  OFFSET 5000\n);\nVACUUM FULL public.ai_logs;\nANALYZE public.ai_logs;'
+          SQL=$'DELETE FROM public.ai_logs\nWHERE id IN (\n  SELECT id\n  FROM public.ai_logs\n  WHERE created_at < NOW() - INTERVAL \'3 days\'\n  ORDER BY created_at ASC\n  OFFSET 5000\n);\nVACUUM FULL public.ai_logs;\nANALYZE public.ai_logs;'
           echo "$SQL" | psql --no-psqlrc --set ON_ERROR_STOP=1 --quiet "$EFFECTIVE_DATABASE_URL"
 
-          echo "✅ Old ai_logs cleaned and compacted successfully"
-
-
+          echo "✅ Old ai_logs cleaned (older than 3 days) and compacted successfully"
