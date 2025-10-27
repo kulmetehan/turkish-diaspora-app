@@ -74,14 +74,23 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestIdMiddleware)
 
 # --- CORS ---
+# We explicitly allow the following origins:
+# - Local dev Vite servers (http://localhost:5173, http://127.0.0.1:5173)
+# - Production frontend on GitHub Pages (https://kulmetehan.github.io)
+# - Production backend origin for same-origin/diagnostics (https://turkish-diaspora-app.onrender.com)
+# This is intentional, instead of using "*", to keep CORS tight while supporting
+# current deployment targets. Methods include GET/PUT/DELETE/OPTIONS (and POST for
+# future admin operations) so preflight checks succeed.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "https://kulmetehan.github.io",
+        "https://turkish-diaspora-app.onrender.com",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
