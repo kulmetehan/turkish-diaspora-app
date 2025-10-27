@@ -186,5 +186,6 @@ export interface MetricsSnapshot {
 }
 
 export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {
-  return apiFetch<MetricsSnapshot>("/admin/metrics/snapshot");
+  // Use versioned API path and include Authorization like other admin calls
+  return authFetch<MetricsSnapshot>("/api/v1/admin/metrics/snapshot");
 }
