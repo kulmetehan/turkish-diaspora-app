@@ -50,10 +50,10 @@ jobs:
 
           # Delete batches of ~50k rows until <=100k remain
           while true; do
-            TOTAL_COUNT=$(psql --tuples-only --no-align --quiet "$EFFECTIVE_DATABASE_URL" << 'EOF'
-            SELECT COUNT(*) FROM public.ai_logs;
-            EOF
-            )
+          TOTAL_COUNT=$(psql --tuples-only --no-align --quiet "$EFFECTIVE_DATABASE_URL" << 'EOF'
+          SELECT COUNT(*) FROM public.ai_logs;
+          EOF
+          )
             echo "Current row count: $TOTAL_COUNT"
 
             if (( TOTAL_COUNT <= 100000 )); then
@@ -63,17 +63,17 @@ jobs:
 
             echo "Deleting oldest ~50000 rows..."
 
-            psql --set ON_ERROR_STOP=1 --quiet "$EFFECTIVE_DATABASE_URL" << 'EOF'
-            WITH doomed AS (
-                SELECT id
-                FROM public.ai_logs
-                ORDER BY created_at ASC
-                LIMIT 50000
-            )
-            DELETE FROM public.ai_logs
-            USING doomed
-            WHERE public.ai_logs.id = doomed.id;
-            EOF
+          psql --set ON_ERROR_STOP=1 --quiet "$EFFECTIVE_DATABASE_URL" << 'EOF'
+          WITH doomed AS (
+              SELECT id
+              FROM public.ai_logs
+              ORDER BY created_at ASC
+              LIMIT 50000
+          )
+          DELETE FROM public.ai_logs
+          USING doomed
+          WHERE public.ai_logs.id = doomed.id;
+          EOF
 
             echo "Batch deleted. Continuing loop..."
           done
