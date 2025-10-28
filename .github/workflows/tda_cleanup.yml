@@ -2,16 +2,17 @@ name: TDA Daily DB Cleanup
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 3 * * *'  # Dagelijks om 03:00
   workflow_dispatch:
 
 jobs:
   cleanup-db:
     name: Cleanup Supabase ai_logs
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,7 +22,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y postgresql-client
 
-      - name: Clean old ai_logs and vacuum
+      - name: Clean ai_logs down to 100k rows (batched)
         shell: bash
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -33,16 +34,53 @@ jobs:
             exit 1
           fi
 
-          # Ensure sslmode=require is present
-          if [[ "$DATABASE_URL" == *"sslmode="* ]]; then
-            EFFECTIVE_DATABASE_URL="$DATABASE_URL"
-          elif [[ "$DATABASE_URL" == *"?"* ]]; then
-            EFFECTIVE_DATABASE_URL="${DATABASE_URL}&sslmode=require"
+          # 1. Make DATABASE_URL suitable for psql (strip +asyncpg)
+          EFFECTIVE_DATABASE_URL="${DATABASE_URL/postgresql+asyncpg:/postgresql:}"
+
+          # 2. Enforce sslmode=require
+          if [[ "$EFFECTIVE_DATABASE_URL" == *"sslmode="* ]]; then
+            true
+          elif [[ "$EFFECTIVE_DATABASE_URL" == *"?"* ]]; then
+            EFFECTIVE_DATABASE_URL="${EFFECTIVE_DATABASE_URL}&sslmode=require"
           else
-            EFFECTIVE_DATABASE_URL="${DATABASE_URL}?sslmode=require"
+            EFFECTIVE_DATABASE_URL="${EFFECTIVE_DATABASE_URL}?sslmode=require"
           fi
 
-          SQL=$'DELETE FROM public.ai_logs\nWHERE id IN (\n  SELECT id\n  FROM public.ai_logs\n  WHERE created_at < NOW() - INTERVAL \'3 days\'\n  ORDER BY created_at ASC\n  OFFSET 5000\n);\nVACUUM FULL public.ai_logs;\nANALYZE public.ai_logs;'
-          echo "$SQL" | psql --no-psqlrc --set ON_ERROR_STOP=1 --quiet "$EFFECTIVE_DATABASE_URL"
+          echo "Starting cleanup loop..."
 
-          echo "✅ Old ai_logs cleaned (older than 3 days) and compacted successfully"
+          # Delete batches of ~50k rows until <=100k remain
+          while true; do
+            TOTAL_COUNT=$(psql --tuples-only --no-align --quiet "$EFFECTIVE_DATABASE_URL" << 'EOF'
+            SELECT COUNT(*) FROM public.ai_logs;
+            EOF
+            )
+            echo "Current row count: $TOTAL_COUNT"
+
+            if (( TOTAL_COUNT <= 100000 )); then
+              echo "Table already at or under 100000 rows, stopping."
+              break
+            fi
+
+            echo "Deleting oldest ~50000 rows..."
+
+            psql --set ON_ERROR_STOP=1 --quiet "$EFFECTIVE_DATABASE_URL" << 'EOF'
+            WITH doomed AS (
+                SELECT id
+                FROM public.ai_logs
+                ORDER BY created_at ASC
+                LIMIT 50000
+            )
+            DELETE FROM public.ai_logs
+            USING doomed
+            WHERE public.ai_logs.id = doomed.id;
+            EOF
+
+            echo "Batch deleted. Continuing loop..."
+          done
+
+          echo "Running VACUUM ANALYZE..."
+          psql --set ON_ERROR_STOP=1 --quiet "$EFFECTIVE_DATABASE_URL" << 'EOF'
+          VACUUM ANALYZE public.ai_logs;
+          EOF
+
+          echo "Done! ai_logs trimmed to <=100k rows and optimized."
