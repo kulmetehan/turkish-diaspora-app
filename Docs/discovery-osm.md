@@ -1,198 +1,88 @@
+---
+title: OSM Discovery Provider
+status: active
+last_updated: 2025-11-04
+scope: backend
+owners: [tda-core]
+---
+
 # OSM Discovery Provider
 
-This document describes the OSM (OpenStreetMap) provider integration for the Turkish Diaspora App discovery system.
+Technical overview of the Overpass (OSM) provider used by `discovery_bot` and `services/osm_service.py`.
 
-## Overview
+## Responsibilities
 
-The OSM provider uses the Overpass API to discover places of interest, providing an alternative to Google Places API. This allows for cost-effective discovery without API rate limits or costs.
+- Build Overpass QL queries from category/tag definitions.
+- Respect rate limits via token bucket throttling and exponential backoff.
+- Rotate across multiple mirrors to handle outages.
+- Normalize JSON payloads to the internal `locations` schema.
+- Record telemetry in `overpass_calls` for monitoring.
 
-## Configuration
+## Environment variables
 
-### Environment Variables
+| Variable | Default | Description |
+| --- | --- | --- |
+| `OVERPASS_USER_AGENT` | `TurkishDiasporaApp/1.0 (contact: …)` | Must contain a real contact email per OSM policy. |
+| `DISCOVERY_RATE_LIMIT_QPS` | `0.15` | Global QPS budget enforced by token bucket. |
+| `DISCOVERY_SLEEP_BASE_S` | `3.0` | Base delay between calls. |
+| `DISCOVERY_SLEEP_JITTER_PCT` | `0.20` | Jitter percentage applied to sleep. |
+| `DISCOVERY_BACKOFF_SERIES` | `20,60,180,420` | Seconds to wait after repeated failures. |
+| `OVERPASS_TIMEOUT_S` | `30` | HTTP timeout per request. |
+| `DISCOVERY_MAX_RESULTS` | `25` | Maximum elements returned per request. |
+| `MAX_SUBDIVIDE_DEPTH` | `2` | Quadtree depth for subdividing dense grids. |
+| `OSM_TURKISH_HINTS` | `true` | Adds keyword filters for Turkish phrases to Overpass query. |
+| `OSM_LOG_QUERIES` / `OSM_TRACE` | `false` / `0` | Verbose debugging. Disable in production. |
 
-Set the following environment variables to use the OSM provider:
+## Mirror rotation
 
-```bash
-DATA_PROVIDER=osm
-OVERPASS_ENDPOINT=https://overpass-api.de/api/interpreter
-OVERPASS_TIMEOUT_S=25
-DISCOVERY_RATE_LIMIT_QPS=0.5
+The service cycles through the following mirrors:
+
+1. `https://overpass-api.de/api/interpreter`
+2. `https://z.overpass-api.de/api/interpreter`
+3. `https://overpass.kumi.systems/api/interpreter`
+4. `https://overpass.openstreetmap.ru/api/interpreter`
+
+On failure, the client rotates to the next mirror and applies backoff according to `DISCOVERY_BACKOFF_SERIES`.
+
+## Normalization steps
+
+- Parse response JSON, falling back to safe defaults for atypical payloads.
+- Convert elements into a canonical dict (`place_id`, `name`, `lat`, `lng`, `category`, etc.).
+- Insert records as `CANDIDATE` state, skipping duplicates based on `place_id` or fuzzy `(name, lat, lng)` matching.
+- Log each call in `overpass_calls` with status code, duration, endpoint, and preview snippet.
+
+## Telemetry
+
+`overpass_calls` schema (summary):
+
+```sql
+SELECT endpoint,
+       COUNT(*) AS total,
+       SUM(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1 ELSE 0 END) AS success,
+       SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END) AS server_errors
+FROM overpass_calls
+WHERE ts >= NOW() - INTERVAL '24 hours'
+GROUP BY endpoint;
 ```
 
-### Provider Selection
+Use this table to monitor mirror health, latency, and success rates. Combine with alert bot thresholds to catch repeated failures.
 
-The system automatically selects the provider based on the `DATA_PROVIDER` environment variable:
-- `google` (default): Uses Google Places API
-- `osm`: Uses Overpass API
-
-## OSM Tag Mapping
-
-Categories in `Infra/config/categories.yml` now support `osm_tags` configuration:
-
-```yaml
-categories:
-  bakery:
-    google_types:
-      - "bakery"
-    osm_tags:
-      any:
-        - { shop: "bakery" }
-  
-  mosque:
-    google_types:
-      - "mosque"
-      - "place_of_worship"
-    osm_tags:
-      all:
-        - { amenity: "place_of_worship" }
-        - { religion: "muslim" }
-```
-
-### Tag Structure
-
-- `any`: OR conditions - any of the specified tags will match
-- `all`: AND conditions - all specified tags must match
-
-## Rate Limiting
-
-The OSM provider implements rate limiting to be respectful to the Overpass API:
-
-- **Default rate**: 0.5 requests per second
-- **Configurable**: Set via `DISCOVERY_RATE_LIMIT_QPS` environment variable
-- **Token bucket**: Implements token bucket algorithm for smooth rate limiting
-- **Retry logic**: Automatically retries on 429 responses with `Retry-After` header
-
-## Usage
-
-### Running Discovery with OSM
+## Local testing
 
 ```bash
-# Set environment
-export DATA_PROVIDER=osm
-
-# Run discovery bot
+cd Backend
+source .venv/bin/activate
 python -m app.workers.discovery_bot \
   --city rotterdam \
-  --categories bakery,restaurant,supermarket \
-  --nearby-radius-m 1000 \
-  --grid-span-km 8 \
-  --max-cells-per-category 30 \
-  --max-total-inserts 200 \
-  --inter-call-sleep-s 0.3 \
-  --language nl
+  --categories bakery \
+  --limit 10 \
+  --dry-run
 ```
 
-### Dry Run (Limited Results)
+Check worker output for `[NEW]`, `[SKIP]`, or `[RETRY]` messages and adjust env vars as necessary.
 
-For testing, use a smaller scope:
+## Related docs
 
-```bash
-export DATA_PROVIDER=osm
-python -m app.workers.discovery_bot \
-  --city rotterdam \
-  --categories bakery,restaurant \
-  --nearby-radius-m 500 \
-  --grid-span-km 4 \
-  --max-cells-per-category 10 \
-  --max-total-inserts 50
-```
-
-## Validation
-
-### OSM Mapping Validator
-
-Validate the OSM tag configuration:
-
-```bash
-python Backend/scripts/validate_osm_mapping.py
-```
-
-This script checks:
-- All categories have `osm_tags`
-- `osm_tags` structure is valid
-- Tag key-value pairs are non-empty strings
-
-### Expected Output
-
-```
-🔍 Validating OSM mapping in categories.yml...
-
-📊 Validation Results:
-  Total categories: 6
-  Categories with osm_tags: 6
-  Validation errors: 0
-
-✅ All categories have valid osm_tags configuration!
-```
-
-## Data Normalization
-
-The OSM provider normalizes Overpass API results to match the internal place schema:
-
-```json
-{
-  "id": "node/123456789",
-  "displayName": {"text": "Bakkerij Ali"},
-  "formattedAddress": "Hoofdstraat 123, 3011 Rotterdam",
-  "location": {"lat": 51.9244, "lng": 4.4777},
-  "types": ["shop=bakery"],
-  "rating": null,
-  "userRatingCount": null,
-  "businessStatus": null,
-  "websiteUri": "https://example.com"
-}
-```
-
-## Logging
-
-All OSM operations are logged with structured JSON:
-
-```json
-{
-  "event": "osm_search_start",
-  "provider": "osm",
-  "lat": 51.9244,
-  "lng": 4.4777,
-  "radius": 1000,
-  "max_results": 20
-}
-```
-
-## Known Limitations
-
-1. **Coordinate Precision**: OSM data may have lower coordinate precision than Google Places
-2. **Business Hours**: OSM doesn't provide business hours information
-3. **Ratings**: OSM doesn't have user ratings or review counts
-4. **Real-time Data**: OSM data may be less frequently updated than Google Places
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Timeout Errors**: Increase `OVERPASS_TIMEOUT_S` if queries timeout
-2. **Rate Limiting**: Reduce `DISCOVERY_RATE_LIMIT_QPS` if getting 429 errors
-3. **No Results**: Check OSM tag mapping in categories.yml
-
-### Debug Mode
-
-Enable debug logging to see detailed query information:
-
-```bash
-export LOG_LEVEL=DEBUG
-python -m app.workers.discovery_bot --city rotterdam --categories bakery
-```
-
-## Performance Considerations
-
-- **Query Complexity**: Complex queries with many tags may timeout
-- **Rate Limiting**: Respect the 0.5 QPS default to avoid being blocked
-- **Grid Size**: Smaller grid cells may return more accurate results
-- **Category Selection**: Limit categories to reduce query complexity
-
-## Support
-
-For issues with OSM discovery:
-1. Check the validation script output
-2. Review structured logs for error details
-3. Verify environment variable configuration
-4. Test with a single category first
+- `Docs/discovery-config.md` — category/tag definitions.
+- `Docs/osm-discovery-improvements.md` — tuning notes and production lessons.
+- `Docs/automation.md` — GitHub Actions schedules for discovery runs.

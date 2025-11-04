@@ -1,0 +1,302 @@
+[
+  {
+    "path": "Backend/OSM_Discovery_Report_Rotterdam_Production.md",
+    "h1": "OSM Discovery Report \u2013 Rotterdam (Production)",
+    "purpose_line": "**Date:** October 21, 2025",
+    "last_modified": "2025-10-22",
+    "links": []
+  },
+  {
+    "path": "Backend/app/workers/README_verify_locations.md",
+    "h1": "VerifyLocationsBot",
+    "purpose_line": "Promotes high-confidence locations from `CANDIDATE/PENDING_VERIFICATION` to `VERIFIED` using OpenAI classification results, centralized validation, and audit logging. This README supplements the full runbook (`Docs/verify-locations-runbook.md`).",
+    "last_modified": "2025-10-22",
+    "links": [
+      "../../Docs/verify-locations-runbook.md",
+      "./verify_locations.py",
+      "../../services/classify_service.py",
+      "../../services/ai_validation.py",
+      "../../services/metrics_service.py"
+    ]
+  },
+  {
+    "path": "Backend/services/prompts/classify_fewshot_nltr.md",
+    "h1": "Classify Prompt Few-shot (NLTR)",
+    "purpose_line": "Reference examples used when tuning the Dutch/Turkish classification prompt for `ClassifyService`. Each example is a `(name, address, type) \u2192 expected JSON` pair. Keep this list in sync with the actual prompt (`Backend/services/prompts/classify_system.txt`).",
+    "last_modified": "2025-10-23",
+    "links": []
+  },
+  {
+    "path": "Docs/README.md",
+    "h1": "Documentation Index",
+    "purpose_line": "Curated entry points into the Turkish Diaspora App documentation set. Each section links to the most relevant Markdown files inside the repository.",
+    "last_modified": "N/A",
+    "links": [
+      "../QUICK_START.md",
+      "./env-config.md",
+      "./TDA111%20-%20Environment%20Blueprint%20en%20Config.md",
+      "../README.md",
+      "./discovery-osm.md",
+      "./discovery-config.md",
+      "./automation.md",
+      "./osm-discovery-improvements.md",
+      "./city-grid.md",
+      "../Backend/app/workers/README_verify_locations.md",
+      "./verify-locations-runbook.md",
+      "./ai-schemas.md",
+      "../Backend/OSM_Discovery_Report_Rotterdam_Production.md",
+      "../Frontend/README.md",
+      "../Frontend/DEV_SETUP.md",
+      "./design-system.md",
+      "./frontend-search.md",
+      "./map-ux-upgrade.md",
+      "./qa/bottom-sheet-test.md",
+      "../Infra/monitoring/metrics_dashboard.md",
+      "./infra-audit.md",
+      "./self-verify-loop.md",
+      "../GITHUB_PAGES_SETUP.md",
+      "./runbook.md",
+      "./verify-locations-runbook.md",
+      "./osm-discovery-report-rotterdam.md",
+      "./docs_inventory.md",
+      "./docs_gap_analysis.md",
+      "../PROJECT_CONTEXT.md",
+      "../PROJECT_PROGRESS.md"
+    ]
+  },
+  {
+    "path": "Docs/TDA111 - Environment Blueprint en Config.md",
+    "h1": "\ud83e\udde9 TDA-111 \u2013 Environment Blueprint & Config",
+    "purpose_line": "**Epic:** TDA-107 \u2014 Consolidatie & Documentatie",
+    "last_modified": "2025-10-17",
+    "links": []
+  },
+  {
+    "path": "Docs/admin-auth.md",
+    "h1": "Admin Auth (TDA-124)",
+    "purpose_line": "Adds Supabase email/password login for admins, client route protection, and server-side JWT validation with an allowlist.",
+    "last_modified": "2025-10-26",
+    "links": []
+  },
+  {
+    "path": "Docs/ai-schemas.md",
+    "h1": "AI Schemas \u2014 Unified Layer",
+    "purpose_line": "Defines the Pydantic models and helpers that unify AI inputs/outputs across classification, enrichment, and verification flows.",
+    "last_modified": "2025-10-17",
+    "links": [
+      "../Backend/services/prompts/classify_fewshot_nltr.md"
+    ]
+  },
+  {
+    "path": "Docs/automation.md",
+    "h1": "Automated Discovery Runs",
+    "purpose_line": "Documentation for the GitHub Actions workflows that replace the legacy Render cronjobs. These jobs execute `discovery_bot` across categories and grid chunks to keep the database stocked with fresh candidates.",
+    "last_modified": "2025-10-22",
+    "links": []
+  },
+  {
+    "path": "Docs/city-grid.md",
+    "h1": "City Grid Definitions",
+    "purpose_line": "Describes how `Infra/config/cities.yml` encodes discovery grids for Rotterdam (and future cities) and how `discovery_bot` consumes them.",
+    "last_modified": "2025-10-18",
+    "links": []
+  },
+  {
+    "path": "Docs/design-system.md",
+    "h1": "Design System Guide",
+    "purpose_line": "Guidelines for the Turkish Diaspora App UI across the public map and admin dashboard.",
+    "last_modified": "2025-10-19",
+    "links": []
+  },
+  {
+    "path": "Docs/discovery-config.md",
+    "h1": "Discovery Category Config",
+    "purpose_line": "Explains how `Infra/config/categories.yml` maps Turkish diaspora categories to OSM tags, aliases, and discovery parameters used by `discovery_bot`.",
+    "last_modified": "2025-10-18",
+    "links": []
+  },
+  {
+    "path": "Docs/discovery-osm.md",
+    "h1": "OSM Discovery Provider",
+    "purpose_line": "Technical overview of the Overpass (OSM) provider used by `discovery_bot` and `services/osm_service.py`.",
+    "last_modified": "2025-10-22",
+    "links": []
+  },
+  {
+    "path": "Docs/docs_audit_notes.md",
+    "h1": "Documentation Audit Notes",
+    "purpose_line": "All documents have been refreshed as part of the November 2025 audit. Ongoing follow-ups are now tracked in [`Docs/docs_gap_analysis.md`](./docs_gap_analysis.md).",
+    "last_modified": "N/A",
+    "links": [
+      "./docs_gap_analysis.md"
+    ]
+  },
+  {
+    "path": "Docs/docs_gap_analysis.md",
+    "h1": "Documentation Gap Analysis",
+    "purpose_line": "All markdown documents were refreshed in this audit. The list below tracks remaining follow-ups and future improvements.",
+    "last_modified": "N/A",
+    "links": []
+  },
+  {
+    "path": "Docs/docs_inventory.md",
+    "h1": "Documentation Inventory",
+    "purpose_line": "This catalog lists every Markdown document in the repository with metadata, outbound links, and current status.",
+    "last_modified": "N/A",
+    "links": [
+      "../Backend/OSM_Discovery_Report_Rotterdam_Production.md"
+    ]
+  },
+  {
+    "path": "Docs/env-config.md",
+    "h1": "Environment Config Guide",
+    "purpose_line": "**Purpose** \u2014 Provide a single source of truth for configuring the Turkish Diaspora App across local machines, Render services, and Supabase. Use this guide together with the application runbook and `.env.template` in the repository root.",
+    "last_modified": "2025-10-17",
+    "links": []
+  },
+  {
+    "path": "Docs/frontend-search.md",
+    "h1": "Frontend Search & Filters",
+    "purpose_line": "Describes the search/filter experience in the map bottom sheet and how the supporting React hooks/components operate.",
+    "last_modified": "2025-10-26",
+    "links": [
+      "./qa/bottom-sheet-test.md"
+    ]
+  },
+  {
+    "path": "Docs/infra-audit.md",
+    "h1": "Infrastructure Audit",
+    "purpose_line": "Snapshot of hosted services, secrets, and operational ownership for the Turkish Diaspora App.",
+    "last_modified": "2025-10-18",
+    "links": []
+  },
+  {
+    "path": "Docs/map-ux-upgrade.md",
+    "h1": "Map UX Upgrade \u2014 Mapbox GL",
+    "purpose_line": "Summary of the Mapbox migration (Fase 3) and guidelines for maintaining the map experience.",
+    "last_modified": "2025-10-22",
+    "links": []
+  },
+  {
+    "path": "Docs/osm-discovery-improvements.md",
+    "h1": "OSM Discovery Pipeline Improvements",
+    "purpose_line": "Summary of hardening steps applied to the OSM discovery pipeline during TDA-107.",
+    "last_modified": "2025-10-22",
+    "links": []
+  },
+  {
+    "path": "Docs/osm-discovery-report-rotterdam.md",
+    "h1": "OSM Discovery Report \u2014 Rotterdam (Summary)",
+    "purpose_line": "The authoritative production postmortem for the Rotterdam rollout lives in [`Backend/OSM_Discovery_Report_Rotterdam_Production.md`](../Backend/OSM_Discovery_Report_Rotterdam_Production.md). That document includes configuration, execution metrics, endpoint rotation stats, and recommendations.",
+    "last_modified": "2025-10-22",
+    "links": [
+      "../Backend/OSM_Discovery_Report_Rotterdam_Production.md"
+    ]
+  },
+  {
+    "path": "Docs/qa/bottom-sheet-test.md",
+    "h1": "Bottom Sheet QA Checklist",
+    "purpose_line": "Manual regression guide for the Google-Maps-style bottom sheet used on mobile and narrow viewports.",
+    "last_modified": "2025-10-23",
+    "links": []
+  },
+  {
+    "path": "Docs/runbook.md",
+    "h1": "Turkish Diaspora App \u2014 Runbook",
+    "purpose_line": "Operational handbook for developers and operators. Covers setup, workers, automation schedules, observability, and incident response for the Turkish Diaspora App.",
+    "last_modified": "2025-10-22",
+    "links": [
+      "./env-config.md"
+    ]
+  },
+  {
+    "path": "Docs/self-verify-loop.md",
+    "h1": "Self-Verifying AI Loop",
+    "purpose_line": "Original concept for combining classification and verification into a single autonomous loop. Current implementation uses separate workers (`classify_bot` + `verify_locations.py`) executed sequentially via automation. This document captures the intended behaviour and current state.",
+    "last_modified": "2025-10-19",
+    "links": []
+  },
+  {
+    "path": "Docs/verify-locations-runbook.md",
+    "h1": "Verify & Surface Locations \u2014 Runbook",
+    "purpose_line": "Runbook for the `verify_locations.py` worker responsible for promoting high-confidence locations from `CANDIDATE/PENDING_VERIFICATION` to `VERIFIED` and ensuring they surface in the frontend.",
+    "last_modified": "2025-10-22",
+    "links": [
+      "../Backend/app/workers/verify_locations.py",
+      "../Backend/api/routers/locations.py",
+      "../Backend/services/metrics_service.py",
+      "../Backend/services/classify_service.py",
+      "../Backend/services/ai_validation.py",
+      "./runbook.md"
+    ]
+  },
+  {
+    "path": "Frontend/DEV_SETUP.md",
+    "h1": "Frontend Development Setup",
+    "purpose_line": "Quick checklist for running the frontend locally with the admin dashboard and metrics tab.",
+    "last_modified": "2025-10-27",
+    "links": []
+  },
+  {
+    "path": "Frontend/README.md",
+    "h1": "Turkish Diaspora App \u2014 Frontend",
+    "purpose_line": "React + TypeScript application delivering the public map, admin dashboard, and metrics UI for the Turkish Diaspora App.",
+    "last_modified": "2025-10-12",
+    "links": [
+      "../GITHUB_PAGES_SETUP.md"
+    ]
+  },
+  {
+    "path": "GITHUB_PAGES_SETUP.md",
+    "h1": "GitHub Pages Deployment Setup",
+    "purpose_line": "How to deploy the frontend to GitHub Pages using the automated workflow.",
+    "last_modified": "2025-10-23",
+    "links": []
+  },
+  {
+    "path": "Infra/monitoring/metrics_dashboard.md",
+    "h1": "Metrics Dashboard (TDA-20)",
+    "purpose_line": "Defines the KPIs surfaced by `/api/v1/admin/metrics/snapshot` and the SQL required to power the admin dashboard.",
+    "last_modified": "2025-10-19",
+    "links": []
+  },
+  {
+    "path": "PROJECT_CONTEXT.md",
+    "h1": "Turkish Diaspora App \u2014 Project Context",
+    "purpose_line": "A concise narrative of the platform: what it does, how it is architected, and the current phase of delivery. Use this document to onboard new contributors or align stakeholders before diving into detailed runbooks and specs.",
+    "last_modified": "2025-10-22",
+    "links": []
+  },
+  {
+    "path": "PROJECT_PROGRESS.md",
+    "h1": "Turkish Diaspora App \u2014 Progress Log",
+    "purpose_line": "Tracks major epics, delivered stories, and near-term roadmap items. Use this document to understand project maturity and communicate status to stakeholders.",
+    "last_modified": "2025-10-22",
+    "links": [
+      "./PROJECT_CONTEXT.md",
+      "./Docs/runbook.md",
+      "./Infra/monitoring/metrics_dashboard.md",
+      "./Docs/env-config.md",
+      "./Docs/docs_inventory.md"
+    ]
+  },
+  {
+    "path": "QUICK_START.md",
+    "h1": "Turkish Diaspora App \u2014 Quick Start",
+    "purpose_line": "Spin up the full stack (FastAPI backend, workers, React frontend) on a new machine in under 30 minutes. For deeper operations and troubleshooting, jump to `Docs/runbook.md` once you complete this guide.",
+    "last_modified": "2025-10-22",
+    "links": []
+  },
+  {
+    "path": "README.md",
+    "h1": "Turkish Diaspora App",
+    "purpose_line": "An AI-assisted location discovery and verification platform for Turkish communities in the Netherlands. The system continuously discovers new venues, classifies their relevance, verifies quality, and publishes curated data to an interactive map.",
+    "last_modified": "2025-10-12",
+    "links": [
+      "./QUICK_START.md",
+      "./Docs/env-config.md",
+      "./Docs/runbook.md",
+      "./Docs/README.md"
+    ]
+  }
+]

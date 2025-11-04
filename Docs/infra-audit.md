@@ -1,94 +1,62 @@
-# 📘 Turkish Diaspora App  
-## Infrastructure Audit & Cost Control Report  
-**Versie:** 1.0 | **Datum:** 18-10-2025  
-**Auteur:** LaMarka Digital / Turkish Diaspora App Core Team  
-
+---
+title: Infrastructure Audit
+status: active
+last_updated: 2025-11-04
+scope: infra
+owners: [tda-core]
 ---
 
-## 1️⃣ Doel & Reikwijdte  
+# Infrastructure Audit
 
-Deze audit biedt een volledig overzicht van de gebruikte infrastructuur-diensten, hun **quota’s**, **kostenmodellen**, en **sleutelbeheer**.  
-Ze richt zich op vier kernsystemen:
+Snapshot of hosted services, secrets, and operational ownership for the Turkish Diaspora App.
 
-- **OpenAI** — AI-classificatie / verificatie  
-- **Google Places API** — datadiscovery  
-- **Supabase** — database / auth / storage  
-- **Render** — hosting / cron / workers  
+## Services
 
-De audit is uitgevoerd conform *The New Testament II § 10 “Cost Management”* en *TDA-20 Metrics & Alerting*.
+| Service | Provider | Purpose | Notes |
+| --- | --- | --- | --- |
+| Backend API | Render (Web Service) | Hosts FastAPI app (`uvicorn`) | Uses `Backend/.env` variables. Configure autoscale + health checks. |
+| Background workers | Render (Background Worker) | Long-running classify/verify/monitor tasks (optional) | Use same env keys as backend; schedule via Render cron if not relying on GitHub Actions. |
+| Automation | GitHub Actions | Scheduled discovery/verification/monitor/alert workflows | Secrets managed at repo level (`tda_*` workflows). |
+| Database | Supabase Postgres | Primary data store for locations, ai_logs, tasks | Service role key used for automation; JWT secret used by backend. |
+| Auth | Supabase Auth | Email/password login for admins | Allowlist maintained via `ALLOWED_ADMIN_EMAILS`. |
+| Frontend | GitHub Pages | Static hosting for Vite build (hash router) | Deployed by `frontend_deploy.yml`, Mapbox token required. |
+| Maps | Mapbox | Vector tiles for frontend | Token stored as `VITE_MAPBOX_TOKEN`. |
 
----
+## Secrets inventory
 
-## 2️⃣ Samenvatting per Service  
+| Secret | Location | Rotation cadence |
+| --- | --- | --- |
+| `DATABASE_URL` | Render (backend + worker), GitHub Actions | Rotate via Supabase; update template + env-config. |
+| `SUPABASE_JWT_SECRET` | Render backend, GitHub Actions | Rotate in Supabase settings; update `.env.template`. |
+| `ALLOWED_ADMIN_EMAILS` | Render backend | Update when admin roster changes. |
+| `OPENAI_API_KEY` | Render backend/worker, GitHub Actions | Rotate quarterly; optional for dry-run modes. |
+| `SUPABASE_KEY` (service role) | GitHub Actions (discovery/verification) | Inherit from Supabase; protect carefully. |
+| `VITE_SUPABASE_ANON_KEY` | GitHub Pages deploy secrets, local `.env` | Public but rotate alongside Supabase. |
+| `VITE_MAPBOX_TOKEN` | GitHub Pages deploy secrets, local `.env` | Rotate per Mapbox policy. |
+| Alert webhook | Render worker / GitHub Actions | Optional: Slack/Teams webhook. |
 
-| Service | Type | Quota / Limiet | Huidig Gebruik | Kostenmodel | Key-locatie (.env) | Rotatiefrequentie | Aanbeveling |
-|:--|:--|:--|:--|:--|:--|:--|:--|
-| **OpenAI API** | AI Classificatie & Verificatie | ± 60 req/min (GPT-4.1-mini) | ≈ 5 000 req / maand | Pay-per-token (~ €0.01 / 1 000 tokens) | `OPENAI_API_KEY` | 30 dagen | Gebruik `gpt-4.1-mini`; samenvatten prompts; monitor via `ai_logs`. |
-| **Google Places API** | Discovery (Grid Search) | 150 000 req/dag (50 000 free) | ≈ 3 000 per run | €17 / 1 000 calls > free tier | `GOOGLE_API_KEY` | 90 dagen | Gebruik Field Masks + dedup (TDA-7); ≤ 1 000 calls/dag. |
-| **Supabase** | Postgres + Storage | 500 MB DB / 1 GB storage free | ~ 250 MB | Gratis → $25 bij upgrade | `DATABASE_URL` | n.v.t. | Verwijder oude `ai_logs` > 90 dgn om ruimte te besparen. |
-| **Render** | Hosting + Workers + Cron | 750 u free / 0.5 GB RAM | Stabiel | Gratis → $7 per extra instantie | Render Secrets Dashboard | 90 dagen | Combineer workers (Monitor + Alert) en hou usage bij. |
+Keep the template (`/.env.template`) synchronized with these secrets to prevent drift.
 
----
+## Monitoring & alerting
 
-## 3️⃣ Key Management Checklist  
+- Metrics API (`/api/v1/admin/metrics/snapshot`) + admin dashboard.
+- GitHub Actions notifications on workflow failure.
+- Optional Slack webhook for `tda_alert.yml` outputs.
+- `overpass_calls` table for OSM mirror health.
 
-| Domein | Variabele | Beschrijving | Opslag | Rotatie | Status |
-|:--|:--|:--|:--|:--|:--|
-| AI | `OPENAI_API_KEY` | GPT API-sleutel voor classify / verify | Render Secrets + local .env | 30 dgn | ✅ |
-| Google | `GOOGLE_API_KEY` | Places Text / Nearby Search | Render Secrets + local .env | 90 dgn | ✅ |
-| Database | `DATABASE_URL` | Supabase connectiestring | Render Secrets | Bij DB-reset | ✅ |
-| Alerts | `ALERT_WEBHOOK_URL` | Optionele Slack/Teams webhook | Render Secrets | 60 dgn | ⚠ nog niet geactiveerd |
-| Infra | `ALERT_ERR_RATE_THRESHOLD` etc. | Alert-config (TDA-20) | `.env.template` | n.v.t. | ✅ |
+## Compliance checks
 
----
+- Confirm `OVERPASS_USER_AGENT` contains contact email and is shared across services.
+- Ensure Supabase RLS policies align with worker access patterns.
+- Verify Mapbox token restricted to allowed origins (localhost, GitHub Pages domain).
 
-## 4️⃣ Rotatie-procedure  
+## Audit cadence
 
-1. **Identificeer sleutels** in Render Secrets / `.env`.  
-2. **Genereer nieuwe key** in provider-console (OpenAI / Google / Supabase).  
-3. **Voeg toe aan Render Secrets** (met duidelijke namen).  
-4. **Update `.env.template`** (zonder echte waarden).  
-5. **Redeploy app + workers.**  
-6. **Verifieer** met `GET /health` en `GET /dev/ai/ping`.  
-7. **Verwijder oude keys** na bevestigde rotatie.  
+| Task | Frequency |
+| --- | --- |
+| Secret rotation (OpenAI, Supabase keys, Mapbox token) | Quarterly or upon incident |
+| Workflow review (`tda_*`) | Monthly |
+| Render service logs & health | Weekly |
+| Supabase backup verification | Monthly |
 
----
-
-## 5️⃣ Kosten & Quota Insights  
-
-| Categorie | Maandkosten (geschat) | Bron / Dashboard | Audit-resultaat |
-|:--|:--|:--|:--|
-| OpenAI | € 5 – 8 (< 50 k tokens) | OpenAI Usage Dashboard | ✅ binnen budget |
-| Google Cloud | € 0 (free tier) | Google Cloud Console → Billing | ✅ |
-| Render | € 0 (free tier) | Render Usage tab | ✅ |
-| Supabase | € 0 (free tier) | Supabase → Project Settings | ✅ |
-| **Totaal** | ≈ € 8 / maand |  | ⚙️ Binnen doel < € 25 / m (MVP budget uit § 10.2) |
-
----
-
-## 6️⃣ Validatie / Auditprocedure  
-
-- Controleer `.env.template` → alle vars aanwezig.  
-- Run:  
-  ```bash
-  python -m app.workers.alert_bot --dry-run
-→ geen 429 / error alerts verwacht (TDA-20).
-
-Controleer ai_logs → usage consistent met metrics_snapshot.
-Check Render billing → geen extra instances.
-Noteer rotatie-datum → hercontrole na 30 dagen.
-
-## 7️⃣ Aanbevelingen (Optimalisatie & Next Steps V2)
-Domein	Aanbeveling	Verwachte Impact
-Observability	Koppel metrics_service aan Prometheus export (TDA-20 V2)	Realtime dashboards
-
-Security	Activeer Slack / Teams ALERT_WEBHOOK_URL	Snellere incident-meldingen
-Automation	Automatiseer key-rotatie via Render API	Zero-manual ops
-Supabase	Retentie-policy voor ai_logs > 90 dgn	Kosten & storage verlaging
-Google API	Gebruik included_types filter in DiscoveryBot	Quota besparing
-
-## 8️⃣ Referenties
-The New Testament II — Fase 1 § 10 “Cost Management” & Fase 2 Data-Ops.
-TDA-20 — Metrics & Alerting (KPI’s, 429 alerts, error rates).
-TDA-111 — Environment Blueprint (.env.template beheer).
-The New Testament II Backlog — C1-S5 Infra Audit & Cost Control.
+Document findings and follow-ups in this file or link to issues for traceability.

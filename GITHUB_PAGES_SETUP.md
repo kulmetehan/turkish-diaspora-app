@@ -1,79 +1,67 @@
+---
+title: GitHub Pages Deployment Setup
+status: active
+last_updated: 2025-11-04
+scope: deployment
+owners: [tda-frontend]
+---
+
 # GitHub Pages Deployment Setup
 
-This guide explains how to set up GitHub Pages deployment for the Turkish Diaspora App frontend.
+How to deploy the frontend to GitHub Pages using the automated workflow.
 
 ## Prerequisites
 
-1. Your repository must be public or you need GitHub Pro/Team for private repositories
-2. You need a Mapbox access token
-3. You need a backend API URL (optional - demo data will be used if not provided)
+- Repository has GitHub Pages enabled (`Settings ▸ Pages ▸ Source → GitHub Actions`).
+- Publishable Mapbox token.
+- Backend API URL (Render or local tunnel) exposed via `VITE_API_BASE_URL`.
+- Supabase project URL and anon key for admin auth.
 
-## Setup Steps
+## Secrets to configure
 
-### 1. Enable GitHub Pages
+Navigate to `Settings ▸ Secrets and variables ▸ Actions` and add:
 
-1. Go to your repository on GitHub
-2. Click on "Settings" tab
-3. Scroll down to "Pages" section
-4. Under "Source", select "GitHub Actions"
+| Secret | Description |
+| --- | --- |
+| `VITE_API_BASE_URL` | Backend base URL (e.g., `https://tda-api.onrender.com`). Required. |
+| `VITE_MAPBOX_TOKEN` | Mapbox publishable token. Required for map rendering. |
+| `VITE_SUPABASE_URL` | Supabase project URL. |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key. |
 
-### 2. Set up Repository Secrets
+Optional: additional `VITE_MAPBOX_STYLE` or analytics tokens as needed.
 
-Go to Settings > Secrets and variables > Actions and add the following secrets:
+## Deployment workflow
 
-#### Required:
-- `VITE_MAPBOX_TOKEN`: Your Mapbox access token (get from https://account.mapbox.com/access-tokens/)
+`/.github/workflows/frontend_deploy.yml`:
 
-#### Optional:
-- `VITE_API_BASE_URL`: Your backend API URL (e.g., https://your-backend.herokuapp.com)
-- `VITE_MAPBOX_STYLE`: Mapbox style (default: mapbox://styles/mapbox/light-v11)
+1. Triggered on pushes to `main` (and manual dispatch).
+2. Installs dependencies, runs `npm run build`.
+3. Deploys the `dist/` folder via `actions/deploy-pages@v4`.
 
-### 3. Deploy
+To trigger manually: `Actions ▸ frontend_deploy ▸ Run workflow`.
 
-1. Push your changes to the `main` branch
-2. The existing `frontend_deploy.yml` workflow will automatically build and deploy your app
-3. Your app will be available at: `https://yourusername.github.io/turkish-diaspora-app/`
+## Local verification
 
-## Configuration
+```bash
+cd Frontend
+npm run build
+npm run preview
+# Open http://localhost:4173/#/
+```
 
-### Environment Variables
-
-The app uses the following environment variables:
-
-- `VITE_API_BASE_URL`: Backend API URL (optional)
-- `VITE_MAPBOX_TOKEN`: Mapbox access token (required)
-- `VITE_MAPBOX_STYLE`: Mapbox style (optional, defaults to light theme)
-
-### Demo Mode
-
-If no backend URL is provided, the app will run in demo mode with sample Turkish business locations in Bangkok.
+Ensure `.env.production` (if used) contains the same `VITE_*` keys you configured in GitHub secrets.
 
 ## Troubleshooting
 
-### Mapbox Token Error
-If you see "An API access token is required to use Mapbox GL", make sure you've set the `VITE_MAPBOX_TOKEN` secret in your repository.
+| Issue | Fix |
+| --- | --- |
+| Blank map / token error | Confirm `VITE_MAPBOX_TOKEN` secret is set and not restricted to different origin. |
+| API calls failing | Verify `VITE_API_BASE_URL` points to live backend and supports CORS for GitHub Pages domain. |
+| Admin login loops | Ensure Supabase anon key + URL match deployed backend environment. |
+| Workflow failure | Inspect `frontend_deploy` logs; rerun with `ACTIONS_STEP_DEBUG=true` if needed. |
 
-### API Connection Error
-If you see connection refused errors, either:
-1. Set the `VITE_API_BASE_URL` secret with your backend URL, or
-2. The app will automatically fall back to demo data
+## Related docs
 
-### Build Failures
-Check the Actions tab in your repository for build logs and error messages.
-
-## Local Development
-
-For local development, create a `.env` file in the Frontend directory:
-
-```env
-VITE_API_BASE_URL=
-VITE_MAPBOX_TOKEN=your_mapbox_token_here
-VITE_MAPBOX_STYLE=mapbox://styles/mapbox/light-v11
-```
-
-Then run:
-```bash
-cd Frontend
-npm install
-npm run dev
-```
+- `Docs/env-config.md` — environment variable mapping.
+- `Frontend/README.md` — project scripts and architectural notes.
+- `Docs/runbook.md` — operational procedures (includes frontend troubleshooting).

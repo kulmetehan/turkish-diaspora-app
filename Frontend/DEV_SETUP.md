@@ -1,36 +1,62 @@
-# Frontend Dev Setup
+---
+title: Frontend Development Setup
+status: active
+last_updated: 2025-11-04
+scope: frontend
+owners: [tda-frontend]
+---
 
-1. Open a terminal in the Frontend directory:
+# Frontend Development Setup
 
-   ```bash
-   cd "Turkish Diaspora App/Frontend"
-   ```
+Quick checklist for running the frontend locally with the admin dashboard and metrics tab.
 
-2. Install dependencies (this is required especially for recharts used by the Metrics dashboard tab):
+## 1. Environment variables
 
-   ```bash
-   npm install
-   ```
+Create `Frontend/.env.development` with the Vite keys:
 
-3. Start the dev server:
+```
+VITE_API_BASE_URL=http://127.0.0.1:8000
+VITE_MAPBOX_TOKEN=<mapbox-token>
+VITE_SUPABASE_URL=<https://your-project.supabase.co>
+VITE_SUPABASE_ANON_KEY=<anon-key>
+```
 
-   ```bash
-   npm run dev
-   ```
+Ensure the backend is running at `VITE_API_BASE_URL` (see `QUICK_START.md`).
 
-4. In the browser, go to:
+## 2. Install & run
 
-   http://localhost:5173/#/admin
+```bash
+cd Frontend
+npm install
+npm run dev
+# Open http://localhost:5173/#/
+```
 
-   - The “Locations” tab should load without issues.
-   - The “Metrics” tab lazy-loads the MetricsDashboard component. That component imports recharts.
+Admin routes use hash routing, so navigate to `http://localhost:5173/#/admin` after authenticating.
 
-   If you see an error like:
+## 3. Metrics tab dependency
 
-   Failed to resolve import "recharts" ...
+The metrics dashboard lazily loads Recharts and expects the backend metrics endpoint to respond:
 
-   it usually means npm install didn’t run in the Frontend directory, so Frontend/node_modules/recharts is missing.
+```bash
+curl -H "Authorization: Bearer <supabase-admin-jwt>" \
+  http://127.0.0.1:8000/api/v1/admin/metrics/snapshot | jq .
+```
 
-   NOTE:
-   - Do NOT run npm install from the monorepo root. You must be inside the Frontend folder.
-   - The backend (uvicorn app.main:app --reload) must be running separately so that /admin/metrics/snapshot resolves.
+If the endpoint returns 401/403, verify `SUPABASE_JWT_SECRET` and admin credentials in the backend `.env`.
+
+## 4. Troubleshooting
+
+| Issue | Fix |
+| --- | --- |
+| `Failed to resolve import "recharts"` | Ensure `npm install` ran inside `Frontend/` (Recharts is a direct dependency). |
+| Blank map tiles | Confirm `VITE_MAPBOX_TOKEN` is set and valid. |
+| API 401/403 | Backend must be running; check Supabase session and `VITE_API_BASE_URL`. |
+| Admin redirects to login | Ensure Supabase anon key + URL match backend project; check Supabase user allowlist. |
+
+## 5. Useful scripts
+
+- `npm run build && npm run preview` — verify production build locally (`http://localhost:4173/#/`).
+- `npm run lint` — lint checks (if configured).
+
+For deeper operational guidance see `Docs/runbook.md` and `Docs/frontend-search.md`.

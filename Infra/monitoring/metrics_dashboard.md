@@ -1,67 +1,76 @@
-# Metrics Dashboard (TDA-20, MVP)
-
-This dashboard defines the initial 5+ KPIs using SQL over the existing schema.
-
-## KPIs
-
-1) New Candidates / Week (last 8 weeks)
-- Source: locations (state='CANDIDATE', first_seen_at)
-- SQL: see Backend/services/metrics_service.py (kpi_new_candidates_per_week)
-
-2) Conversion Rate to VERIFIED (14 days cohort)
-- Source: locations (first_seen_at >= NOW()-14d; state='VERIFIED')
-- Rationale: simple cohort conversion
-
-3) Task Error Rate (last 60 minutes)
-- Source: tasks (status/is_success) OR ai_logs fallback with action_type LIKE worker./bot./task.
-- Threshold: ALERT at ≥10%
-
-4) API Latency (last 60 minutes)
-- Source: ai_logs JSON fields (duration_ms in validated_output/raw_response/meta)
-- Display p50/avg/max
-
-5) Google API 429 Count (last 60 minutes)
-- Source: ai_logs error markers (429 in error_message or raw_response.statusCode)
-- Threshold: ALERT at ≥5 (default)
-
-## Widgets (suggested)
-
-- Time series: New CANDIDATEs per week
-- Single value + sparkline: Conversion rate (14d)
-- Single value: Error rate (1h), with red/amber/green thresholds
-- Single value row: API latency (p50/avg/max)
-- Single value: Google 429 count (1h)
-
-## Notes
-- Output is JSON-friendly for log collectors; ideal stepping stone to Prometheus/Grafana in V2.
-- Keep costs low: no extra infra required at MVP stage.
-
+---
+title: Metrics Dashboard (TDA-20)
+status: active
+last_updated: 2025-11-04
+scope: observability
+owners: [tda-data]
 ---
 
-## City Progress (KPI Expansion — Rotterdam first)
+# Metrics Dashboard (TDA-20)
 
-**Doel:** zicht op expansie en coverage **per stad**. In deze fase: **alleen Rotterdam**. Target: **≥ 500 VERIFIED**.
+Defines the KPIs surfaced by `/api/v1/admin/metrics/snapshot` and the SQL required to power the admin dashboard.
 
-**Bron & Filter**
-- Telling uitsluitend op basis van **lat/lng binnen union(bbox) van alle Rotterdam-districten** uit `Infra/config/cities.yml`.
-- Geen address-parsing.
+## Snapshot shape
 
-**KPI Item (JSON in snapshot)**
-- `name: "city_progress"`
-- `value: [ { "city": "rotterdam", "verified_count", "candidate_count", "coverage_ratio", "growth_weekly" } ]`
-- `meta: { "goal_verified_per_city": 500, "filter": "bbox(rotterdam)", "bbox": { lat_min, lat_max, lng_min, lng_max } }`
+The metrics endpoint returns `MetricsSnapshot` (see `Backend/services/metrics_service.py`):
 
-**Definities**
-- **verified_count**: `COUNT(*) FROM locations WHERE state='VERIFIED' AND point∈bbox(rotterdam)`
-- **candidate_count**: `COUNT(*) WHERE state='CANDIDATE' AND point∈bbox(rotterdam)`
-- **coverage_ratio**: `verified_count / max(candidate_count, 1)`
-- **growth_weekly**: `(new_verified_7d - prev_7d) / max(prev_7d, 1)` op basis van `last_verified_at` binnen de bbox.
+```json
+{
+  "city_progress": {
+    "rotterdam": {
+      "verified_count": 0,
+      "candidate_count": 0,
+      "coverage_ratio": 0.0,
+      "growth_weekly": 0.0
+    }
+  },
+  "quality": {
+    "conversion_rate_verified_14d": 0.0,
+    "task_error_rate_60m": 0.0,
+    "google429_last60m": 0
+  },
+  "discovery": {
+    "new_candidates_per_week": 0
+  },
+  "latency": {
+    "p50_ms": 0,
+    "avg_ms": 0,
+    "max_ms": 0
+  },
+  "weekly_candidates": []
+}
+```
 
-**Voorbeeldweergave (tabel)**
-| City      | VERIFIED | CANDIDATE | Coverage Ratio | Growth WoW |
-|-----------|---------:|----------:|---------------:|-----------:|
-| rotterdam |       742|      1092 |          0.680 |     +0.035 |
+## KPI definitions
 
-**Alerts (suggestie)**
-- `CITY_UNDER_GOAL(rotterdam)`: `verified_count < 500`
-- `CITY_NEGATIVE_GROWTH(rotterdam)`: `growth_weekly < 0` voor N weken op rij
+1. **Conversion rate (14d)** — `locations` promoted to `VERIFIED` within 14 days vs. total new records.
+2. **Task error rate (60m)** — Percentage of `ai_logs` with failure or error message over the last hour.
+3. **Google 429 count (60m)** — Legacy metric; counts 429-like errors in `ai_logs` (still useful for historical comparison).
+4. **Discovery new candidates per week** — Count of `locations` with `state='CANDIDATE'` grouped by ISO week.
+5. **City progress (Rotterdam)** — Verified vs. candidate totals inside city bounding box, coverage ratio, week-over-week growth based on `last_verified_at`.
+6. **Latency** — Duration statistics (ms) read from `validated_output`/`raw_response` JSON in `ai_logs` over 60 minutes.
+
+## Core SQL snippets
+
+See `Backend/services/metrics_service.py` for query details. The dashboard can reuse these queries directly if building SQL-based widgets.
+
+- `quality` metrics: `_conversion_rate_14d`, `_task_error_rate`, `_google429_bursts`
+- `latency`: `_latency_stats`
+- `discovery`: `_weekly_candidates_series`
+- `city_progress`: `_rotterdam_progress` (`Infra/config/cities.yml` fed into bounding box helper)
+
+## Dashboard suggestions
+
+| Widget | Query |
+| --- | --- |
+| New candidates (timeseries) | `weekly_candidates` array | 
+| Conversion rate (single value + trend) | `_conversion_rate_14d` | 
+| Error rate (traffic light) | `_task_error_rate(60)` | 
+| Latency (p50/avg/max) | `_latency_stats(60)` | 
+| City progress table | `_rotterdam_progress` |
+
+## Maintenance
+
+- Update bounding boxes in `Infra/config/cities.yml` when expanding to new cities; reflect changes in metrics service.
+- Keep alert thresholds in sync with dashboard expectations (`ALERT_ERR_RATE_THRESHOLD`, `ALERT_GOOGLE429_THRESHOLD`).
+- Validate metrics after schema changes by running `python -m app.services.metrics_service` (add temporary CLI if needed) or hitting the endpoint locally.

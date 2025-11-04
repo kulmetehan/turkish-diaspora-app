@@ -1,6 +1,7 @@
 # --- General ---
 .env
 .env.*
+!.env.template
 *.pem
 
 # --- Python / Backend ---

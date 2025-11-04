@@ -1,64 +1,71 @@
-# Design System – Turkish Diaspora App (Fase 3)
+---
+title: Design System Guide
+status: active
+last_updated: 2025-11-04
+scope: frontend
+owners: [tda-ux]
+---
 
-Doel: uniforme, minimalistische UI met **Apple-simplicity** en **Google-familiarity**. Deze gids definieert tokens, componentregels, dark mode en werkwijze voor nieuwe componenten.
+# Design System Guide
 
-## Stack
-- React + Vite + TypeScript
-- TailwindCSS (class strategy), tokens via CSS vars
-- shadcn/ui-stijl (CVA + tailwind-merge) – handmatig beheerde componenten in `src/components/ui`
-- lucide-react icons via `<Icon name="…"/>`
-- Radix primitives (Dialog, Tabs, Select)
-- sonner (toasts)
+Guidelines for the Turkish Diaspora App UI across the public map and admin dashboard.
+
+## Stack recap
+
+- **Framework**: React 19 + TypeScript with Vite.
+- **Styling**: Tailwind CSS with CSS variables for tokens.
+- **Components**: shadcn/ui pattern (`class-variance-authority`, `tailwind-merge`) implemented in `Frontend/src/components/ui/`.
+- **Icons**: `lucide-react` rendered via `<Icon name="..." />` wrapper.
+- **Toasts**: `sonner`.
 
 ## Tokens
-Bron: `src/index.css` en `src/lib/ui/theme.ts`.  
-Belangrijkste variabelen:
-- Kleuren: `--background`, `--foreground`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, plus `--border`, `--input`, `--ring`.
-- Radius: `--radius-lg|md|sm`
-- Schaduw: `--shadow-soft`, `--shadow-card`
-- Spacing: `--space-grid-gutter`
 
-### Dark Mode
-- Strategie: `class` – root `html` krijgt/ontneemt `.dark`.
-- Implementatie: `src/lib/theme/darkMode.ts` (`initTheme`, `setTheme`, `getTheme`).
-- Sync met systeem via `prefers-color-scheme` wanneer instelling `system` is.
+Defined primarily in `Frontend/src/index.css` and `Frontend/src/lib/theme/darkMode.ts`.
 
-## Componentregels
-- **No ad-hoc UI**: Gebruik eerst `src/components/ui/*`. Mist iets? Voeg toe volgens CVA-patroon.
-- **Focus state**: rely op Tailwind ring tokens (`ring-ring`, `ring-offset-background`).
-- **Accessibility**:
-  - Toetsenbordfocus overal zichtbaar.
-  - Iconen zijn *decorative* (`aria-hidden`) tenzij semantisch nodig → dan `decorative={false}` + `title`.
-  - Contrast ≥ WCAG AA; voorkom lichtgrijze tekst op lichte achtergrond.
-  - Dialogs: Radix focus trapping.
-- **Performance**: Geen globale zware CSS; component-scoped utility klassen. Tree-shake imports.
+| Category | Variables |
+| --- | --- |
+| Color | `--background`, `--foreground`, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`. |
+| Radius | `--radius-sm`, `--radius-md`, `--radius-lg`. |
+| Shadow | `--shadow-soft`, `--shadow-card`. |
+| Spacing | `--space-grid-gutter`, contextual Tailwind spacing utilities. |
 
-## Nieuwe component toevoegen (How-to)
-1. Maak bestand in `src/components/ui/<naam>.tsx`.
-2. Gebruik `cva` voor varianten/sizes; exports: `Component` + types.
-3. Voeg minimale styles toe (base + variant).
-4. Story in UI Kit? Voeg section toe in `src/pages/UiKit.tsx`.
+### Dark mode
 
-## Iconen
-- Gebruik `<Icon name="MapPin" />`. Beschikbare namen = exports van `lucide-react`.
-- Titles alleen voor non-decorative gebruik; anders `aria-hidden`.
+- Controlled via `class` strategy (toggle `.dark` on `<html>`).
+- Implementation: `Frontend/src/lib/theme/darkMode.ts` (`initTheme`, `setTheme`, `getTheme`).
+- Honor system preference (`prefers-color-scheme`) when `mode = "system"`.
 
-## Richtlijnen (Apple simplicity × Google familiarity)
-- Mobiel eerst; rust en whitespace.
-- Primair action-pad duidelijk en simpel (max 1–2 primary buttons per view).
-- Micro-animaties ≤ 150–200ms, subtiel (fade/scale).
-- Vermijd jargon; korte labels.
-- List/Map blijft functioneel en snel (Leaflet-view: geen regressies).
+## Component conventions
 
-## Koppeling met komende stories
-- **Bottom Sheet**: hergebruik tokens (radius, shadows), Radix Sheet of custom `Dialog` variant.
-- **Search redesign**: Input + Tabs + Badge als filters; consistent met tokens.
-- **Admin UI**: kaarten en formulieren met `Card`, `Input`, `Select`, `Tabs`, `Dialog`, `Toast`.
+- House reusable primitives in `Frontend/src/components/ui/`. Export component + types from each file.
+- Use `cva` for variants and size modifiers.
+- Keep markup semantic (buttons vs. anchors, labels for inputs, etc.).
+- Accessibility defaults: visible focus ring, ARIA labels for icons (or `aria-hidden` when decorative), trap focus in dialogs (Radix primitives assist).
 
-## Changelog (v1)
-- Tailwind + tokens
-- UI-bibliotheek (Button, Card, Input, Label, Select, Tabs, Dialog, Badge, Toast)
-- Icon wrapper
-- Dark mode (system + toggle)
-- UI Kit pagina
-- Kleine refactor: Header/Nav + primary button
+## Layout patterns
+
+- **Map + list**: `Frontend/src/components/map/` + `Frontend/src/pages/AdminHomePage.tsx` coordinate layout.
+- **Bottom sheet**: `Frontend/src/components/bottom-sheet/` plus QA checklist in `Docs/qa/bottom-sheet-test.md`.
+- **UI Kit**: `Frontend/src/pages/UiKit.tsx` showcases available components.
+
+## Guidelines
+
+1. Favor composable primitives (Button, Card, Input, Select, Tabs, Dialog, Sheet, Toast).
+2. Avoid inline colors; use token-based Tailwind classes (`bg-primary`, `text-foreground`).
+3. Keep primary actions obvious (single main CTA per view, 150–200ms micro-animations maximum).
+4. Maintain consistent spacing/typography with Tailwind utility scales.
+5. Document new component usage in the UI kit and update this guide if tokens change.
+
+## Accessibility checklist
+
+- Keyboard navigation fully supported (tab order, skip links where necessary).
+- Minimum contrast: WCAG AA (>=4.5:1 for text, 3:1 for large text/icons).
+- Modals/dialogs trap focus; close on ESC.
+- Provide alternative text for imagery; use icon wrappers with `title` when icons convey meaning.
+
+## References
+
+- Component library directory: `Frontend/src/components/ui/`
+- Theme helpers: `Frontend/src/lib/theme/darkMode.ts`
+- Map layout: `Frontend/src/components/map/`
+- QA checklist: `Docs/qa/bottom-sheet-test.md`

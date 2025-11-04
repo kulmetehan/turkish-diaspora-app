@@ -1,73 +1,67 @@
-# React + TypeScript + Vite
+# Turkish Diaspora App — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript application delivering the public map, admin dashboard, and metrics UI for the Turkish Diaspora App.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- React 19, TypeScript, Vite
+- Tailwind CSS with design tokens (see `Docs/design-system.md`)
+- shadcn/ui pattern (`class-variance-authority`, `tailwind-merge`)
+- Mapbox GL for map rendering
+- Supabase Auth (email/password) for admin routes
+- State helpers: custom hooks (`useSearch`, `useMapStore`, etc.)
 
-## React Compiler
+## Directory overview
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+| Path | Purpose |
+| --- | --- |
+| `src/App.tsx` | Public map entry point using `useSearch` and map/list components. |
+| `src/components/` | UI primitives (`ui/`), filters, bottom sheet, map widgets, auth guards. |
+| `src/pages/` | Route components (`AdminHomePage`, `LoginPage`, `UiKit`). |
+| `src/lib/` | API clients (`api.ts`, `apiAdmin.ts`), theme helpers, Supabase client. |
+| `src/hooks/` | Domain hooks (`useSearch`, map store, theme). |
+| `src/styles/` | Tailwind config (`index.css`, token definitions). |
 
-## Expanding the ESLint configuration
+## Scripts
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install         # install dependencies
+npm run dev         # start Vite dev server (http://localhost:5173/#/)
+npm run build       # production build -> dist/
+npm run preview     # preview production build (http://localhost:4173/#/)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Environment variables (`VITE_*`)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Set in `Frontend/.env.development` (local) and GitHub Actions secrets for deployment.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- `VITE_API_BASE_URL` — Backend base URL (required).
+- `VITE_MAPBOX_TOKEN` — Mapbox publishable token (required for full map).
+- `VITE_SUPABASE_URL` — Supabase project URL.
+- `VITE_SUPABASE_ANON_KEY` — Supabase anon/public key.
+- Optional extras: `VITE_MAPBOX_STYLE`, analytics tokens.
+
+## Routes and navigation
+
+- `#/` — Public map + list view.
+- `#/admin` — Authenticated admin dashboard (requires Supabase session).
+- `#/login` — Supabase email/password login screen.
+- `#/ui-kit` — Component showroom (keep updated when adding new primitives).
+
+## Testing checklist
+
+- Verify map renders with markers and list updates as filters change.
+- Confirm bottom sheet (mobile) passes QA script (`Docs/qa/bottom-sheet-test.md`).
+- Run `npm run build && npm run preview` before deploying to GitHub Pages.
+- Ensure admin login flows through Supabase and metrics tab loads `/api/v1/admin/metrics/snapshot`.
+
+## Deployment
+
+Automated via GitHub Actions (`frontend_deploy.yml`). See [`GITHUB_PAGES_SETUP.md`](../GITHUB_PAGES_SETUP.md) for details. Deployments rely on the `VITE_*` secrets listed above.
+
+## Related documentation
+
+- `Docs/design-system.md` — UI guidelines and tokens
+- `Docs/frontend-search.md` — Search/filter implementation notes
+- `Docs/map-ux-upgrade.md` — Mapbox migration and UX goals
+- `Docs/runbook.md` — Operational runbook (includes frontend troubleshooting)

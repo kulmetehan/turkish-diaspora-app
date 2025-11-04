@@ -1,64 +1,61 @@
+---
+title: Frontend Search & Filters
+status: active
+last_updated: 2025-11-04
+scope: frontend
+owners: [tda-ux]
+---
+
 # Frontend Search & Filters
 
-This document describes the refined search and filters behavior in the bottom sheet.
+Describes the search/filter experience in the map bottom sheet and how the supporting React hooks/components operate.
 
-## Overview
-- Search and filtering are client-side against the loaded locations dataset.
-- Debounced input (~350ms) prevents spamming recomputations.
-- Session-only in-memory LRU cache avoids repeated filter work for recent queries.
-- Local suggestions (autocomplete) are derived from location names and category labels/keys.
+## Components
 
-## Architecture
-- `App.tsx` loads locations once and wires UI state.
-- `useSearch` consolidates debounced query, filtered results, and suggestions.
-- `Filters.tsx` renders search input, suggestion dropdown, and category chips.
-- `LocationList` and `MapView` receive the already-filtered list.
+| File | Responsibility |
+| --- | --- |
+| `Frontend/src/App.tsx` | Orchestrates search state via `useSearch`, passes filtered results to map/list components. |
+| `Frontend/src/hooks/useSearch.ts` | Debounced search + category filter with in-memory LRU cache and suggestion generation. |
+| `Frontend/src/components/Filters.tsx` | Category chips, search input, clear button. |
+| `Frontend/src/components/bottom-sheet/` | Presentation components for the draggable bottom sheet. |
+| `Frontend/src/components/map/` | Responds to filtered data to update markers and selection. |
 
-## Hook API
-```ts
-export function useSearch(params: {
-  locations: LocationMarker[];
-  search: string;
-  category: string; // "all" or canonical key
-  debounceMs?: number; // default 350
-  cacheSize?: number;  // default 30
-}): {
-  debouncedQuery: string;
-  filtered: LocationMarker[];
-  suggestions: string[];
-}
-```
+## Search flow
 
-## Debounce Behavior
-- Text input is debounced by ~350ms.
-- Filtering and suggestions recompute only after the debounce.
+1. User types into the search input (`Filters.tsx`).
+2. `useSearch` debounces the query (default 350 ms) and caches filtered IDs for up to 30 recent queries.
+3. Category filter (`all` or specific key) limits results before markers are passed downstream.
+4. Suggestions combine top matching names + category labels (up to 8 entries).
+5. Filtered results maintain the order of the server response (no client-side re-sorting to preserve API ordering).
 
-## Cache Strategy
-- LRU cache keyed by `${query}|${category}` → array of ids.
-- Max size ≈30 entries; oldest evicted on overflow.
-- Cache clears when the base dataset size changes.
-- Cache is session-only (no localStorage).
+### Available parameters (`useSearch`)
 
-## Suggestions
-- Derived from the in-memory dataset:
-  - First pass: location names containing the query.
-  - Second pass: category label/key matches if room remains.
-- Top 8 unique strings are shown.
-- Selecting a suggestion writes it to the search input and applies filtering.
+- `search`: raw string from input.
+- `category`: canonical category key or `all`.
+- `debounceMs`: optional override (default 350 ms).
+- `cacheSize`: optional override for LRU size (default 30).
 
-## Component Flow
-- `App.tsx` → `useSearch` → `{ filtered, suggestions }`.
-- `Filters` receives `search`, `category`, optional `suggestions`, and `onChange`.
-- `LocationList` and `MapView` both receive `filtered` to keep the map/list in sync.
+## Bottom sheet behaviour
 
-## UX & Styling
-- `Filters` uses shadcn/ui `Input`, `Button`, `Badge` with lucide icons.
-- Clear/reset button inside the input.
-- Category selection uses horizontal chips; "Alle" resets to all categories.
-- Subtle transitions (`transition-colors`), accessible ARIA, dark/light compatibility.
+- Implemented with custom drag/physics helpers under `Frontend/src/components/bottom-sheet/`.
+- Snap points: collapsed (`64px`), half (`45vh`), full (`94vh`).
+- QA scenarios covered in [`Docs/qa/bottom-sheet-test.md`](./qa/bottom-sheet-test.md).
+- Access to filters always available (sticky header) while list scrolls independently when sheet is expanded.
 
-## Notes
-- API calls are not made during search; only the initial load fetches data.
-- Order of results follows the loaded dataset (no client sorting added).
+## Filters
 
+- Category chips map to canonical keys from API (`category_key`).
+- The search bar supports diacritics; input normalized to lowercase for matches.
+- Reset button clears search + category in one action.
 
+## Future enhancements
+
+- Server-side search endpoint (if needed for large datasets).
+- Persisting user filters in query string or local storage.
+- Additional filters (rating, sources) once backend supports them.
+
+## References
+
+- `useSearch` hook: `Frontend/src/hooks/useSearch.ts`
+- Filters component: `Frontend/src/components/Filters.tsx`
+- QA checklist: `Docs/qa/bottom-sheet-test.md`

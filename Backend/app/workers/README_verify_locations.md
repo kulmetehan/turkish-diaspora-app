@@ -1,117 +1,99 @@
+---
+title: VerifyLocationsBot Worker Guide
+status: active
+last_updated: 2025-11-04
+scope: backend
+owners: [tda-core]
+---
+
 # VerifyLocationsBot
 
-A worker that classifies and promotes CANDIDATE locations to VERIFIED state using existing AI services.
+Promotes high-confidence locations from `CANDIDATE/PENDING_VERIFICATION` to `VERIFIED` using OpenAI classification results, centralized validation, and audit logging. This README supplements the full runbook (`Docs/verify-locations-runbook.md`).
 
-## Purpose
+## Requirements
 
-This worker implements the "Self-Verifying AI Loop" by:
-1. Fetching CANDIDATE locations from the database
-2. Classifying each using the existing `ClassifyService`
-3. Validating results using existing AI validation
-4. Promoting eligible locations to VERIFIED state
-5. Logging all actions via `AuditService`
+- `DATABASE_URL` configured (Supabase Postgres)
+- `OPENAI_API_KEY` available for non-dry runs
+- `SUPABASE_JWT_SECRET` and `ALLOWED_ADMIN_EMAILS` set for admin endpoints
+- Optional: adjust `CLASSIFY_MIN_CONF` for experiments
 
 ## Usage
-
-### Basic Usage
 
 ```bash
 cd Backend
 source .venv/bin/activate
 
-# Dry run (recommended first)
-python -m app.workers.verify_locations --city rotterdam --limit 50 --dry-run 1
+# Dry run (recommended initially)
+python -m app.workers.verify_locations --limit 50 --dry-run 1
 
-# Actual execution
-python -m app.workers.verify_locations --city rotterdam --limit 200 --dry-run 0
+# Production run (writes to database)
+python -m app.workers.verify_locations --limit 200 --dry-run 0
+
+# Chunked execution (6 slices)
+python -m app.workers.verify_locations --limit 600 --chunks 6 --chunk-index 0 --dry-run 0
 ```
 
-### Command Line Options
+### Flag reference
 
-- `--city <name>`: Filter by city (if supported by schema)
-- `--source <source>`: Filter by source (e.g., OSM_OVERPASS, GOOGLE_PLACES)
-- `--limit <N>`: Maximum items to process (default: 200)
-- `--offset <M>`: Offset for pagination (default: 0)
-- `--chunks <K>`: Total chunks for sharding (default: 1)
-- `--chunk-index <i>`: Which chunk to process, 0-based (default: 0)
-- `--dry-run {0|1}`: Dry run mode - don't write updates (default: 0)
-- `--min-confidence <score>`: Minimum confidence for promotion (default: 0.8)
-- `--model <name>`: Override AI model
-- `--log-json {0|1}`: Use JSON logging (default: 0)
+| Flag | Default | Notes |
+| --- | --- | --- |
+| `--limit` | `200` | Max rows processed; combined with chunking for large batches. |
+| `--offset` | `0` | Legacy pagination support; usually unused when chunking. |
+| `--chunks` / `--chunk-index` | `1` / `0` | Evenly split the workload across multiple executions (GitHub Actions matrix). |
+| `--dry-run` | `0` | When `1`, skips writes and audit logging. |
+| `--min-confidence` | `0.8` | Override the promotion threshold. |
+| `--model` | default | Override OpenAI model ID. |
+| `--city`, `--source` | optional | Accepted for future filtering; currently no-op (fetch query does not filter yet). |
+| `--log-json` | `0` | Emit JSON logs for machine-readable output. |
 
-### Examples
+## Execution flow
 
-```bash
-# Process 100 locations from Rotterdam
-python -m app.workers.verify_locations --city rotterdam --limit 100 --dry-run 0
+1. Fetch candidate rows (`state` in `CANDIDATE`, `PENDING_VERIFICATION`) ordered by `first_seen_at`.
+2. Run `ClassifyService.classify` for each row (OpenAI) and validate payload with `validate_classification_payload`.
+3. Persist classification via `update_location_classification`, which enforces:
+   - Confidence → state mapping (`>=0.90 → VERIFIED`, `>=0.80 → PENDING_VERIFICATION`, otherwise `CANDIDATE`).
+   - No downgrade of existing `VERIFIED` rows; no resurrection of `RETIRED` rows.
+   - Audit log entry on success (unless dry-run).
+4. Print `[PROMOTE]`, `[SKIP]`, `[ERROR]`, `[RETIRE]` summaries.
+5. Return aggregate stats for automation workflows.
 
-# Process only OSM sources
-python -m app.workers.verify_locations --source OSM_OVERPASS --limit 50 --dry-run 0
+## Monitoring & observability
 
-# Process in chunks (useful for large batches)
-python -m app.workers.verify_locations --limit 1000 --chunks 4 --chunk-index 0 --dry-run 0
-python -m app.workers.verify_locations --limit 1000 --chunks 4 --chunk-index 1 --dry-run 0
-python -m app.workers.verify_locations --limit 1000 --chunks 4 --chunk-index 2 --dry-run 0
-python -m app.workers.verify_locations --limit 1000 --chunks 4 --chunk-index 3 --dry-run 0
-
-# Lower confidence threshold
-python -m app.workers.verify_locations --min-confidence 0.7 --limit 100 --dry-run 0
-```
-
-## How It Works
-
-1. **Fetch Candidates**: Queries `locations` table for `state = 'CANDIDATE'` and `is_retired = false`
-2. **Classify**: Uses `ClassifyService.classify()` to get AI classification
-3. **Validate**: Uses `validate_classification_payload()` to ensure valid results
-4. **Promote**: If `action = 'keep'` and `confidence >= min_confidence`, updates:
-   - `state = 'VERIFIED'`
-   - `category = <classified_category>`
-   - `confidence_score = <confidence>`
-   - `last_verified_at = now()`
-5. **Audit**: Logs all actions via `AuditService.log()`
-
-## Output
-
-The worker prints progress for each location:
-- `[PROMOTE]`: Location was promoted to VERIFIED
-- `[SKIP]`: Location was not promoted (low confidence or action=ignore)
-- `[ERROR]`: Processing failed for this location
-
-Final summary shows:
-- Total processed
-- Promoted to VERIFIED
-- Skipped
-- Errors
-
-## Database Changes
-
-- **No schema changes**: Uses existing `locations` table
-- **State transitions**: CANDIDATE → VERIFIED (when eligible)
-- **Audit trail**: All actions logged to `ai_logs` table
-- **Idempotent**: Safe to re-run, won't duplicate work
-
-## Integration
-
-This worker integrates with:
-- `ClassifyService`: For AI classification
-- `ai_validation.py`: For result validation
-- `AuditService`: For audit logging
-- Existing database schema (no migrations needed)
-
-## Monitoring
-
-Check results with SQL:
 ```sql
--- Recently promoted locations
-SELECT id, name, category, source, state, last_verified_at
+-- Recently promoted rows (last 24h)
+SELECT id, name, category, confidence_score, last_verified_at
 FROM locations
 WHERE state = 'VERIFIED'
+  AND last_verified_at >= NOW() - INTERVAL '24 hours'
 ORDER BY last_verified_at DESC
-LIMIT 50;
+LIMIT 25;
 
--- State distribution
-SELECT state, COUNT(*)
-FROM locations
-GROUP BY state
-ORDER BY 2 DESC;
+-- Promotion ratio
+SELECT
+  SUM(CASE WHEN state = 'VERIFIED' THEN 1 ELSE 0 END) AS verified,
+  SUM(CASE WHEN state IN ('CANDIDATE','PENDING_VERIFICATION') THEN 1 ELSE 0 END) AS pending
+FROM locations;
+
+-- Audit trail for recent promotions
+SELECT location_id, action_type, model_used, created_at
+FROM ai_logs
+WHERE action_type = 'verify_locations.classified'
+ORDER BY created_at DESC
+LIMIT 20;
 ```
+
+## Troubleshooting quick hits
+
+| Symptom | Check |
+| --- | --- |
+| Worker exits immediately with missing key error | Ensure `OPENAI_API_KEY` present or run with `--dry-run`. |
+| `promoted=0` despite candidates | Inspect audit logs for `action=ignore` reasons; adjust `--min-confidence` if appropriate. |
+| API still returns old data | Verify API health (`/api/v1/locations`), ensure frontend points to correct base URL, confirm worker summary printed `[PROMOTE]`. |
+| GitHub Actions job fails | Review logs for OpenAI rate limits or database connectivity; rerun job with adjusted chunk index. |
+
+## Related resources
+
+- Runbook: [`Docs/verify-locations-runbook.md`](../../../Docs/verify-locations-runbook.md)
+- Worker implementation: [`verify_locations.py`](./verify_locations.py)
+- Classification helpers: [`services/classify_service.py`](../../services/classify_service.py), [`services/ai_validation.py`](../../services/ai_validation.py)
+- Metrics snapshot: [`Backend/services/metrics_service.py`](../../services/metrics_service.py)
