@@ -32,3 +32,9 @@ yarn-error.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# macOS
+.DS_Store
+
+# TypeScript incremental build cache
+*.tsbuildinfo
