@@ -1,237 +1,70 @@
-# Turkish Diaspora App - Project Context
+---
+title: Turkish Diaspora App — Project Context
+status: active
+last_updated: 2025-11-04
+scope: overview
+owners: [tda-core]
+---
 
-## Project Overview
+# Turkish Diaspora App — Project Context
 
-The Turkish Diaspora App (TDA) is an AI-driven location discovery and mapping application designed to help Turkish communities in the Netherlands find relevant businesses and services. The application automatically discovers, validates, and displays Turkish-oriented businesses using AI classification and multiple data sources.
+A concise narrative of the platform: what it does, how it is architected, and the current phase of delivery. Use this document to onboard new contributors or align stakeholders before diving into detailed runbooks and specs.
 
-## Architecture Overview
+## Mission
 
-### System Architecture
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Frontend      │    │    Backend      │    │   Database     │
-│   (React/TS)    │◄──►│   (FastAPI)     │◄──►│   (Supabase)   │
-│                 │    │                 │    │   (PostgreSQL)  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Map Services  │    │   AI Services   │    │   Audit Logs    │
-│ (Leaflet/Mapbox)│    │   (OpenAI)      │    │   (AI Logs)     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │
-         │                       │
-         ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐
-│  Discovery APIs │    │  Classification  │
-│ (OSM/Overpass)  │    │   & Validation   │
-└─────────────────┘    └─────────────────┘
-```
+Deliver a continuously updated map of Turkish-oriented businesses in Dutch cities by combining open data discovery (OSM), AI-assisted classification/verification, and curated presentation layers (admin + public UI). The initial production rollout focused on Rotterdam with plans to expand to The Hague, Amsterdam, and Utrecht.
 
-### Data Flow Diagram
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Discovery     │    │   Classification│    │   Verification │
-│   Bot           │───►│   Service       │───►│   Bot           │
-│                 │    │                 │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   CANDIDATE     │    │   AI Analysis   │    │   VERIFIED     │
-│   Locations     │    │   & Scoring     │    │   Locations    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         │                       │                       │
-         ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   OSM/Overpass │    │   OpenAI API    │    │   Frontend      │
-│   APIs          │    │   Integration   │    │   Display       │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
+## System Architecture
 
-## Technology Stack
+| Layer | Responsibilities | Key tech |
+| --- | --- | --- |
+| Frontend | Public map, admin dashboard, metrics UI, Supabase-authenticated routes. | React 19 + Vite, Tailwind, shadcn/ui, Mapbox GL, Supabase JS. |
+| Backend API | REST endpoints, admin auth, metrics snapshot, entry point for workers. | FastAPI (Python 3.11), structlog, asyncpg, Pydantic v2. |
+| Workers | Discovery, classification, verification, monitoring, alerting (CLI + scheduled runs). | Async workers under `Backend/app/workers`, orchestrated by GitHub Actions + Render cron. |
+| Data | Persistent storage and analytics. | Supabase Postgres, category/city YAML configs (`Infra/config`), metrics SQL (`Infra/monitoring`). |
+| External services | Inputs and tooling. | OSM Overpass API, OpenAI GPT models, Mapbox vector tiles. |
 
-### Backend (Python/FastAPI)
-- **Framework**: FastAPI with async/await patterns
-- **Database**: Supabase (PostgreSQL) with async connection pooling
-- **AI Integration**: OpenAI API for classification and validation
-- **Discovery APIs**: OSM Overpass API (free, open-source)
-- **Logging**: Structured logging with request ID tracking
-- **Workers**: Background tasks for discovery and verification
+### High-level data flow
 
-### Frontend (React/TypeScript)
-- **Framework**: React 19 with TypeScript
-- **Build Tool**: Vite for fast development and building
-- **Styling**: Tailwind CSS with component-based design
-- **Maps**: Leaflet/Mapbox integration for location visualization
-- **State Management**: React hooks (useState, useEffect, useMemo)
-- **UI Components**: Radix UI primitives with custom styling
+1. **DiscoveryBot** pulls candidate locations from OSM Overpass using grid subdivision, respectful rate limiting, and endpoint rotation. Results land in `locations(state=CANDIDATE)`.
+2. **ClassifyBot** and **VerifyLocationsBot** enrich and verify candidates via OpenAI (structured JSON) and business rules. Successful records become `VERIFIED` with confidence scores and audit logs.
+3. **MonitorBot** revisits aging records, while **AlertBot** raises incidents based on error/429 thresholds.
+4. **API layer** exposes `/api/v1/locations` for the public map (verified + high confidence pending), `/api/v1/admin/**` for metrics and admin operations, and dev tooling under `/dev/**`.
+5. **Frontend** consumes APIs, renders Mapbox-based map/list UI, and offers admin workflows protected by Supabase email/password auth.
 
-### Infrastructure
-- **Database**: Supabase (PostgreSQL) with real-time capabilities
-- **Deployment**: GitHub Pages for frontend, Heroku/Railway for backend
-- **Monitoring**: Built-in metrics and audit logging
-- **Configuration**: YAML-based category and city mappings
+## Current phase (TDA-107 — Consolidation)
 
-## Current Status
+- ✅ Rotterdam OSM discovery production run (151+ locations) with postmortem reports.
+- ✅ Automated verification pipeline (`verify_locations.py`) and admin metrics snapshot.
+- ✅ Supabase-backed admin auth with hash-routed frontend build on GitHub Pages.
+- 🔄 Documentation refactor (this sweep) to standardize env/config/runbooks.
+- 🔜 City expansion (The Hague → Amsterdam → Utrecht) once discovery/verification runbooks are fully automated.
 
-### Completed Features
-- ✅ **OSM Discovery Pipeline**: Production-ready discovery system for Rotterdam
-- ✅ **AI Classification**: Automated Turkish business identification
-- ✅ **Verification Pipeline**: CANDIDATE → VERIFIED state promotion
-- ✅ **Frontend Interface**: React-based location browser with map integration
-- ✅ **Category System**: 8 main business categories with Turkish aliases
-- ✅ **Error Handling**: Robust error handling and recovery mechanisms
-- ✅ **Rate Limiting**: Respectful API usage with backoff strategies
+## Core components & directories
 
-### Recent Work (October 2025)
-- **Rotterdam Production Rollout**: Successfully discovered 151+ Turkish businesses
-- **VerifyLocationsBot**: Implemented automated verification pipeline
-- **Enhanced Error Handling**: Improved OSM API error handling and endpoint rotation
-- **Category Mapping**: Enhanced Turkish business category detection
-- **Performance Optimization**: Improved database connection pooling
+| Path | Highlights |
+| --- | --- |
+| `Backend/app/workers/` | Discovery, classify, verify, monitor, alert workers with CLI entrypoints. |
+| `Backend/services/` | OSM service, OpenAI integration, metrics snapshot, audit helpers. |
+| `Frontend/src/` | Map + list UI, admin routes, metrics dashboard, UI kit. |
+| `Docs/` | Architecture notes, runbooks, UX guides, QA checklists, environment docs. |
+| `Infra/` | Supabase SQL migrations, monitoring SQL, category/city configuration YML. |
+| `.github/workflows/` | Scheduled discovery/verification pipelines, cleanup, alerts, frontend deploy. |
 
-### Current Phase: TDA-107 (Consolidation)
-- **Focus**: Consolidating discovery pipeline and verification system
-- **Next Cities**: The Hague, Amsterdam, Utrecht
-- **Improvements**: Enhanced monitoring, automated health checks
-- **Optimization**: Database pool tuning, sequential chunk execution
+## Operational touchpoints
 
-## Business Categories
+- **Metrics & observability** — `/api/v1/admin/metrics/snapshot` feeds the admin dashboard; `Infra/monitoring/metrics_dashboard.sql` keeps KPIs consistent.
+- **Secrets & configuration** — `/.env.template` is the source of truth; environment mapping lives in `Docs/env-config.md`.
+- **CI/CD** — GitHub Actions drive worker automation (`tda_discovery.yml`, `tda_verification.yml`, etc.) and frontend deploys (`frontend_deploy.yml`). Render hosts the API + long-running workers.
+- **Runbooks** — `Docs/runbook.md` (full operational handbook) and `Docs/verify-locations-runbook.md` (focused on promotion pipeline) are the primary incident response resources.
 
-The application focuses on 8 main categories of Turkish-oriented businesses:
+## Stakeholders & next steps
 
-1. **Restaurant** - Turkish restaurants and eateries
-2. **Bakery** - Turkish bakeries and patisseries
-3. **Supermarket** - Turkish markets and grocery stores
-4. **Barber** - Turkish barbershops and hair salons
-5. **Mosque** - Turkish community mosques
-6. **Travel Agency** - Turkish travel agencies
-7. **Butcher** - Turkish butchers and meat shops
-8. **Fast Food** - Turkish fast food establishments
+- **Maintainers**: TDA core team (see `owners` in each doc front matter).
+- **Immediate goals**:
+  - Finish documentation refactor (link integrity, updated examples, consistent front matter).
+  - Validate discovery + verification bots for the next city grid.
+  - Refresh metrics SQL and dashboard with current schema references.
+- **Risks**: Overpass API rate limits, OpenAI cost spikes, Supabase credential rotation, documentation drift (being addressed in this audit).
 
-Each category includes Turkish aliases and OSM tag mappings for accurate discovery.
-
-## Development Environment
-
-### Backend Setup
-```bash
-cd Backend
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-### Frontend Setup
-```bash
-cd Frontend
-npm install
-npm run dev
-```
-
-### Database Setup
-- Supabase project with PostgreSQL
-- Environment variables in `.env` files
-- Database migrations in `/Infra/supabase/`
-
-## Key Files and Directories
-
-### Backend Structure
-- `app/main.py` - FastAPI application entry point
-- `app/workers/` - Discovery and verification bots
-- `app/services/` - Core business logic (AI, OSM)
-- `api/routers/` - FastAPI endpoints
-- `app/core/` - Logging and request ID management
-
-### Frontend Structure
-- `src/App.tsx` - Main React application
-- `src/components/` - UI components (Filters, MapView, LocationList)
-- `src/lib/` - Utilities, API clients, map integration
-- `src/hooks/` - Custom React hooks
-
-### Configuration
-- `Infra/config/categories.yml` - Business category mappings
-- `Infra/config/cities.yml` - City and district configurations
-- `Backend/requirements.txt` - Python dependencies
-- `Frontend/package.json` - Node.js dependencies
-
-## AI Integration
-
-### Classification Service
-- Uses OpenAI API for location classification
-- Supports Turkish business detection
-- Confidence scoring for classification results
-- Validation of classification payloads
-
-### Verification Pipeline
-- Automated CANDIDATE → VERIFIED promotion
-- AI-based validation of discovered locations
-- Audit logging for all AI operations
-- Configurable confidence thresholds
-
-### Discovery Process
-1. **Grid-based Discovery**: Systematic coverage of target areas
-2. **Open-source Data**: OSM Overpass API (free, no costs)
-3. **AI Classification**: Automated Turkish business identification
-4. **Verification**: AI validation and state promotion
-5. **Audit Trail**: Complete logging of all operations
-
-## Monitoring and Metrics
-
-### Database Monitoring
-- Connection pool status
-- Query performance metrics
-- Insert velocity tracking
-- Error rate monitoring
-
-### API Monitoring
-- Overpass API success rates
-- Response time tracking
-- Endpoint rotation effectiveness
-- Rate limiting compliance
-
-### AI Operations
-- Classification accuracy
-- Verification success rates
-- Confidence score distributions
-- Audit trail completeness
-
-## Next Steps
-
-### Immediate Priorities
-1. **The Hague Discovery**: Next city rollout
-2. **Database Optimization**: Connection pool tuning
-3. **Enhanced Monitoring**: Real-time dashboard
-4. **Automated Health Checks**: Overpass endpoint monitoring
-
-### Future Enhancements
-1. **Amsterdam Rollout**: Major metropolitan area
-2. **Utrecht Discovery**: Growing Turkish community
-3. **User Interface**: Enhanced filtering and search
-4. **Mobile Optimization**: Responsive design improvements
-
-## Development Guidelines
-
-### Code Standards
-- **Python**: Async/await patterns, type hints, structured logging
-- **TypeScript**: Strict mode, React hooks, component-based design
-- **Database**: Async operations, connection pooling, audit trails
-- **AI**: Proper error handling, confidence scoring, validation
-
-### Testing Strategy
-- **Unit Tests**: Core business logic testing
-- **Integration Tests**: API endpoint testing
-- **End-to-End Tests**: Full pipeline testing
-- **Performance Tests**: Load and stress testing
-
-### Deployment
-- **Frontend**: GitHub Pages with Vite build
-- **Backend**: Heroku/Railway with environment variables
-- **Database**: Supabase with automated backups
-- **Monitoring**: Built-in metrics and alerting
-
-This project represents a comprehensive solution for Turkish diaspora community mapping, combining modern web technologies with AI-powered discovery and verification systems.
+Keep this context document updated whenever architecture, hosting, or strategic focus changes. Link back here from PRs introducing new subsystems or external integrations.

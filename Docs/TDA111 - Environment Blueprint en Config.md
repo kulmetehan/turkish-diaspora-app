@@ -1,106 +1,61 @@
-# 🧩 TDA-111 – Environment Blueprint en Config  
-**Epic:** TDA-107 – Consolidatie & Documentatie  
-**Story Points:** 2  
-**Status:** ✅ Gereed voor implementatie  
-
+---
+title: TDA-111 – Environment Blueprint & Config
+status: delivered
+last_updated: 2025-11-04
+scope: setup
+owners: [tda-core]
+tags: [tda-107]
 ---
 
-## 🎯 Doel van deze story
-Deze story legt de **fundamentele blauwdruk** vast voor alle omgevingsvariabelen van de Turkish Diaspora App.  
-Het doel is om één centrale `.env.template` en bijbehorende documentatie te leveren, zodat nieuwe developers consistent kunnen opstarten en secrets veilig worden beheerd.
+# 🧩 TDA-111 – Environment Blueprint & Config
 
----
+**Epic:** TDA-107 — Consolidatie & Documentatie  
+**Doel:** Eén gestandaardiseerde omgeving opleveren voor backend, workers, Render en Supabase, zodat nieuwe developers in minder dan een dag live kunnen.
 
-## 🧾 Situatieschets
-Tijdens de consolidatiefase moeten alle bouwstenen (Backend, Workers, Supabase, Frontend) **gestandaardiseerd en gedocumenteerd** worden.  
-Tot nu toe stonden variabelen verspreid in Render, lokale `.env`-bestanden of CLI-commando’s.  
-Met deze oplevering zorgen we voor:
-- Eén standaard `.env.template` in projectroot  
-- Een duidelijk stappenplan voor Render/Supabase/dev  
-- Volledige documentatie in `/Docs/env-config.md`  
-- Testbare en reproduceerbare configuratie
+## Samenvatting
 
-Dit maakt het project consistent, veilig en uitbreidbaar voor nieuwe developers of staging/prod pipelines.
+- `/.env.template` bevat nu de volledige, geverifieerde variabele-set voor backend + workers + Vite.  
+- `Docs/env-config.md` documenteert de bron van waarheid, inclusief mapping naar Render/GitHub Actions/Supabase.  
+- Runbook en quick-start verwijzen naar dezelfde template zodat er geen divergerende `.env`-guides meer bestaan.  
+- Secrets worden per omgeving beheerd (Render services, Supabase dashboard, GitHub Actions) met identieke sleutel-namen.
 
----
+## Belangrijkste componenten
 
-## ⚙️ Plan van aanpak
-1. Inventarisatie van alle bestaande variabelen uit vorige stories (DB, AI, Google, Workers, Alerts).  
-2. Groeperen per domein (Backend, Workers, Supabase, Frontend).  
-3. Genereren van `.env.template` met placeholders en commentaar.  
-4. Opstellen van `/Docs/env-config.md` met uitleg en teststappen.  
-5. Reviewen met Acceptance Criteria en Definition of Done.
+| Deliverable | Inhoud |
+| --- | --- |
+| `/.env.template` | Canonische template met kernsecties: Core App, Admin Auth, OpenAI, OSM discovery, Monitor/Alerts, Vite. |
+| `Docs/env-config.md` | Handleiding hoe en waar de variabelen gebruikt worden, inclusief validatiestappen en Rotating-secrets checklist. |
+| `Docs/runbook.md` | Linkt naar de template voor setup, workers en troubleshooting. |
+| GitHub Actions secrets | `DATABASE_URL`, `OPENAI_API_KEY`, `SUPABASE_URL/SUPABASE_KEY`, OSM tuning variabelen. |
+| Render services | Exact dezelfde key-namen als in de template zodat migraties simpele copy/paste blijven. |
 
----
+## Variabele groepen
 
-## 📁 Bestand: `.env.template`
+1. **Core & Auth** — `DATABASE_URL`, `SUPABASE_JWT_SECRET`, `ALLOWED_ADMIN_EMAILS`, `ENVIRONMENT`, `APP_VERSION`.  
+2. **AI laag** — `OPENAI_API_KEY`, `OPENAI_MODEL`, `CLASSIFY_MIN_CONF`.  
+3. **Discovery (OSM)** — `OVERPASS_USER_AGENT`, `DISCOVERY_*`, `MAX_SUBDIVIDE_DEPTH`, `OSM_TURKISH_HINTS`, logging toggles.  
+4. **Workers (monitor/alerts)** — `MONITOR_MAX_PER_RUN`, `MONITOR_BOOTSTRAP_BATCH`, `ALERT_*` set.  
+5. **Frontend (Vite)** — `VITE_API_BASE_URL`, `VITE_MAPBOX_TOKEN`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (alleen `VITE_*` keys gaan naar de browser).
 
-```dotenv
-############################################
-# Turkish Diaspora App – Environment Template
-# Kopieer dit bestand naar: .env
-# Gebruik in Render: voeg deze keys toe als Secrets
-# NB: Nooit echte secrets committen!
-############################################
+## Implementatie-notities
 
-###########
-# APP / Core
-###########
-APP_ENV=dev                     # dev|staging|prod
-APP_NAME=turkish-diaspora-app   # identificatie in logs
-APP_VERSION=0.1.0               # versie output via /version
-LOG_LEVEL=INFO                  # DEBUG|INFO|WARNING|ERROR
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173  # frontend origins
+- Render backend en iedere worker gebruiken hetzelfde `.env`-bestand; verschillen worden via de scheduler (cron) afgedwongen, niet via aparte key-namen.  
+- Workers draaien alleen wanneer `OPENAI_API_KEY` aanwezig is; lokale dry-runs blijven mogelijk zonder key.  
+- Supabase JWT secret wordt nooit naar Frontend geëxporteerd. Frontend gebruikt enkel anon/public key via Vite.  
+- GitHub Actions workflows (`tda_discovery*.yml`, `tda_verification.yml`, `tda_monitor.yml`, `tda_alert.yml`) lezen secrets via identieke namen waardoor secret rotation één-touch wordt.
 
-################
-# Database (DB)
-################
-DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST:5432/DBNAME
-SUPABASE_SSL_NO_VERIFY=0        # 1 om SSL-certificaat te negeren (alleen lokaal)
+## Acceptatiecriteria
 
-######################
-# OpenAI / AI Service
-######################
-OPENAI_API_KEY=sk-...           # server-side only (nooit naar frontend)
-OPENAI_MODEL=gpt-4.1-mini       # standaardmodel
-CLASSIFY_MIN_CONF=0.80          # classificatie drempel (TDA-11)
+- [x] `.env.template` in repo root, gedocumenteerd en gesynchroniseerd met code.  
+- [x] `Docs/env-config.md` beschrijft alle variabelen + validatiestappen.  
+- [x] Render/Supabase secret mapping gecontroleerd en genoteerd.  
+- [x] Runbook/Quick Start verwijzen naar dezelfde bron.  
+- [x] Geen overbodige Google Places variabelen meer aanwezig; OSM-only discovery bevestigd.  
+- [x] Nieuwe developer kan met template + guide de stack lokaal starten en workflows laten draaien.
 
-#########################
-# Google Places
-#########################
-GOOGLE_API_KEY=AIza...          # beperk tot Places API
-GOOGLE_PLACES_LANGUAGE=nl       # nl|tr|en
-GOOGLE_PLACES_REGION=nl         # NL bias
+## Volgende stappen
 
-#########################
-# Workers / Bots
-#########################
-MONITOR_MAX_PER_RUN=200
-DISCOVERY_CITY=rotterdam
-DISCOVERY_CATEGORIES=bakery,restaurant,supermarket
-DISCOVERY_GRID_SPAN_KM=12
-DISCOVERY_NEARBY_RADIUS_M=1000
-DISCOVERY_INTER_CALL_SLEEP_S=0.15
+- Jaarlijkse secret rotation checklist opnemen in `Docs/infra-audit.md`.  
+- Monitoren of aanvullende workers (bijv. alerting) nieuwe env keys introduceren; template en guide onmiddellijk updaten.
 
-#########################
-# Metrics & Alerts
-#########################
-ALERT_CHECK_INTERVAL_SECONDS=60
-ALERT_ERR_RATE_THRESHOLD=0.10
-ALERT_GOOGLE429_THRESHOLD=5
-ALERT_ERR_RATE_WINDOW_MINUTES=60
-ALERT_GOOGLE429_WINDOW_MINUTES=60
-ALERT_WEBHOOK_URL=
-ALERT_CHANNEL=
-
-################
-# Frontend (Vite)
-################
-VITE_API_BASE_URL=http://127.0.0.1:8000   # lokale backend
-# optioneel: Mapbox
-# VITE_MAPBOX_TOKEN=pk.***
-
-################
-# Admin / Security
-################
-RATE_LIMIT_PER_MINUTE=60         # rate limit voor publieke endpoints
+Meer details? Zie `Docs/env-config.md` voor concrete CLI-checks en Render/Supabase instructies.

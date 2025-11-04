@@ -1,3 +1,11 @@
+---
+title: OSM Discovery Report — Rotterdam (Production)
+status: archive
+last_updated: 2025-10-21
+scope: data-ops
+owners: [tda-data]
+---
+
 # OSM Discovery Report – Rotterdam (Production)
 
 **Date:** October 21, 2025  

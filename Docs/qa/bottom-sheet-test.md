@@ -1,50 +1,60 @@
-Google-Maps-style Bottom Sheet – Manual QA Checklist
+---
+title: Bottom Sheet QA Checklist
+status: active
+last_updated: 2025-11-04
+scope: frontend
+owners: [tda-qa]
+---
 
-Acceptance Criteria
-- Drag is smooth (no stutter); settle to snap in ~250–350ms
-- Snap points correct: 64px / 45vh / 94vh; resistance near limits
-- At full, vertical swipe inside list scrolls list; downward at top transfers to sheet
-- Fling up from collapsed goes to half/full based on velocity/distance
-- Backdrop only in full; tap backdrop snaps to half
-- Escape collapses one step; Enter/Space on handle toggles half/full
-- Performance profile: only transform/opacity updates; no layout shifts
-- No passive listener violations in console
-- Works on iOS Safari and Android Chrome
+# Bottom Sheet QA Checklist
 
-Edge Cases
-- Rapid tap-drag-release does not bounce incorrectly
-- Orientation change recomputes snap points and re-snaps logically
-- Virtual keyboard: sheet does not fight input; no forced full unless necessary
+Manual regression guide for the Google-Maps-style bottom sheet used on mobile and narrow viewports.
 
-Test Steps
-1) Basic Drag and Snap
-   - Drag from collapsed → release near half: snaps to half
-   - Drag from half → release near full: snaps to full
-   - Drag past limits: resistance felt; no overscroll glow
+## Acceptance criteria
 
-2) Velocity-based Fling
-   - From collapsed, fast upward swipe: full (if velocity high), else half
-   - From full, fast downward swipe: half/collapsed depending on momentum
+- Drag gesture is smooth (no stutter); settle into snap point within ~250–350 ms.
+- Snap points correct: collapsed `64px`, half `45vh`, full `94vh`; apply resistance near limits.
+- At full height, list scroll gestures do not pull the sheet; downward drag transfers control back to sheet when list is at top.
+- Velocity-based flings choose the nearest snap point (up vs. down) based on momentum.
+- Backdrop only visible at full height; tapping backdrop returns to half height.
+- Keyboard interactions: `Esc` collapses one step, `Enter`/`Space` on handle toggles half/full.
+- No passive listener warnings in console; transform/opacity only (no layout thrash).
+- Works on iOS Safari and Android Chrome.
 
-3) Scroll Handoff
-   - At full, scroll list; sheet remains fixed
-   - While list at top, drag downward: control transfers to sheet immediately
+## Edge cases
 
-4) Backdrop and Keyboard
-   - In full state, tap backdrop: snaps to half
-   - Focus handle; press Esc: full → half → collapsed
-   - Enter/Space on handle: collapsed ↔ half ↔ full per spec
+- Rapid tap–drag–release does not produce jittery bounce.
+- Orientation changes recompute snap points and maintain logical state.
+- Virtual keyboard does not force sheet to full height unless necessary.
 
-5) Orientation & IME
-   - Rotate device: snap points update; state stays coherent
-   - Focus input inside content: keyboard does not cause jank; dragging remains smooth
+## Test script
 
-6) Performance Profiling
-   - Record long drag; verify only transform/opacity change; 60fps on mid devices
-   - No layout recalculations during rAF frames beyond minimal reads
+1. **Basic drag & snap**
+   - Drag from collapsed to half, release near snap point → sheet settles at half.
+   - Drag from half to full, release → full height with backdrop.
+   - Drag beyond limits → resistance, no overscroll glow.
 
-7) Cross-browser
-   - iOS Safari: no rubber-banding; handoff works
-   - Android Chrome: smooth drags; passive listener warnings absent
+2. **Velocity-based fling**
+   - From collapsed, fast upward swipe → full if velocity high, otherwise half.
+   - From full, fast downward swipe → half or collapsed depending on speed.
 
+3. **Scroll handoff**
+   - At full, scroll inside list → sheet remains fixed.
+   - When list is at top, drag downward → sheet takes over immediately.
 
+4. **Backdrop & keyboard**
+   - With sheet full, tap backdrop → half state.
+   - Focus handle, press `Esc` → full → half → collapsed.
+   - Press `Enter`/`Space` on handle → toggle between states per spec.
+
+5. **Orientation & IME**
+   - Rotate device → snap points recompute, state coherent.
+   - Focus an input inside sheet → keyboard does not create layout jump; drag remains smooth.
+
+6. **Performance**
+   - Record long drag (DevTools Performance) → only transform/opacity change, 60 fps on mid-tier devices.
+   - Verify no layout recalculations during animation frames.
+
+7. **Cross-browser**
+   - iOS Safari: no rubber-band issues, handoff works.
+   - Android Chrome: gestures smooth, no console warnings.

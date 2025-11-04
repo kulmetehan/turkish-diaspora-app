@@ -1,316 +1,178 @@
-# Turkish Diaspora App — Developer Handbook / Runbook (TDA-110)
-
-> **Epic:** TDA-107 – Consolidatie & Documentatie  
-> **Doel:** Nieuwe developers kunnen na het lezen van dit document **binnen één dag** lokaal draaien én de volledige pipeline begrijpen/opereren. fileciteturn0file4
-
+---
+title: Turkish Diaspora App — Runbook
+status: active
+last_updated: 2025-11-04
+scope: runbook
+owners: [tda-core]
 ---
 
-## 1) Situatieschets & Scope
+# Turkish Diaspora App — Runbook
 
-De MVP staat, draait stabiel en de autonome datalaag (discovery → classificatie → verificatie → monitoring) werkt end-to-end. Deze runbook beschrijft **setup, workflows, cronjobs en dataflows** zodat iedereen het systeem consistent kan opstarten, beheren en troubleshooten. Het sluit aan op de architectuur en roadmap in *The New Testament* documenten en de reeds opgeleverde stories (o.a. TDA‑7/8/10/11/13/14/16/20). fileciteturn0file2turn0file3turn0file6
+Operational handbook for developers and operators. Covers setup, workers, automation schedules, observability, and incident response for the Turkish Diaspora App.
 
-**Wat je na dit document kunt:**  
-- Lokaal backend + frontend starten en verbinden. fileciteturn0file10  
-- Workers/bots draaien (Discovery, Verification, Monitor, Alert) en resultaten controleren. fileciteturn0file12turn0file14turn0file1turn0file17  
-- Cronjobs configureren op Render en Supabase koppelen. fileciteturn0file2  
-- Begrijpen hoe de data door het systeem stroomt (Mermaid-diagrammen). fileciteturn0file2
+## 1. Scope & prerequisites
 
----
+- **Stack**: FastAPI (Python 3.11), async workers, Supabase Postgres, React/Vite frontend, Mapbox GL.
+- **Environments**: local development, Render (API + workers), GitHub Actions (scheduled automation).
+- **Secrets**: managed via `/.env.template` → `Backend/.env`, Render environment, GitHub Actions secrets, Supabase settings.
 
-## 2) Overzicht Architectuur & Repos
+Before following any procedure, copy the canonical template and fill in required keys:
 
-**Stack**: FastAPI + Async SQLAlchemy (Supabase Postgres), React (Vite + Tailwind + shadcn/ui), Bots (async workers), OpenAI voor AI-taken, Google Places (legaal) voor discovery. Observability via JSON (structlog) + interne metrics/alerts. fileciteturn0file2turn0file5turn0file17
-
-**Monorepo** (top-level):  
-```
-turkish-diaspora-app/
-├─ Backend/           # FastAPI + workers + services
-├─ Frontend/          # React (Vite) + Tailwind + shadcn/ui
-├─ Docs/              # dit runbook + architectuur
-├─ Infra/             # supabase SQL, render.yaml, config (cities/categories)
-└─ .github/workflows/ # CI/CD
-```
-fileciteturn0file5
-
----
-
-## 3) Systeemvereisten
-
-- Python 3.11+ met venv
-- Node 20+ (Vite) en npm
-- Een Supabase project (Postgres) met de tabellen uit `Infra/supabase/*.sql`  
-- API keys: **OPENAI_API_KEY**, database **DATABASE_URL** (Google API removed to avoid costs)  
-- Render account (API + Cron Jobs) voor deploys/workers fileciteturn0file6
-
----
-
-## 4) Omgevingsvariabelen (.env template)
-
-Maak in **/Backend/.env** (en in Render Secrets) minimaal deze variabelen aan:
-
-```dotenv
-# App
-APP_ENV=dev
-APP_VERSION=0.1.0
-
-# Database (Supabase → Connection string)
-DATABASE_URL=postgresql+asyncpg://<user>:<pass>@<host>:5432/<db>
-
-# AI
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4.1-mini
-
-# Google Places
-# GOOGLE_API_KEY removed to avoid costs
-GOOGLE_PLACES_LANGUAGE=nl
-GOOGLE_PLACES_REGION=nl
-
-# Classification defaults
-CLASSIFY_MIN_CONF=0.80
-
-# Alerting / Metrics
-ALERT_CHECK_INTERVAL_SECONDS=60
-ALERT_ERR_RATE_THRESHOLD=0.10
-ALERT_GOOGLE429_THRESHOLD=5
-ALERT_ERR_RATE_WINDOW_MINUTES=60
-ALERT_GOOGLE429_WINDOW_MINUTES=60
-# ALERT_WEBHOOK_URL=... (optioneel)
-# ALERT_CHANNEL=...    (optioneel)
-```
-**Frontend** leest de API‑basis uit `Frontend/.env.*` via `VITE_API_BASE_URL`. fileciteturn0file10
-
-> Tip: voeg een centrale `.env.template` toe aan `/Docs/` of `/Infra/` conform *Backlog – C1‑S2*. fileciteturn0file19
-
----
-
-## 5) Database & Migrations (Supabase)
-
-Voer de SQL-migraties in `Infra/supabase/` uit om de vijf kern-tabellen te maken: `locations, ai_logs, tasks, training_data, category_icon_map`, incl. constraints en indexen (o.a. op `state, category, next_check_at`). Scripts zijn idempotent. fileciteturn0file7
-
-**Sanity checks** (voorbeeld):  
-- `SELECT 1;`  
-- Alle tabellen/kolommen bestaan (zie TDA‑4 comment). fileciteturn0file7
-
----
-
-## 6) Lokaal starten (Quickstart)
-
-### Backend
 ```bash
-cd Backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt  # of uv/pip-tools
-uvicorn app.main:app --reload
-# Open: http://127.0.0.1:8000/health  → {"status":"ok"}
+cp .env.template Backend/.env
+# edit Backend/.env → DATABASE_URL, SUPABASE_JWT_SECRET, ALLOWED_ADMIN_EMAILS, OPENAI_API_KEY (optional) etc.
 ```
-- CORS staat open voor Vite dev.  
-- DB‑connectie logt start‑check (“Database connection OK.”). fileciteturn0file9turn0file10
 
-### Frontend
+See [`Docs/env-config.md`](./env-config.md) for the authoritative variable list and validation steps.
+
+## 2. Local bootstrap checklist
+
+1. **Backend**
+   ```bash
+   cd Backend
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   uvicorn app.main:app --reload
+   # health checks
+   curl http://127.0.0.1:8000/health
+   curl http://127.0.0.1:8000/version
+   ```
+
+2. **Frontend**
+   ```bash
+   cd Frontend
+   npm install
+   npm run dev
+   # open http://localhost:5173/#/ and http://localhost:5173/#/admin
+   ```
+
+3. **Database sanity** (optional but recommended)
+   ```bash
+   cd Backend
+   source .venv/bin/activate
+   python - <<'PY'
+   from services.db_service import init_db_pool
+   import asyncio
+   asyncio.run(init_db_pool())
+   print('✅ DATABASE_URL connected')
+   PY
+   ```
+
+## 3. Workers & manual operations
+
+| Worker | Module | Typical use | Notes |
+| --- | --- | --- | --- |
+| Discovery | `app.workers.discovery_bot` | Fetch new candidates from OSM. | Uses OSM-only provider; configure rate limits via env vars. |
+| Classify | `app.workers.classify_bot` | Assign keep/ignore + category (OpenAI). | Respects `CLASSIFY_MIN_CONF`. Dry-run recommended for testing. |
+| Verify & surface | `app.workers.verify_locations` | Promote high-confidence records to `VERIFIED`. | `--city`/`--source` flags exist but currently informational (filters handled in SQL). |
+| Monitor | `app.workers.monitor_bot` | Refresh `next_check_at` for stale records. | Uses env-based caps (`MONITOR_MAX_PER_RUN`). |
+| Alert | `app.workers.alert_bot` | Emit alerts for error spikes, 429 bursts. | Configure webhook/channel via env vars. |
+
+### CLI examples
+
 ```bash
-cd Frontend
-npm install
-cp .env.development.example .env.development  # indien aanwezig
-# zet VITE_API_BASE_URL=http://127.0.0.1:8000
-npm run dev
-# Open: http://localhost:5173
-```
-- `npm run build` levert productie‑build zonder errors. fileciteturn0file10
-
----
-
-## 7) Workers & Cronjobs
-
-### Beschikbare bots (workers)
-- **DiscoveryBot** — grid‑based Google Places → schrijft CANDIDATE. fileciteturn0file12  
-- **VerificationBot** — verrijkt Place Details, promoot naar VERIFIED/SUSPENDED. fileciteturn0file6  
-- **ClassifyBot** — AI keep/ignore + category + confidence (gold‑evaluatie mogelijk). fileciteturn0file14  
-- **MonitorBot** — bewaakt freshness en triggert her‑verificatie (≤ 90 dagen). fileciteturn0file1  
-- **AlertBot** — monitort KPI’s en triggert alerts (foutspikes, 429 bursts). fileciteturn0file17
-
-### Handmatig draaien (voorbeelden)
-
-**Discovery (Rotterdam, 3 categorieën):**
-```bash
-cd Backend && source .venv/bin/activate
+# Discovery dry run (Rotterdam, bakery only)
 python -m app.workers.discovery_bot \
   --city rotterdam \
-  --categories bakery,restaurant,supermarket \
-  --nearby-radius-m 1000 \
-  --grid-span-km 12 \
-  --max-per-cell-per-category 20 \
-  --inter-call-sleep-s 0.15
-# Resultaat: >500 CANDIDATE, dedupe op place_id
-```
-fileciteturn0file12
+  --categories bakery \
+  --limit 50 \
+  --dry-run
 
-**Classify demo / batch:**
-```bash
-# demo
-curl 'http://127.0.0.1:8000/dev/ai/ping'
-curl 'http://127.0.0.1:8000/dev/ai/classify-demo?...'
-# batch (dry run / met drempel)
-python -m app.workers.classify_bot --limit 50 --min-confidence 0.80 --dry-run
-python -m app.workers.classify_bot --limit 200 --min-confidence 0.80
-```
-fileciteturn0file13turn0file14
+# Classification dry run (requires OPENAI)
+python -m app.workers.classify_bot --limit 25 --dry-run
 
-**Monitor (freshness loop):**
-```bash
+# Verification dry run
+python -m app.workers.verify_locations --limit 50 --dry-run 1
+
+# Verification production run with chunking (6 slices)
+python -m app.workers.verify_locations --limit 600 --chunks 6 --chunk-index 0 --dry-run 0
+
+# Monitor freshness (no writes)
 python -m app.workers.monitor_bot --limit 200 --dry-run
-# Doel: geen active records ouder dan 90 dagen zonder next_check_at
+
+# Alert bot once-off (no webhook configured)
+python -m app.workers.alert_bot --once 1
 ```
-fileciteturn0file1
 
-**Alerts (KPI/429 spikes):**
-```bash
-python -m app.workers.alert_bot
-# thresholds via env (zie §4)
+### Worker output cheat sheet
+
+- **Discovery**: Logs Overpass endpoint, results inserted, skips (duplicates). Output stored in `locations` with `state=CANDIDATE`.
+- **Classification**: Prints `[KEEP|IGNORE]` decisions with confidence, logs to `ai_logs`.
+- **Verify**: `[PROMOTE]`, `[SKIP]`, `[ERROR]` lines summarise action; audit logs persisted.
+- **Monitor**: Reports updated `next_check_at` count and skipped terminal states.
+- **Alert**: Summaries of error rate, 429 bursts, optional webhook POST status.
+
+## 4. Scheduled automation
+
+| Workflow | Schedule | Command | Secrets required |
+| --- | --- | --- | --- |
+| `tda_discovery.yml` | `0 */2 * * *` (every 2h) | Runs discovery for each category × chunk. | `DATABASE_URL`, `OPENAI_API_KEY` (optional), `SUPABASE_URL`, `SUPABASE_KEY`, OSM env vars. |
+| `tda_discovery_fast.yml` | Manual trigger | Lightweight discovery slices (debug). | Same as above. |
+| `tda_verification.yml` | `15 */6 * * *` | Batches verify locations (`verify_locations.py`). | `DATABASE_URL`, `OPENAI_API_KEY`, admin secrets. |
+| `tda_monitor.yml` | `*/60 * * * *` | Monitor freshness loop. | `DATABASE_URL`. |
+| `tda_alert.yml` | `*/5 * * * *` | Alert thresholds (error/429). | `DATABASE_URL`, alert webhook/channel. |
+| `tda_cleanup.yml` | `0 4 * * *` | Housekeeping / backlog cleanup. | `DATABASE_URL`. |
+| `frontend_deploy.yml` | On `main` push | Builds + deploys GitHub Pages site. | `VITE_*` secrets, `MAPBOX` token, GH Pages deploy key. |
+
+Render cron jobs (if configured) should mirror the same commands/secrets as above. Keep `.env.template` synchronized so Service → Worker → GitHub Actions share names.
+
+## 5. Observability
+
+- **Metrics snapshot**: `GET /api/v1/admin/metrics/snapshot` (requires Supabase admin JWT). Feeds admin dashboard.
+- **Key KPI queries**: see `Infra/monitoring/metrics_dashboard.sql`.
+- **Logs**: Workers use structlog JSON. In GitHub Actions, download artifacts or inspect step logs.
+- **Alert thresholds**: Controlled via env (`ALERT_*`). Default err rate threshold = 10% over 60 minutes, Google 429 threshold kept for legacy compatibility.
+
+### Useful SQL snippets
+
+```sql
+-- Newly discovered candidates (24h)
+SELECT id, name, category, source, state, first_seen_at
+FROM locations
+WHERE first_seen_at >= NOW() - INTERVAL '24 hours'
+ORDER BY first_seen_at DESC;
+
+-- Verification promotion summary
+SELECT state, COUNT(*)
+FROM locations
+GROUP BY state
+ORDER BY COUNT(*) DESC;
+
+-- AI log error rate (last 60 minutes)
+SELECT COUNT(*) FILTER (WHERE is_success IS FALSE OR error_message IS NOT NULL)::float
+       / NULLIF(COUNT(*), 0) AS error_rate
+FROM ai_logs
+WHERE created_at >= NOW() - INTERVAL '60 minutes';
 ```
-fileciteturn0file17
 
-### Render Cron (voorbeeldschema’s)
+## 6. Troubleshooting
 
-> Render Cron gebruikt standaard crontab‑syntaxis. Stel per job de **Command**, **Schedule** en **Environment** in (secrets).
+| Symptom | Possible cause & fix |
+| --- | --- |
+| `RuntimeError: DATABASE_URL not set` | Ensure `Backend/.env` is loaded; run `cp .env.template Backend/.env` and populate credentials. |
+| Worker exits immediately with `OPENAI_API_KEY missing` | Either supply the key or run with `--dry-run` for local testing. |
+| Discovery hitting 429/504 repeatedly | Increase `DISCOVERY_SLEEP_BASE_S`, check Overpass mirrors, confirm respectful `OVERPASS_USER_AGENT`. |
+| Empty map frontend | Verify backend reachable at `VITE_API_BASE_URL`, ensure verification promoted enough records (run workers). |
+| Admin login fails (401/403) | Check `SUPABASE_JWT_SECRET` matches Supabase project, ensure email is in `ALLOWED_ADMIN_EMAILS`, check Supabase auth logs. |
+| Metrics endpoint 503 | Database down or credentials invalid; run the DB sanity snippet and inspect Render logs. |
 
-| Job | Schedule | Command (voorbeeld) |
-| --- | --- | --- |
-| Discovery (wekelijkse batch) | `0 6 * * 6` | `python -m app.workers.discovery_bot --city rotterdam --categories bakery,restaurant,supermarket --grid-span-km 12 --nearby-radius-m 1000 --max-per-cell-per-category 20 --max-total-inserts 1500` |
-| Classify (dagelijks) | `0 */6 * * *` | `python -m app.workers.classify_bot --limit 500 --min-confidence 0.80` |
-| Verification (dagelijks) | `15 */6 * * *` | `python -m app.workers.verification_bot --limit 300` |
-| Monitor (uurlijks) | `*/60 * * * *` | `python -m app.workers.monitor_bot --limit 200` |
-| Alerts (iedere 1–5 min) | `*/5 * * * *` | `python -m app.workers.alert_bot` |
+## 7. Incident response
 
-> Pas de frequentie aan op quota/kosten (zie *Cost Control*). fileciteturn0file2
+1. **Identify** — review GitHub Actions history, Render logs, metrics snapshot. Note timestamp, failing worker, error signatures.
+2. **Stabilize** — pause offending workflow (disable schedule or set `ALERT_RUN_ONCE=1`), increase sleep/backoff if hitting rate limits.
+3. **Investigate** — inspect AI logs (`ai_logs` table), worker stdout, Overpass responses.
+4. **Remediate** — rerun worker in dry-run to confirm fix, re-enable schedule, commit configuration updates if needed.
+5. **Communicate** — document findings in `Docs/docs_gap_analysis.md` (if docs require updates) and share summary with maintainers.
 
----
+Escalation order: internal TDA core → Supabase support (for auth/db issues) → OSM community/channel (if long outage) → OpenAI support (if API outage).
 
-## 8) API Endpoints (kern)
+## 8. References
 
-- `GET /health`, `GET /version` — monitoring. fileciteturn0file9  
-- `GET /api/v1/locations` — VERIFIED (met filters), ondersteunt `only_turkish=true` & `min_confidence`. fileciteturn0file15turn0file16  
-- `GET /dev/google/text`, `GET /dev/google/nearby` — dev‑endpoints voor Places. fileciteturn0file11  
-- `POST /dev/ai/classify-apply?id=...` — schrijft AI‑resultaat naar DB. fileciteturn0file14
+- `Docs/env-config.md` — environment variables & secrets.
+- `Docs/verify-locations-runbook.md` — verification pipeline deep dive.
+- `Docs/discovery-osm.md` — provider internals and rate limiting.
+- `Infra/monitoring/metrics_dashboard.md` — KPI SQL.
+- `Docs/README.md` — full documentation index.
 
----
-
-## 9) Dataflows (Mermaid)
-
-### 9.1 End‑to‑End (Discovery → Frontend)
-
-```mermaid
-flowchart LR
-  A[Google Places API] -->|Nearby/Text| B[DiscoveryBot]
-  B -->|upsert CANDIDATE| C[(Supabase: locations)]
-  C --> D[ClassifyBot]
-  D -->|keep/ignore + category + confidence| C
-  C --> E[VerificationBot]
-  E -->|details + website + rating + status| C
-  C --> F[MonitorBot]
-  F -->|next_check_at & reverify| C
-  C --> G[API /api/v1/locations]
-  G --> H[Frontend Map/List]
-```
-fileciteturn0file6turn0file12turn0file14turn0file1
-
-### 9.2 Request Lifecycle (Frontend ↔ Backend)
-
-```mermaid
-sequenceDiagram
-  participant UI as Frontend (Vite)
-  participant API as FastAPI
-  participant DB as Supabase (Postgres)
-
-  UI->>API: GET /api/v1/locations?only_turkish=true&limit=200
-  API->>DB: SELECT VERIFIED with filters
-  DB-->>API: rows (lat,lng,category,...)
-  API-->>UI: JSON list
-  UI->>UI: Render markers & list
-```
-fileciteturn0file15turn0file16
-
-### 9.3 Observability & Alerts
-
-```mermaid
-flowchart TD
-  L[API & Bots] -->|structlog JSON| A[ai_logs / metrics service]
-  A --> M[Metrics Snapshot (JSON)]
-  M --> AL[AlertBot]
-  AL -->|thresholds| N{Trigger?}
-  N -->|yes| OUT[Log/Webhook Alert]
-  N -->|no| M
-```
-fileciteturn0file17
-
----
-
-## 10) Operaties & Routine Taken
-
-- **Sanity check nieuwste PENDING_VERIFICATION** (mini-job): script in TDA‑11 comment. fileciteturn0file14  
-- **Batch promote volume**: verlaag tijdelijk `--min-confidence` (bijv. 0.75) en draai grotere batch, daarna terugzetten. fileciteturn0file16  
-- **Freshness audit**: na `monitor_bot` run moet *geen* actief record >90 dagen vervallen zijn. fileciteturn0file1
-
----
-
-## 11) Troubleshooting
-
-**Geen e‑mails/API keys op frontend**  
-- Vite expose’t alleen `VITE_*`. Backend‑secrets nooit in frontend bundelen. fileciteturn0file6
-
-**DB SSL errors (dev)**  
-- Gebruik asyncpg met `ssl.SSLContext` in dev; prod = verified. Zie TDA‑5 notities. fileciteturn0file10
-
-**429 / quota exceeded**  
-- Backoff + jitter zit in google_service, maar verlaag inter‑call sleep en batch caps. Zet Alert thresholds aan. fileciteturn0file11turn0file17
-
-**Lege kaart/lijst (Turks‑filter)**  
-- Eerst batch classificeren/promoten zodat `only_turkish=true` >0 resultaten geeft. fileciteturn0file16
-
-**JSON‑validatie AI**  
-- OpenAIService valideert met Pydantic v2 + retries. Check `ai_logs` bij failures. fileciteturn0file13
-
-**MonitorBot lijkt niets te doen**  
-- Controleer `next_check_at` regels; terminal states (RETIRED/SUSPENDED) zijn uitgesloten. fileciteturn0file1
-
----
-
-## 12) Cost Control & Policies
-
-- Field Masks gebruiken bij Google Places; limieten op batchgrootte; caching waar zinvol. fileciteturn0file2  
-- AI: compacte prompts, kost‑efficiënte modellen (`gpt-4.1-mini`) en retries begrenzen. fileciteturn0file6  
-- Freshness policy cap op 90 dagen. fileciteturn0file5
-
----
-
-## 13) Appendix — Referenties
-
-- **Architectuur & Roadmap**: *The New Testament* / *New Testament II (+Backlog)*. fileciteturn0file2turn0file3turn0file4  
-- **Discovery service (Google Places)**: TDA‑7. fileciteturn0file11  
-- **DiscoveryBot**: TDA‑8. fileciteturn0file12  
-- **OpenAI service**: TDA‑10. fileciteturn0file13  
-- **Classification**: TDA‑11. fileciteturn0file14  
-- **Map API + Locations router**: TDA‑13. fileciteturn0file15  
-- **Only Turkish filter**: TDA‑14. fileciteturn0file16  
-- **MonitorBot**: TDA‑16. fileciteturn0file1  
-- **Metrics/Alerts**: TDA‑20. fileciteturn0file17
-
----
-
-## 14) Final Review Checklist (DoD & Acceptance)
-
-**Runbook beschrijft setup & workflow volledig?**  
-- [ ] Lokaal starten Backend/Frontend gedekt  
-- [ ] Env vars / .env template gedocumenteerd  
-- [ ] Supabase migraties + sanity checks beschreven  
-- [ ] Workers/bots + CLI voorbeelden + cron schema’s opgenomen  
-- [ ] Kern‑endpoints en filters (incl. only_turkish) gedocumenteerd  
-- [ ] Dataflows met Mermaid aanwezig  
-- [ ] Troubleshooting en cost‑policies toegevoegd
-
-**Nieuwe developer kan na lezen alles starten?**  
-- [ ] Ja — volg §6 Quickstart en draai §7 Workers  
-- [ ] Ja — data zichtbaar in Frontend (markers/list)  
-- [ ] Ja — Monitor/Alerts operationeel met defaults
-
-> **Klaar met TDA‑110** zodra alle checkboxen aantoonbaar “true” zijn (screens/logs).
-
+Keep this runbook updated whenever workflows, environment variables, or operational tooling change.

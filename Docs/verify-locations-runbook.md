@@ -1,248 +1,138 @@
-# Verify & Surface Locations - Runbook
+---
+title: Verify & Surface Locations Runbook
+status: active
+last_updated: 2025-11-04
+scope: runbook
+owners: [tda-core]
+---
+
+# Verify & Surface Locations — Runbook
+
+Runbook for the `verify_locations.py` worker responsible for promoting high-confidence locations from `CANDIDATE/PENDING_VERIFICATION` to `VERIFIED` and ensuring they surface in the frontend.
 
 ## Overview
-This runbook documents the process for verifying and surfacing locations using the existing `verify_locations.py` worker and services. The goal is to promote eligible locations from `CANDIDATE` → `VERIFIED` state and ensure they appear in the frontend.
 
-## Architecture Review
+- Worker module: `Backend/app/workers/verify_locations.py`
+- Inputs: `locations` table rows with `state IN ('CANDIDATE','PENDING_VERIFICATION')`
+- Services used: `ClassifyService`, `validate_classification_payload`, `update_location_classification`, `audit_service`
+- Output: Updated `locations` row (`state`, `category`, `confidence_score`, `last_verified_at`) plus audit log entry in `ai_logs`
 
-### Existing Services (✅ Confirmed)
-- **`Backend/services/classify_service.py`**: Handles AI classification of locations
-- **`Backend/services/ai_validation.py`**: Validates classification payloads
-- **`Backend/services/audit_service.py`**: Logs all actions for audit trail
-- **`Backend/app/workers/verify_locations.py`**: Main worker for verification process
+## Requirements
 
-### Worker Behavior (✅ Confirmed)
-The `verify_locations.py` worker:
-1. Fetches `CANDIDATE` locations from the database
-2. Calls `ClassifyService.classify()` for each location
-3. Validates results with `validate_classification_payload()`
-4. Updates `state` to `VERIFIED` for eligible locations
-5. Logs all actions via `AuditService.log()`
-6. Supports flags: `--limit`, `--offset`, `--source`, `--city`, `--dry-run`, `--chunks`, `--chunk-index`
+- Valid `DATABASE_URL`
+- `OPENAI_API_KEY` (required for non-dry runs)
+- `SUPABASE_JWT_SECRET` + `ALLOWED_ADMIN_EMAILS` (for admin API calls)
+- Optional threshold tweak via `CLASSIFY_MIN_CONF`
 
-### Database Schema (✅ Confirmed)
-The database uses the schema from `Infra/supabase/0001_init.sql`:
-- `locations` table with columns: `id`, `name`, `address`, `lat`, `lng`, `category`, `state`, `confidence_score`, `last_verified_at`, `is_retired`
-- `state` column uses `location_state` enum: `CANDIDATE`, `PENDING_VERIFICATION`, `VERIFIED`, `SUSPENDED`, `RETIRED`
-- `ai_logs` table for audit trail
+## CLI usage
 
-## Commands to Run
-
-### Environment Setup
 ```bash
-cd Backend/
-# Load environment variables (worker auto-loads .env via dotenv)
-set -a; source ./.env; set +a
+cd Backend
+source .venv/bin/activate
+
+# Default run (limit 200, real writes)
+python -m app.workers.verify_locations --limit 200 --dry-run 0
+
+# Dry run (safe for local testing)
+python -m app.workers.verify_locations --limit 50 --dry-run 1
+
+# Large batch with chunking (6 slices)
+python -m app.workers.verify_locations --limit 1200 --chunks 6 --chunk-index 0 --dry-run 0
 ```
 
-### 1. Dry Run (Safe Testing)
-```bash
-cd Backend/
-python -m app.workers.verify_locations \
-  --source OSM_OVERPASS \
-  --limit 50 \
-  --dry-run 1
-```
+### Flags
 
-### 2. Apply Changes (Production)
-```bash
-cd Backend/
-python -m app.workers.verify_locations \
-  --source OSM_OVERPASS \
-  --limit 200 \
-  --dry-run 0
-```
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--limit` | `200` | Max number of rows to process (per execution). |
+| `--offset` | `0` | Legacy pagination support. Normally managed via chunking. |
+| `--chunks` / `--chunk-index` | `1` / `0` | Split workload into even slices; useful for parallel GitHub Action matrix runs. |
+| `--dry-run` | `0` | When `1`, performs classification/validation but skips writes & audit logs. |
+| `--min-confidence` | `0.8` | Override classification confidence threshold when promoting. |
+| `--model` | default | Override OpenAI model name. |
+| `--city`, `--source` | optional | Accepted for future filtering; currently informational (fetch query does not filter yet). |
+| `--log-json` | `0` | Emit JSON logs (helpful for log aggregation). |
 
-### 3. Parallel Processing (Chunking)
-```bash
-cd Backend/
-python -m app.workers.verify_locations \
-  --source OSM_OVERPASS \
-  --chunks 3 \
-  --chunk-index 0 \
-  --limit 300 \
-  --dry-run 0
-```
+## Worker flow
 
-## Database Queries for Verification
+1. Fetch candidate rows (`state IN ('CANDIDATE','PENDING_VERIFICATION')`) sorted by `first_seen_at`.
+2. For each row:
+   - Call `ClassifyService.classify` (OpenAI) to obtain action/category/confidence.
+   - Validate JSON via `validate_classification_payload`.
+   - Apply classification via `update_location_classification`, respecting no-downgrade rules.
+   - When writing, append audit entry with action, category, confidence.
+   - On error, stamp `last_verified_at` to avoid hot loops and log exception.
+3. Print `[PROMOTE]`, `[SKIP]`, `[ERROR]` lines summarising outcomes.
+4. Return aggregated stats (processed/promo/skip/error).
 
-### State Distribution
+## Verification queries
+
 ```sql
-SELECT state, COUNT(*) FROM locations
-GROUP BY state ORDER BY 2 DESC;
-```
-
-### Recently Verified Locations
-```sql
-SELECT id, name, category, source, state, last_verified_at
+-- Recently promoted locations
+SELECT id, name, category, source, state, confidence_score, last_verified_at
 FROM locations
-WHERE state = 'VERIFIED' AND is_retired = false
+WHERE state = 'VERIFIED'
 ORDER BY last_verified_at DESC
 LIMIT 50;
-```
 
-### OSM-Only Verified Locations
-```sql
-SELECT id, name, category, source, state
+-- State distribution
+SELECT state, COUNT(*)
 FROM locations
-WHERE source = 'OSM_OVERPASS' AND state = 'VERIFIED'
-ORDER BY id DESC
-LIMIT 50;
-```
+GROUP BY state
+ORDER BY COUNT(*) DESC;
 
-## API Endpoint Testing
-
-### Frontend API Call
-The frontend calls: `/api/v1/locations/` with parameters:
-- `state: "VERIFIED"` (default)
-- `limit: "500"`
-- **Note**: `only_turkish` parameter removed - API now returns only Turkish businesses by design
-
-### Backend API Response
-The backend API (`Backend/api/routers/locations.py`) returns:
-```json
-[
-  {
-    "id": "123",
-    "name": "Location Name",
-    "lat": 52.1234,
-    "lng": 4.5678,
-    "category": "bakery",
-    "rating": 4.5,
-    "state": "VERIFIED"
-  }
-]
-```
-
-### cURL Test
-```bash
-curl -s "http://localhost:8000/api/v1/locations?state=VERIFIED&limit=20" | jq .
-```
-
-## Frontend Integration
-
-### Frontend Code
-- **Hook**: `Frontend/src/hooks/useLocations.ts` - Fetches locations from API
-- **API Client**: `Frontend/src/lib/api/location.ts` - Handles API calls
-- **Main App**: `Frontend/src/App.tsx` - Renders locations on map and list
-
-### Frontend Filters
-The frontend applies these filters:
-- `onlyTurkish: true` (informational - API returns only Turkish businesses)
-- `category` filter
-- `minRating` filter
-- `search` text filter
-
-## Turkish-Only Verification (✅ Implemented)
-
-### 1. Worker-Level Enforcement
-- **Implementation**: `verify_locations.py` now enforces Turkish-only verification
-- **Logic**: Only promotes locations with `action: "keep"` (Turkish businesses) to `VERIFIED`
-- **Logging**: Non-Turkish businesses are logged with `reason: "not_turkish"`
-- **Audit**: All actions logged via `AuditService.log()`
-
-### 2. API Simplification
-- **Change**: Removed `only_turkish` parameter from frontend API calls
-- **Result**: API naturally returns only Turkish businesses (those that passed verification)
-- **Benefit**: Cleaner API, no client-side filtering needed
-
-### 3. Frontend Updates
-- **Change**: Removed client-side Turkish filtering logic
-- **UI**: Turkish filter now shows as "Alleen Turks (automatisch)" (disabled)
-- **Result**: All returned locations are Turkish businesses by design
-
-## Environment Setup
-
-### Required Environment Variables
-- `DATABASE_URL`: Database connection string
-- `OPENAI_API_KEY`: OpenAI API key for classification
-- **Note**: Worker auto-loads `.env` file via `python-dotenv`
-
-## Expected Results
-
-### After Running Worker
-1. **Database**: Only Turkish businesses with `state = 'CANDIDATE'` and high confidence scores should be updated to `state = 'VERIFIED'`
-2. **API**: `/api/v1/locations/` should return only Turkish businesses (verified locations)
-3. **Frontend**: Map and list should display only Turkish businesses
-4. **Audit**: All actions logged with Turkish verification enforcement
-
-### Success Criteria
-- ✅ `verify_locations.py` runs without errors
-- ✅ Database queries show locations with `state = 'VERIFIED'` (Turkish businesses only)
-- ✅ API endpoint returns only Turkish businesses
-- ✅ Frontend renders only Turkish businesses on map
-- ✅ Non-Turkish businesses remain as `CANDIDATE` with audit logs
-
-## Troubleshooting
-
-### Worker Issues
-- Check environment variables: `DATABASE_URL`, `OPENAI_API_KEY`
-- Verify database connection
-- Check OpenAI API key validity
-
-### API Issues
-- Verify backend is running on correct port
-- Check API endpoint: `/api/v1/locations/`
-- Verify database connection in backend
-
-### Frontend Issues
-- Check browser console for errors
-- Verify API calls are successful
-- Check if locations are being filtered correctly
-
-## Smoke Tests
-
-### 1. Environment Check
-```bash
-cd Backend/
-set -a; source ./.env; set +a
-echo "DATABASE_URL: $DATABASE_URL"
-echo "OPENAI_API_KEY: ${OPENAI_API_KEY:0:10}..."
-```
-
-### 2. Worker Dry Run
-```bash
-cd Backend/
-python -m app.workers.verify_locations --source OSM_OVERPASS --limit 5 --dry-run 1
-```
-
-### 3. Database Verification
-```sql
--- Check state distribution
-SELECT state, COUNT(*) FROM locations GROUP BY state;
-
--- Check recently verified Turkish businesses
-SELECT id, name, category, source, state, last_verified_at
+-- OSM-specific promotions
+SELECT id, name, category, confidence_score
 FROM locations
-WHERE state='VERIFIED' AND is_retired=false
+WHERE source = 'OSM_OVERPASS'
+  AND state = 'VERIFIED'
 ORDER BY last_verified_at DESC
 LIMIT 25;
 ```
 
-### 4. API Smoke Test
+## API smoke test
+
+The frontend consumes `GET /api/v1/locations` (no special parameters required). The endpoint automatically returns:
+
+- All `VERIFIED` rows with `confidence_score >= 0.80`
+- High-confidence (`>=0.90`) `PENDING_VERIFICATION`/`CANDIDATE` rows for surfacing
+
 ```bash
-curl -s "http://localhost:8000/api/v1/locations?state=VERIFIED&limit=20" | jq .
+curl -s "http://127.0.0.1:8000/api/v1/locations?limit=50" | jq '.[0:5]'
 ```
 
-### 5. Frontend Test
-- Start backend: `cd Backend && python -m app.main`
-- Start frontend: `cd Frontend && npm run dev`
-- Open map on Rotterdam
-- Verify only Turkish businesses appear as markers
+Ensure Supabase admin auth remains functional by calling the who-am-I endpoint via the frontend helper:
 
-## Next Steps
+```ts
+import { whoAmI } from "@/lib/api";
+whoAmI().then(console.log);
+```
 
-1. **Set up environment**: Create `.env` file with proper database connection
-2. **Run worker**: Execute verification commands
-3. **Verify results**: Check database and API responses
-4. **Test frontend**: Ensure only Turkish businesses appear on map
-5. **Monitor**: Check audit logs for Turkish verification enforcement
+Expected response:
 
-## Notes
+```json
+{ "ok": true, "admin_email": "admin@example.com" }
+```
 
-- The worker is idempotent and can be run multiple times safely
-- Dry-run mode allows testing without making changes
-- Chunking supports parallel processing for large datasets
-- All actions are logged for audit trail
-- **Turkish-only enforcement**: Only Turkish businesses are promoted to VERIFIED
-- **API simplification**: No client-side filtering needed - API returns Turkish businesses by design
+## Metrics & dashboards
+
+- `Infra/monitoring/metrics_dashboard.sql` tracks `conversion_rate_verified_14d`, error rates, latency.
+- Verify that `/api/v1/admin/metrics/snapshot` reflects recent promotions (requires Supabase admin JWT).
+
+## Troubleshooting
+
+| Issue | Mitigation |
+| --- | --- |
+| Dry run succeeds but writes fail | Ensure `OPENAI_API_KEY` is set and not rate-limited; check Postgres permissions. |
+| No promotions happening | Review `confidence_score` distribution (`min-confidence` too high?) and audit reasons (`ai_logs`). |
+| Supabase who-am-I returning 401/403 | Verify JWT secret, email allowlist, and Supabase session. |
+| Frontend still shows old data | Clear frontend cache, ensure API base URL is correct, confirm worker summary shows promotions (`[PROMOTE]`). |
+| Chunked run processes 0 rows | Ensure `--limit` is divisible by chunks and dataset has enough candidates; run monitor bot to refresh stale records. |
+
+## References
+
+- Worker source: [`Backend/app/workers/verify_locations.py`](../Backend/app/workers/verify_locations.py)
+- API router: [`Backend/api/routers/locations.py`](../Backend/api/routers/locations.py)
+- Metrics snapshot: [`Backend/services/metrics_service.py`](../Backend/services/metrics_service.py)
+- Classification helpers: [`Backend/services/classify_service.py`](../Backend/services/classify_service.py), [`Backend/services/ai_validation.py`](../Backend/services/ai_validation.py)
+- Main runbook: [`Docs/runbook.md`](./runbook.md)
