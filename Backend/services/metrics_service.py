@@ -17,6 +17,8 @@ from app.models.metrics import (
     Quality,
     WeeklyCandidatesItem,
 )
+# Import shared filter definition (single source of truth for Admin metrics and public API)
+from app.core.location_filters import get_verified_filter_sql
 
 
 def _load_rotterdam_bbox():
@@ -168,39 +170,52 @@ async def _weekly_candidates_series(weeks: int = 8) -> List[WeeklyCandidatesItem
 
 
 async def _rotterdam_progress() -> CityProgressRotterdam:
+    """
+    Calculate Rotterdam progress metrics using shared verified filter definition.
+    
+    This function uses the same filters as the public locations API (see
+    app.core.location_filters.get_verified_filter_sql) to maintain parity
+    between Admin metrics and frontend map counts.
+    """
     lat_min, lat_max, lng_min, lng_max = _load_rotterdam_bbox()
-    sql_counts = (
+    bbox = (lat_min, lat_max, lng_min, lng_max)
+    
+    # Use shared filter definition (single source of truth)
+    # This ensures Admin verified count matches public API count
+    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=bbox)
+    
+    # Count verified locations using shared filter
+    sql_verified = f"SELECT COUNT(*)::int AS verified_count FROM locations WHERE {verified_filter_sql}"
+    rows_verified = await fetch(sql_verified, *verified_params)
+    verified = int(dict(rows_verified[0]).get("verified_count", 0)) if rows_verified else 0
+    
+    # Count candidates (still using bbox only for candidate count)
+    sql_candidates = (
         """
-        SELECT
-          SUM(CASE WHEN state = 'VERIFIED' THEN 1 ELSE 0 END)::int AS verified_count,
-          SUM(CASE WHEN state = 'CANDIDATE' THEN 1 ELSE 0 END)::int AS candidate_count
+        SELECT COUNT(*)::int AS candidate_count
         FROM locations
-        WHERE lat BETWEEN $1 AND $2 AND lng BETWEEN $3 AND $4
+        WHERE state = 'CANDIDATE'
+          AND lat BETWEEN $1 AND $2 AND lng BETWEEN $3 AND $4
         """
     )
-    rows = await fetch(sql_counts, float(lat_min), float(lat_max), float(lng_min), float(lng_max))
-    verified = int(dict(rows[0]).get("verified_count", 0)) if rows else 0
-    candidates = int(dict(rows[0]).get("candidate_count", 0)) if rows else 0
+    rows_candidates = await fetch(sql_candidates, float(lat_min), float(lat_max), float(lng_min), float(lng_max))
+    candidates = int(dict(rows_candidates[0]).get("candidate_count", 0)) if rows_candidates else 0
+    
     denom = verified + candidates
     coverage = (float(verified) / float(denom)) if denom > 0 else 0.0
 
     # Weekly growth: compare VERIFIED in current week vs prior week based on last_verified_at
-    sql_weekly = (
-        """
-        WITH r AS (
-          SELECT * FROM locations
-          WHERE lat BETWEEN $1 AND $2 AND lng BETWEEN $3 AND $4
-        )
+    # Apply same shared filter to weekly growth query
+    sql_weekly = f"""
         SELECT
           SUM(CASE WHEN last_verified_at >= date_trunc('week', NOW()) THEN 1 ELSE 0 END)::int AS cur,
           SUM(CASE WHEN last_verified_at < date_trunc('week', NOW())
                     AND last_verified_at >= date_trunc('week', NOW()) - INTERVAL '7 days'
                    THEN 1 ELSE 0 END)::int AS prev
-        FROM r
-        WHERE state = 'VERIFIED'
+        FROM locations
+        WHERE {verified_filter_sql}
         """
-    )
-    rows2 = await fetch(sql_weekly, float(lat_min), float(lat_max), float(lng_min), float(lng_max))
+    rows2 = await fetch(sql_weekly, *verified_params)
     cur = int(dict(rows2[0]).get("cur", 0)) if rows2 else 0
     prev = int(dict(rows2[0]).get("prev", 0)) if rows2 else 0
     growth = 0.0

@@ -189,3 +189,30 @@ export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {
   // Use versioned API path and include Authorization like other admin calls
   return authFetch<MetricsSnapshot>("/api/v1/admin/metrics/snapshot");
 }
+
+export interface DiscoveryKPIDaily {
+  day: string;
+  inserted: number;
+  deduped_fuzzy: number;
+  updated_existing: number;
+  deduped_place_id: number;
+  discovered: number;
+  failed: number;
+}
+
+export interface DiscoveryKPIs {
+  days: number;
+  daily: DiscoveryKPIDaily[];
+  totals: {
+    inserted: number;
+    deduped_fuzzy: number;
+    updated_existing: number;
+    deduped_place_id: number;
+    discovered: number;
+    failed: number;
+  };
+}
+
+export async function getDiscoveryKPIs(days: number = 30): Promise<DiscoveryKPIs> {
+  return authFetch<DiscoveryKPIs>(`/api/v1/admin/discovery/kpis?days=${days}`);
+}

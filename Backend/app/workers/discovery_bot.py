@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import math
 import os
 import sys
@@ -165,12 +166,16 @@ async def _exists_by_place_id(place_id: Optional[str]) -> bool:
     rows = await fetch(sql, place_id)
     return bool(rows)
 
-async def _exists_by_fuzzy(name: Optional[str], lat: Optional[float], lng: Optional[float]) -> bool:
+async def _exists_by_fuzzy(name: Optional[str], lat: Optional[float], lng: Optional[float]) -> Optional[int]:
+    """
+    Check for fuzzy duplicate by normalized name and rounded coordinates.
+    Returns the existing location ID if found, None otherwise.
+    """
     if not name or lat is None or lng is None:
-        return False
+        return None
     sql = (
         """
-        SELECT 1 FROM locations
+        SELECT id FROM locations
         WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
           AND ROUND(CAST(lat AS numeric), 4) = ROUND(CAST($2 AS numeric), 4)
           AND ROUND(CAST(lng AS numeric), 4) = ROUND(CAST($3 AS numeric), 4)
@@ -178,61 +183,137 @@ async def _exists_by_fuzzy(name: Optional[str], lat: Optional[float], lng: Optio
         """
     )
     rows = await fetch(sql, name, float(lat), float(lng))
-    return bool(rows)
+    if rows:
+        return int(dict(rows[0]).get("id"))
+    return None
 
-async def insert_candidates(rows: List[Dict[str, Any]]) -> int:
+async def insert_candidates(rows: List[Dict[str, Any]]) -> Dict[str, int]:
+    """
+    Insert candidates with soft-dedupe logic:
+    - Keep ON CONFLICT (place_id) DO NOTHING for strict place_id deduplication
+    - Before insert, check for fuzzy match (normalized name + rounded coords)
+    - If fuzzy match found, UPDATE existing row (last_seen_at, refresh category/type)
+    - Track counters: discovered, inserted, deduped_place_id, deduped_fuzzy, updated_existing, failed
+    
+    Returns dictionary with counters.
+    """
     if not rows:
-        return 0
-    inserted = 0
+        return {
+            "discovered": 0,
+            "inserted": 0,
+            "deduped_place_id": 0,
+            "deduped_fuzzy": 0,
+            "updated_existing": 0,
+            "failed": 0,
+        }
+    
+    # Initialize counters
+    counters = {
+        "discovered": len(rows),
+        "inserted": 0,
+        "deduped_place_id": 0,
+        "deduped_fuzzy": 0,
+        "updated_existing": 0,
+        "failed": 0,
+    }
+    
     # Ensure pool ready
     await init_db_pool()
+    
     for row in rows:
-        place_id = row.get("place_id")
-        name = row.get("name")
-        lat = row.get("lat")
-        lng = row.get("lng")
-        # Skip if already exists by place_id or fallback fuzzy key
-        if await _exists_by_place_id(place_id) or await _exists_by_fuzzy(name, lat, lng):
-            continue
-        # Insert as new candidate
-        sql = (
-            """
-            INSERT INTO locations (
-                place_id, source, name, address, lat, lng, category,
-                business_status, rating, user_ratings_total, state,
-                confidence_score, is_probable_not_open_yet,
-                first_seen_at, last_seen_at, last_verified_at,
-                next_check_at, freshness_score, evidence_urls, notes, is_retired
-            ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7,
-                $8, $9, $10, 'CANDIDATE',
-                NULL, $11,
-                NOW(), NOW(), NULL,
-                $12, $13, $14, $15, FALSE
+        try:
+            place_id = row.get("place_id")
+            name = row.get("name")
+            lat = row.get("lat")
+            lng = row.get("lng")
+            
+            # Check for strict place_id duplicate (ON CONFLICT will handle, but we track it)
+            if await _exists_by_place_id(place_id):
+                counters["deduped_place_id"] += 1
+                continue
+            
+            # Check for fuzzy duplicate (normalized name + rounded coords)
+            existing_id = await _exists_by_fuzzy(name, lat, lng)
+            if existing_id:
+                # Soft-dedupe: Update existing record instead of skipping
+                counters["deduped_fuzzy"] += 1
+                counters["updated_existing"] += 1
+                
+                # Update existing row: refresh last_seen_at, category/type hints
+                update_sql = (
+                    """
+                    UPDATE locations
+                    SET
+                        last_seen_at = NOW(),
+                        category = COALESCE($1, category),
+                        source = COALESCE($2, source),
+                        address = COALESCE($3, address),
+                        rating = COALESCE($4, rating),
+                        user_ratings_total = COALESCE($5, user_ratings_total)
+                    WHERE id = $6
+                    """
+                )
+                await execute(
+                    update_sql,
+                    row.get("category") or "other",
+                    row.get("source"),
+                    row.get("address"),
+                    row.get("rating"),
+                    row.get("user_ratings_total"),
+                    existing_id,
+                )
+                continue
+            
+            # No duplicate found - insert as new candidate
+            sql = (
+                """
+                INSERT INTO locations (
+                    place_id, source, name, address, lat, lng, category,
+                    business_status, rating, user_ratings_total, state,
+                    confidence_score, is_probable_not_open_yet,
+                    first_seen_at, last_seen_at, last_verified_at,
+                    next_check_at, freshness_score, evidence_urls, notes, is_retired
+                ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7,
+                    $8, $9, $10, 'CANDIDATE',
+                    NULL, $11,
+                    NOW(), NOW(), NULL,
+                    $12, $13, $14, $15, FALSE
+                )
+                ON CONFLICT (place_id) DO NOTHING
+                """
             )
-            ON CONFLICT (place_id) DO NOTHING
-            """
-        )
-        await execute(
-            sql,
-            row.get("place_id"),
-            row.get("source"),
-            row.get("name"),
-            row.get("address"),
-            row.get("lat"),
-            row.get("lng"),
-            row.get("category") or "other",
-            row.get("business_status"),
-            row.get("rating"),
-            row.get("user_ratings_total"),
-            row.get("is_probable_not_open_yet"),
-            row.get("next_check_at"),
-            row.get("freshness_score"),
-            row.get("evidence_urls"),
-            row.get("notes"),
-        )
-        inserted += 1
-    return inserted
+            result = await execute(
+                sql,
+                row.get("place_id"),
+                row.get("source"),
+                row.get("name"),
+                row.get("address"),
+                row.get("lat"),
+                row.get("lng"),
+                row.get("category") or "other",
+                row.get("business_status"),
+                row.get("rating"),
+                row.get("user_ratings_total"),
+                row.get("is_probable_not_open_yet"),
+                row.get("next_check_at"),
+                row.get("freshness_score"),
+                row.get("evidence_urls"),
+                row.get("notes"),
+            )
+            
+            # Check if insert actually happened (ON CONFLICT DO NOTHING returns no rows)
+            if result and "INSERT" in result:
+                counters["inserted"] += 1
+            else:
+                # ON CONFLICT occurred - this is a place_id duplicate
+                counters["deduped_place_id"] += 1
+                
+        except Exception as e:
+            counters["failed"] += 1
+            logger.warning("insert_candidates failed for row", exc_info=e, row_id=row.get("place_id"))
+    
+    return counters
 
 # ---------------------------------------------------------------------------
 # Type sanitization / self-heal
@@ -295,7 +376,11 @@ class DiscoveryBot:
             turkish_hints=os.getenv("OSM_TURKISH_HINTS", "1").lower() == "true"
         )
 
-    async def run(self) -> int:
+    async def run(self) -> Dict[str, int]:
+        """
+        Run discovery and return aggregated counters.
+        Returns dictionary with counters: discovered, inserted, deduped_place_id, deduped_fuzzy, updated_existing, failed
+        """
         seen: Set[str] = set()
         total_inserted = 0
 
@@ -314,10 +399,23 @@ class DiscoveryBot:
         print(f"[DiscoveryBot] Using OSM discovery with subdivision")
         return await self._run_osm_discovery(points, seen, total_inserted)
 
-    async def _run_osm_discovery(self, points: List[Tuple[float, float]], seen: Set[str], total_inserted: int) -> int:
-        """Run OSM-based discovery with adaptive subdivision."""
+    async def _run_osm_discovery(self, points: List[Tuple[float, float]], seen: Set[str], total_inserted: int) -> Dict[str, int]:
+        """
+        Run OSM-based discovery with adaptive subdivision.
+        Returns aggregated counters dictionary.
+        """
         start_time = time.time()
         safety_timeout_s = 25 * 60  # 25 minutes safety timeout
+        
+        # Initialize aggregated counters
+        aggregated_counters = {
+            "discovered": 0,
+            "inserted": 0,
+            "deduped_place_id": 0,
+            "deduped_fuzzy": 0,
+            "updated_existing": 0,
+            "failed": 0,
+        }
         
         for cat_key in self.cfg.categories:
             cat_def = (self.yaml.get("categories") or {}).get(cat_key)
@@ -344,7 +442,7 @@ class DiscoveryBot:
                 elapsed_time = time.time() - start_time
                 if elapsed_time > safety_timeout_s:
                     print(f"[DiscoveryBot] Safety timeout bereikt ({elapsed_time:.1f}s). Stoppen om GitHub Actions timeout te voorkomen.")
-                    return total_inserted
+                    return aggregated_counters
                 
                 if self.cfg.max_cells_per_category > 0 and processed_cells >= self.cfg.max_cells_per_category:
                     print(f"[DiscoveryBot] Max cellen voor {cat_key} bereikt: {processed_cells}")
@@ -378,12 +476,16 @@ class DiscoveryBot:
 
                 if batch:
                     try:
-                        ins = await insert_candidates(batch)
-                        total_inserted += ins
-                        if ins > 0:
-                            print(f"[DiscoveryBot] OSM Insert: batch={len(batch)} inserted={ins} total={total_inserted}")
+                        counters = await insert_candidates(batch)
+                        # Aggregate counters
+                        for key in aggregated_counters:
+                            aggregated_counters[key] += counters.get(key, 0)
+                        total_inserted += counters.get("inserted", 0)
+                        if counters.get("inserted", 0) > 0:
+                            print(f"[DiscoveryBot] OSM Insert: batch={len(batch)} inserted={counters.get('inserted', 0)} total={total_inserted}")
                     except Exception as e:
                         print(f"[DiscoveryBot] OSM Insert fout (batch={len(batch)}): {e}")
+                        aggregated_counters["failed"] += len(batch)
 
                 processed_cells += 1
 
@@ -394,12 +496,12 @@ class DiscoveryBot:
 
                 if self.cfg.max_total_inserts > 0 and total_inserted >= self.cfg.max_total_inserts:
                     print(f"[DiscoveryBot] Max totaal inserts bereikt: {total_inserted}. Stoppen.")
-                    return total_inserted
+                    return aggregated_counters
 
                 if self.cfg.inter_call_sleep_s:
                     await asyncio.sleep(self.cfg.inter_call_sleep_s)
 
-        return total_inserted
+        return aggregated_counters
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +586,8 @@ def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig
 
 async def main_async():
     t0 = time.perf_counter()
+    discovery_run_id = None
+    
     with with_run_id() as rid:
         logger.info("worker_started")
         ns = parse_args()
@@ -510,8 +614,44 @@ async def main_async():
 
         # Ensure DB pool ready before inserts
         await init_db_pool()
+        
+        # Create discovery_run record at start
+        try:
+            sql_insert = """
+                INSERT INTO discovery_runs (started_at, notes)
+                VALUES (NOW(), $1)
+                RETURNING id
+            """
+            notes = f"Discovery run: city={cfg.city}, categories={','.join(cfg.categories)}, chunk={cfg.chunk_index}/{cfg.chunks-1}"
+            rows = await fetch(sql_insert, notes)
+            if rows:
+                discovery_run_id = dict(rows[0]).get("id")
+                logger.info("discovery_run_created", run_id=str(discovery_run_id))
+        except Exception as e:
+            logger.warning("failed_to_create_discovery_run", exc_info=e)
+        
+        # Run discovery bot and collect counters
         bot = DiscoveryBot(cfg, yml)
-        await bot.run()
+        counters = await bot.run()
+        
+        # Update discovery_run with finished_at and counters
+        if discovery_run_id:
+            try:
+                sql_update = """
+                    UPDATE discovery_runs
+                    SET finished_at = NOW(), counters = $1::jsonb
+                    WHERE id = $2
+                """
+                counters_json = json.dumps(counters, ensure_ascii=False)
+                await execute(sql_update, counters_json, discovery_run_id)
+                logger.info("discovery_run_completed", run_id=str(discovery_run_id), counters=counters)
+                print(f"\n[DiscoveryBot] Counters: {counters}")
+            except Exception as e:
+                logger.warning("failed_to_update_discovery_run", exc_info=e, run_id=str(discovery_run_id))
+        else:
+            # Log counters even if discovery_run wasn't created
+            logger.info("discovery_counters", counters=counters)
+            print(f"\n[DiscoveryBot] Counters: {counters}")
 
         duration_ms = int((time.perf_counter() - t0) * 1000)
         logger.info("worker_finished", duration_ms=duration_ms)

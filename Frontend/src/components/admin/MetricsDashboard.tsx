@@ -14,10 +14,11 @@
  *
  * DO NOT touch routing, auth, or other admin tabs from here.
  */
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getMetricsSnapshot, type MetricsSnapshot } from "@/lib/api";
-import { Activity, AlertTriangle, Gauge, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
+import { getDiscoveryKPIs, getMetricsSnapshot, type DiscoveryKPIs, type MetricsSnapshot } from "@/lib/api";
+import { Activity, AlertTriangle, Database, Gauge, Info, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
     CartesianGrid,
@@ -51,7 +52,9 @@ function formatLatency(ms: number | undefined | null): string {
 
 export default function MetricsDashboard() {
     const [data, setData] = useState<MetricsSnapshot | null>(null);
+    const [discoveryKPIs, setDiscoveryKPIs] = useState<DiscoveryKPIs | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
+    const [loadingKPIs, setLoadingKPIs] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -64,6 +67,22 @@ export default function MetricsDashboard() {
                 if (isMounted) setError(e?.message || "Failed to load metrics");
             } finally {
                 if (isMounted) setLoading(false);
+            }
+        })();
+        return () => { isMounted = false; };
+    }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+        (async () => {
+            try {
+                const res = await getDiscoveryKPIs(30);
+                if (isMounted) setDiscoveryKPIs(res);
+            } catch (e: any) {
+                // Silently fail for KPIs - they're optional
+                console.warn("Failed to load discovery KPIs:", e);
+            } finally {
+                if (isMounted) setLoadingKPIs(false);
             }
         })();
         return () => { isMounted = false; };
@@ -105,9 +124,22 @@ export default function MetricsDashboard() {
                         {loading ? (
                             <Skeleton className="h-8 w-16" />
                         ) : (
-                            <div className="text-2xl font-semibold">
-                                {data?.city_progress.rotterdam.verified_count ?? 0}
-                            </div>
+                            <>
+                                <div className="text-2xl font-semibold">
+                                    {data?.city_progress.rotterdam.verified_count ?? 0}
+                                </div>
+                                {/* Filters in effect badge */}
+                                <div className="mt-2 flex items-center gap-1">
+                                    <Badge
+                                        variant="outline"
+                                        className="text-xs"
+                                        title="Verified locations must have: state=VERIFIED, confidence≥0.80, not retired, valid coordinates, and be within Rotterdam bbox. This matches the frontend map filter definition."
+                                    >
+                                        <Info className="h-3 w-3 mr-1" />
+                                        Filters in effect
+                                    </Badge>
+                                </div>
+                            </>
                         )}
                     </CardContent>
                 </Card>
@@ -226,6 +258,82 @@ export default function MetricsDashboard() {
                                     <Line type="monotone" dataKey="count" strokeWidth={2} dot={false} name="New candidates/week" />
                                 </LineChart>
                             </ResponsiveContainer>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Discovery KPIs */}
+            <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        Discovery KPIs (Last 30 Days)
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {loadingKPIs ? (
+                        <div className="space-y-2">
+                            <Skeleton className="h-6 w-32" />
+                            <Skeleton className="h-48 w-full" />
+                        </div>
+                    ) : !discoveryKPIs || discoveryKPIs.daily.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No discovery run data available</div>
+                    ) : (
+                        <div className="space-y-4">
+                            {/* Totals summary */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                <div>
+                                    <div className="text-muted-foreground">Inserted</div>
+                                    <div className="text-2xl font-semibold text-green-600">
+                                        {discoveryKPIs.totals.inserted}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground">Updated</div>
+                                    <div className="text-2xl font-semibold text-blue-600">
+                                        {discoveryKPIs.totals.updated_existing}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground">Fuzzy Deduped</div>
+                                    <div className="text-2xl font-semibold text-yellow-600">
+                                        {discoveryKPIs.totals.deduped_fuzzy}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="text-muted-foreground">Failed</div>
+                                    <div className="text-2xl font-semibold text-red-600">
+                                        {discoveryKPIs.totals.failed}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Simple table */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b">
+                                            <th className="text-left p-2">Day</th>
+                                            <th className="text-right p-2">Inserted</th>
+                                            <th className="text-right p-2">Updated</th>
+                                            <th className="text-right p-2">Fuzzy Deduped</th>
+                                            <th className="text-right p-2">Failed</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {discoveryKPIs.daily.slice(0, 14).map((day) => (
+                                            <tr key={day.day} className="border-b">
+                                                <td className="p-2">{day.day}</td>
+                                                <td className="text-right p-2 text-green-600">{day.inserted}</td>
+                                                <td className="text-right p-2 text-blue-600">{day.updated_existing}</td>
+                                                <td className="text-right p-2 text-yellow-600">{day.deduped_fuzzy}</td>
+                                                <td className="text-right p-2 text-red-600">{day.failed}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </CardContent>

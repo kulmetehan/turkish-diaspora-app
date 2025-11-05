@@ -10,10 +10,46 @@ permissions:
 
 concurrency:
   group: "tda-discovery"
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
+  check-active:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Check for active runs
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: context.workflow,
+              per_page: 10,
+            });
+            
+            // Filter for runs in the same concurrency group that are in progress
+            const activeRuns = runs.workflow_runs.filter(
+              (run) =>
+                run.id !== context.runId &&
+                run.status === 'in_progress' &&
+                run.conclusion === null
+            );
+            
+            if (activeRuns.length > 0) {
+              console.log(`Found ${activeRuns.length} active run(s). Skipping this run.`);
+              console.log(`Active run IDs: ${activeRuns.map(r => r.id).join(', ')}`);
+              process.exit(0); // Exit successfully without starting matrix jobs
+            } else {
+              console.log('No active runs found. Proceeding with discovery.');
+            }
+
   discovery:
+    needs: check-active
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
@@ -77,3 +113,14 @@ jobs:
           --max-total-inserts 500
           --chunks 6
           --chunk-index ${{ matrix.chunk_index }}
+      
+      - name: Run summary
+        if: always()
+        run: |
+          echo "=== Discovery Run Summary ==="
+          echo "Category: ${{ matrix.category }}"
+          echo "Chunk: ${{ matrix.chunk_index }} / 5 (0-indexed)"
+          echo "Total chunks: 48 (8 categories × 6 chunks)"
+          echo "Job status: ${{ job.status }}"
+          echo "Elapsed time: ${{ job.duration }} seconds"
+          echo "============================"
