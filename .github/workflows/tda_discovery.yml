@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: "tda-discovery"
@@ -19,37 +20,36 @@ jobs:
     permissions:
       contents: read
       actions: read
+    outputs:
+      has_active: ${{ steps.guard.outputs.has_active }}
     steps:
-      - name: Check for active runs
+      - name: Check for in-progress runs of this workflow
+        id: guard
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { data: runs } = await github.rest.actions.listWorkflowRuns({
+            // Use the workflow FILE path here
+            const workflowFile = '.github/workflows/tda_discovery.yml';
+            const res = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: context.workflow,
+              workflow_id: workflowFile,
+              status: 'in_progress',
               per_page: 10,
             });
-            
-            // Filter for runs in the same concurrency group that are in progress
-            const activeRuns = runs.workflow_runs.filter(
-              (run) =>
-                run.id !== context.runId &&
-                run.status === 'in_progress' &&
-                run.conclusion === null
-            );
-            
-            if (activeRuns.length > 0) {
-              console.log(`Found ${activeRuns.length} active run(s). Skipping this run.`);
-              console.log(`Active run IDs: ${activeRuns.map(r => r.id).join(', ')}`);
-              process.exit(0); // Exit successfully without starting matrix jobs
-            } else {
-              console.log('No active runs found. Proceeding with discovery.');
-            }
+            const others = res.data.workflow_runs.filter(r => r.id !== context.runId);
+            core.info(`In-progress runs (excluding current): ${others.length}`);
+            core.setOutput('has_active', others.length > 0 ? 'true' : 'false');
+      
+      - name: Exit early if another run is active
+        if: steps.guard.outputs.has_active == 'true'
+        run: |
+          echo "Another discovery run is in progress. Exiting guard successfully."
+          exit 0
 
   discovery:
     needs: check-active
+    if: needs.check-active.outputs.has_active == 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:

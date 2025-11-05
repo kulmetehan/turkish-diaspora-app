@@ -130,14 +130,15 @@ export default function MetricsDashboard() {
                                 </div>
                                 {/* Filters in effect badge */}
                                 <div className="mt-2 flex items-center gap-1">
-                                    <Badge
-                                        variant="outline"
-                                        className="text-xs"
-                                        title="Verified locations must have: state=VERIFIED, confidence≥0.80, not retired, valid coordinates, and be within Rotterdam bbox. This matches the frontend map filter definition."
-                                    >
-                                        <Info className="h-3 w-3 mr-1" />
-                                        Filters in effect
-                                    </Badge>
+                                    <span title="Verified locations must have: state=VERIFIED, confidence≥0.80, not retired, valid coordinates, and be within Rotterdam bbox. This matches the frontend map filter definition.">
+                                        <Badge
+                                            variant="outline"
+                                            className="text-xs"
+                                        >
+                                            <Info className="h-3 w-3 mr-1" />
+                                            Filters in effect
+                                        </Badge>
+                                    </span>
                                 </div>
                             </>
                         )}
