@@ -1,0 +1,71 @@
+name: TDA Weekly DB Compact
+
+on:
+  schedule:
+    - cron: '30 3 * * 0'   # Weekly on Sunday 03:30 UTC
+  workflow_dispatch:
+
+jobs:
+  compact-ai-logs:
+    name: VACUUM FULL + REINDEX ai_logs
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client
+
+      - name: Prepare DB URL for psql
+        id: prep
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${DATABASE_URL:-}" ]]; then
+            echo "DATABASE_URL is not set" >&2
+            exit 1
+          fi
+          EFFECTIVE_DATABASE_URL="${DATABASE_URL/postgresql+asyncpg:/postgresql:}"
+          if [[ "$EFFECTIVE_DATABASE_URL" == *"sslmode="* ]]; then
+            true
+          elif [[ "$EFFECTIVE_DATABASE_URL" == *"?"* ]]; then
+            EFFECTIVE_DATABASE_URL="${EFFECTIVE_DATABASE_URL}&sslmode=require"
+          else
+            EFFECTIVE_DATABASE_URL="${EFFECTIVE_DATABASE_URL}?sslmode=require"
+          fi
+          echo "url=$EFFECTIVE_DATABASE_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Show sizes before
+        run: |
+          psql --no-psqlrc --set ON_ERROR_STOP=1 "${{ steps.prep.outputs.url }}" <<'SQL'
+          SELECT relname,
+                 pg_size_pretty(pg_table_size(oid))   AS table_heap,
+                 pg_size_pretty(pg_indexes_size(oid)) AS indexes,
+                 pg_size_pretty(pg_total_relation_size(oid)) AS total
+          FROM pg_class
+          WHERE relname IN ('ai_logs');
+          SQL
+
+      - name: VACUUM FULL + REINDEX ai_logs
+        run: |
+          psql --no-psqlrc --set ON_ERROR_STOP=1 "${{ steps.prep.outputs.url }}" <<'SQL'
+          VACUUM (FULL, ANALYZE, VERBOSE) public.ai_logs;
+          REINDEX TABLE public.ai_logs;
+          SQL
+
+      - name: Show sizes after
+        run: |
+          psql --no-psqlrc --set ON_ERROR_STOP=1 "${{ steps.prep.outputs.url }}" <<'SQL'
+          SELECT relname,
+                 pg_size_pretty(pg_table_size(oid))   AS table_heap,
+                 pg_size_pretty(pg_indexes_size(oid)) AS indexes,
+                 pg_size_pretty(pg_total_relation_size(oid)) AS total
+          FROM pg_class
+          WHERE relname IN ('ai_logs');
+          SQL
+
