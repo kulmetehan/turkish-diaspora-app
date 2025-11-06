@@ -14,9 +14,14 @@ export default function LocationDetail({ location, onBackToList }: Props) {
             {/* Header with back button */}
             <div className="flex items-center gap-3 p-4 border-b bg-background">
                 <Button
+                    type="button"
                     variant="ghost"
                     size="sm"
-                    onClick={onBackToList}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onBackToList();
+                    }}
                     className="flex items-center gap-2"
                 >
                     <Icon name="ArrowLeft" className="h-4 w-4" />

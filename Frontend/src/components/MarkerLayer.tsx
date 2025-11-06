@@ -5,7 +5,7 @@ import type {
     MapboxGeoJSONFeature,
     Map as MapboxMap,
 } from "mapbox-gl";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 type Props = {
     map: MapboxMap;
@@ -60,162 +60,250 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                     coordinates: [l.lng as number, l.lat as number] as [number, number],
                 },
             }));
-        
+
         // Debug: log feature count and sample IDs (only in dev)
         if (import.meta.env.DEV && features.length > 0) {
-            console.debug(`[MarkerLayer] Built ${features.length} features. Sample IDs:`, 
+            console.debug(`[MarkerLayer] Built ${features.length} features. Sample IDs:`,
                 features.slice(0, 3).map(f => f.id));
         }
-        
+
         return {
             type: "FeatureCollection" as const,
             features,
         };
     }, [locations]);
 
-    // 1. Create source + layers once per map
+    // 1. Ensure source and layers exist (called on init and style reload)
+    // Use useCallback to create a stable function reference
+    const ensureSourceAndLayers = useCallback(() => {
+        if (!hasStyleObject(map)) return;
+
+        // Source
+        if (!map.getSource(SRC_ID)) {
+            map.addSource(SRC_ID, {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: [] },
+                cluster: true,
+                clusterMaxZoom: 14,
+                clusterRadius: 50,
+            } as any);
+
+            if (import.meta.env.DEV) {
+                console.debug("[MarkerLayer] ensureSourceAndLayers: Added source", SRC_ID);
+            }
+        }
+
+        // Cluster circles
+        if (!map.getLayer(L_CLUSTER)) {
+            map.addLayer({
+                id: L_CLUSTER,
+                type: "circle",
+                source: SRC_ID,
+                filter: ["has", "point_count"],
+                paint: {
+                    "circle-color": [
+                        "step",
+                        ["get", "point_count"],
+                        "#88c0ff",
+                        25,
+                        "#5599ff",
+                        100,
+                        "#2b6fe3",
+                    ],
+                    "circle-radius": [
+                        "step",
+                        ["get", "point_count"],
+                        16,
+                        25,
+                        22,
+                        100,
+                        28,
+                    ],
+                    "circle-stroke-color": "#fff",
+                    "circle-stroke-width": 2,
+                },
+            });
+        }
+
+        // Cluster count labels
+        if (!map.getLayer(L_CLUSTER_COUNT)) {
+            map.addLayer({
+                id: L_CLUSTER_COUNT,
+                type: "symbol",
+                source: SRC_ID,
+                filter: ["has", "point_count"],
+                layout: {
+                    "text-field": ["get", "point_count_abbreviated"],
+                    "text-size": 12,
+                },
+                paint: { "text-color": "#083269" },
+            });
+        }
+
+        // Individual point markers (circle type for sprite-safe fallback)
+        if (!map.getLayer(L_POINT)) {
+            map.addLayer({
+                id: L_POINT,
+                type: "circle",
+                source: SRC_ID,
+                filter: ["!", ["has", "point_count"]],
+                paint: {
+                    "circle-color": "#ff6600", // Orange for visibility
+                    "circle-radius": 5,
+                    "circle-opacity": 0.9,
+                    "circle-stroke-color": "#fff",
+                    "circle-stroke-width": 2,
+                },
+            });
+
+            // Move unclustered points above other layers for visibility
+            try {
+                const layers = map.getStyle().layers;
+                if (layers && layers.length > 0) {
+                    const beforeId = layers[layers.length - 1]?.id;
+                    if (beforeId && beforeId !== L_POINT) {
+                        map.moveLayer(L_POINT, beforeId);
+                    }
+                }
+            } catch {
+                // Ignore if moveLayer fails
+            }
+        }
+
+        // Highlight ring for selected point
+        if (!map.getLayer(L_HI)) {
+            map.addLayer({
+                id: L_HI,
+                type: "circle",
+                source: SRC_ID,
+                filter: [
+                    "all",
+                    ["!", ["has", "point_count"]],
+                    ["==", ["get", "id"], "__none__"],
+                ],
+                paint: {
+                    "circle-color": "#22c55e",
+                    "circle-radius": 10,
+                    "circle-stroke-color": "#14532d",
+                    "circle-stroke-width": 2,
+                },
+            });
+        }
+
+        // Debug logging
+        if (import.meta.env.DEV) {
+            const src = map.getSource(SRC_ID);
+            const hasCluster = !!map.getLayer(L_CLUSTER);
+            const hasPoint = !!map.getLayer(L_POINT);
+            console.debug(
+                "[MarkerLayer] ensureSourceAndLayers: source=%s, layers=%s",
+                !!src,
+                `cluster=${hasCluster}, point=${hasPoint}`
+            );
+        }
+    }, [map]);
+
+    // 1. Create source + layers once per map, and re-attach on style reload
     useEffect(() => {
         function tryInitLayers() {
-            if (layersReady.current) return;
-
-            // Source
-            if (!map.getSource(SRC_ID)) {
-                map.addSource(SRC_ID, {
-                    type: "geojson",
-                    data: { type: "FeatureCollection", features: [] },
-                    cluster: true,
-                    clusterMaxZoom: 14,
-                    clusterRadius: 50,
-                } as any);
-            }
-
-            // Cluster circles
-            if (!map.getLayer(L_CLUSTER)) {
-                map.addLayer({
-                    id: L_CLUSTER,
-                    type: "circle",
-                    source: SRC_ID,
-                    filter: ["has", "point_count"],
-                    paint: {
-                        "circle-color": [
-                            "step",
-                            ["get", "point_count"],
-                            "#88c0ff",
-                            25,
-                            "#5599ff",
-                            100,
-                            "#2b6fe3",
-                        ],
-                        "circle-radius": [
-                            "step",
-                            ["get", "point_count"],
-                            16,
-                            25,
-                            22,
-                            100,
-                            28,
-                        ],
-                        "circle-stroke-color": "#fff",
-                        "circle-stroke-width": 2,
-                    },
-                });
-            }
-
-            // Cluster count labels
-            if (!map.getLayer(L_CLUSTER_COUNT)) {
-                map.addLayer({
-                    id: L_CLUSTER_COUNT,
-                    type: "symbol",
-                    source: SRC_ID,
-                    filter: ["has", "point_count"],
-                    layout: {
-                        "text-field": ["get", "point_count_abbreviated"],
-                        "text-size": 12,
-                    },
-                    paint: { "text-color": "#083269" },
-                });
-            }
-
-            // Individual point markers
-            if (!map.getLayer(L_POINT)) {
-                map.addLayer({
-                    id: L_POINT,
-                    type: "circle",
-                    source: SRC_ID,
-                    filter: ["!", ["has", "point_count"]],
-                    paint: {
-                        "circle-color": "#e11d48",
-                        "circle-radius": 6,
-                        "circle-stroke-color": "#fff",
-                        "circle-stroke-width": 2,
-                    },
-                });
-            }
-
-            // Highlight ring for selected point
-            if (!map.getLayer(L_HI)) {
-                map.addLayer({
-                    id: L_HI,
-                    type: "circle",
-                    source: SRC_ID,
-                    filter: [
-                        "all",
-                        ["!", ["has", "point_count"]],
-                        ["==", ["get", "id"], "__none__"],
-                    ],
-                    paint: {
-                        "circle-color": "#22c55e",
-                        "circle-radius": 10,
-                        "circle-stroke-color": "#14532d",
-                        "circle-stroke-width": 2,
-                    },
-                });
-            }
-
+            ensureSourceAndLayers();
             layersReady.current = true;
         }
 
+        // Handle initial load
         if (!hasStyleObject(map)) {
             // Style not ready yet: wait for load, then init
             const handleLoad = () => {
                 tryInitLayers();
             };
             map.once("load", handleLoad);
+
+            // Also listen for style reloads
+            const handleStyleLoad = () => {
+                layersReady.current = false; // Reset flag so layers can be re-added
+                ensureSourceAndLayers();
+                layersReady.current = true;
+            };
+            map.on("style.load", handleStyleLoad);
+            const handleStyledata = () => {
+                // Re-attach layers when style data changes
+                if (hasStyleObject(map)) {
+                    ensureSourceAndLayers();
+                }
+            };
+            map.on("styledata", handleStyledata);
+
             return () => {
                 try {
                     map.off("load", handleLoad);
+                    map.off("style.load", handleStyleLoad);
+                    map.off("styledata", handleStyledata);
+                } catch {
+                    /* ignore */
+                }
+            };
+        } else {
+            // Style already loaded, init immediately
+            tryInitLayers();
+
+            // Listen for style reloads
+            const handleStyleLoad = () => {
+                layersReady.current = false;
+                ensureSourceAndLayers();
+                layersReady.current = true;
+            };
+            map.on("style.load", handleStyleLoad);
+            const handleStyledata2 = () => {
+                if (hasStyleObject(map)) {
+                    ensureSourceAndLayers();
+                }
+            };
+            map.on("styledata", handleStyledata2);
+
+            return () => {
+                try {
+                    map.off("style.load", handleStyleLoad);
+                    map.off("styledata", handleStyledata2);
                 } catch {
                     /* ignore */
                 }
             };
         }
-
-        tryInitLayers();
     }, [map]);
 
-    // 2. Sync GeoJSON data when locations change
+    // 3. Sync GeoJSON data when locations change
     // Use a ref to track the last data to avoid unnecessary updates
     // Compare by feature count and a stable hash of IDs (more efficient than full JSON stringify)
     const lastDataHashRef = useRef<string | null>(null);
     useEffect(() => {
-        if (!layersReady.current) return;
+        // Ensure source and layers exist before setting data
         if (!hasStyleObject(map)) return;
+        ensureSourceAndLayers();
+
         const src: any = map.getSource(SRC_ID);
-        if (!src || !src.setData) return;
-        
+        if (!src || !src.setData) {
+            if (import.meta.env.DEV) {
+                console.warn("[MarkerLayer] setData: Source not available yet");
+            }
+            return;
+        }
+
         // Create a stable hash: feature count + sorted IDs
         const featureCount = data.features.length;
         const ids = data.features.map(f => String(f.id || f.properties?.id || '')).sort().join(',');
         const dataHash = `${featureCount}:${ids}`;
-        
+
         // Only update if data actually changed
         if (lastDataHashRef.current === dataHash) return;
         lastDataHashRef.current = dataHash;
-        
+
         // Verify we have features before updating
         if (data.features.length === 0) {
             // Clear data if no features
             src.setData({ type: "FeatureCollection", features: [] } as any);
+            if (import.meta.env.DEV) {
+                console.debug("[MarkerLayer] setData: features=0 (cleared)");
+            }
         } else {
             // Verify all features have top-level IDs
             const featuresWithIds = data.features.map(f => {
@@ -224,15 +312,19 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                 }
                 return f;
             });
-            
+
             src.setData({
                 ...data,
                 features: featuresWithIds,
             } as any);
-        }
-    }, [map, data, locations]);
 
-    // 3. Attach interactivity handlers once
+            if (import.meta.env.DEV) {
+                console.debug("[MarkerLayer] setData: features=%d", featuresWithIds.length);
+            }
+        }
+    }, [map, data, locations, ensureSourceAndLayers]);
+
+    // 4. Attach interactivity handlers once
     useEffect(() => {
         if (!layersReady.current) return;
         if (handlersReady.current) return;
@@ -306,7 +398,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         // so removing handlers here would break interactivity in dev.
     }, [map]);
 
-    // 4. Sync highlight ring with selectedId
+    // 5. Sync highlight ring with selectedId
     useEffect(() => {
         if (!layersReady.current) return;
         if (!hasStyleObject(map)) return;

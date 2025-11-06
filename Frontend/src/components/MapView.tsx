@@ -33,7 +33,16 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
   // Init Map slechts één keer
   useEffect(() => {
     if (!mapContainerRef.current) return;
-    if (mapRef.current) return; // guard against StrictMode double-invoke
+    if (mapRef.current) {
+      if (import.meta.env.DEV) {
+        console.debug("[MapView] Map already initialized, skipping");
+      }
+      return; // guard against StrictMode double-invoke
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug("[MapView] Initializing map instance");
+    }
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
@@ -119,6 +128,9 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
     });
 
     map.on("load", () => {
+      if (import.meta.env.DEV) {
+        console.debug("[MapView] Map loaded, setting mapReady=true");
+      }
       setMapReady(true);
       // Trigger initial viewport change after map loads
       if (onViewportChange) {
