@@ -186,13 +186,20 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
     }, [map]);
 
     // 2. Sync GeoJSON data when locations change
+    // Use a ref to track the last data to avoid unnecessary updates
+    const lastDataRef = useRef<string | null>(null);
     useEffect(() => {
         if (!layersReady.current) return;
         if (!hasStyleObject(map)) return;
         const src: any = map.getSource(SRC_ID);
-        if (src && src.setData) {
-            src.setData(data as any);
-        }
+        if (!src || !src.setData) return;
+
+        // Serialize data to compare - only update if actually changed
+        const dataStr = JSON.stringify(data);
+        if (lastDataRef.current === dataStr) return;
+        lastDataRef.current = dataStr;
+
+        src.setData(data as any);
     }, [map, data, locations]);
 
     // 3. Attach interactivity handlers once

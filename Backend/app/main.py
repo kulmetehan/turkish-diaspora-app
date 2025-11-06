@@ -60,6 +60,12 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
             import uuid
             req_id = uuid.uuid4().hex
         set_request_id(req_id)
+        
+        # Log Origin header for CORS debugging (debug level for /api/v1/locations endpoints)
+        origin = request.headers.get("origin") or request.headers.get("Origin")
+        if origin and ("/api/v1/locations" in str(request.url.path)):
+            logger.debug("request_origin", origin=origin, path=str(request.url.path))
+        
         logger.info("request_started", method=request.method, path=str(request.url.path))
         try:
             response: StarletteResponse = await call_next(request)
@@ -72,16 +78,19 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         clear_request_id()
         return response
 
+# Add RequestIdMiddleware first (will be outermost, executes last on requests)
 app.add_middleware(RequestIdMiddleware)
 
 # --- CORS ---
+# CORS must be added LAST (will be innermost, executes first on requests)
+# This ensures CORS can handle preflight OPTIONS requests early and add headers to all responses.
 # We explicitly allow the following origins:
 # - Local dev Vite servers (http://localhost:5173, http://127.0.0.1:5173)
 # - Production frontend on GitHub Pages (https://kulmetehan.github.io)
 # - Production backend origin for same-origin/diagnostics (https://turkish-diaspora-app.onrender.com)
 # This is intentional, instead of using "*", to keep CORS tight while supporting
-# current deployment targets. Methods include GET/PUT/DELETE/OPTIONS (and POST for
-# future admin operations) so preflight checks succeed.
+# current deployment targets. Methods include GET/POST/PUT/PATCH/DELETE/OPTIONS/HEAD
+# so preflight checks succeed.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -91,14 +100,20 @@ app.add_middleware(
         "https://turkish-diaspora-app.onrender.com",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["Content-Length"],
 )
 
 # --- Health endpoints ---
 @app.get("/")
 async def root():
     return {"ok": True, "app": "TDA Backend", "message": "Up & running"}
+
+@app.head("/")
+async def root_head():
+    """HEAD handler for root endpoint to avoid 405 errors in logs."""
+    return Response(status_code=200)
 
 @app.get("/healthz")
 async def healthz():

@@ -27,6 +27,8 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
   const [mapReady, setMapReady] = useState(false);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
+  const isProgrammaticMoveRef = useRef(false);
+  const lastBboxRef = useRef<string | null>(null);
 
   // Init Map slechts één keer
   useEffect(() => {
@@ -47,40 +49,54 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
 
     // Handle viewport changes (pan/zoom) with debouncing
     const handleMoveEnd = () => {
+      // Ignore moveend events triggered by programmatic map movements
+      if (isProgrammaticMoveRef.current) {
+        isProgrammaticMoveRef.current = false;
+        return;
+      }
+
       if (!onViewportChange) return;
-      
+
       // Clear existing timeout
       if (debounceTimeoutRef.current !== null) {
         window.clearTimeout(debounceTimeoutRef.current);
       }
-      
+
       // Debounce viewport change callback
       debounceTimeoutRef.current = window.setTimeout(() => {
         try {
           const bounds = map.getBounds();
           if (!bounds) {
-            onViewportChange(null);
+            const newBbox = null;
+            if (lastBboxRef.current !== newBbox) {
+              lastBboxRef.current = newBbox;
+              onViewportChange(newBbox);
+            }
             return;
           }
-          
+
           // Check if fully zoomed out (zoom level <= 2 or very large bounds)
           const zoom = map.getZoom();
           const sw = bounds.getSouthWest();
           const ne = bounds.getNorthEast();
-          
+
           // Consider fully zoomed out if zoom <= 2 or bounds span > 180 degrees
           const isZoomedOut = zoom <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90;
-          
-          if (isZoomedOut) {
-            onViewportChange(null);
-          } else {
-            // Format as west,south,east,north
-            const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
-            onViewportChange(bbox);
+
+          const newBbox = isZoomedOut ? null : `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+
+          // Only trigger callback if bbox actually changed
+          if (lastBboxRef.current !== newBbox) {
+            lastBboxRef.current = newBbox;
+            onViewportChange(newBbox);
           }
         } catch (e) {
           console.warn("Error getting map bounds:", e);
-          onViewportChange(null);
+          const newBbox = null;
+          if (lastBboxRef.current !== newBbox) {
+            lastBboxRef.current = newBbox;
+            onViewportChange(newBbox);
+          }
         }
       }, 200); // 200ms debounce
     };
@@ -108,7 +124,7 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
         }, 100);
       }
     });
-    
+
     map.on("moveend", handleMoveEnd);
 
     return () => {
@@ -145,6 +161,9 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
       // Place target above center by ~half of the sheet height
       offsetY = -Math.round(bottomSheetHeight / 2);
     }
+
+    // Mark as programmatic move to prevent viewport change callback
+    isProgrammaticMoveRef.current = true;
 
     map.easeTo({
       center: [loc.lng, loc.lat],

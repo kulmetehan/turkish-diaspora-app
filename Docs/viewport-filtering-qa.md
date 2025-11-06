@@ -1,6 +1,6 @@
 # Viewport BBox Filtering - Manual QA Test Plan
 
-This document outlines manual QA steps to verify the viewport/bbox filtering implementation.
+This document outlines manual QA steps to verify the viewport/bbox filtering implementation and CORS configuration.
 
 ## Prerequisites
 
@@ -215,10 +215,78 @@ In DevTools Network tab, verify:
 - [ ] Mobile view works correctly
 - [ ] Desktop view works correctly
 
+## CORS Verification
+
+### Browser Console/Network Checks
+
+1. **Open DevTools → Network tab** when accessing the app from https://kulmetehan.github.io
+2. **Filter by "locations"** to see API requests
+3. **Check Response Headers** for:
+   - `Access-Control-Allow-Origin: https://kulmetehan.github.io` (should be present)
+   - `Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD`
+   - `Access-Control-Allow-Headers: *`
+
+### Curl Verification Commands
+
+#### Preflight Check (OPTIONS)
+```bash
+curl -i -X OPTIONS "https://turkish-diaspora-app.onrender.com/api/v1/locations" \
+  -H "Origin: https://kulmetehan.github.io" \
+  -H "Access-Control-Request-Method: GET"
+```
+
+**Expected Response:**
+```
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: https://kulmetehan.github.io
+Access-Control-Allow-Methods: GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD
+Access-Control-Allow-Headers: *
+```
+
+#### Actual Request with Origin
+```bash
+curl -i "https://turkish-diaspora-app.onrender.com/api/v1/locations/count?bbox=4.35,51.84,4.60,52.00" \
+  -H "Origin: https://kulmetehan.github.io"
+```
+
+**Expected Response:**
+```
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: https://kulmetehan.github.io
+Content-Type: application/json
+
+{"count": <number>}
+```
+
+#### Health Endpoint Check
+```bash
+curl -i "https://turkish-diaspora-app.onrender.com/health"
+```
+
+**Expected Response:**
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"ok": true}
+```
+
+#### HEAD Root Endpoint Check
+```bash
+curl -i -X HEAD "https://turkish-diaspora-app.onrender.com/"
+```
+
+**Expected Response:**
+```
+HTTP/1.1 200 OK
+```
+
 ## Notes
 
 - The debounce delay is set to 200ms - viewport changes should trigger requests after user stops panning/zooming
 - When fully zoomed out, the app fetches all locations with pagination (up to 10,000 per page)
 - Bbox format is `west,south,east,north` in WGS84 degrees
 - The implementation uses AbortController to cancel in-flight requests
+- CORS middleware is configured to allow requests from https://kulmetehan.github.io
+- Programmatic map movements (e.g., when selecting a location) do not trigger viewport change callbacks to prevent infinite loops
 
