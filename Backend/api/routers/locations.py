@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query
 
 from services.db_service import fetch
@@ -12,6 +12,65 @@ router = APIRouter(
     prefix="/locations",
     tags=["locations"],
 )
+
+
+def parse_bbox(bbox_str: Optional[str]) -> Optional[Tuple[float, float, float, float]]:
+    """
+    Parse bbox query parameter from format 'west,south,east,north' to (lat_min, lat_max, lng_min, lng_max).
+    
+    Args:
+        bbox_str: Comma-separated string "west,south,east,north" in WGS84 degrees
+        
+    Returns:
+        Tuple of (lat_min, lat_max, lng_min, lng_max) or None if bbox_str is None/empty
+        
+    Raises:
+        HTTPException: If bbox format is invalid or values are out of range
+    """
+    if not bbox_str or not bbox_str.strip():
+        return None
+    
+    try:
+        parts = [p.strip() for p in bbox_str.split(",")]
+        if len(parts) != 4:
+            raise HTTPException(
+                status_code=400,
+                detail="bbox must have exactly 4 comma-separated values: west,south,east,north"
+            )
+        
+        west, south, east, north = [float(p) for p in parts]
+        
+        # Validate ranges
+        if not (-180 <= west <= 180) or not (-180 <= east <= 180):
+            raise HTTPException(
+                status_code=400,
+                detail="bbox longitude values must be between -180 and 180"
+            )
+        if not (-90 <= south <= 90) or not (-90 <= north <= 90):
+            raise HTTPException(
+                status_code=400,
+                detail="bbox latitude values must be between -90 and 90"
+            )
+        if west >= east:
+            raise HTTPException(
+                status_code=400,
+                detail="bbox west must be less than east"
+            )
+        if south >= north:
+            raise HTTPException(
+                status_code=400,
+                detail="bbox south must be less than north"
+            )
+        
+        # Convert from (west, south, east, north) to (lat_min, lat_max, lng_min, lng_max)
+        # for get_verified_filter_sql()
+        return (south, north, west, east)
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"bbox values must be numeric: {str(e)}"
+        )
 
 @router.get("/ping")
 async def ping() -> dict[str, Any]:
@@ -31,11 +90,20 @@ async def list_locations(
         "VERIFIED",
         description="Client hint only. Server enforces its own visibility rules.",
     ),
+    bbox: Optional[str] = Query(
+        None,
+        description="Bounding box in format 'west,south,east,north' (WGS84 degrees). Example: 4.1,51.8,4.7,52.0",
+    ),
     limit: int = Query(
         200,
         gt=1,
-        le=2000,
-        description="Max number of records to return (2..2000)",
+        le=10000,
+        description="Max number of records to return (2..10000)",
+    ),
+    offset: int = Query(
+        0,
+        ge=0,
+        description="Number of records to skip for pagination",
     ),
 ):
     """
@@ -50,29 +118,55 @@ async def list_locations(
 
     We never return RETIRED and we skip anything with low/null confidence.
 
+    Query parameters:
+    - bbox: Optional bounding box filter (west,south,east,north). If provided, only
+      locations within the bounding box are returned.
+    - limit: Maximum number of records to return (default 200, max 10000).
+    - offset: Number of records to skip for pagination (default 0).
+
     NOTE: This endpoint uses the shared filter definition from
     app.core.location_filters to maintain parity with Admin metrics.
 
     NOTE: we are using asyncpg via services.db_service.fetch(), not SQLAlchemy.
     """
     
+    # Parse and validate bbox
+    bbox_tuple = parse_bbox(bbox)
+    
     # Use shared filter definition for VERIFIED locations (single source of truth)
     # This ensures parity with Admin metrics verified count
-    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=None)
+    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=bbox_tuple)
     
     # High-confidence PENDING/CANDIDATE filter (additional to shared VERIFIED filter)
-    pending_filter_sql = """
-        state IN ('PENDING_VERIFICATION', 'CANDIDATE')
-        AND (confidence_score IS NOT NULL AND confidence_score >= 0.90)
-        AND (is_retired = false OR is_retired IS NULL)
-        AND lat IS NOT NULL AND lng IS NOT NULL
-    """
+    # Apply bbox filter to pending filter as well
+    pending_conditions = [
+        "state IN ('PENDING_VERIFICATION', 'CANDIDATE')",
+        "(confidence_score IS NOT NULL AND confidence_score >= 0.90)",
+        "(is_retired = false OR is_retired IS NULL)",
+        "lat IS NOT NULL",
+        "lng IS NOT NULL",
+    ]
+    
+    # Add bbox filter to pending if provided
+    pending_params = []
+    param_num = len(verified_params) + 1
+    if bbox_tuple:
+        lat_min, lat_max, lng_min, lng_max = bbox_tuple
+        pending_conditions.append(f"lat BETWEEN ${param_num} AND ${param_num + 1}")
+        pending_conditions.append(f"lng BETWEEN ${param_num + 2} AND ${param_num + 3}")
+        pending_params = [float(lat_min), float(lat_max), float(lng_min), float(lng_max)]
+        param_num += 4
+    
+    pending_filter_sql = " AND ".join(pending_conditions)
     
     # Combine both filters with OR
-    # Note: We need to adjust parameter placeholders for the pending filter
-    # Since verified_params already uses $1, we need to continue numbering
-    param_offset = len(verified_params)
-    pending_params = []  # No params for pending filter (all inline)
+    # Parameter placeholders: verified_params use $1, $2, etc.
+    # pending_params continue from where verified_params end
+    all_params = list(verified_params) + pending_params
+    
+    # Calculate parameter numbers for LIMIT and OFFSET
+    limit_param_num = len(all_params) + 1
+    offset_param_num = len(all_params) + 2
     
     sql = f"""
         SELECT
@@ -88,11 +182,14 @@ async def list_locations(
         FROM locations
         WHERE ({verified_filter_sql}) OR ({pending_filter_sql})
         ORDER BY id DESC
-        LIMIT ${param_offset + 1}
+        LIMIT ${limit_param_num} OFFSET ${offset_param_num}
     """
     
-    # Combine parameters: verified_params first, then limit
-    all_params = list(verified_params) + [limit]
+    # Combine parameters: verified_params, pending_params, limit, offset
+    all_params = all_params + [limit, offset]
+    
+    # Log request parameters
+    print(f"[locations] query: bbox={bbox}, limit={limit}, offset={offset}, params_count={len(all_params)}")
 
     try:
         data = await fetch(sql, *all_params)
@@ -164,11 +261,87 @@ async def list_locations_slash(
         "VERIFIED",
         description="Client hint only. Server enforces its own visibility rules.",
     ),
+    bbox: Optional[str] = Query(
+        None,
+        description="Bounding box in format 'west,south,east,north' (WGS84 degrees). Example: 4.1,51.8,4.7,52.0",
+    ),
     limit: int = Query(
         200,
         gt=1,
-        le=2000,
-        description="Max number of records to return (2..2000)",
+        le=10000,
+        description="Max number of records to return (2..10000)",
+    ),
+    offset: int = Query(
+        0,
+        ge=0,
+        description="Number of records to skip for pagination",
     ),
 ):
-    return await list_locations(state=state, limit=limit)
+    return await list_locations(state=state, bbox=bbox, limit=limit, offset=offset)
+
+
+@router.get("/count")
+async def count_locations(
+    bbox: Optional[str] = Query(
+        None,
+        description="Bounding box in format 'west,south,east,north' (WGS84 degrees). Example: 4.1,51.8,4.7,52.0",
+    ),
+) -> dict[str, int]:
+    """
+    Get total count of locations matching the same filters as the list endpoint.
+    
+    Returns the count of locations that are:
+    - VERIFIED with confidence_score >= 0.80, not retired, with valid coordinates
+    - OR PENDING_VERIFICATION/CANDIDATE with confidence_score >= 0.90, not retired, with valid coordinates
+    
+    If bbox is provided, only counts locations within the bounding box.
+    
+    Returns:
+        Dictionary with "count" key containing the total number of matching locations.
+    """
+    
+    # Parse and validate bbox
+    bbox_tuple = parse_bbox(bbox)
+    
+    # Use shared filter definition for VERIFIED locations (single source of truth)
+    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=bbox_tuple)
+    
+    # High-confidence PENDING/CANDIDATE filter (same as list endpoint)
+    pending_conditions = [
+        "state IN ('PENDING_VERIFICATION', 'CANDIDATE')",
+        "(confidence_score IS NOT NULL AND confidence_score >= 0.90)",
+        "(is_retired = false OR is_retired IS NULL)",
+        "lat IS NOT NULL",
+        "lng IS NOT NULL",
+    ]
+    
+    # Add bbox filter to pending if provided
+    pending_params = []
+    param_num = len(verified_params) + 1
+    if bbox_tuple:
+        lat_min, lat_max, lng_min, lng_max = bbox_tuple
+        pending_conditions.append(f"lat BETWEEN ${param_num} AND ${param_num + 1}")
+        pending_conditions.append(f"lng BETWEEN ${param_num + 2} AND ${param_num + 3}")
+        pending_params = [float(lat_min), float(lat_max), float(lng_min), float(lng_max)]
+    
+    pending_filter_sql = " AND ".join(pending_conditions)
+    
+    # Combine both filters with OR
+    all_params = list(verified_params) + pending_params
+    
+    sql = f"""
+        SELECT COUNT(*) as count
+        FROM locations
+        WHERE ({verified_filter_sql}) OR ({pending_filter_sql})
+    """
+    
+    # Log request parameters
+    print(f"[locations/count] query: bbox={bbox}, params_count={len(all_params)}")
+    
+    try:
+        result = await fetch(sql, *all_params)
+        count = int(dict(result[0]).get("count", 0)) if result else 0
+        return {"count": count}
+    except Exception as e:
+        print(f"[locations/count] query failed: {e}")
+        raise HTTPException(status_code=503, detail="database unavailable")

@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import BottomSheet, { type SnapPoint } from "@/components/BottomSheet";
 import Filters from "@/components/Filters";
@@ -9,12 +9,14 @@ import MapView from "@/components/MapView";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 
-import { fetchLocations, type LocationMarker } from "@/api/fetchLocations";
+import { fetchLocations, fetchLocationsCount, type LocationMarker } from "@/api/fetchLocations";
 
 function HomePage() {
   const [all, setAll] = useState<LocationMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewportBbox, setViewportBbox] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // UI-filters (komen overeen met Filters.tsx props)
   const [filters, setFilters] = useState({
@@ -44,20 +46,69 @@ function HomePage() {
     cacheSize: 30,
   });
 
+  // Load locations based on viewport bbox
   useEffect(() => {
     let alive = true;
+    
+    // Cancel any in-flight request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
     setLoading(true);
     setError(null);
+    
     const load = async () => {
       try {
-        const rows = await fetchLocations();
-        if (!alive) return;
-        setAll(rows);
+        // If zoomed out (no bbox), fetch all locations with pagination
+        if (!viewportBbox) {
+          // First, get the total count
+          const totalCount = await fetchLocationsCount(null, abortController.signal);
+          
+          if (!alive || abortController.signal.aborted) return;
+          
+          // Fetch all locations in pages if needed
+          const allLocations: LocationMarker[] = [];
+          const pageSize = 10000;
+          let offset = 0;
+          
+          while (offset < totalCount) {
+            if (!alive || abortController.signal.aborted) return;
+            
+            const page = await fetchLocations(null, pageSize, offset, abortController.signal);
+            allLocations.push(...page);
+            
+            // If we got fewer results than requested, we've reached the end
+            if (page.length < pageSize) {
+              break;
+            }
+            
+            offset += pageSize;
+          }
+          
+          if (!alive || abortController.signal.aborted) return;
+          setAll(allLocations);
+        } else {
+          // If bbox is provided, fetch locations within bbox
+          // Use a reasonable limit for bbox queries (usually won't need pagination)
+          const rows = await fetchLocations(viewportBbox, 1000, 0, abortController.signal);
+          
+          if (!alive || abortController.signal.aborted) return;
+          setAll(rows);
+        }
       } catch (e: any) {
+        // Ignore AbortError (request was cancelled)
+        if (e?.name === 'AbortError' || abortController.signal.aborted) {
+          return;
+        }
         if (!alive) return;
         setError(e instanceof Error ? e.message : "Onbekende fout");
       } finally {
-        if (!alive) return;
+        if (!alive || abortController.signal.aborted) return;
         setLoading(false);
       }
     };
@@ -66,8 +117,11 @@ function HomePage() {
 
     return () => {
       alive = false;
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
-  }, []);
+  }, [viewportBbox]);
 
   // filtered comes from useSearch; keep API order (no client sorting)
   // Build category options from data (canonical key + label)
@@ -163,8 +217,17 @@ function HomePage() {
               setSelectedId(null);
             }
           }}
+          onViewportChange={(bbox) => {
+            setViewportBbox(bbox);
+          }}
           bottomSheetHeight={isDesktop ? 0 : bottomSheetHeight}
         />
+        {/* Loading indicator */}
+        {loading && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/90 px-4 py-2 rounded-md shadow-md text-sm z-10">
+            Loading locations...
+          </div>
+        )}
       </main>
 
       {/* BottomSheet mobile overlay (list/detail UI) - mobile only */}

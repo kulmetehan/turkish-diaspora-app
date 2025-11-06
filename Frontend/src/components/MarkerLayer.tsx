@@ -50,6 +50,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                 .filter((l) => typeof l.lat === "number" && typeof l.lng === "number")
                 .map((l) => ({
                     type: "Feature" as const,
+                    id: String(l.id), // Top-level feature ID for Mapbox feature tracking
                     properties: {
                         id: String(l.id),
                         name: l.name,

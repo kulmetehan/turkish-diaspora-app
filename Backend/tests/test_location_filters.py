@@ -163,3 +163,93 @@ def test_filter_edge_cases():
     """
     pass
 
+
+def test_bbox_parsing_valid():
+    """Test bbox parsing with valid format west,south,east,north."""
+    from api.routers.locations import parse_bbox
+    
+    # Valid bbox for Rotterdam area
+    bbox_str = "4.1,51.8,4.7,52.0"
+    result = parse_bbox(bbox_str)
+    
+    # Should convert to (lat_min, lat_max, lng_min, lng_max)
+    assert result == (51.8, 52.0, 4.1, 4.7)
+
+
+def test_bbox_parsing_none():
+    """Test bbox parsing with None or empty string."""
+    from api.routers.locations import parse_bbox
+    
+    assert parse_bbox(None) is None
+    assert parse_bbox("") is None
+    assert parse_bbox("   ") is None
+
+
+def test_bbox_parsing_invalid_format():
+    """Test bbox parsing with invalid format."""
+    from api.routers.locations import parse_bbox
+    from fastapi import HTTPException
+    
+    # Too few values
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bbox("4.1,51.8,4.7")
+    assert exc_info.value.status_code == 400
+    
+    # Too many values
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bbox("4.1,51.8,4.7,52.0,5.0")
+    assert exc_info.value.status_code == 400
+
+
+def test_bbox_parsing_non_numeric():
+    """Test bbox parsing with non-numeric values."""
+    from api.routers.locations import parse_bbox
+    from fastapi import HTTPException
+    
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bbox("4.1,abc,4.7,52.0")
+    assert exc_info.value.status_code == 400
+
+
+def test_bbox_parsing_invalid_ranges():
+    """Test bbox parsing with invalid coordinate ranges."""
+    from api.routers.locations import parse_bbox
+    from fastapi import HTTPException
+    
+    # Invalid longitude
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bbox("200,51.8,4.7,52.0")
+    assert exc_info.value.status_code == 400
+    
+    # Invalid latitude
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bbox("4.1,100,4.7,52.0")
+    assert exc_info.value.status_code == 400
+    
+    # west >= east
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bbox("4.7,51.8,4.1,52.0")
+    assert exc_info.value.status_code == 400
+    
+    # south >= north
+    with pytest.raises(HTTPException) as exc_info:
+        parse_bbox("4.1,52.0,4.7,51.8")
+    assert exc_info.value.status_code == 400
+
+
+def test_bbox_conversion_format():
+    """Test that bbox conversion from (west,south,east,north) to (lat_min,lat_max,lng_min,lng_max) is correct."""
+    from api.routers.locations import parse_bbox
+    
+    # Test with known values
+    bbox_str = "4.1,51.8,4.7,52.0"
+    result = parse_bbox(bbox_str)
+    
+    # Result should be (lat_min, lat_max, lng_min, lng_max)
+    lat_min, lat_max, lng_min, lng_max = result
+    
+    assert lat_min == 51.8  # south
+    assert lat_max == 52.0  # north
+    assert lng_min == 4.1   # west
+    assert lng_max == 4.7   # east
+

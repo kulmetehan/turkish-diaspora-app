@@ -17,16 +17,37 @@ export interface LocationMarker {
     is_turkish: boolean;
 }
 
-export async function fetchLocations(): Promise<LocationMarker[]> {
+export async function fetchLocations(
+    bbox?: string | null,
+    limit?: number,
+    offset?: number,
+    signal?: AbortSignal
+): Promise<LocationMarker[]> {
     const fallbackBase = "http://127.0.0.1:8000";
     const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
     const API_BASE = (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase;
 
-    const resp = await fetch(`${API_BASE}/api/v1/locations`, {
+    // Build query string
+    const params = new URLSearchParams();
+    if (bbox && bbox.trim()) {
+        params.append("bbox", bbox.trim());
+    }
+    if (limit !== undefined && limit > 0) {
+        params.append("limit", String(limit));
+    }
+    if (offset !== undefined && offset >= 0) {
+        params.append("offset", String(offset));
+    }
+
+    const queryString = params.toString();
+    const url = `${API_BASE}/api/v1/locations${queryString ? `?${queryString}` : ""}`;
+
+    const resp = await fetch(url, {
         method: "GET",
         headers: {
             "Accept": "application/json",
         },
+        signal,
     });
     if (!resp.ok) {
         throw new Error(`Failed to load locations: ${resp.status} ${resp.statusText}`);
@@ -60,6 +81,35 @@ export async function fetchLocations(): Promise<LocationMarker[]> {
             is_turkish: isVisibleByHeuristic,
         };
     });
+}
+
+export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSignal): Promise<number> {
+    const fallbackBase = "http://127.0.0.1:8000";
+    const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
+    const API_BASE = (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase;
+
+    // Build query string
+    const params = new URLSearchParams();
+    if (bbox && bbox.trim()) {
+        params.append("bbox", bbox.trim());
+    }
+
+    const queryString = params.toString();
+    const url = `${API_BASE}/api/v1/locations/count${queryString ? `?${queryString}` : ""}`;
+
+    const resp = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Accept": "application/json",
+        },
+        signal,
+    });
+    if (!resp.ok) {
+        throw new Error(`Failed to load location count: ${resp.status} ${resp.statusText}`);
+    }
+
+    const data = await resp.json();
+    return typeof data.count === "number" ? data.count : 0;
 }
 
 

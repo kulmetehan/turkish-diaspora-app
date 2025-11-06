@@ -12,6 +12,7 @@ type Props = {
   selectedId: string | null;
   onSelect?: (id: string) => void;
   onMapClick?: () => void;
+  onViewportChange?: (bbox: string | null) => void;
   bottomSheetHeight?: number;
 };
 
@@ -20,11 +21,12 @@ type Props = {
  * - Houdt één map-instantie in leven
  * - Centreert vloeiend op geselecteerde locatie
  */
-export default function MapView({ locations, selectedId, onSelect, onMapClick, bottomSheetHeight }: Props) {
+export default function MapView({ locations, selectedId, onSelect, onMapClick, onViewportChange, bottomSheetHeight }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const debounceTimeoutRef = useRef<number | null>(null);
 
   // Init Map slechts één keer
   useEffect(() => {
@@ -43,6 +45,46 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
+    // Handle viewport changes (pan/zoom) with debouncing
+    const handleMoveEnd = () => {
+      if (!onViewportChange) return;
+      
+      // Clear existing timeout
+      if (debounceTimeoutRef.current !== null) {
+        window.clearTimeout(debounceTimeoutRef.current);
+      }
+      
+      // Debounce viewport change callback
+      debounceTimeoutRef.current = window.setTimeout(() => {
+        try {
+          const bounds = map.getBounds();
+          if (!bounds) {
+            onViewportChange(null);
+            return;
+          }
+          
+          // Check if fully zoomed out (zoom level <= 2 or very large bounds)
+          const zoom = map.getZoom();
+          const sw = bounds.getSouthWest();
+          const ne = bounds.getNorthEast();
+          
+          // Consider fully zoomed out if zoom <= 2 or bounds span > 180 degrees
+          const isZoomedOut = zoom <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90;
+          
+          if (isZoomedOut) {
+            onViewportChange(null);
+          } else {
+            // Format as west,south,east,north
+            const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+            onViewportChange(bbox);
+          }
+        } catch (e) {
+          console.warn("Error getting map bounds:", e);
+          onViewportChange(null);
+        }
+      }, 200); // 200ms debounce
+    };
+
     // Background click logic
     map.on("click", (e) => {
       if (!onMapClick) return;
@@ -58,15 +100,27 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
 
     map.on("load", () => {
       setMapReady(true);
+      // Trigger initial viewport change after map loads
+      if (onViewportChange) {
+        // Small delay to ensure map is fully initialized
+        setTimeout(() => {
+          handleMoveEnd();
+        }, 100);
+      }
     });
+    
+    map.on("moveend", handleMoveEnd);
 
     return () => {
+      if (debounceTimeoutRef.current !== null) {
+        window.clearTimeout(debounceTimeoutRef.current);
+      }
       if (mapRef.current) {
         try { mapRef.current.remove(); } catch { }
         mapRef.current = null;
       }
     };
-  }, []);
+  }, [onViewportChange]);
 
   // Vloeiend centreren bij klik op lijst-item
   useEffect(() => {
