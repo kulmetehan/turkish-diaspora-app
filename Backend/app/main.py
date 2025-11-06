@@ -78,19 +78,13 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         clear_request_id()
         return response
 
-# Add RequestIdMiddleware first (will be outermost, executes last on requests)
-app.add_middleware(RequestIdMiddleware)
-
 # --- CORS ---
-# CORS must be added LAST (will be innermost, executes first on requests)
-# This ensures CORS can handle preflight OPTIONS requests early and add headers to all responses.
-# We explicitly allow the following origins:
-# - Local dev Vite servers (http://localhost:5173, http://127.0.0.1:5173)
-# - Production frontend on GitHub Pages (https://kulmetehan.github.io)
-# - Production backend origin for same-origin/diagnostics (https://turkish-diaspora-app.onrender.com)
-# This is intentional, instead of using "*", to keep CORS tight while supporting
-# current deployment targets. Methods include GET/POST/PUT/PATCH/DELETE/OPTIONS/HEAD
-# so preflight checks succeed.
+# CORS must be added FIRST to be outermost middleware.
+# In Starlette/FastAPI, middleware executes in reverse order:
+# - First added = outermost (executes last on requests, first on responses)
+# - Last added = innermost (executes first on requests, last on responses)
+# Being outermost ensures CORS headers are added to all responses first.
+# CORSMiddleware handles preflight OPTIONS requests correctly regardless of order.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -99,11 +93,14 @@ app.add_middleware(
         "https://kulmetehan.github.io",
         "https://turkish-diaspora-app.onrender.com",
     ],
-    allow_credentials=True,
+    allow_credentials=False,  # Public endpoints don't use cookies
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
     expose_headers=["Content-Length"],
 )
+
+# Add RequestIdMiddleware after CORS (will be innermost, executes first on requests)
+app.add_middleware(RequestIdMiddleware)
 
 # --- Health endpoints ---
 @app.get("/")

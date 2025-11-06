@@ -13,6 +13,7 @@ type Props = {
   loading?: boolean;
   categoryOptions?: CategoryOption[];
   suggestions?: string[];
+  idPrefix?: string; // Optional prefix to make IDs unique (e.g., "desktop", "mobile")
   onChange: (patch: Partial<{
     search: string;
     category: string;
@@ -59,8 +60,10 @@ export default function Filters({
   loading,
   categoryOptions,
   suggestions,
+  idPrefix = "",
   onChange,
 }: Props) {
+  const searchInputId = idPrefix ? `search-input-${idPrefix}` : "search-input";
   const [openSuggest, setOpenSuggest] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const suggestBoxRef = useRef<HTMLDivElement | null>(null);
@@ -81,13 +84,13 @@ export default function Filters({
   return (
     <div className="rounded-xl border bg-card p-3 flex flex-col gap-3">
       <div className="relative" ref={suggestBoxRef}>
-        <label htmlFor="search-input" className="sr-only">Zoek op naam of categorie</label>
+        <label htmlFor={searchInputId} className="sr-only">Zoek op naam of categorie</label>
         <div className="relative">
           <span className="absolute inset-y-0 left-2 flex items-center text-muted-foreground">
             <Search className="h-4 w-4" aria-hidden />
           </span>
           <Input
-            id="search-input"
+            id={searchInputId}
             name="search"
             placeholder="Zoek op naam of categorie…"
             className="pl-8 pr-8"

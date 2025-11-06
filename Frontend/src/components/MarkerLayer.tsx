@@ -44,24 +44,32 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
 
     // Build GeoJSON for current locations
     const data = useMemo(() => {
+        const features = locations
+            .filter((l) => typeof l.lat === "number" && typeof l.lng === "number")
+            .map((l) => ({
+                type: "Feature" as const,
+                id: String(l.id), // Top-level feature ID for Mapbox feature tracking
+                properties: {
+                    id: String(l.id),
+                    name: l.name,
+                    category: l.category ?? "",
+                    confidence: l.confidence_score ?? null,
+                },
+                geometry: {
+                    type: "Point" as const,
+                    coordinates: [l.lng as number, l.lat as number] as [number, number],
+                },
+            }));
+        
+        // Debug: log feature count and sample IDs (only in dev)
+        if (import.meta.env.DEV && features.length > 0) {
+            console.debug(`[MarkerLayer] Built ${features.length} features. Sample IDs:`, 
+                features.slice(0, 3).map(f => f.id));
+        }
+        
         return {
             type: "FeatureCollection" as const,
-            features: locations
-                .filter((l) => typeof l.lat === "number" && typeof l.lng === "number")
-                .map((l) => ({
-                    type: "Feature" as const,
-                    id: String(l.id), // Top-level feature ID for Mapbox feature tracking
-                    properties: {
-                        id: String(l.id),
-                        name: l.name,
-                        category: l.category ?? "",
-                        confidence: l.confidence_score ?? null,
-                    },
-                    geometry: {
-                        type: "Point" as const,
-                        coordinates: [l.lng as number, l.lat as number] as [number, number],
-                    },
-                })),
+            features,
         };
     }, [locations]);
 
@@ -187,19 +195,41 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
 
     // 2. Sync GeoJSON data when locations change
     // Use a ref to track the last data to avoid unnecessary updates
-    const lastDataRef = useRef<string | null>(null);
+    // Compare by feature count and a stable hash of IDs (more efficient than full JSON stringify)
+    const lastDataHashRef = useRef<string | null>(null);
     useEffect(() => {
         if (!layersReady.current) return;
         if (!hasStyleObject(map)) return;
         const src: any = map.getSource(SRC_ID);
         if (!src || !src.setData) return;
-
-        // Serialize data to compare - only update if actually changed
-        const dataStr = JSON.stringify(data);
-        if (lastDataRef.current === dataStr) return;
-        lastDataRef.current = dataStr;
-
-        src.setData(data as any);
+        
+        // Create a stable hash: feature count + sorted IDs
+        const featureCount = data.features.length;
+        const ids = data.features.map(f => String(f.id || f.properties?.id || '')).sort().join(',');
+        const dataHash = `${featureCount}:${ids}`;
+        
+        // Only update if data actually changed
+        if (lastDataHashRef.current === dataHash) return;
+        lastDataHashRef.current = dataHash;
+        
+        // Verify we have features before updating
+        if (data.features.length === 0) {
+            // Clear data if no features
+            src.setData({ type: "FeatureCollection", features: [] } as any);
+        } else {
+            // Verify all features have top-level IDs
+            const featuresWithIds = data.features.map(f => {
+                if (!f.id && f.properties?.id) {
+                    return { ...f, id: String(f.properties.id) };
+                }
+                return f;
+            });
+            
+            src.setData({
+                ...data,
+                features: featuresWithIds,
+            } as any);
+        }
     }, [map, data, locations]);
 
     // 3. Attach interactivity handlers once

@@ -98,6 +98,12 @@ function HomePage() {
           const rows = await fetchLocations(viewportBbox, 1000, 0, abortController.signal);
           
           if (!alive || abortController.signal.aborted) return;
+          
+          // Debug: log fetched locations count (only in dev)
+          if (import.meta.env.DEV) {
+            console.debug(`[App] Fetched ${rows.length} locations for bbox: ${viewportBbox}`);
+          }
+          
           setAll(rows);
         }
       } catch (e: any) {
@@ -189,6 +195,7 @@ function HomePage() {
             loading={loading}
             categoryOptions={categoryOptions}
             suggestions={suggestions}
+            idPrefix="desktop"
             onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
           />
         </div>
@@ -253,6 +260,7 @@ function HomePage() {
                   loading={loading}
                   categoryOptions={categoryOptions}
                   suggestions={suggestions}
+                  idPrefix="mobile"
                   onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
                 />
               </div>

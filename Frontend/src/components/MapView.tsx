@@ -51,19 +51,23 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
     const handleMoveEnd = () => {
       // Ignore moveend events triggered by programmatic map movements
       if (isProgrammaticMoveRef.current) {
-        isProgrammaticMoveRef.current = false;
         return;
       }
-
+      
       if (!onViewportChange) return;
-
+      
       // Clear existing timeout
       if (debounceTimeoutRef.current !== null) {
         window.clearTimeout(debounceTimeoutRef.current);
       }
-
+      
       // Debounce viewport change callback
       debounceTimeoutRef.current = window.setTimeout(() => {
+        // Double-check flag after debounce (in case programmatic move started during debounce)
+        if (isProgrammaticMoveRef.current) {
+          return;
+        }
+        
         try {
           const bounds = map.getBounds();
           if (!bounds) {
@@ -74,18 +78,18 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
             }
             return;
           }
-
+          
           // Check if fully zoomed out (zoom level <= 2 or very large bounds)
           const zoom = map.getZoom();
           const sw = bounds.getSouthWest();
           const ne = bounds.getNorthEast();
-
+          
           // Consider fully zoomed out if zoom <= 2 or bounds span > 180 degrees
           const isZoomedOut = zoom <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90;
-
+          
           const newBbox = isZoomedOut ? null : `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
-
-          // Only trigger callback if bbox actually changed
+          
+          // Only trigger callback if bbox actually changed (string comparison)
           if (lastBboxRef.current !== newBbox) {
             lastBboxRef.current = newBbox;
             onViewportChange(newBbox);
@@ -163,8 +167,16 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
     }
 
     // Mark as programmatic move to prevent viewport change callback
+    // Reset flag after moveend completes (use a timeout to ensure it happens after the event)
     isProgrammaticMoveRef.current = true;
-
+    
+    // Set up a one-time moveend handler to reset the flag after the programmatic move completes
+    const resetFlag = () => {
+      isProgrammaticMoveRef.current = false;
+      map.off("moveend", resetFlag);
+    };
+    map.once("moveend", resetFlag);
+    
     map.easeTo({
       center: [loc.lng, loc.lat],
       zoom: Math.max(map.getZoom(), 14),
