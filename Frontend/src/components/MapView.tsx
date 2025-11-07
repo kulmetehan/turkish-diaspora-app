@@ -12,6 +12,7 @@ type Props = {
   selectedId: string | null;
   onSelect?: (id: string) => void;
   onMapClick?: () => void;
+  onViewportChange?: (bbox: string | null) => void;
   bottomSheetHeight?: number;
 };
 
@@ -20,11 +21,12 @@ type Props = {
  * - Houdt één map-instantie in leven
  * - Centreert vloeiend op geselecteerde locatie
  */
-export default function MapView({ locations, selectedId, onSelect, onMapClick, bottomSheetHeight }: Props) {
+export default function MapView({ locations, selectedId, onSelect, onMapClick, onViewportChange, bottomSheetHeight }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const lastBboxRef = useRef<string | null>(null);
 
   // Init Map slechts één keer
   useEffect(() => {
@@ -67,6 +69,61 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, b
       }
     };
   }, []);
+
+  // Notify parent about viewport changes (bbox) when map stops moving
+  useEffect(() => {
+    if (!mapReady) return;
+    if (!onViewportChange) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    const notify = () => {
+      try {
+        const bounds = map.getBounds?.();
+        if (!bounds) {
+          if (lastBboxRef.current !== null) {
+            lastBboxRef.current = null;
+            onViewportChange(null);
+          }
+          return;
+        }
+
+        const zoom = map.getZoom?.();
+        const sw = bounds.getSouthWest?.();
+        const ne = bounds.getNorthEast?.();
+        if (!sw || !ne || typeof sw.lng !== "number" || typeof sw.lat !== "number" || typeof ne.lng !== "number" || typeof ne.lat !== "number") {
+          if (lastBboxRef.current !== null) {
+            lastBboxRef.current = null;
+            onViewportChange(null);
+          }
+          return;
+        }
+
+        const isZoomedOut = typeof zoom === "number" && (zoom <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90);
+        const nextBbox = isZoomedOut ? null : `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+        if (lastBboxRef.current !== nextBbox) {
+          lastBboxRef.current = nextBbox;
+          onViewportChange(nextBbox);
+        }
+      } catch {
+        if (lastBboxRef.current !== null) {
+          lastBboxRef.current = null;
+          onViewportChange(null);
+        }
+      }
+    };
+
+    notify();
+    map.on("moveend", notify);
+
+    return () => {
+      try {
+        map.off("moveend", notify);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [mapReady, onViewportChange]);
 
   // Vloeiend centreren bij klik op lijst-item
   useEffect(() => {
