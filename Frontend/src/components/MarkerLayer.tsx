@@ -42,6 +42,9 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         onSelectRef.current = onSelect;
     }, [onSelect]);
 
+    const lastEnsureTsRef = useRef<number>(0);
+    const pendingSetDataRef = useRef<(() => void) | null>(null);
+
     // Build GeoJSON for current locations
     const data = useMemo(() => {
         const features = locations
@@ -78,8 +81,30 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
     const ensureSourceAndLayers = useCallback(() => {
         if (!hasStyleObject(map)) return;
 
-        // Source
-        if (!map.getSource(SRC_ID)) {
+        const now = typeof performance !== "undefined" ? performance.now() : Date.now();
+        if (lastEnsureTsRef.current && now - lastEnsureTsRef.current < 50) {
+            if (import.meta.env.DEV) {
+                console.debug(
+                    `[MarkerLayer] ensureSourceAndLayers: skipped (debounced ${Math.round(now - lastEnsureTsRef.current)}ms)`
+                );
+            }
+            return;
+        }
+        lastEnsureTsRef.current = now;
+
+        const hadSource = !!map.getSource(SRC_ID);
+        const hadCluster = !!map.getLayer(L_CLUSTER);
+        const hadClusterCount = !!map.getLayer(L_CLUSTER_COUNT);
+        const hadPoint = !!map.getLayer(L_POINT);
+        const hadHighlight = !!map.getLayer(L_HI);
+
+        let addedSource = false;
+        let addedCluster = false;
+        let addedClusterCount = false;
+        let addedPoint = false;
+        let addedHighlight = false;
+
+        if (!hadSource) {
             map.addSource(SRC_ID, {
                 type: "geojson",
                 data: { type: "FeatureCollection", features: [] },
@@ -87,14 +112,10 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                 clusterMaxZoom: 14,
                 clusterRadius: 50,
             } as any);
-
-            if (import.meta.env.DEV) {
-                console.debug("[MarkerLayer] ensureSourceAndLayers: Added source", SRC_ID);
-            }
+            addedSource = true;
         }
 
-        // Cluster circles
-        if (!map.getLayer(L_CLUSTER)) {
+        if (!hadCluster) {
             map.addLayer({
                 id: L_CLUSTER,
                 type: "circle",
@@ -123,10 +144,10 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                     "circle-stroke-width": 2,
                 },
             });
+            addedCluster = true;
         }
 
-        // Cluster count labels
-        if (!map.getLayer(L_CLUSTER_COUNT)) {
+        if (!hadClusterCount) {
             map.addLayer({
                 id: L_CLUSTER_COUNT,
                 type: "symbol",
@@ -138,10 +159,10 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                 },
                 paint: { "text-color": "#083269" },
             });
+            addedClusterCount = true;
         }
 
-        // Individual point markers (circle type for sprite-safe fallback)
-        if (!map.getLayer(L_POINT)) {
+        if (!hadPoint) {
             map.addLayer({
                 id: L_POINT,
                 type: "circle",
@@ -152,26 +173,13 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                     "circle-radius": 5,
                     "circle-opacity": 0.9,
                     "circle-stroke-color": "#fff",
-                    "circle-stroke-width": 2,
+                    "circle-stroke-width": 1,
                 },
             });
-
-            // Move unclustered points above other layers for visibility
-            try {
-                const layers = map.getStyle().layers;
-                if (layers && layers.length > 0) {
-                    const beforeId = layers[layers.length - 1]?.id;
-                    if (beforeId && beforeId !== L_POINT) {
-                        map.moveLayer(L_POINT, beforeId);
-                    }
-                }
-            } catch {
-                // Ignore if moveLayer fails
-            }
+            addedPoint = true;
         }
 
-        // Highlight ring for selected point
-        if (!map.getLayer(L_HI)) {
+        if (!hadHighlight) {
             map.addLayer({
                 id: L_HI,
                 type: "circle",
@@ -188,124 +196,116 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
                     "circle-stroke-width": 2,
                 },
             });
+            addedHighlight = true;
         }
 
-        // Debug logging
+        // Keep markers & clusters above base layers when first created
+        try {
+            if (addedCluster) map.moveLayer(L_CLUSTER);
+            if (addedClusterCount) map.moveLayer(L_CLUSTER_COUNT);
+            if (addedPoint) map.moveLayer(L_POINT);
+            if (addedHighlight) map.moveLayer(L_HI);
+        } catch {
+            // moveLayer may fail if style not fully ready; ignore
+        }
+
         if (import.meta.env.DEV) {
-            const src = map.getSource(SRC_ID);
-            const hasCluster = !!map.getLayer(L_CLUSTER);
-            const hasPoint = !!map.getLayer(L_POINT);
             console.debug(
-                "[MarkerLayer] ensureSourceAndLayers: source=%s, layers=%s",
-                !!src,
-                `cluster=${hasCluster}, point=${hasPoint}`
+                "[MarkerLayer] ensureSourceAndLayers: src=%s (added=%s) cluster=%s count=%s point=%s highlight=%s",
+                hadSource ? "present" : "absent",
+                addedSource,
+                hadCluster ? "present" : addedCluster ? "added" : "absent",
+                hadClusterCount ? "present" : addedClusterCount ? "added" : "absent",
+                hadPoint ? "present" : addedPoint ? "added" : "absent",
+                hadHighlight ? "present" : addedHighlight ? "added" : "absent"
             );
         }
     }, [map]);
 
-    // 1. Create source + layers once per map, and re-attach on style reload
+    // 2. Create source + layers once per map, and re-attach on style reload
     useEffect(() => {
-        function tryInitLayers() {
+        if (!map) return;
+
+        const initLayers = () => {
             ensureSourceAndLayers();
             layersReady.current = true;
-        }
+        };
 
-        // Handle initial load
-        if (!hasStyleObject(map)) {
-            // Style not ready yet: wait for load, then init
+        if (!map.isStyleLoaded()) {
             const handleLoad = () => {
-                tryInitLayers();
+                if (import.meta.env.DEV) {
+                    console.debug("[MarkerLayer] map load → init layers");
+                }
+                initLayers();
             };
             map.once("load", handleLoad);
-
-            // Also listen for style reloads
-            const handleStyleLoad = () => {
-                layersReady.current = false; // Reset flag so layers can be re-added
-                ensureSourceAndLayers();
-                layersReady.current = true;
-            };
-            map.on("style.load", handleStyleLoad);
-            const handleStyledata = () => {
-                // Re-attach layers when style data changes
-                if (hasStyleObject(map)) {
-                    ensureSourceAndLayers();
-                }
-            };
-            map.on("styledata", handleStyledata);
-
-            return () => {
-                try {
-                    map.off("load", handleLoad);
-                    map.off("style.load", handleStyleLoad);
-                    map.off("styledata", handleStyledata);
-                } catch {
-                    /* ignore */
-                }
-            };
         } else {
-            // Style already loaded, init immediately
-            tryInitLayers();
-
-            // Listen for style reloads
-            const handleStyleLoad = () => {
-                layersReady.current = false;
-                ensureSourceAndLayers();
-                layersReady.current = true;
-            };
-            map.on("style.load", handleStyleLoad);
-            const handleStyledata2 = () => {
-                if (hasStyleObject(map)) {
-                    ensureSourceAndLayers();
-                }
-            };
-            map.on("styledata", handleStyledata2);
-
-            return () => {
-                try {
-                    map.off("style.load", handleStyleLoad);
-                    map.off("styledata", handleStyledata2);
-                } catch {
-                    /* ignore */
-                }
-            };
+            initLayers();
         }
-    }, [map]);
+
+        const handleStyleLoad = () => {
+            layersReady.current = false;
+            ensureSourceAndLayers();
+            layersReady.current = true;
+        };
+
+        const handleStyleData = () => {
+            ensureSourceAndLayers();
+        }; // debounced inside ensureSourceAndLayers()
+
+        map.on("style.load", handleStyleLoad);
+        map.on("styledata", handleStyleData);
+
+        return () => {
+            try {
+                map.off("style.load", handleStyleLoad);
+                map.off("styledata", handleStyleData);
+            } catch {
+                /* ignore */
+            }
+        };
+    }, [map, ensureSourceAndLayers]);
 
     // 3. Sync GeoJSON data when locations change
     // Use a ref to track the last data to avoid unnecessary updates
     // Compare by feature count and a stable hash of IDs (more efficient than full JSON stringify)
     const lastDataHashRef = useRef<string | null>(null);
     useEffect(() => {
-        // Ensure source and layers exist before setting data
-        if (!hasStyleObject(map)) return;
-        ensureSourceAndLayers();
+        if (!map) return;
+        let cancelled = false;
 
-        const src: any = map.getSource(SRC_ID);
-        if (!src || !src.setData) {
-            if (import.meta.env.DEV) {
-                console.warn("[MarkerLayer] setData: Source not available yet");
+        const applyData = () => {
+            if (cancelled) return;
+            if (!hasStyleObject(map)) return;
+
+            ensureSourceAndLayers();
+            const src: any = map.getSource(SRC_ID);
+            if (!src || !src.setData) {
+                if (import.meta.env.DEV) {
+                    console.warn("[MarkerLayer] setData: source unavailable");
+                }
+                return;
             }
-            return;
-        }
 
-        // Create a stable hash: feature count + sorted IDs
-        const featureCount = data.features.length;
-        const ids = data.features.map(f => String(f.id || f.properties?.id || '')).sort().join(',');
-        const dataHash = `${featureCount}:${ids}`;
+            const featureCount = data.features.length;
+            const ids = data.features.map(f => String(f.id || f.properties?.id || ""))
+                .sort()
+                .join(',');
+            const dataHash = `${featureCount}:${ids}`;
 
-        // Only update if data actually changed
-        if (lastDataHashRef.current === dataHash) return;
-        lastDataHashRef.current = dataHash;
-
-        // Verify we have features before updating
-        if (data.features.length === 0) {
-            // Clear data if no features
-            src.setData({ type: "FeatureCollection", features: [] } as any);
-            if (import.meta.env.DEV) {
-                console.debug("[MarkerLayer] setData: features=0 (cleared)");
+            if (lastDataHashRef.current === dataHash) {
+                return;
             }
-        } else {
-            // Verify all features have top-level IDs
+            lastDataHashRef.current = dataHash;
+
+            if (featureCount === 0) {
+                src.setData({ type: "FeatureCollection", features: [] } as any);
+                if (import.meta.env.DEV) {
+                    console.debug("[MarkerLayer] setData: features=0 (cleared)");
+                }
+                return;
+            }
+
             const featuresWithIds = data.features.map(f => {
                 if (!f.id && f.properties?.id) {
                     return { ...f, id: String(f.properties.id) };
@@ -319,9 +319,42 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
             } as any);
 
             if (import.meta.env.DEV) {
-                console.debug("[MarkerLayer] setData: features=%d", featuresWithIds.length);
+                const topIds = featuresWithIds.slice(0, 3).map(f => f.id);
+                console.debug("[MarkerLayer] setData: features=%d ids=%o", featuresWithIds.length, topIds);
             }
-        }
+        };
+
+        const scheduleApply = () => {
+            if (cancelled) return;
+
+            if (!map.isStyleLoaded()) {
+                if (!pendingSetDataRef.current) {
+                    if (import.meta.env.DEV) {
+                        console.debug("[MarkerLayer] setData waiting for style load…");
+                    }
+                    pendingSetDataRef.current = () => {
+                        if (cancelled) return;
+                        pendingSetDataRef.current = null;
+                        applyData();
+                    };
+                    map.once("styledata", () => {
+                        const fn = pendingSetDataRef.current;
+                        pendingSetDataRef.current = null;
+                        if (fn) fn();
+                    });
+                }
+                return;
+            }
+
+            applyData();
+        };
+
+        scheduleApply();
+
+        return () => {
+            cancelled = true;
+            pendingSetDataRef.current = null;
+        };
     }, [map, data, locations, ensureSourceAndLayers]);
 
     // 4. Attach interactivity handlers once

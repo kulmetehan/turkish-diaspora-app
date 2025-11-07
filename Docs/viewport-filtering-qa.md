@@ -2,6 +2,13 @@
 
 This document outlines manual QA steps to verify the viewport/bbox filtering implementation and CORS configuration.
 
+## Quick QA Checklist (Non-Developer)
+
+- Open https://kulmetehan.github.io/turkish-diaspora-app/ → within 1 second orange markers appear and stay visible.
+- Pan and zoom the map → no white flash or marker wipe; markers update smoothly.
+- Click the "X" / back button in the detail panel → panel closes, the page does **not** reload.
+- Optional: open DevTools → Console and confirm there is only **one** `style.load` log within the first second, and `setData` logs show a non-zero feature count.
+
 ## Prerequisites
 
 1. Backend server running on `http://127.0.0.1:8000` (or configured API base URL)

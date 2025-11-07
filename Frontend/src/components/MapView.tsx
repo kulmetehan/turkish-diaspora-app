@@ -29,6 +29,7 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
   const debounceTimeoutRef = useRef<number | null>(null);
   const isProgrammaticMoveRef = useRef(false);
   const lastBboxRef = useRef<string | null>(null);
+  const firstMoveLoggedRef = useRef(false);
 
   // Init Map slechts één keer
   useEffect(() => {
@@ -56,6 +57,8 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
 
+    const getTimestamp = () => (typeof performance !== "undefined" ? Math.round(performance.now()) : Date.now());
+
     // Handle viewport changes (pan/zoom) with debouncing
     const handleMoveEnd = () => {
       // Ignore moveend events triggered by programmatic map movements
@@ -65,6 +68,11 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
       
       if (!onViewportChange) return;
       
+      if (import.meta.env.DEV && !firstMoveLoggedRef.current) {
+        firstMoveLoggedRef.current = true;
+        console.debug(`[DBG] first moveend @ ${getTimestamp()}`);
+      }
+
       // Clear existing timeout
       if (debounceTimeoutRef.current !== null) {
         window.clearTimeout(debounceTimeoutRef.current);
@@ -127,6 +135,20 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
       onMapClick();
     });
 
+    let styleLoadLogger: ((...args: unknown[]) => void) | undefined;
+    let styleDataLogger: ((...args: unknown[]) => void) | undefined;
+
+    if (import.meta.env.DEV) {
+      styleLoadLogger = () => {
+        console.debug(`[DBG] style.load @ ${getTimestamp()}`);
+      };
+      styleDataLogger = () => {
+        console.debug(`[DBG] styledata @ ${getTimestamp()}`);
+      };
+      map.on("style.load", styleLoadLogger);
+      map.on("styledata", styleDataLogger);
+    }
+
     map.on("load", () => {
       if (import.meta.env.DEV) {
         console.debug("[MapView] Map loaded, setting mapReady=true");
@@ -147,10 +169,17 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
       if (debounceTimeoutRef.current !== null) {
         window.clearTimeout(debounceTimeoutRef.current);
       }
+      if (styleLoadLogger) {
+        try { map.off("style.load", styleLoadLogger); } catch { }
+      }
+      if (styleDataLogger) {
+        try { map.off("styledata", styleDataLogger); } catch { }
+      }
       if (mapRef.current) {
         try { mapRef.current.remove(); } catch { }
         mapRef.current = null;
       }
+      firstMoveLoggedRef.current = false;
     };
   }, [onViewportChange]);
 
