@@ -25,30 +25,13 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [styleReady, setStyleReady] = useState(false);
-  const [styleVersion, setStyleVersion] = useState(0);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const debounceTimeoutRef = useRef<number | null>(null);
-  const isProgrammaticMoveRef = useRef(false);
   const lastBboxRef = useRef<string | null>(null);
-  const firstMoveLoggedRef = useRef(false);
 
   // Init Map slechts één keer
   useEffect(() => {
     if (!mapContainerRef.current) return;
-    if (mapRef.current) {
-      if (import.meta.env.DEV) {
-        console.debug("[MapView] Map already initialized, skipping");
-      }
-      return; // guard against StrictMode double-invoke
-    }
-
-    if (import.meta.env.DEV) {
-      console.debug("[MapView] Initializing map instance");
-      if (mapContainerRef.current.clientHeight === 0) {
-        console.warn("[MapView] dev-warning: map container height is 0 at init");
-      }
-    }
+    if (mapRef.current) return; // guard against StrictMode double-invoke
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
@@ -61,100 +44,6 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
     mapRef.current = map;
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
-
-    const confirmStyleReady = () => {
-      const current = mapRef.current;
-      if (!current) return;
-      const style = current.getStyle?.();
-      if (!style || !current.isStyleLoaded()) {
-        current.once("styledata", confirmStyleReady);
-        return;
-      }
-
-      setStyleReady(true);
-      setStyleVersion((prev) => {
-        const next = prev + 1;
-        if (import.meta.env.DEV) {
-          console.debug(`[MapView] style.load -> styleReady=true (version ${next})`);
-        }
-        return next;
-      });
-    };
-
-    const handleStyleLoad = () => {
-      setStyleReady(false);
-      confirmStyleReady();
-    };
-
-    map.on("style.load", handleStyleLoad);
-    if (map.isStyleLoaded()) {
-      confirmStyleReady();
-    }
-
-    const getTimestamp = () => (typeof performance !== "undefined" ? Math.round(performance.now()) : Date.now());
-
-    // Handle viewport changes (pan/zoom) with debouncing
-    const handleMoveEnd = () => {
-      // Ignore moveend events triggered by programmatic map movements
-      if (isProgrammaticMoveRef.current) {
-        return;
-      }
-
-      if (!onViewportChange) return;
-
-      if (import.meta.env.DEV && !firstMoveLoggedRef.current) {
-        firstMoveLoggedRef.current = true;
-        console.debug(`[DBG] first moveend @ ${getTimestamp()}`);
-      }
-
-      // Clear existing timeout
-      if (debounceTimeoutRef.current !== null) {
-        window.clearTimeout(debounceTimeoutRef.current);
-      }
-
-      // Debounce viewport change callback
-      debounceTimeoutRef.current = window.setTimeout(() => {
-        // Double-check flag after debounce (in case programmatic move started during debounce)
-        if (isProgrammaticMoveRef.current) {
-          return;
-        }
-
-        try {
-          const bounds = map.getBounds();
-          if (!bounds) {
-            const newBbox = null;
-            if (lastBboxRef.current !== newBbox) {
-              lastBboxRef.current = newBbox;
-              onViewportChange(newBbox);
-            }
-            return;
-          }
-
-          // Check if fully zoomed out (zoom level <= 2 or very large bounds)
-          const zoom = map.getZoom();
-          const sw = bounds.getSouthWest();
-          const ne = bounds.getNorthEast();
-
-          // Consider fully zoomed out if zoom <= 2 or bounds span > 180 degrees
-          const isZoomedOut = zoom <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90;
-
-          const newBbox = isZoomedOut ? null : `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
-
-          // Only trigger callback if bbox actually changed (string comparison)
-          if (lastBboxRef.current !== newBbox) {
-            lastBboxRef.current = newBbox;
-            onViewportChange(newBbox);
-          }
-        } catch (e) {
-          console.warn("Error getting map bounds:", e);
-          const newBbox = null;
-          if (lastBboxRef.current !== newBbox) {
-            lastBboxRef.current = newBbox;
-            onViewportChange(newBbox);
-          }
-        }
-      }, 200); // 200ms debounce
-    };
 
     // Background click logic
     map.on("click", (e) => {
@@ -170,37 +59,71 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
     });
 
     map.on("load", () => {
-      if (import.meta.env.DEV) {
-        console.debug("[MapView] Map loaded, setting mapReady=true");
-      }
       setMapReady(true);
-      // Trigger initial viewport change after map loads
-      if (onViewportChange) {
-        // Small delay to ensure map is fully initialized
-        setTimeout(() => {
-          handleMoveEnd();
-        }, 100);
-      }
     });
 
-    map.on("moveend", handleMoveEnd);
-
     return () => {
-      if (debounceTimeoutRef.current !== null) {
-        window.clearTimeout(debounceTimeoutRef.current);
-      }
-      try {
-        map.off("style.load", handleStyleLoad);
-      } catch {
-        /* ignore */
-      }
       if (mapRef.current) {
         try { mapRef.current.remove(); } catch { }
         mapRef.current = null;
       }
-      firstMoveLoggedRef.current = false;
     };
-  }, [onViewportChange]);
+  }, []);
+
+  // Notify parent about viewport changes (bbox) when map stops moving
+  useEffect(() => {
+    if (!mapReady) return;
+    if (!onViewportChange) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    const notify = () => {
+      try {
+        const bounds = map.getBounds?.();
+        if (!bounds) {
+          if (lastBboxRef.current !== null) {
+            lastBboxRef.current = null;
+            onViewportChange(null);
+          }
+          return;
+        }
+
+        const zoom = map.getZoom?.();
+        const sw = bounds.getSouthWest?.();
+        const ne = bounds.getNorthEast?.();
+        if (!sw || !ne || typeof sw.lng !== "number" || typeof sw.lat !== "number" || typeof ne.lng !== "number" || typeof ne.lat !== "number") {
+          if (lastBboxRef.current !== null) {
+            lastBboxRef.current = null;
+            onViewportChange(null);
+          }
+          return;
+        }
+
+        const isZoomedOut = typeof zoom === "number" && (zoom <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90);
+        const nextBbox = isZoomedOut ? null : `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+        if (lastBboxRef.current !== nextBbox) {
+          lastBboxRef.current = nextBbox;
+          onViewportChange(nextBbox);
+        }
+      } catch {
+        if (lastBboxRef.current !== null) {
+          lastBboxRef.current = null;
+          onViewportChange(null);
+        }
+      }
+    };
+
+    notify();
+    map.on("moveend", notify);
+
+    return () => {
+      try {
+        map.off("moveend", notify);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [mapReady, onViewportChange]);
 
   // Vloeiend centreren bij klik op lijst-item
   useEffect(() => {
@@ -225,17 +148,6 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
       // Place target above center by ~half of the sheet height
       offsetY = -Math.round(bottomSheetHeight / 2);
     }
-
-    // Mark as programmatic move to prevent viewport change callback
-    // Reset flag after moveend completes (use a timeout to ensure it happens after the event)
-    isProgrammaticMoveRef.current = true;
-
-    // Set up a one-time moveend handler to reset the flag after the programmatic move completes
-    const resetFlag = () => {
-      isProgrammaticMoveRef.current = false;
-      map.off("moveend", resetFlag);
-    };
-    map.once("moveend", resetFlag);
 
     map.easeTo({
       center: [loc.lng, loc.lat],
@@ -291,8 +203,6 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
           locations={locations}
           selectedId={selectedId}
           onSelect={onSelect}
-          styleReady={styleReady}
-          styleVersion={styleVersion}
         />
       )}
     </div>

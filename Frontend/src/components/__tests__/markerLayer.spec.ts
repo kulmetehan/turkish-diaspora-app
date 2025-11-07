@@ -1,131 +1,94 @@
-import { ensureSourceAndLayersOnce } from "@/components/MarkerLayer";
-import type { Map as MapboxMap } from "mapbox-gl";
+import { ensureBaseLayers, buildMarkerGeoJSON, MarkerLayerIds } from "@/components/markerLayerUtils";
+import type { LocationMarker } from "@/api/fetchLocations";
 import { describe, expect, it } from "vitest";
 
-type LayerConfig = {
-    id: string;
-};
+type LayerConfig = { id: string };
 
-class StubMap {
-    styleLoaded = false;
-    sources = new Map<string, unknown>();
-    layers = new Map<string, LayerConfig>();
-    addSourceCount = 0;
+class MapStub {
     addLayerCount = 0;
-    moveLayerCount = 0;
-
-    isStyleLoaded() {
-        return this.styleLoaded;
-    }
-
-    setStyleLoaded(value: boolean) {
-        this.styleLoaded = value;
-    }
+    addSourceCount = 0;
+    layers = new Map<string, LayerConfig>();
+    sources = new Map<string, unknown>();
 
     getSource(id: string) {
-        return this.sources.get(id);
+        return this.sources.get(id) ?? null;
     }
 
     addSource(id: string, config: unknown) {
-        this.sources.set(id, config);
         this.addSourceCount += 1;
+        this.sources.set(id, config);
     }
 
     getLayer(id: string) {
-        return this.layers.get(id);
+        return this.layers.get(id) ?? null;
     }
 
-    addLayer(config: LayerConfig) {
-        this.layers.set(config.id, config);
+    addLayer(layer: LayerConfig) {
         this.addLayerCount += 1;
+        this.layers.set(layer.id, layer);
     }
 
-    moveLayer() {
-        this.moveLayerCount += 1;
-    }
-
-    resetStyle() {
-        this.sources.clear();
-        this.layers.clear();
-    }
+    // Unused Mapbox APIs for this test scenario
+    on() {}
+    once(_event: string, handler: (...args: any[]) => void) { handler(); }
+    off() {}
+    getStyle() { return { sources: {} }; }
 }
 
-describe("ensureSourceAndLayersOnce", () => {
-    it("waits for style readiness before attaching", () => {
-        const map = new StubMap();
-        const attachedRef = { current: null };
+const baseLocations: LocationMarker[] = [
+    {
+        id: "101",
+        name: "Test Location",
+        lat: 51.92,
+        lng: 4.47,
+        category: "restaurant",
+        state: "VERIFIED",
+        rating: null,
+        confidence_score: 0.95,
+        is_turkish: true,
+    },
+    {
+        id: "202",
+        name: "Another",
+        lat: 51.93,
+        lng: 4.48,
+        category: "bakery",
+        state: "VERIFIED",
+        rating: null,
+        confidence_score: 0.91,
+        is_turkish: true,
+    },
+];
 
-        const resultWhenNotReady = ensureSourceAndLayersOnce({
-            map: map as unknown as MapboxMap,
-            styleReady: false,
-            styleVersion: 1,
-            attachedStyleVersionRef: attachedRef,
-        });
+describe("marker layer utilities", () => {
+    it("builds GeoJSON features with stable ids", () => {
+        const first = buildMarkerGeoJSON(baseLocations);
+        expect(first.features.map((f) => f.properties.id)).toEqual(["101", "202"]);
 
-        expect(resultWhenNotReady).toBe(false);
-        expect(map.addSourceCount).toBe(0);
-
-        const resultWhenStyleLoading = ensureSourceAndLayersOnce({
-            map: map as unknown as MapboxMap,
-            styleReady: true,
-            styleVersion: 1,
-            attachedStyleVersionRef: attachedRef,
-        });
-
-        expect(resultWhenStyleLoading).toBe(false);
-        expect(map.addSourceCount).toBe(0);
-
-        map.setStyleLoaded(true);
-
-        const resultLoaded = ensureSourceAndLayersOnce({
-            map: map as unknown as MapboxMap,
-            styleReady: true,
-            styleVersion: 1,
-            attachedStyleVersionRef: attachedRef,
-        });
-
-        expect(resultLoaded).toBe(true);
-        expect(attachedRef.current).toBe(1);
-        expect(map.addSourceCount).toBe(1);
+        const reversed = buildMarkerGeoJSON([...baseLocations].reverse());
+        expect(reversed.features.map((f) => f.properties.id)).toEqual(["202", "101"]);
     });
 
-    it("runs only once per styleVersion and reattaches after reset", () => {
-        const map = new StubMap();
-        map.setStyleLoaded(true);
-        const attachedRef: { current: number | null } = { current: null };
+    it("does not re-add sources or layers on repeated ensureBaseLayers calls", () => {
+        const map = new MapStub();
 
-        const firstAttach = ensureSourceAndLayersOnce({
-            map: map as unknown as MapboxMap,
-            styleReady: true,
-            styleVersion: 4,
-            attachedStyleVersionRef: attachedRef,
-        });
+        ensureBaseLayers(map as unknown as any);
 
-        expect(firstAttach).toBe(true);
-        expect(map.addSourceCount).toBe(1);
+        const { SRC_ID, L_CLUSTER, L_CLUSTER_COUNT, L_POINT, L_HI } = MarkerLayerIds;
 
-        const repeatSameVersion = ensureSourceAndLayersOnce({
-            map: map as unknown as MapboxMap,
-            styleReady: true,
-            styleVersion: 4,
-            attachedStyleVersionRef: attachedRef,
-        });
+        expect(map.getSource(SRC_ID)).toBeTruthy();
+        expect(map.getLayer(L_CLUSTER)).toBeTruthy();
+        expect(map.getLayer(L_CLUSTER_COUNT)).toBeTruthy();
+        expect(map.getLayer(L_POINT)).toBeTruthy();
+        expect(map.getLayer(L_HI)).toBeTruthy();
 
-        expect(repeatSameVersion).toBe(true);
-        expect(map.addSourceCount).toBe(1);
+        const sourceCount = map.addSourceCount;
+        const layerCount = map.addLayerCount;
 
-        map.resetStyle();
+        ensureBaseLayers(map as unknown as any);
 
-        const nextVersionAttach = ensureSourceAndLayersOnce({
-            map: map as unknown as MapboxMap,
-            styleReady: true,
-            styleVersion: 5,
-            attachedStyleVersionRef: attachedRef,
-        });
-
-        expect(nextVersionAttach).toBe(true);
-        expect(attachedRef.current).toBe(5);
-        expect(map.addSourceCount).toBe(2);
+        expect(map.addSourceCount).toBe(sourceCount);
+        expect(map.addLayerCount).toBe(layerCount);
     });
 });
 

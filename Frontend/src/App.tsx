@@ -17,6 +17,7 @@ function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [viewportBbox, setViewportBbox] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const debounceTimeoutRef = useRef<number | null>(null);
 
   // UI-filters (komen overeen met Filters.tsx props)
   const [filters, setFilters] = useState({
@@ -49,80 +50,81 @@ function HomePage() {
   // Load locations based on viewport bbox
   useEffect(() => {
     let alive = true;
-    
-    // Cancel any in-flight request
+
+    if (debounceTimeoutRef.current !== null) {
+      window.clearTimeout(debounceTimeoutRef.current);
+      debounceTimeoutRef.current = null;
+    }
+
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    
-    // Create new AbortController for this request
+
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
-    
-    setLoading(true);
-    setError(null);
-    
-    const load = async () => {
-      try {
-        // If zoomed out (no bbox), fetch all locations with pagination
-        if (!viewportBbox) {
-          // First, get the total count
-          const totalCount = await fetchLocationsCount(null, abortController.signal);
-          
-          if (!alive || abortController.signal.aborted) return;
-          
-          // Fetch all locations in pages if needed
-          const allLocations: LocationMarker[] = [];
-          const pageSize = 10000;
-          let offset = 0;
-          
-          while (offset < totalCount) {
-            if (!alive || abortController.signal.aborted) return;
-            
-            const page = await fetchLocations(null, pageSize, offset, abortController.signal);
-            allLocations.push(...page);
-            
-            // If we got fewer results than requested, we've reached the end
-            if (page.length < pageSize) {
-              break;
-            }
-            
-            offset += pageSize;
-          }
-          
-          if (!alive || abortController.signal.aborted) return;
-          setAll(allLocations);
-        } else {
-          // If bbox is provided, fetch locations within bbox
-          // Use a reasonable limit for bbox queries (usually won't need pagination)
-          const rows = await fetchLocations(viewportBbox, 1000, 0, abortController.signal);
-          
-          if (!alive || abortController.signal.aborted) return;
-          
-          // Debug: log fetched locations count (only in dev)
-          if (import.meta.env.DEV) {
-            console.debug(`[App] Fetched ${rows.length} locations for bbox: ${viewportBbox}`);
-          }
-          
-          setAll(rows);
-        }
-      } catch (e: any) {
-        // Ignore AbortError (request was cancelled)
-        if (e?.name === 'AbortError' || abortController.signal.aborted) {
-          return;
-        }
-        if (!alive) return;
-        setError(e instanceof Error ? e.message : "Onbekende fout");
-      } finally {
-        if (!alive || abortController.signal.aborted) return;
-        setLoading(false);
-      }
-    };
 
-    void load();
+    debounceTimeoutRef.current = window.setTimeout(() => {
+      setLoading(true);
+      setError(null);
+
+      const load = async () => {
+        try {
+          if (!viewportBbox) {
+            const totalCount = await fetchLocationsCount(null, abortController.signal);
+
+            if (!alive || abortController.signal.aborted) return;
+
+            const allLocations: LocationMarker[] = [];
+            const pageSize = 10000;
+            let offset = 0;
+
+            while (offset < totalCount) {
+              if (!alive || abortController.signal.aborted) return;
+
+              const page = await fetchLocations(null, pageSize, offset, abortController.signal);
+              allLocations.push(...page);
+
+              if (page.length < pageSize) {
+                break;
+              }
+
+              offset += pageSize;
+            }
+
+            if (!alive || abortController.signal.aborted) return;
+            setAll(allLocations);
+          } else {
+            const rows = await fetchLocations(viewportBbox, 1000, 0, abortController.signal);
+
+            if (!alive || abortController.signal.aborted) return;
+
+            if (import.meta.env.DEV) {
+              console.debug(`[App] Fetched ${rows.length} locations for bbox: ${viewportBbox}`);
+            }
+
+            setAll(rows);
+          }
+        } catch (e: any) {
+          if (e?.name === "AbortError" || abortController.signal.aborted) {
+            return;
+          }
+          if (!alive) return;
+          setError(e instanceof Error ? e.message : "Onbekende fout");
+        } finally {
+          if (!alive || abortController.signal.aborted) return;
+          setLoading(false);
+        }
+      };
+
+      void load();
+    }, 200);
 
     return () => {
       alive = false;
+      if (debounceTimeoutRef.current !== null) {
+        window.clearTimeout(debounceTimeoutRef.current);
+        debounceTimeoutRef.current = null;
+      }
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }

@@ -1,12 +1,12 @@
 // Frontend/vite.config.ts
 import react from '@vitejs/plugin-react'
 import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type PluginOption } from 'vite'
 
 // Vite config met alias '@' → 'src' en standaard React plugin.
 // Configured for GitHub Pages deployment
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react()] as PluginOption[],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
