@@ -147,18 +147,6 @@ function HomePage() {
   // Huidige selectie-object
   const selected = useMemo(() => filtered.find((l) => l.id === selectedId) ?? null, [filtered, selectedId]);
 
-  // Calculate bottom sheet height for map panning
-  const bottomSheetHeight = useMemo(() => {
-    if (isDesktop) return 0;
-
-    switch (sheetSnapPoint) {
-      case "collapsed": return 96;
-      case "half": return window.innerHeight * 0.55;
-      case "full": return window.innerHeight * 0.92;
-      default: return 96;
-    }
-  }, [isDesktop, sheetSnapPoint]);
-
   // Handle location selection - minimize sheet and show detail on mobile
   const handleLocationSelect = (id: string) => {
     setSelectedId(id);
@@ -229,7 +217,6 @@ function HomePage() {
           onViewportChange={(bbox) => {
             setViewportBbox(bbox);
           }}
-          bottomSheetHeight={isDesktop ? 0 : bottomSheetHeight}
         />
         {/* Loading indicator */}
         {loading && (

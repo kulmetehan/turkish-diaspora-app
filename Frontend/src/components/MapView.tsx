@@ -13,15 +13,14 @@ type Props = {
   onSelect?: (id: string) => void;
   onMapClick?: () => void;
   onViewportChange?: (bbox: string | null) => void;
-  bottomSheetHeight?: number;
 };
 
 /**
  * MapView: toont de Mapbox-kaart en de MarkerLayer.
  * - Houdt één map-instantie in leven
- * - Centreert vloeiend op geselecteerde locatie
+ * - Laat de gebruiker zelf de viewport beheren (geen auto-centering)
  */
-export default function MapView({ locations, selectedId, onSelect, onMapClick, onViewportChange, bottomSheetHeight }: Props) {
+export default function MapView({ locations, selectedId, onSelect, onMapClick, onViewportChange }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -125,7 +124,7 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
     };
   }, [mapReady, onViewportChange]);
 
-  // Vloeiend centreren bij klik op lijst-item
+  // Highlight/popup sync bij selectie (zonder camera-bewegingen)
   useEffect(() => {
     if (!mapReady || !locations?.length) return;
     const map = mapRef.current;
@@ -141,21 +140,6 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
 
     const loc = locations.find((l) => String(l.id) === String(selectedId));
     if (!loc) return;
-
-    // Calculate offset to keep marker visible above bottom sheet
-    let offsetY = 0;
-    if (bottomSheetHeight && bottomSheetHeight > 0) {
-      // Place target above center by ~half of the sheet height
-      offsetY = -Math.round(bottomSheetHeight / 2);
-    }
-
-    map.easeTo({
-      center: [loc.lng, loc.lat],
-      zoom: Math.max(map.getZoom(), 14),
-      duration: 900,
-      essential: true,
-      offset: [0, offsetY],
-    });
 
     // Toon een popup met kerngegevens
     try {
@@ -174,13 +158,15 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
         .setLngLat([loc.lng, loc.lat])
         .setHTML(html)
         .addTo(map);
+      // F4-S1: nooit de camera verplaatsen tijdens selectie; enkel popup/highlight.
+      // Zie TDA-129 + F4-S1 voor viewport-fetch constraints.
       // When the user closes the popup, treat it like a background tap (deselect)
       try {
         popup.on("close", () => { try { onMapClick?.(); } catch { } });
       } catch { }
       popupRef.current = popup;
     } catch { }
-  }, [selectedId, mapReady, locations, bottomSheetHeight]);
+  }, [selectedId, mapReady, locations]);
 
   // Sluit popup bij unmount of style reset
   useEffect(() => {
