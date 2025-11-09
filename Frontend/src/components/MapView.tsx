@@ -2,17 +2,24 @@
 import type { LocationMarker } from "@/api/fetchLocations";
 import mapboxgl, { Map as MapboxMap } from "mapbox-gl";
 import { useEffect, useRef, useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
+
+import PreviewTooltip from "@/components/PreviewTooltip";
 import MarkerLayer from "./MarkerLayer";
+import { cn } from "@/lib/ui/cn";
 
 // Zorg dat je VITE_MAPBOX_TOKEN in .env staat
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
 type Props = {
   locations: LocationMarker[];
-  selectedId: string | null;
-  onSelect?: (id: string) => void;
+  highlightedId: string | null;
+  detailId: string | null;
+  onHighlight?: (id: string | null) => void;
+  onOpenDetail?: (id: string) => void;
   onMapClick?: () => void;
   onViewportChange?: (bbox: string | null) => void;
+  interactionDisabled?: boolean;
 };
 
 /**
@@ -20,11 +27,11 @@ type Props = {
  * - Houdt één map-instantie in leven
  * - Laat de gebruiker zelf de viewport beheren (geen auto-centering)
  */
-export default function MapView({ locations, selectedId, onSelect, onMapClick, onViewportChange }: Props) {
+export default function MapView({ locations, highlightedId, detailId, onHighlight, onOpenDetail, onMapClick, onViewportChange, interactionDisabled = false }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const tooltipRef = useRef<{ popup: mapboxgl.Popup | null; root: Root | null; container: HTMLElement | null } | null>(null);
   const lastBboxRef = useRef<string | null>(null);
 
   // Init Map slechts één keer
@@ -124,71 +131,163 @@ export default function MapView({ locations, selectedId, onSelect, onMapClick, o
     };
   }, [mapReady, onViewportChange]);
 
-  // Highlight/popup sync bij selectie (zonder camera-bewegingen)
   useEffect(() => {
-    if (!mapReady || !locations?.length) return;
+    if (!mapReady) return;
     const map = mapRef.current;
     if (!map) return;
 
-    // If deselected → remove popup (if any) and bail
-    if (!selectedId) {
-      try { popupRef.current?.remove(); } catch { }
-      popupRef.current = null;
-      try { map.getCanvas().style.cursor = ""; } catch { }
+    const cleanup = () => {
+      const current = tooltipRef.current;
+      if (current?.root) {
+        try {
+          current.root.unmount();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (current?.popup) {
+        try {
+          current.popup.remove();
+        } catch {
+          /* ignore */
+        }
+      }
+      tooltipRef.current = null;
+    };
+
+    if (!highlightedId || detailId) {
+      cleanup();
       return;
     }
 
-    const loc = locations.find((l) => String(l.id) === String(selectedId));
-    if (!loc) return;
+    const loc = locations.find((l) => String(l.id) === String(highlightedId));
+    if (!loc || typeof loc.lng !== "number" || typeof loc.lat !== "number") {
+      cleanup();
+      return;
+    }
 
-    // Toon een popup met kerngegevens
-    try {
-      if (popupRef.current) {
-        popupRef.current.remove();
-        popupRef.current = null;
+    cleanup();
+
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const popup = new mapboxgl.Popup({
+      closeButton: false,
+      closeOnClick: false,
+      offset: [0, 14],
+      anchor: "bottom",
+      className: "tda-preview-popup",
+    })
+      .setLngLat([loc.lng, loc.lat])
+      .setMaxWidth("0")
+      .setDOMContent(container)
+      .addTo(map);
+
+    const popupEl = popup.getElement();
+    popupEl.classList.add("tda-preview-popup");
+
+    const handleClose = () => {
+      onHighlight?.(null);
+    };
+    const handleDetail = () => {
+      onOpenDetail?.(loc.id);
+    };
+
+    root.render(
+      <PreviewTooltip
+        location={loc}
+        onRequestClose={handleClose}
+        onRequestDetail={handleDetail}
+      />
+    );
+
+    const positionPreviewAnchor = () => {
+      const current = tooltipRef.current;
+      if (!current) return;
+      const element = popup.getElement();
+      const card = element.querySelector(".tda-card") as HTMLElement | null;
+      const content = element.querySelector(".mapboxgl-popup-content") as HTMLElement | null;
+      if (!card || !content) return;
+
+      const rect = card.getBoundingClientRect();
+      const { width, height } = rect;
+      const canvas = map.getCanvas();
+      const vw = canvas.clientWidth;
+      const vh = canvas.clientHeight;
+      const point = map.project([loc.lng!, loc.lat!]);
+
+      let anchor: "bottom" | "top" = "bottom";
+      const margin = 8;
+      const offsetY = 14;
+      if (point.y - offsetY - height < margin) {
+        anchor = "top";
       }
-      const html = `
-        <div class="text-sm">
-          <div class="font-semibold mb-1">${String(loc.name ?? "Onbekend")}</div>
-          <div class="text-muted-foreground">${String(loc.category ?? "—")}</div>
-          
-        </div>
-      `;
-      const popup = new mapboxgl.Popup({ closeOnClick: false, offset: 12 })
-        .setLngLat([loc.lng, loc.lat])
-        .setHTML(html)
-        .addTo(map);
-      // F4-S1: nooit de camera verplaatsen tijdens selectie; enkel popup/highlight.
-      // Zie TDA-129 + F4-S1 voor viewport-fetch constraints.
-      // When the user closes the popup, treat it like a background tap (deselect)
-      try {
-        popup.on("close", () => { try { onMapClick?.(); } catch { } });
-      } catch { }
-      popupRef.current = popup;
-    } catch { }
-  }, [selectedId, mapReady, locations]);
+
+      let shiftX = 0;
+      const halfW = width / 2;
+      if (point.x - halfW < margin) {
+        shiftX = halfW - point.x + margin;
+      } else if (point.x + halfW > vw - margin) {
+        shiftX = -(point.x + halfW - vw + margin);
+      }
+
+      element.classList.toggle("anchor-bottom", anchor === "bottom");
+      element.classList.toggle("anchor-top", anchor === "top");
+
+      content.style.transform = `translateX(${Math.round(shiftX)}px)`;
+    };
+
+    requestAnimationFrame(positionPreviewAnchor);
+    const debounced = () => requestAnimationFrame(positionPreviewAnchor);
+    map.on("move", debounced);
+    map.on("resize", debounced);
+
+    tooltipRef.current = { popup, root, container };
+
+    popup.on("close", handleClose);
+
+    return () => {
+      cleanup();
+      map.off("move", debounced);
+      map.off("resize", debounced);
+    };
+  }, [highlightedId, detailId, locations, mapReady, onHighlight, onOpenDetail]);
 
   // Sluit popup bij unmount of style reset
   useEffect(() => {
     return () => {
-      try {
-        popupRef.current?.remove();
-      } catch { }
-      popupRef.current = null;
+      const current = tooltipRef.current;
+      if (current?.root) {
+        try {
+          current.root.unmount();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (current?.popup) {
+        try {
+          current.popup.remove();
+        } catch {
+          /* ignore */
+        }
+      }
+      tooltipRef.current = null;
     };
   }, []);
 
   return (
     <div
       ref={mapContainerRef}
-      className="relative w-full h-full rounded-lg overflow-hidden shadow-md"
+      className={cn(
+        "relative h-full w-full overflow-hidden rounded-lg shadow-md",
+        interactionDisabled && "pointer-events-none"
+      )}
     >
       {mapReady && mapRef.current && (
         <MarkerLayer
           map={mapRef.current}
           locations={locations}
-          selectedId={selectedId}
-          onSelect={onSelect}
+          selectedId={highlightedId}
+          onSelect={(id) => onHighlight?.(id)}
         />
       )}
     </div>

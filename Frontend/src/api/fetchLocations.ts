@@ -4,6 +4,10 @@ export interface LocationMarker {
     name: string;
     lat: number | null;
     lng: number | null;
+    // Optional address & identifiers
+    address?: string | null;
+    place_id?: string | null;
+    city?: string | null;
     // Raw category from DB (still returned by backend)
     category: string;
     // Canonicalized category fields from backend
@@ -71,6 +75,9 @@ export async function fetchLocations(
             name: String(loc?.name ?? "Unknown"),
             lat: typeof loc?.lat === "number" ? loc.lat : null,
             lng: typeof loc?.lng === "number" ? loc.lng : null,
+            address: typeof loc?.address === "string" ? loc.address : null,
+            place_id: typeof loc?.place_id === "string" ? loc.place_id : undefined,
+            city: typeof loc?.city === "string" ? loc.city : undefined,
             category: String(loc?.category ?? "other"),
             category_raw: (typeof loc?.category_raw === "string" ? loc.category_raw : String(loc?.category ?? "")) || undefined,
             category_key: typeof loc?.category_key === "string" ? loc.category_key : undefined,

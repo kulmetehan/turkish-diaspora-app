@@ -5,6 +5,7 @@ type Props = {
   locations: LocationMarker[];
   selectedId: string | null;
   onSelect?: (id: string) => void;
+  onSelectDetail?: (id: string) => void;
   autoScrollToSelected?: boolean;
   emptyText?: string;
 };
@@ -13,6 +14,7 @@ export default function LocationList({
   locations,
   selectedId,
   onSelect,
+  onSelectDetail,
   autoScrollToSelected = true,
   emptyText = "Geen resultaten",
 }: Props) {
@@ -75,7 +77,18 @@ export default function LocationList({
           >
             <div className="flex items-center justify-between">
               <div className="font-medium">{l.name}</div>
-              {/* rating removed */}
+              {onSelectDetail && (
+                <button
+                  type="button"
+                  className="text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSelectDetail(l.id);
+                  }}
+                >
+                  Details
+                </button>
+              )}
             </div>
             <div className="text-xs text-muted-foreground">
               {l.category_label ?? l.category ?? "—"} • {l.is_turkish ? "Turks" : "—"}

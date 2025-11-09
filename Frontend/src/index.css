@@ -333,6 +333,57 @@ body {
   pointer-events: auto;
 }
 
+.tda-preview-popup {
+  max-width: none !important;
+}
+
+.tda-preview-popup .mapboxgl-popup-content {
+  background: transparent !important;
+  padding: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.tda-preview-popup .mapboxgl-popup-tip {
+  display: none !important;
+}
+
+.tda-preview-popup .mapboxgl-popup-content > div {
+  margin: 0 !important;
+}
+
+.tda-preview-popup {
+  transition: transform 120ms ease;
+}
+
+.tda-preview-popup .tda-card {
+  position: relative;
+  margin-inline: 4px;
+}
+
+.tda-preview-popup.anchor-bottom .tda-card::after,
+.tda-preview-popup.anchor-top .tda-card::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.1));
+}
+
+.tda-preview-popup.anchor-bottom .tda-card::after {
+  bottom: -8px;
+  border-top: 8px solid hsl(var(--background));
+}
+
+.tda-preview-popup.anchor-top .tda-card::after {
+  top: -8px;
+  border-bottom: 8px solid hsl(var(--background));
+}
+
 /* Marker highlight ring (voeg in JS de class .tda-marker--highlighted toe) */
 .tda-marker--highlighted {
   position: relative;

@@ -6,6 +6,7 @@ import Filters from "@/components/Filters";
 import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
+import OverlayDetailCard from "@/components/OverlayDetailCard";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 
@@ -27,7 +28,8 @@ function HomePage() {
   });
 
   // Geselecteerde locatie-id (sync met lijst + kaart)
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   // Bottom sheet state
   const [sheetSnapPoint, setSheetSnapPoint] = useState<SnapPoint>("half");
@@ -145,30 +147,27 @@ function HomePage() {
   }, [all]);
 
   // Huidige selectie-object
-  const selected = useMemo(() => filtered.find((l) => l.id === selectedId) ?? null, [filtered, selectedId]);
+  const highlighted = useMemo(() => filtered.find((l) => l.id === highlightedId) ?? null, [filtered, highlightedId]);
+  const detail = useMemo(() => filtered.find((l) => l.id === detailId) ?? null, [filtered, detailId]);
 
-  // Handle location selection - minimize sheet and show detail on mobile
-  const handleLocationSelect = (id: string) => {
-    setSelectedId(id);
-    if (!isDesktop) {
-      // On mobile: minimize sheet to show map with selected location
+  const handleHighlight = (id: string | null) => {
+    setHighlightedId(id);
+    if (id && !isDesktop) {
       setSheetSnapPoint("collapsed");
     }
   };
 
-  // Handle map click - show list on mobile
-  const handleMapClick = () => {
+  const handleOpenDetail = (id: string) => {
+    setHighlightedId(id);
+    setDetailId(id);
     if (!isDesktop) {
-      setSelectedId(null); // Clear selection
-      setSheetSnapPoint("half"); // Show list
+      setSheetSnapPoint("collapsed");
     }
   };
 
-  // Handle back to list from detail view
-  const handleBackToList = () => {
-    setSelectedId(null);
+  const handleCloseDetail = () => {
+    setDetailId(null);
     if (!isDesktop) {
-      // Return to list view (half height)
       setSheetSnapPoint("half");
     }
   };
@@ -192,8 +191,9 @@ function HomePage() {
         <div className="overflow-auto flex-1">
           <LocationList
             locations={filtered}
-            selectedId={selectedId}
-            onSelect={(id) => setSelectedId(id)}
+            selectedId={highlightedId}
+            onSelect={handleHighlight}
+            onSelectDetail={handleOpenDetail}
             autoScrollToSelected
             emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
           />
@@ -204,15 +204,14 @@ function HomePage() {
       <main className="fixed inset-0 h-screen w-screen z-0 lg:static lg:h-auto lg:w-auto lg:flex-1">
         <MapView
           locations={filtered}
-          selectedId={selectedId}
-          onSelect={(id) => { setSelectedId(id); if (!isDesktop) setSheetSnapPoint("collapsed"); }}
+          highlightedId={highlightedId}
+          detailId={detailId}
+          interactionDisabled={Boolean(detail)}
+          onHighlight={handleHighlight}
+          onOpenDetail={handleOpenDetail}
           onMapClick={() => {
-            if (!isDesktop) {
-              setSelectedId(null);
-              setSheetSnapPoint("half");
-            } else {
-              setSelectedId(null);
-            }
+            handleHighlight(null);
+            handleCloseDetail();
           }}
           onViewportChange={(bbox) => {
             setViewportBbox(bbox);
@@ -234,10 +233,10 @@ function HomePage() {
           onSnapPointChange={setSheetSnapPoint}
           onClose={() => setIsSheetOpen(false)}
         >
-          {selectedId && selected ? (
+          {highlightedId && highlighted ? (
             <LocationDetail
-              location={selected}
-              onBackToList={handleBackToList}
+              location={highlighted}
+              onBackToList={() => handleHighlight(null)}
             />
           ) : (
             <div className="flex flex-col h-full">
@@ -256,8 +255,9 @@ function HomePage() {
               <div className="overflow-auto flex-1">
                 <LocationList
                   locations={filtered}
-                  selectedId={selectedId}
-                  onSelect={(id) => { setSelectedId(id); setSheetSnapPoint("collapsed"); }}
+                  selectedId={highlightedId}
+                  onSelect={handleHighlight}
+                  onSelectDetail={handleOpenDetail}
                   autoScrollToSelected
                   emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
                 />
@@ -266,6 +266,14 @@ function HomePage() {
           )}
         </BottomSheet>
       </div>
+
+      {detail && (
+        <OverlayDetailCard
+          location={detail}
+          open={Boolean(detail)}
+          onClose={handleCloseDetail}
+        />
+      )}
     </div>
   );
 }
