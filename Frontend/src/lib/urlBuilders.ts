@@ -4,6 +4,12 @@ const GOOGLE_MAPS_DIRECTIONS_BASE = "https://www.google.com/maps/dir/";
 const GOOGLE_SEARCH_BASE = "https://www.google.com/search";
 const DEFAULT_CITY_FALLBACK = "Rotterdam";
 
+type LocForRoute = Pick<LocationMarker, "lat" | "lng" | "place_id"> & {
+    name?: string | null;
+};
+
+type LocForCity = Pick<LocationMarker, "address" | "city">;
+
 function resolveUserAgent(explicitUa?: string): string {
     if (explicitUa) return explicitUa;
     if (typeof navigator !== "undefined" && typeof navigator.userAgent === "string") {
@@ -22,9 +28,13 @@ function isAndroid(userAgent?: string): boolean {
     return /\bAndroid\b/i.test(ua);
 }
 
-function hasCoordinates(location: LocationMarker): location is LocationMarker & { lat: number; lng: number } {
-    return typeof location.lat === "number" && Number.isFinite(location.lat) &&
-        typeof location.lng === "number" && Number.isFinite(location.lng);
+function hasCoordinates<T extends { lat: number | null | undefined; lng: number | null | undefined }>(
+    location: T
+): location is T & { lat: number; lng: number } {
+    return typeof location.lat === "number" &&
+        Number.isFinite(location.lat) &&
+        typeof location.lng === "number" &&
+        Number.isFinite(location.lng);
 }
 
 function parseCityFromAddress(address?: string | null): string | null {
@@ -49,7 +59,7 @@ function parseCityFromAddress(address?: string | null): string | null {
     return null;
 }
 
-export function deriveCityForLocation(location: Pick<LocationMarker, "address" | "city">, fallback = DEFAULT_CITY_FALLBACK): string {
+export function deriveCityForLocation(location: LocForCity, fallback = DEFAULT_CITY_FALLBACK): string {
     const direct = typeof location.city === "string" && location.city.trim().length > 0
         ? location.city.trim()
         : null;
@@ -60,10 +70,11 @@ export function deriveCityForLocation(location: Pick<LocationMarker, "address" |
     return fallback;
 }
 
-export function buildRouteUrl(location: LocationMarker, userAgent?: string): string {
+export function buildRouteUrl(location: LocForRoute, userAgent?: string): string {
     const ua = resolveUserAgent(userAgent);
     const coordsAvailable = hasCoordinates(location);
-    const encodedName = encodeURIComponent(location.name ?? "");
+    const safeName = String(location.name ?? "");
+    const encodedName = encodeURIComponent(safeName);
 
     if (isIos(ua)) {
         const base = `maps://?q=${encodedName}`;
@@ -80,12 +91,12 @@ export function buildRouteUrl(location: LocationMarker, userAgent?: string): str
         params.set("destination", `${location.lat},${location.lng}`);
     }
 
-    if (location.place_id && location.place_id.length > 0) {
+    if (typeof location.place_id === "string" && location.place_id.length > 0) {
         params.set("destination_place_id", location.place_id);
     }
 
     if (!coordsAvailable) {
-        params.set("q", location.name ?? "");
+        params.set("q", safeName);
     }
 
     return `${GOOGLE_MAPS_DIRECTIONS_BASE}?${params.toString()}`;
