@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/Icon";
 import { toast } from "sonner";
@@ -26,8 +26,10 @@ export default function UiKit() {
               <Button variant="outline">Open Dialog</Button>
             </DialogTrigger>
             <DialogContent>
-              <h3 className="text-lg font-semibold mb-2">Dialog Title</h3>
-              <p className="text-sm text-muted-foreground">This is a sample dialog with focus trapping.</p>
+              <DialogTitle className="mb-2 text-lg font-semibold">Dialog Title</DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                This is a sample dialog with focus trapping.
+              </DialogDescription>
             </DialogContent>
           </Dialog>
         </div>

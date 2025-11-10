@@ -20,7 +20,7 @@ export function Header() {
   }
 
   return (
-    <header className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header data-header className="w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto max-w-7xl flex items-center gap-3 p-3">
         {/* Logo / Home */}
         <Link to="/" className="inline-flex items-center gap-2 font-semibold">

@@ -1,5 +1,5 @@
 // src/App.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import BottomSheet, { type SnapPoint } from "@/components/BottomSheet";
 import Filters from "@/components/Filters";
@@ -9,6 +9,7 @@ import MapView from "@/components/MapView";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
+import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, writeViewMode, type ViewMode } from "@/lib/routing/viewMode";
 
 import { fetchLocations, fetchLocationsCount, type LocationMarker } from "@/api/fetchLocations";
 
@@ -17,7 +18,6 @@ function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewportBbox, setViewportBbox] = useState<string | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
 
   // UI-filters (komen overeen met Filters.tsx props)
@@ -38,10 +38,49 @@ function HomePage() {
   // Responsive breakpoint detection
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "map";
+    return readViewMode();
+  });
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return readFocusId();
+  });
+  const inFlightRequestRef = useRef<{ bbox: string | null; controller: AbortController } | null>(null);
+  const lastSettledBboxRef = useRef<string | null>(null);
+  const hasSettledRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncFromHash = () => {
+      setViewMode(readViewMode());
+      setPendingFocusId(readFocusId());
+    };
+    syncFromHash();
+    return onHashChange(syncFromHash);
+  }, []);
+
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    setViewMode(mode);
+    writeViewMode(mode);
+  }, []);
+
+  const handleFocusOnMap = useCallback((id: string) => {
+    writeViewMode("map");
+    writeFocusId(id);
+    setViewMode("map");
+    setPendingFocusId(id);
+  }, []);
+
+  const handleFocusConsumed = useCallback(() => {
+    setPendingFocusId(null);
+    clearFocusId();
+  }, []);
+
   // Debug logging removed for production noise reduction
 
   // Search + filter with debounce and session cache
-  const { debouncedQuery, filtered, suggestions } = useSearch({
+  const { filtered, suggestions } = useSearch({
     locations: all,
     search: filters.search,
     category: filters.category,
@@ -51,69 +90,86 @@ function HomePage() {
 
   // Load locations based on viewport bbox
   useEffect(() => {
-    let alive = true;
+    const nextBbox = viewportBbox ?? null;
 
     if (debounceTimeoutRef.current !== null) {
       window.clearTimeout(debounceTimeoutRef.current);
       debounceTimeoutRef.current = null;
     }
 
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
+    // Skip scheduling if an identical request already settled and no in-flight request exists
+    if (hasSettledRef.current && lastSettledBboxRef.current === nextBbox && !inFlightRequestRef.current) {
+      return;
     }
 
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
+    // Skip if identical request already in-flight
+    if (inFlightRequestRef.current && inFlightRequestRef.current.bbox === nextBbox) {
+      return;
+    }
+
+    let cancelled = false;
 
     debounceTimeoutRef.current = window.setTimeout(() => {
+      if (cancelled) return;
+
+      const previous = inFlightRequestRef.current;
+      if (previous) {
+        previous.controller.abort();
+      }
+
+      const controller = new AbortController();
+      const requestBbox = nextBbox;
+      inFlightRequestRef.current = { bbox: requestBbox, controller };
+
       setLoading(true);
       setError(null);
 
       const load = async () => {
         try {
-          if (!viewportBbox) {
-            const totalCount = await fetchLocationsCount(null, abortController.signal);
-
-            if (!alive || abortController.signal.aborted) return;
+          if (!requestBbox) {
+            const totalCount = await fetchLocationsCount(null, controller.signal);
+            if (controller.signal.aborted || cancelled) return;
 
             const allLocations: LocationMarker[] = [];
             const pageSize = 10000;
             let offset = 0;
 
             while (offset < totalCount) {
-              if (!alive || abortController.signal.aborted) return;
-
-              const page = await fetchLocations(null, pageSize, offset, abortController.signal);
+              if (controller.signal.aborted || cancelled) return;
+              const page = await fetchLocations(null, pageSize, offset, controller.signal);
               allLocations.push(...page);
-
               if (page.length < pageSize) {
                 break;
               }
-
               offset += pageSize;
             }
 
-            if (!alive || abortController.signal.aborted) return;
+            if (controller.signal.aborted || cancelled) return;
             setAll(allLocations);
           } else {
-            const rows = await fetchLocations(viewportBbox, 1000, 0, abortController.signal);
-
-            if (!alive || abortController.signal.aborted) return;
+            const rows = await fetchLocations(requestBbox, 1000, 0, controller.signal);
+            if (controller.signal.aborted || cancelled) return;
 
             if (import.meta.env.DEV) {
-              console.debug(`[App] Fetched ${rows.length} locations for bbox: ${viewportBbox}`);
+              console.debug(`[App] Fetched ${rows.length} locations for bbox: ${requestBbox}`);
             }
 
             setAll(rows);
           }
+
+          if (controller.signal.aborted || cancelled) return;
+          lastSettledBboxRef.current = requestBbox;
+          hasSettledRef.current = true;
         } catch (e: any) {
-          if (e?.name === "AbortError" || abortController.signal.aborted) {
+          if (controller.signal.aborted || cancelled) {
             return;
           }
-          if (!alive) return;
           setError(e instanceof Error ? e.message : "Onbekende fout");
         } finally {
-          if (!alive || abortController.signal.aborted) return;
+          if (controller.signal.aborted || cancelled) return;
+          if (inFlightRequestRef.current?.controller === controller) {
+            inFlightRequestRef.current = null;
+          }
           setLoading(false);
         }
       };
@@ -122,16 +178,26 @@ function HomePage() {
     }, 200);
 
     return () => {
-      alive = false;
+      cancelled = true;
       if (debounceTimeoutRef.current !== null) {
         window.clearTimeout(debounceTimeoutRef.current);
         debounceTimeoutRef.current = null;
       }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
     };
   }, [viewportBbox]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current !== null) {
+        window.clearTimeout(debounceTimeoutRef.current);
+        debounceTimeoutRef.current = null;
+      }
+      if (inFlightRequestRef.current) {
+        inFlightRequestRef.current.controller.abort();
+        inFlightRequestRef.current = null;
+      }
+    };
+  }, []);
 
   // filtered comes from useSearch; keep API order (no client sorting)
   // Build category options from data (canonical key + label)
@@ -141,9 +207,13 @@ function HomePage() {
       const key = (l.category_key ?? l.category ?? "").toLowerCase();
       if (!key || key === "other") continue;
       const label = l.category_label || key;
-      if (!map.has(key)) map.set(key, label);
+      if (!map.has(key)) {
+        map.set(key, label);
+      }
     }
-    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], "en"))
+      .map(([key, label]) => ({ key, label }));
   }, [all]);
 
   // Huidige selectie-object
@@ -172,100 +242,108 @@ function HomePage() {
     }
   };
 
-  return (
-    <div className="relative min-h-[calc(100dvh-56px)] lg:grid lg:grid-cols-2">
-      {/* Left panel (filters + list) - desktop only */}
-      <aside className="hidden lg:flex lg:flex-col border-r bg-background">
-        <div className="p-3 border-b">
-          <Filters
-            search={filters.search}
-            category={filters.category}
-            onlyTurkish={filters.onlyTurkish}
-            loading={loading}
-            categoryOptions={categoryOptions}
-            suggestions={suggestions}
-            idPrefix="desktop"
-            onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-          />
-        </div>
-        <div className="overflow-auto flex-1">
-          <LocationList
-            locations={filtered}
-            selectedId={highlightedId}
-            onSelect={handleHighlight}
-            onSelectDetail={handleOpenDetail}
-            autoScrollToSelected
-            emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
-          />
-        </div>
-      </aside>
+  const renderFilters = (idPrefixOverride?: string) => (
+    <Filters
+      search={filters.search}
+      category={filters.category}
+      onlyTurkish={filters.onlyTurkish}
+      loading={loading}
+      categoryOptions={categoryOptions}
+      suggestions={suggestions}
+      idPrefix={idPrefixOverride ?? (isDesktop ? "desktop" : "mobile")}
+      onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
+      viewMode={viewMode}
+      onViewModeChange={handleViewModeChange}
+    />
+  );
 
-      {/* Map panel (always rendered) */}
-      <main className="fixed inset-0 h-screen w-screen z-0 lg:static lg:h-auto lg:w-auto lg:flex-1">
-        <MapView
+  const listViewDesktop = (
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 min-h-[calc(100dvh-56px)]">
+      {renderFilters("list-desktop")}
+      <div className="flex-1">
+        <LocationList
           locations={filtered}
-          highlightedId={highlightedId}
-          detailId={detailId}
-          interactionDisabled={Boolean(detail)}
-          onHighlight={handleHighlight}
-          onOpenDetail={handleOpenDetail}
-          onMapClick={() => {
-            handleHighlight(null);
-            handleCloseDetail();
-          }}
-          onViewportChange={(bbox) => {
-            setViewportBbox(bbox);
-          }}
+          selectedId={highlightedId}
+          onSelect={handleHighlight}
+          onSelectDetail={handleOpenDetail}
+          onShowOnMap={handleFocusOnMap}
+          autoScrollToSelected
+          emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
         />
-        {/* Loading indicator */}
-        {loading && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/90 px-4 py-2 rounded-md shadow-md text-sm z-10">
-            Loading locations...
+      </div>
+    </div>
+  );
+
+  const listViewMobile = (
+    <div className="lg:hidden">
+      <BottomSheet
+        open={isSheetOpen}
+        snapPoint={sheetSnapPoint}
+        onSnapPointChange={setSheetSnapPoint}
+        onClose={() => setIsSheetOpen(false)}
+      >
+        {highlightedId && highlighted ? (
+          <LocationDetail
+            location={highlighted}
+            onBackToList={() => handleHighlight(null)}
+          />
+        ) : (
+          <div className="flex h-full flex-col gap-3">
+            {renderFilters("list-mobile")}
+            <div className="flex-1 overflow-auto">
+              <LocationList
+                locations={filtered}
+                selectedId={highlightedId}
+                onSelect={handleHighlight}
+                onSelectDetail={handleOpenDetail}
+                onShowOnMap={handleFocusOnMap}
+                autoScrollToSelected
+                emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
+              />
+            </div>
           </div>
         )}
-      </main>
+      </BottomSheet>
+    </div>
+  );
 
-      {/* BottomSheet mobile overlay (list/detail UI) - mobile only */}
-      <div className="lg:hidden">
-        <BottomSheet
-          open={isSheetOpen}
-          snapPoint={sheetSnapPoint}
-          onSnapPointChange={setSheetSnapPoint}
-          onClose={() => setIsSheetOpen(false)}
-        >
-          {highlightedId && highlighted ? (
-            <LocationDetail
-              location={highlighted}
-              onBackToList={() => handleHighlight(null)}
-            />
-          ) : (
-            <div className="flex flex-col h-full">
-              <div className="p-3 border-b">
-                <Filters
-                  search={filters.search}
-                  category={filters.category}
-                  onlyTurkish={filters.onlyTurkish}
-                  loading={loading}
-                  categoryOptions={categoryOptions}
-                  suggestions={suggestions}
-                  idPrefix="mobile"
-                  onChange={(patch) => setFilters((f) => ({ ...f, ...patch }))}
-                />
-              </div>
-              <div className="overflow-auto flex-1">
-                <LocationList
-                  locations={filtered}
-                  selectedId={highlightedId}
-                  onSelect={handleHighlight}
-                  onSelectDetail={handleOpenDetail}
-                  autoScrollToSelected
-                  emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
-                />
-              </div>
-            </div>
-          )}
-        </BottomSheet>
+  const mapView = (
+    <div className="relative h-[calc(100dvh-56px)] w-full">
+      <MapView
+        locations={filtered}
+        highlightedId={highlightedId}
+        detailId={detailId}
+        interactionDisabled={Boolean(detail)}
+        onHighlight={handleHighlight}
+        onOpenDetail={handleOpenDetail}
+        onMapClick={() => {
+          handleHighlight(null);
+          handleCloseDetail();
+        }}
+        focusId={pendingFocusId}
+        onFocusConsumed={handleFocusConsumed}
+        onViewportChange={(bbox) => {
+          setViewportBbox(bbox);
+        }}
+      />
+      <div className="pointer-events-none absolute left-1/2 top-4 z-10 flex w-full max-w-xl -translate-x-1/2 px-4">
+        <div className="pointer-events-auto w-full" data-filters-overlay>
+          {renderFilters("map")}
+        </div>
       </div>
+      {loading && (
+        <div className="absolute top-4 right-4 z-10 rounded-md bg-white/90 px-4 py-2 text-sm shadow-md">
+          Loading locations...
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="relative min-h-[calc(100dvh-56px)]">
+      {viewMode === "map"
+        ? mapView
+        : (isDesktop ? listViewDesktop : listViewMobile)}
 
       {detail && (
         <OverlayDetailCard
