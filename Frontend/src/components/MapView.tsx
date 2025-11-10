@@ -1,6 +1,6 @@
 
 // src/components/MapView.tsx
-import mapboxgl, { Map as MapboxMap, type GeoJSONSourceRaw, type LngLatLike } from "mapbox-gl";
+import mapboxgl, { Map as MapboxMap, type GeoJSONSource, type LngLatLike } from "mapbox-gl";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { FeatureCollection, Point } from "geojson";
@@ -520,7 +520,7 @@ export default function MapView({
   const clearUserLocation = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
-    const source = map.getSource(USER_LOCATION_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined;
     userLocationDataRef.current = {
       type: "FeatureCollection",
       features: [],
@@ -537,8 +537,11 @@ export default function MapView({
     if (!map.getSource(USER_LOCATION_SOURCE_ID)) {
       map.addSource(USER_LOCATION_SOURCE_ID, {
         type: "geojson",
-        data: userLocationDataRef.current,
-      } satisfies GeoJSONSourceRaw);
+        data: {
+          type: "FeatureCollection",
+          features: [],
+        },
+      });
     }
 
     if (!map.getLayer(USER_LOCATION_ACCURACY_LAYER_ID)) {
@@ -659,7 +662,7 @@ export default function MapView({
       userLocationPaintRef.current = stops;
       applyAccuracyPaint(map);
 
-      const source = map.getSource(USER_LOCATION_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined;
       source?.setData(featureCollection);
     },
     [applyAccuracyPaint, clearUserLocation, destroyedRef, ensureUserLocationLayers],
@@ -672,7 +675,7 @@ export default function MapView({
     const maintainLayers = () => {
       ensureUserLocationLayers();
       applyAccuracyPaint(map);
-      const source = map.getSource(USER_LOCATION_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined;
       if (source && userLocationDataRef.current) {
         source.setData(userLocationDataRef.current);
       }
