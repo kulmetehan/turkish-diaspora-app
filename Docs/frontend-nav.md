@@ -14,8 +14,9 @@
 
 ## Deployment & BASE_URL
 
-- `HashRouter` receives `basename={import.meta.env.BASE_URL.replace(/\/+$/, "")}` to handle paths like `/turkish-diaspora-app/`.
-- Always run `npm run build` with the Pages base (`vite --base=/turkish-diaspora-app/`) to validate deep links such as `#/events`.
+- `HashRouter` runs without a `basename`; routing stays hash-based (`#/map`, etc.) regardless of the GitHub Pages sub-path.
+- Vite still needs `base=/turkish-diaspora-app/` for asset URLs. On local previews, run `npm run build` (which uses that base), then `npm run preview` and set `window.location.pathname = "/turkish-diaspora-app/"` before refreshing to mimic Pages.
+- Deep links (e.g., `#/events`) continue to resolve under the Pages deployment.
 
 ## Safe-Area & A2HS Tips
 
