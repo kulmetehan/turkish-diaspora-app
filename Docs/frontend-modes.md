@@ -20,3 +20,10 @@ Developers adding new features should reuse the existing helpers in `Frontend/sr
 - Camera cache behaviour is unchanged: the controller never recreates the map, so `restoreCamera`/`storeCamera` continue to work without triggering cold reloads or extra fetches.
 
 
+## Map Controls (F4-S5)
+
+- `MapControls.tsx` renders the North reset and My Location actions as a floating stack in the map container; the overlay respects safe-area insets so it stays clear of the mobile bottom sheet.
+- `MapView` wires both actions through `performCameraTransition`. Before calling `easeTo`, the handlers invoke `onSuppressNextViewportFetch`, which toggles the one-shot guard in `App` so programmatic moves avoid triggering viewport-driven refetches.
+- The North button keeps the current center/zoom/pitch and only normalises the bearing to `0`, giving a smooth compass reset.
+- The My Location button uses `navigator.geolocation.getCurrentPosition` with high-accuracy hints. It eases to the device location, clamps the zoom to `CONFIG.MAP_MY_LOCATION_ZOOM` (default `14`), and logs concise console notices when permissions are denied or the position is unavailable.
+

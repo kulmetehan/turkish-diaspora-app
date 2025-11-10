@@ -24,6 +24,7 @@ export const CONFIG = {
     lng: 4.4777,
     zoom: 11,
   },
+  MAP_MY_LOCATION_ZOOM: 14,
 
   CACHE_TTL_MS: 60_000,
   FETCH_DEBOUNCE_MS: 300,

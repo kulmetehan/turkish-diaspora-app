@@ -1,14 +1,17 @@
 
 // src/components/MapView.tsx
-import type { LocationMarker } from "@/api/fetchLocations";
-import mapboxgl, { Map as MapboxMap, type LngLatLike } from "mapbox-gl";
+import mapboxgl, { Map as MapboxMap, type GeoJSONSourceRaw, type LngLatLike } from "mapbox-gl";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import type { FeatureCollection, Point } from "geojson";
 
+import type { LocationMarker } from "@/api/fetchLocations";
+import MapControls from "@/components/MapControls";
 import { restoreCamera, storeCamera } from "@/components/mapCameraCache";
 import { MARKER_POINT_OUTER_RADIUS } from "@/components/markerLayerUtils";
 import PreviewTooltip from "@/components/PreviewTooltip";
 import { cn } from "@/lib/ui/cn";
+import { CONFIG } from "@/lib/config";
 import MarkerLayer from "./MarkerLayer";
 
 // Zorg dat je VITE_MAPBOX_TOKEN in .env staat
@@ -26,6 +29,7 @@ type Props = {
   focusId?: string | null;
   onFocusConsumed?: () => void;
   centerOnSelect?: boolean;
+  onSuppressNextViewportFetch?: () => void;
 };
 
 const TOOLTIP_POINTER_HEIGHT = MARKER_POINT_OUTER_RADIUS;
@@ -39,8 +43,38 @@ const POPUP_OFFSET: mapboxgl.PopupOptions["offset"] = {
   left: [MARKER_POINT_OUTER_RADIUS, -MARKER_POINT_OUTER_RADIUS],
   right: [-MARKER_POINT_OUTER_RADIUS, -MARKER_POINT_OUTER_RADIUS],
 };
+type UserLocationProperties = {
+  accuracy?: number;
+  latRadians: number;
+};
+
 const FOCUS_BIAS_RATIO = 0.15;
 type EaseOptions = Parameters<MapboxMap["easeTo"]>[0];
+const MY_LOCATION_ZOOM = CONFIG.MAP_MY_LOCATION_ZOOM ?? 14;
+const USER_LOCATION_SOURCE_ID = "tda-user-location";
+const USER_LOCATION_ACCURACY_LAYER_ID = "tda-user-location-accuracy";
+const USER_LOCATION_DOT_LAYER_ID = "tda-user-location-dot";
+const EARTH_METERS_PER_PIXEL_AT_EQUATOR = 156543.03392;
+const MAX_ACCURACY_RADIUS = 400;
+const EMPTY_FEATURE_COLLECTION: FeatureCollection<Point, UserLocationProperties> = {
+  type: "FeatureCollection",
+  features: [],
+};
+
+function metersToPixelsAtLatitude(lat: number, meters: number, zoom: number): number {
+  if (!Number.isFinite(lat) || !Number.isFinite(meters) || !Number.isFinite(zoom) || meters <= 0) {
+    return 0;
+  }
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  if (!Number.isFinite(cosLat) || cosLat <= 0) {
+    return 0;
+  }
+  const pixels = (meters / (EARTH_METERS_PER_PIXEL_AT_EQUATOR * cosLat)) * Math.pow(2, zoom);
+  if (!Number.isFinite(pixels) || pixels <= 0) {
+    return 0;
+  }
+  return Math.min(MAX_ACCURACY_RADIUS, pixels);
+}
 
 const defer = (fn: () => void) => {
   if (typeof queueMicrotask === "function") {
@@ -437,6 +471,7 @@ export default function MapView({
   focusId,
   onFocusConsumed,
   centerOnSelect = false,
+  onSuppressNextViewportFetch,
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -453,6 +488,207 @@ export default function MapView({
   const viewportDebounceRef = useRef<number | null>(null);
   const popup = usePopupController(mapRef, mapReady, destroyedRef);
   const onMapClickRef = useRef(onMapClick);
+  const [isLocating, setIsLocating] = useState(false);
+  const userLocationDataRef = useRef<FeatureCollection<Point, UserLocationProperties>>(EMPTY_FEATURE_COLLECTION);
+  const userLocationPaintRef = useRef<{ z10: number; z14: number; z18: number }>({ z10: 0, z14: 0, z18: 0 });
+
+  const applyAccuracyPaint = useCallback(
+    (targetMap: MapboxMap | null = mapRef.current) => {
+      const map = targetMap;
+      if (!map) return;
+      if (!map.getLayer(USER_LOCATION_ACCURACY_LAYER_ID)) return;
+      const { z10, z14, z18 } = userLocationPaintRef.current;
+      try {
+        map.setPaintProperty(USER_LOCATION_ACCURACY_LAYER_ID, "circle-radius", [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10,
+          z10,
+          14,
+          z14,
+          18,
+          z18,
+        ]);
+      } catch {
+        /* ignore */
+      }
+    },
+    [],
+  );
+
+  const clearUserLocation = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource(USER_LOCATION_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+    userLocationDataRef.current = {
+      type: "FeatureCollection",
+      features: [],
+    };
+    userLocationPaintRef.current = { z10: 0, z14: 0, z18: 0 };
+    applyAccuracyPaint(map);
+    source?.setData(userLocationDataRef.current);
+  }, [applyAccuracyPaint]);
+
+  const ensureUserLocationLayers = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || destroyedRef.current) return false;
+
+    if (!map.getSource(USER_LOCATION_SOURCE_ID)) {
+      map.addSource(USER_LOCATION_SOURCE_ID, {
+        type: "geojson",
+        data: userLocationDataRef.current,
+      } satisfies GeoJSONSourceRaw);
+    }
+
+    if (!map.getLayer(USER_LOCATION_ACCURACY_LAYER_ID)) {
+      try {
+        map.addLayer(
+          {
+            id: USER_LOCATION_ACCURACY_LAYER_ID,
+            type: "circle",
+            source: USER_LOCATION_SOURCE_ID,
+            filter: ["==", ["geometry-type"], "Point"],
+            paint: {
+              "circle-radius": [
+                "interpolate",
+                ["linear"],
+                ["zoom"],
+                10,
+                userLocationPaintRef.current.z10,
+                14,
+                userLocationPaintRef.current.z14,
+                18,
+                userLocationPaintRef.current.z18,
+              ],
+              "circle-color": "#38bdf8",
+              "circle-opacity": 0.18,
+              "circle-stroke-width": 0,
+            },
+          },
+          "tda-unclustered-point",
+        );
+        applyAccuracyPaint(map);
+      } catch {
+        /* ignore layering errors */
+      }
+    }
+
+    if (!map.getLayer(USER_LOCATION_DOT_LAYER_ID)) {
+      try {
+        map.addLayer(
+          {
+            id: USER_LOCATION_DOT_LAYER_ID,
+            type: "circle",
+            source: USER_LOCATION_SOURCE_ID,
+            filter: ["==", ["geometry-type"], "Point"],
+            paint: {
+              "circle-color": "#0284c7",
+              "circle-opacity": 1,
+              "circle-radius": 6,
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 2,
+            },
+          },
+          "tda-highlight",
+        );
+      } catch {
+        /* ignore layering errors */
+      }
+    }
+
+    return true;
+  }, [applyAccuracyPaint, destroyedRef]);
+
+  const removeUserLocationLayers = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      if (map.getLayer(USER_LOCATION_DOT_LAYER_ID)) {
+        map.removeLayer(USER_LOCATION_DOT_LAYER_ID);
+      }
+      if (map.getLayer(USER_LOCATION_ACCURACY_LAYER_ID)) {
+        map.removeLayer(USER_LOCATION_ACCURACY_LAYER_ID);
+      }
+      if (map.getSource(USER_LOCATION_SOURCE_ID)) {
+        map.removeSource(USER_LOCATION_SOURCE_ID);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const setUserLocation = useCallback(
+    (lng: number, lat: number, accuracy?: number | null) => {
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        clearUserLocation();
+        return;
+      }
+      const map = mapRef.current;
+      if (!map || destroyedRef.current) return;
+
+      const layersReady = ensureUserLocationLayers();
+      if (!layersReady) return;
+
+      const featureCollection: FeatureCollection<Point, UserLocationProperties> = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [lng, lat],
+            },
+            properties: {
+              accuracy: typeof accuracy === "number" && accuracy > 0 ? accuracy : undefined,
+              latRadians: (lat * Math.PI) / 180,
+            },
+          },
+        ],
+      };
+
+      userLocationDataRef.current = featureCollection;
+      const stops =
+        typeof accuracy === "number" && accuracy > 0
+          ? {
+              z10: metersToPixelsAtLatitude(lat, accuracy, 10),
+              z14: metersToPixelsAtLatitude(lat, accuracy, 14),
+              z18: metersToPixelsAtLatitude(lat, accuracy, 18),
+            }
+          : { z10: 0, z14: 0, z18: 0 };
+      userLocationPaintRef.current = stops;
+      applyAccuracyPaint(map);
+
+      const source = map.getSource(USER_LOCATION_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      source?.setData(featureCollection);
+    },
+    [applyAccuracyPaint, clearUserLocation, destroyedRef, ensureUserLocationLayers],
+  );
+  useEffect(() => {
+    if (!mapReady || destroyedRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    const maintainLayers = () => {
+      ensureUserLocationLayers();
+      applyAccuracyPaint(map);
+      const source = map.getSource(USER_LOCATION_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      if (source && userLocationDataRef.current) {
+        source.setData(userLocationDataRef.current);
+      }
+    };
+
+    maintainLayers();
+    map.on("styledata", maintainLayers);
+
+    return () => {
+      try {
+        map.off("styledata", maintainLayers);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [applyAccuracyPaint, destroyedRef, ensureUserLocationLayers, mapReady]);
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
@@ -684,6 +920,127 @@ export default function MapView({
     },
     [destroyedRef, performCameraTransition],
   );
+
+  const handleResetNorth = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || destroyedRef.current) return;
+    if (typeof map.getBearing !== "function") return;
+    const bearing = map.getBearing();
+    if (!Number.isFinite(bearing)) return;
+    if (Math.abs(bearing) < 0.05) return;
+
+    const center = map.getCenter?.();
+    if (!center || !isFiniteCoord(center.lng) || !isFiniteCoord(center.lat)) {
+      return;
+    }
+
+    const options: EaseOptions & { center: [number, number] } = {
+      center: [center.lng, center.lat],
+      bearing: 0,
+      duration: 400,
+    };
+    const pitch = typeof map.getPitch === "function" ? map.getPitch() : undefined;
+    if (typeof pitch === "number" && Number.isFinite(pitch)) {
+      options.pitch = pitch;
+    }
+    const zoom = typeof map.getZoom === "function" ? map.getZoom() : undefined;
+    if (typeof zoom === "number" && Number.isFinite(zoom)) {
+      options.zoom = zoom;
+    }
+    const mapWithPadding = map as MapboxMap & { getPadding?: () => mapboxgl.PaddingOptions };
+    const padding = typeof mapWithPadding.getPadding === "function" ? mapWithPadding.getPadding() : undefined;
+    if (padding) {
+      options.padding = padding;
+    }
+
+    const success = performCameraTransition(options);
+    if (success) {
+      onSuppressNextViewportFetch?.();
+    }
+  }, [destroyedRef, onSuppressNextViewportFetch, performCameraTransition]);
+
+  const handleLocateUser = useCallback(() => {
+    if (destroyedRef.current) return;
+    if (typeof navigator === "undefined" || !("geolocation" in navigator) || !navigator.geolocation) {
+      clearUserLocation();
+      console.info("Geolocation not supported.");
+      return;
+    }
+    if (isLocating) return;
+
+    setIsLocating(true);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (destroyedRef.current) return;
+        setIsLocating(false);
+
+        const { latitude, longitude } = position.coords ?? {};
+        if (!isFiniteCoord(longitude) || !isFiniteCoord(latitude)) {
+          clearUserLocation();
+          console.info("Could not determine your position.");
+          return;
+        }
+
+        setUserLocation(longitude, latitude, position.coords?.accuracy ?? null);
+
+        const map = mapRef.current;
+        if (!map) return;
+
+        const currentZoom = typeof map.getZoom === "function" ? map.getZoom() : MY_LOCATION_ZOOM;
+        const targetZoom = Math.max(Number.isFinite(currentZoom) ? currentZoom : MY_LOCATION_ZOOM, MY_LOCATION_ZOOM);
+
+        const options: EaseOptions & { center: [number, number] } = {
+          center: [longitude, latitude],
+          zoom: targetZoom,
+          duration: 500,
+        };
+        const pitch = typeof map.getPitch === "function" ? map.getPitch() : undefined;
+        if (typeof pitch === "number" && Number.isFinite(pitch)) {
+          options.pitch = pitch;
+        }
+        const bearing = typeof map.getBearing === "function" ? map.getBearing() : undefined;
+        if (typeof bearing === "number" && Number.isFinite(bearing)) {
+          options.bearing = bearing;
+        }
+        const mapWithPadding = map as MapboxMap & { getPadding?: () => mapboxgl.PaddingOptions };
+        const padding = typeof mapWithPadding.getPadding === "function" ? mapWithPadding.getPadding() : undefined;
+        if (padding) {
+          options.padding = padding;
+        }
+
+        const success = performCameraTransition(options);
+        if (success) {
+          onSuppressNextViewportFetch?.();
+        }
+      },
+      (error) => {
+        if (destroyedRef.current) return;
+        setIsLocating(false);
+        clearUserLocation();
+        let message = "Could not determine your position.";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message = "Location access denied.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message = "Location unavailable.";
+            break;
+          case error.TIMEOUT:
+            message = "Location request timed out.";
+            break;
+          default:
+            break;
+        }
+        console.info(message);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 0,
+      },
+    );
+  }, [clearUserLocation, destroyedRef, isLocating, onSuppressNextViewportFetch, performCameraTransition, setUserLocation]);
 
   const handleMarkerSelect = useCallback(
     (id: string) => {
@@ -927,6 +1284,7 @@ export default function MapView({
         } catch {
           /* ignore */
         }
+        removeUserLocationLayers();
         try {
           mapInstance.remove();
         } catch {
@@ -1073,6 +1431,14 @@ export default function MapView({
         ref={mapContainerRef}
         className="relative h-full w-full overflow-hidden rounded-lg shadow-md"
       />
+      {mapReady && mapRef.current && (
+        <MapControls
+          onResetNorth={handleResetNorth}
+          onLocateUser={handleLocateUser}
+          locating={isLocating}
+          disabled={interactionDisabled}
+        />
+      )}
       {mapReady && mapRef.current && (
         <MarkerLayer
           map={mapRef.current}
