@@ -25,6 +25,7 @@ type Props = {
   interactionDisabled?: boolean;
   focusId?: string | null;
   onFocusConsumed?: () => void;
+  centerOnSelect?: boolean;
 };
 
 const TOOLTIP_POINTER_HEIGHT = MARKER_POINT_OUTER_RADIUS;
@@ -435,6 +436,7 @@ export default function MapView({
   interactionDisabled = false,
   focusId,
   onFocusConsumed,
+  centerOnSelect = false,
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
@@ -692,6 +694,10 @@ export default function MapView({
       }
       onHighlight?.(String(location.id));
       hidePopup();
+      if (!centerOnSelect) {
+        switchPopupToLocation(location);
+        return;
+      }
       const success = panToLocation(location, {
         minZoom: 15,
         duration: 420,
@@ -703,7 +709,7 @@ export default function MapView({
         switchPopupToLocation(location);
       }
     },
-    [destroyedRef, findLocationById, hidePopup, onHighlight, panToLocation, switchPopupToLocation],
+    [centerOnSelect, destroyedRef, findLocationById, hidePopup, onHighlight, panToLocation, switchPopupToLocation],
   );
 
   const handleClusterFocus = useCallback(
@@ -730,6 +736,19 @@ export default function MapView({
       if (!map || destroyedRef.current) return false;
       if (!isFiniteCoord(location.lng) || !isFiniteCoord(location.lat)) {
         return false;
+      }
+      if (!centerOnSelect) {
+        if (focusPendingRef.current) {
+          focusPendingRef.current.cancel();
+          focusPendingRef.current = null;
+        }
+        hidePopup();
+        lastFocusRef.current = focusKey;
+        pendingFocusDataRef.current = null;
+        switchPopupToLocation(location);
+        onHighlight?.(String(location.id));
+        onFocusConsumed?.();
+        return true;
       }
       if (!isMapFullyLoaded(map)) {
         return false;
@@ -790,7 +809,7 @@ export default function MapView({
 
       return success;
     },
-    [computeFocusPadding, destroyedRef, hidePopup, isMapFullyLoaded, onFocusConsumed, onHighlight, performCameraTransition, switchPopupToLocation],
+    [centerOnSelect, computeFocusPadding, destroyedRef, hidePopup, isMapFullyLoaded, onFocusConsumed, onHighlight, performCameraTransition, switchPopupToLocation],
   );
 
   const applyPendingFocus = useCallback(() => {
