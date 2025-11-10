@@ -44,6 +44,7 @@ function HomePage() {
     return readFocusId();
   });
   const inFlightRequestRef = useRef<{ bbox: string | null; controller: AbortController } | null>(null);
+  const suppressNextViewportFetchRef = useRef(false);
   const lastSettledBboxRef = useRef<string | null>(null);
   const hasSettledRef = useRef(false);
   const mapHeadingRef = useRef<HTMLHeadingElement | null>(null);
@@ -91,12 +92,21 @@ function HomePage() {
   });
 
   // Load locations based on viewport bbox
+  const suppressNextViewportFetch = useCallback(() => {
+    suppressNextViewportFetchRef.current = true;
+  }, []);
+
   useEffect(() => {
     const nextBbox = viewportBbox ?? null;
 
     if (debounceTimeoutRef.current !== null) {
       window.clearTimeout(debounceTimeoutRef.current);
       debounceTimeoutRef.current = null;
+    }
+
+    if (suppressNextViewportFetchRef.current) {
+      suppressNextViewportFetchRef.current = false;
+      return;
     }
 
     // Skip scheduling if an identical request already settled and no in-flight request exists
@@ -365,6 +375,7 @@ function HomePage() {
         onViewportChange={(bbox) => {
           setViewportBbox(bbox);
         }}
+        onSuppressNextViewportFetch={suppressNextViewportFetch}
       />
       <div className="pointer-events-none absolute left-1/2 top-4 z-10 flex w-full max-w-xl -translate-x-1/2 px-4">
         <div className="pointer-events-auto w-full" data-filters-overlay>
