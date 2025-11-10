@@ -27,8 +27,6 @@ import NewsPage from "@/pages/NewsPage";
 initTheme();
 initI18n();
 
-const basename = (import.meta.env.BASE_URL ?? "").replace(/\/+$/, "");
-
 function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -42,7 +40,7 @@ function AppLayout() {
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <HashRouter basename={basename}>
+    <HashRouter>
       <Header />
       <Routes>
         <Route element={<AppLayout />}>
