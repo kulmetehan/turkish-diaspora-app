@@ -13,6 +13,7 @@ type Props = {
     locations: LocationMarker[];
     selectedId: string | null;
     onSelect?: (id: string) => void;
+    onClusterFocus?: (center: LngLatLike, zoom: number) => void;
 };
 
 // Stable IDs for source/layers
@@ -28,11 +29,13 @@ function hasStyleObject(m: MapboxMap) {
     }
 }
 
-export default function MarkerLayer({ map, locations, selectedId, onSelect }: Props) {
+export default function MarkerLayer({ map, locations, selectedId, onSelect, onClusterFocus }: Props) {
     // Have we already added source/layers to THIS map instance?
     const layersReady = useRef(false);
     // Have we already attached event handlers to THIS map instance?
     const handlersReady = useRef(false);
+    // Keep track of currently selected feature id for feature-state
+    const featureStateRef = useRef<string | null>(null);
     // Keep latest onSelect so handlers always call the newest callback
     const onSelectRef = useRef<typeof onSelect>(onSelect);
     useEffect(() => {
@@ -67,7 +70,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         }
 
         tryInitLayers();
-    }, [map]);
+    }, [map, onClusterFocus]);
 
     // 2. Sync GeoJSON data when locations change
     useEffect(() => {
@@ -95,6 +98,10 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
             src.getClusterExpansionZoom(clusterId, (err: unknown, zoom: number) => {
                 if (err) return;
                 const center = (feats![0].geometry as any).coordinates as LngLatLike;
+                if (onClusterFocus) {
+                    onClusterFocus(center, zoom);
+                    return;
+                }
                 map.easeTo({ center, zoom });
             });
         };
@@ -153,12 +160,70 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect }: Pr
         // so removing handlers here would break interactivity in dev.
     }, [map]);
 
-    // 4. Sync highlight ring with selectedId
+    // 4. Sync feature-state selection with selectedId
+    useEffect(() => {
+        if (!layersReady.current) return;
+        if (!hasStyleObject(map)) return;
+        const nextId = typeof selectedId === "string" ? selectedId : selectedId != null ? String(selectedId) : null;
+        const prevId = featureStateRef.current;
+
+        if (prevId && prevId !== nextId) {
+            try {
+                map.removeFeatureState({ source: SRC_ID, id: prevId }, "selected");
+            } catch {
+                /* ignore */
+            }
+        }
+
+        if (nextId) {
+            try {
+                map.setFeatureState({ source: SRC_ID, id: nextId }, { selected: true });
+            } catch {
+                /* ignore */
+            }
+        }
+
+        featureStateRef.current = nextId;
+    }, [map, selectedId, data]);
+
+    useEffect(() => {
+        if (!layersReady.current) return;
+        const handleStyleData = () => {
+            if (!featureStateRef.current) return;
+            try {
+                map.setFeatureState({ source: SRC_ID, id: featureStateRef.current }, { selected: true });
+            } catch {
+                /* ignore */
+            }
+        };
+        map.on("styledata", handleStyleData);
+        return () => {
+            try {
+                map.off("styledata", handleStyleData);
+            } catch {
+                /* ignore */
+            }
+        };
+    }, [map]);
+
+    useEffect(() => {
+        return () => {
+            if (!featureStateRef.current) return;
+            try {
+                map.removeFeatureState({ source: SRC_ID, id: featureStateRef.current }, "selected");
+            } catch {
+                /* ignore */
+            }
+            featureStateRef.current = null;
+        };
+    }, [map]);
+
+    // 5. Sync highlight ring with selectedId
     useEffect(() => {
         if (!layersReady.current) return;
         if (!hasStyleObject(map)) return;
         if (!map.getLayer(L_HI)) return;
-        const selId = selectedId ?? "__none__";
+        const selId = selectedId != null ? String(selectedId) : "__none__";
         try {
             map.setFilter(L_HI, [
                 "all",

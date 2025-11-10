@@ -12,6 +12,7 @@ import RequireAdmin from "@/components/auth/RequireAdmin";
 import { Header } from "@/components/Header";
 import { Toaster } from "@/components/ui/toaster";
 import { initTheme } from "@/lib/theme/darkMode";
+import { initI18n } from "@/i18n";
 import AdminHomePage from "@/pages/AdminHomePage";
 import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
@@ -19,6 +20,7 @@ import UiKit from "@/pages/UiKit";
 // Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
 
 initTheme();
+initI18n();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

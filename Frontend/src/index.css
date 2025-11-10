@@ -335,6 +335,8 @@ body {
 
 .tda-preview-popup {
   max-width: none !important;
+  z-index: 60 !important;
+  overflow: visible !important;
 }
 
 .tda-preview-popup .mapboxgl-popup-content {
@@ -342,6 +344,7 @@ body {
   padding: 0 !important;
   border: 0 !important;
   box-shadow: none !important;
+  overflow: visible !important;
 }
 
 .tda-preview-popup .mapboxgl-popup-tip {

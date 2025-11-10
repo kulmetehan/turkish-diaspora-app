@@ -7,6 +7,11 @@ const L_CLUSTER_COUNT = "tda-cluster-count";
 const L_POINT = "tda-unclustered-point";
 const L_HI = "tda-highlight";
 
+export const MARKER_POINT_RADIUS = 6;
+export const MARKER_POINT_STROKE_WIDTH = 2;
+export const MARKER_POINT_OUTER_RADIUS = MARKER_POINT_RADIUS + MARKER_POINT_STROKE_WIDTH;
+export const MARKER_POINT_DIAMETER = MARKER_POINT_OUTER_RADIUS * 2;
+
 export function buildMarkerGeoJSON(locations: LocationMarker[]) {
     return {
         type: "FeatureCollection" as const,
@@ -36,6 +41,7 @@ export function ensureBaseLayers(map: MapboxMap) {
             cluster: true,
             clusterMaxZoom: 14,
             clusterRadius: 50,
+            promoteId: "id",
         } as any);
     }
 
@@ -91,10 +97,20 @@ export function ensureBaseLayers(map: MapboxMap) {
             source: SRC_ID,
             filter: ["!", ["has", "point_count"]],
             paint: {
-                "circle-color": "#e11d48",
-                "circle-radius": 6,
-                "circle-stroke-color": "#fff",
-                "circle-stroke-width": 2,
+                "circle-color": [
+                    "case",
+                    ["boolean", ["feature-state", "selected"], false],
+                    "#22c55e",
+                    "#e11d48",
+                ],
+                "circle-radius": MARKER_POINT_RADIUS,
+                "circle-stroke-color": [
+                    "case",
+                    ["boolean", ["feature-state", "selected"], false],
+                    "#14532d",
+                    "#fff",
+                ],
+                "circle-stroke-width": MARKER_POINT_STROKE_WIDTH,
             },
         });
     }

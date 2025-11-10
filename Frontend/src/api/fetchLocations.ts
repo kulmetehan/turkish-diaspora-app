@@ -1,4 +1,5 @@
 // src/api/fetchLocations.ts
+import { getAcceptLanguageHeader } from "@/i18n";
 export interface LocationMarker {
     id: string;
     name: string;
@@ -50,6 +51,7 @@ export async function fetchLocations(
         method: "GET",
         headers: {
             "Accept": "application/json",
+            "Accept-Language": getAcceptLanguageHeader(),
         },
         signal,
     });
@@ -108,6 +110,7 @@ export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSi
         method: "GET",
         headers: {
             "Accept": "application/json",
+            "Accept-Language": getAcceptLanguageHeader(),
         },
         signal,
     });

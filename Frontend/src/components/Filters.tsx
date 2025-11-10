@@ -1,8 +1,12 @@
+import { useMemo, useRef, useState } from "react";
+
+import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { ViewMode } from "@/lib/routing/viewMode";
 import { Search, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
 
 type CategoryOption = { key: string; label: string };
 
@@ -14,6 +18,8 @@ type Props = {
   categoryOptions?: CategoryOption[];
   suggestions?: string[];
   idPrefix?: string; // Optional prefix to make IDs unique (e.g., "desktop", "mobile")
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
   onChange: (patch: Partial<{
     search: string;
     category: string;
@@ -61,6 +67,8 @@ export default function Filters({
   categoryOptions,
   suggestions,
   idPrefix = "",
+  viewMode,
+  onViewModeChange,
   onChange,
 }: Props) {
   const searchInputId = idPrefix ? `search-input-${idPrefix}` : "search-input";
@@ -70,19 +78,43 @@ export default function Filters({
   const showSuggestions = Boolean(openSuggest && suggestions && suggestions.length && search.trim().length);
   const categories = useMemo(() => {
     const base = (categoryOptions && categoryOptions.length)
-      ? categoryOptions
-      : KNOWN_CATEGORIES;
+      ? [...categoryOptions]
+      : [...KNOWN_CATEGORIES];
 
-    // Zorg dat de huidige category (als die buiten de lijst valt) toch zichtbaar is.
-    if (!category || category === "all") return base;
-    if (!base.some((c) => c.key === category)) {
-      return [{ key: category, label: humanizeCategoryLabel(category) }, ...base];
-    }
-    return base;
+    const withCurrent = (() => {
+      if (!category || category === "all") return base;
+      if (base.some((c) => c.key === category)) return base;
+      return [...base, { key: category, label: humanizeCategoryLabel(category) }];
+    })();
+
+    return withCurrent.sort((a, b) => a.key.localeCompare(b.key, "en"));
   }, [category, categoryOptions]);
 
   return (
     <div className="rounded-xl border bg-card p-3 flex flex-col gap-3">
+      {viewMode && onViewModeChange ? (
+        <Tabs
+          value={viewMode}
+          onValueChange={(value) => {
+            if (value === viewMode) return;
+            if (value === "list" || value === "map") {
+              onViewModeChange(value);
+            }
+          }}
+        >
+          <TabsList className="flex w-full">
+            <TabsTrigger value="map" className="flex-1 gap-2 text-sm">
+              <Icon name="Map" className="h-4 w-4" />
+              Kaart
+            </TabsTrigger>
+            <TabsTrigger value="list" className="flex-1 gap-2 text-sm">
+              <Icon name="List" className="h-4 w-4" />
+              Lijst
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      ) : null}
+
       <div className="relative" ref={suggestBoxRef}>
         <label htmlFor={searchInputId} className="sr-only">Zoek op naam of categorie</label>
         <div className="relative">

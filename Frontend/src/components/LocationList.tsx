@@ -6,6 +6,7 @@ type Props = {
   selectedId: string | null;
   onSelect?: (id: string) => void;
   onSelectDetail?: (id: string) => void;
+  onShowOnMap?: (id: string) => void;
   autoScrollToSelected?: boolean;
   emptyText?: string;
 };
@@ -15,6 +16,7 @@ export default function LocationList({
   selectedId,
   onSelect,
   onSelectDetail,
+  onShowOnMap,
   autoScrollToSelected = true,
   emptyText = "Geen resultaten",
 }: Props) {
@@ -75,20 +77,34 @@ export default function LocationList({
             className={`px-4 py-3 cursor-pointer hover:bg-accent/40 transition-colors ${active ? "bg-accent/60" : ""}`}
             onClick={() => onSelect?.(l.id)}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="font-medium">{l.name}</div>
-              {onSelectDetail && (
-                <button
-                  type="button"
-                  className="text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectDetail(l.id);
-                  }}
-                >
-                  Details
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {onShowOnMap && (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onShowOnMap(l.id);
+                    }}
+                  >
+                    Toon op kaart
+                  </button>
+                )}
+                {onSelectDetail && (
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSelectDetail(l.id);
+                    }}
+                  >
+                    Details
+                  </button>
+                )}
+              </div>
             </div>
             <div className="text-xs text-muted-foreground">
               {l.category_label ?? l.category ?? "—"} • {l.is_turkish ? "Turks" : "—"}
