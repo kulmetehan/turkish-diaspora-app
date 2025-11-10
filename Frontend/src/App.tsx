@@ -1,7 +1,6 @@
 // src/App.tsx
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import BottomSheet, { type SnapPoint } from "@/components/BottomSheet";
 import Filters from "@/components/Filters";
 import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
@@ -32,11 +31,9 @@ function HomePage() {
   const [detailId, setDetailId] = useState<string | null>(null);
 
   // Bottom sheet state
-  const [sheetSnapPoint, setSheetSnapPoint] = useState<SnapPoint>("half");
-  const [isSheetOpen, setIsSheetOpen] = useState(true);
-
   // Responsive breakpoint detection
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const isCompact = useMediaQuery("(max-width: 767px)");
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window === "undefined") return "map";
@@ -49,6 +46,11 @@ function HomePage() {
   const inFlightRequestRef = useRef<{ bbox: string | null; controller: AbortController } | null>(null);
   const lastSettledBboxRef = useRef<string | null>(null);
   const hasSettledRef = useRef(false);
+  const mapHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const listHeadingRef = useRef<HTMLHeadingElement | null>(null);
+  const hasAppliedInitialFocusRef = useRef(false);
+  const mapHeadingId = useId();
+  const listHeadingId = useId();
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -222,24 +224,15 @@ function HomePage() {
 
   const handleHighlight = (id: string | null) => {
     setHighlightedId(id);
-    if (id && !isDesktop) {
-      setSheetSnapPoint("collapsed");
-    }
   };
 
   const handleOpenDetail = (id: string) => {
     setHighlightedId(id);
     setDetailId(id);
-    if (!isDesktop) {
-      setSheetSnapPoint("collapsed");
-    }
   };
 
   const handleCloseDetail = () => {
     setDetailId(null);
-    if (!isDesktop) {
-      setSheetSnapPoint("half");
-    }
   };
 
   const renderFilters = (idPrefixOverride?: string) => (
@@ -257,8 +250,34 @@ function HomePage() {
     />
   );
 
+  useEffect(() => {
+    if (!hasAppliedInitialFocusRef.current) {
+      hasAppliedInitialFocusRef.current = true;
+      return;
+    }
+    const target = viewMode === "map" ? mapHeadingRef.current : listHeadingRef.current;
+    if (!target) return;
+    const frame = requestAnimationFrame(() => {
+      target.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [viewMode]);
+
   const listViewDesktop = (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 min-h-[calc(100dvh-56px)]">
+    <div
+      className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 min-h-[calc(100dvh-56px)] focus:outline-none"
+      role="region"
+      aria-labelledby={listHeadingId}
+      data-view="list"
+    >
+      <h2
+        id={listHeadingId}
+        ref={listHeadingRef}
+        tabIndex={-1}
+        className="text-lg font-semibold text-foreground"
+      >
+        Locatielijst
+      </h2>
       {renderFilters("list-desktop")}
       <div className="flex-1">
         <LocationList
@@ -275,40 +294,61 @@ function HomePage() {
   );
 
   const listViewMobile = (
-    <div className="lg:hidden">
-      <BottomSheet
-        open={isSheetOpen}
-        snapPoint={sheetSnapPoint}
-        onSnapPointChange={setSheetSnapPoint}
-        onClose={() => setIsSheetOpen(false)}
+    <div
+      className="flex h-[calc(100dvh-56px)] w-full flex-col gap-4 px-4 py-4 focus:outline-none"
+      role="region"
+      aria-labelledby={listHeadingId}
+      data-view="list"
+    >
+      <h2
+        id={listHeadingId}
+        ref={listHeadingRef}
+        tabIndex={-1}
+        className="text-lg font-semibold text-foreground"
       >
-        {highlightedId && highlighted ? (
+        Locatielijst
+      </h2>
+      {renderFilters("list-mobile")}
+      <div className="flex-1 overflow-hidden">
+        {detail ? (
           <LocationDetail
-            location={highlighted}
-            onBackToList={() => handleHighlight(null)}
+            location={detail}
+            onBackToList={() => {
+              setDetailId(null);
+              setHighlightedId(null);
+            }}
           />
         ) : (
-          <div className="flex h-full flex-col gap-3">
-            {renderFilters("list-mobile")}
-            <div className="flex-1 overflow-auto">
-              <LocationList
-                locations={filtered}
-                selectedId={highlightedId}
-                onSelect={handleHighlight}
-                onSelectDetail={handleOpenDetail}
-                onShowOnMap={handleFocusOnMap}
-                autoScrollToSelected
-                emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
-              />
-            </div>
-          </div>
+          <LocationList
+            locations={filtered}
+            selectedId={highlightedId}
+            onSelect={handleHighlight}
+            onSelectDetail={handleOpenDetail}
+            onShowOnMap={handleFocusOnMap}
+            autoScrollToSelected
+            emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
+            fullHeight
+          />
         )}
-      </BottomSheet>
+      </div>
     </div>
   );
 
   const mapView = (
-    <div className="relative h-[calc(100dvh-56px)] w-full">
+    <div
+      className="relative h-[calc(100dvh-56px)] w-full focus:outline-none"
+      role="region"
+      aria-labelledby={mapHeadingId}
+      data-view="map"
+    >
+      <h2
+        id={mapHeadingId}
+        ref={mapHeadingRef}
+        tabIndex={-1}
+        className="sr-only"
+      >
+        Kaartweergave
+      </h2>
       <MapView
         locations={filtered}
         highlightedId={highlightedId}
@@ -343,9 +383,9 @@ function HomePage() {
     <div className="relative min-h-[calc(100dvh-56px)]">
       {viewMode === "map"
         ? mapView
-        : (isDesktop ? listViewDesktop : listViewMobile)}
+        : (isCompact ? listViewMobile : listViewDesktop)}
 
-      {detail && (
+      {detail && (isDesktop || viewMode === "map") && (
         <OverlayDetailCard
           location={detail}
           open={Boolean(detail)}

@@ -14,6 +14,21 @@ const latestMapProps: { current: any } = { current: null };
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
+const mediaState = {
+  desktop: true,
+  compact: false,
+};
+
+function setViewport(viewport: "desktop" | "mobile") {
+  if (viewport === "desktop") {
+    mediaState.desktop = true;
+    mediaState.compact = false;
+  } else {
+    mediaState.desktop = false;
+    mediaState.compact = true;
+  }
+}
+
 vi.mock("@/components/MapView", () => ({
   __esModule: true,
   default: (props: any) => {
@@ -70,11 +85,6 @@ vi.mock("@/components/LocationList", () => ({
       ),
     );
   },
-}));
-
-vi.mock("@/components/BottomSheet", () => ({
-  __esModule: true,
-  default: ({ children }: any) => React.createElement("div", { "data-testid": "bottom-sheet" }, children),
 }));
 
 vi.mock("@/components/LocationDetail", () => ({
@@ -165,23 +175,40 @@ let container: HTMLDivElement;
 let root: Root;
 
 beforeAll(() => {
+  Object.defineProperty(window, "requestAnimationFrame", {
+    writable: true,
+    value: (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 0),
+  });
+  Object.defineProperty(window, "cancelAnimationFrame", {
+    writable: true,
+    value: (id: number) => window.clearTimeout(id),
+  });
+
   Object.defineProperty(window, "matchMedia", {
     writable: true,
-    value: vi.fn().mockImplementation((query: string) => ({
-      matches: /min-width: 1024px/.test(query),
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
+    value: vi.fn().mockImplementation((query: string) => {
+      const matches = /min-width:\s*1024px/.test(query)
+        ? mediaState.desktop
+        : /max-width:\s*767px/.test(query)
+          ? mediaState.compact
+          : false;
+      return {
+        matches,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      };
+    }),
   });
 });
 
 beforeEach(() => {
   vi.useFakeTimers();
+  setViewport("desktop");
   mapLocationsHistory.length = 0;
   listLocationsHistory.length = 0;
   mapFocusHistory.length = 0;
@@ -311,7 +338,7 @@ describe("List/Map view modes", () => {
     await clickView("map");
     await flushAllTimers();
 
-    expect(fetchLocationsMock).toHaveBeenCalledTimes(2);
+    expect(fetchLocationsMock).toHaveBeenCalledTimes(1);
     expect(mapLocationsHistory.length).toBeGreaterThan(1);
   });
 
@@ -361,6 +388,27 @@ describe("List/Map view modes", () => {
     expect(container.querySelector('[data-testid="map-view"]')).toBeTruthy();
     expect(fetchLocationsMock).toHaveBeenCalledTimes(1);
     expect(mapLocationsHistory.length).toBeGreaterThan(1);
+  });
+
+  it("renders full-screen list on mobile without bottom sheet and focuses heading", async () => {
+    setViewport("mobile");
+    await renderApp();
+    await flushAllTimers();
+
+    await clickView("list");
+    await flushAllTimers();
+
+    const listRegion = container.querySelector('[data-view="list"]');
+    expect(listRegion).toBeTruthy();
+    expect(container.querySelector('[data-testid="bottom-sheet"]')).toBeNull();
+    expect(document.activeElement?.textContent).toContain("Locatielijst");
+
+    await clickView("map");
+    await flushAllTimers();
+
+    const mapRegion = container.querySelector('[data-view="map"]');
+    expect(mapRegion).toBeTruthy();
+    expect(document.activeElement?.textContent).toContain("Kaartweergave");
   });
 });
 

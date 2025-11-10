@@ -1,5 +1,7 @@
-import type { LocationMarker } from "@/api/fetchLocations";
 import { useEffect, useMemo, useRef } from "react";
+
+import type { LocationMarker } from "@/api/fetchLocations";
+import { cn } from "@/lib/ui/cn";
 
 type Props = {
   locations: LocationMarker[];
@@ -9,6 +11,7 @@ type Props = {
   onShowOnMap?: (id: string) => void;
   autoScrollToSelected?: boolean;
   emptyText?: string;
+  fullHeight?: boolean;
 };
 
 export default function LocationList({
@@ -19,6 +22,7 @@ export default function LocationList({
   onShowOnMap,
   autoScrollToSelected = true,
   emptyText = "Geen resultaten",
+  fullHeight = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -61,7 +65,10 @@ export default function LocationList({
   return (
     <div
       ref={containerRef}
-      className="rounded-xl border bg-card divide-y max-h-[calc(100vh-220px)] overflow-auto"
+      className={cn(
+        "rounded-xl border bg-card divide-y overflow-auto",
+        fullHeight ? "h-full max-h-none" : "max-h-[calc(100vh-220px)]",
+      )}
     >
       {locations.map((l) => {
         const active = l.id === selectedId;
