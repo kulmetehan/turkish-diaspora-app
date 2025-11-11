@@ -55,12 +55,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         {/* Catch-all naar map */}
         <Route path="*" element={<Navigate to="/map" replace />} />
       </Routes>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          className: "mt-[var(--top-offset)]",
-        }}
-      />
+      <Toaster position="top-right" />
     </HashRouter>
   </React.StrictMode>
 );
