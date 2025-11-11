@@ -2,13 +2,13 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import Filters from "@/components/Filters";
+import { Icon } from "@/components/Icon";
 import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
-import { Icon } from "@/components/Icon";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
@@ -384,6 +384,9 @@ function HomePage() {
         }}
         onSuppressNextViewportFetch={suppressNextViewportFetch}
       />
+      <div className="hidden" aria-hidden>
+        {renderFilters("map-overlay")}
+      </div>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-4 pt-[var(--top-offset)]">
         <div className="pointer-events-auto w-full max-w-2xl" data-filters-overlay>
           <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/95 p-4 shadow-2xl supports-[backdrop-filter]:bg-background/80">
@@ -397,11 +400,29 @@ function HomePage() {
               }}
             >
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="map" className="flex items-center justify-center gap-2 text-sm">
+                <TabsTrigger
+                  value="map"
+                  data-view="map"
+                  className="flex items-center justify-center gap-2 text-sm"
+                  onClick={() => {
+                    if (viewMode !== "map") {
+                      handleViewModeChange("map");
+                    }
+                  }}
+                >
                   <Icon name="Map" className="h-4 w-4" aria-hidden />
                   Kaart
                 </TabsTrigger>
-                <TabsTrigger value="list" className="flex items-center justify-center gap-2 text-sm">
+                <TabsTrigger
+                  value="list"
+                  data-view="list"
+                  className="flex items-center justify-center gap-2 text-sm"
+                  onClick={() => {
+                    if (viewMode !== "list") {
+                      handleViewModeChange("list");
+                    }
+                  }}
+                >
                   <Icon name="List" className="h-4 w-4" aria-hidden />
                   Lijst
                 </TabsTrigger>

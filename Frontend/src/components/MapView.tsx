@@ -8,11 +8,12 @@ import type { FeatureCollection, Point } from "geojson";
 import type { LocationMarker } from "@/api/fetchLocations";
 import MapControls from "@/components/MapControls";
 import { restoreCamera, storeCamera } from "@/components/mapCameraCache";
-import { MARKER_POINT_OUTER_RADIUS } from "@/components/markerLayerUtils";
+import { MARKER_POINT_OUTER_RADIUS, MarkerLayerIds } from "@/components/markerLayerUtils";
 import PreviewTooltip from "@/components/PreviewTooltip";
 import { cn } from "@/lib/ui/cn";
 import { CONFIG } from "@/lib/config";
 import MarkerLayer from "./MarkerLayer";
+import { attachCategoryIconFallback, ensureCategoryIcons } from "@/lib/map/categoryIcons";
 
 // Zorg dat je VITE_MAPBOX_TOKEN in .env staat
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
@@ -60,6 +61,14 @@ const EMPTY_FEATURE_COLLECTION: FeatureCollection<Point, UserLocationProperties>
   type: "FeatureCollection",
   features: [],
 };
+
+function safeHasLayer(map: any, id: string) {
+  try {
+    return Boolean(map?.getLayer?.(id));
+  } catch {
+    return false;
+  }
+}
 
 function metersToPixelsAtLatitude(lat: number, meters: number, zoom: number): number {
   if (!Number.isFinite(lat) || !Number.isFinite(meters) || !Number.isFinite(zoom) || meters <= 0) {
@@ -470,7 +479,7 @@ export default function MapView({
   interactionDisabled = false,
   focusId,
   onFocusConsumed,
-  centerOnSelect = false,
+  centerOnSelect = true,
   onSuppressNextViewportFetch,
 }: Props) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -496,7 +505,7 @@ export default function MapView({
     (targetMap: MapboxMap | null = mapRef.current) => {
       const map = targetMap;
       if (!map) return;
-      if (!map.getLayer(USER_LOCATION_ACCURACY_LAYER_ID)) return;
+      if (!safeHasLayer(map, USER_LOCATION_ACCURACY_LAYER_ID)) return;
       const { z10, z14, z18 } = userLocationPaintRef.current;
       try {
         map.setPaintProperty(USER_LOCATION_ACCURACY_LAYER_ID, "circle-radius", [
@@ -544,7 +553,7 @@ export default function MapView({
       });
     }
 
-    if (!map.getLayer(USER_LOCATION_ACCURACY_LAYER_ID)) {
+    if (!safeHasLayer(map, USER_LOCATION_ACCURACY_LAYER_ID)) {
       try {
         map.addLayer(
           {
@@ -577,24 +586,26 @@ export default function MapView({
       }
     }
 
-    if (!map.getLayer(USER_LOCATION_DOT_LAYER_ID)) {
+    if (!safeHasLayer(map, USER_LOCATION_DOT_LAYER_ID)) {
       try {
-        map.addLayer(
-          {
-            id: USER_LOCATION_DOT_LAYER_ID,
-            type: "circle",
-            source: USER_LOCATION_SOURCE_ID,
-            filter: ["==", ["geometry-type"], "Point"],
-            paint: {
-              "circle-color": "#0284c7",
-              "circle-opacity": 1,
-              "circle-radius": 6,
-              "circle-stroke-color": "#ffffff",
-              "circle-stroke-width": 2,
-            },
+        const layerConfig = {
+          id: USER_LOCATION_DOT_LAYER_ID,
+          type: "circle" as const,
+          source: USER_LOCATION_SOURCE_ID,
+          filter: ["==", ["geometry-type"], "Point"] as any,
+          paint: {
+            "circle-color": "#0284c7",
+            "circle-opacity": 1,
+            "circle-radius": 6,
+            "circle-stroke-color": "#ffffff",
+            "circle-stroke-width": 2,
           },
-          "tda-highlight",
-        );
+        };
+        if (safeHasLayer(map, MarkerLayerIds.L_POINT)) {
+          map.addLayer(layerConfig, MarkerLayerIds.L_POINT);
+        } else {
+          map.addLayer(layerConfig);
+        }
       } catch {
         /* ignore layering errors */
       }
@@ -676,7 +687,7 @@ export default function MapView({
       ensureUserLocationLayers();
       applyAccuracyPaint(map);
       const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined;
-      if (source && userLocationDataRef.current) {
+      if (source && typeof source.setData === "function" && userLocationDataRef.current) {
         source.setData(userLocationDataRef.current);
       }
     };
@@ -1216,6 +1227,12 @@ export default function MapView({
       attributionControl: false,
     });
 
+    attachCategoryIconFallback(map);
+    const primeIcons = () => {
+      void ensureCategoryIcons(map);
+    };
+    map.once("style.load", primeIcons as any);
+
     mapRef.current = map;
     mapEventCleanupRef.current = [];
 
@@ -1236,11 +1253,6 @@ export default function MapView({
               f?.layer?.id === "tda-cluster-count",
           );
         if (interactiveHit) return;
-        const hiHit = Array.isArray(feats) && feats.some((f) => f?.layer?.id === "tda-highlight");
-        if (hiHit) {
-          handler();
-          return;
-        }
       } catch {
         /* ignore */
       }
@@ -1250,6 +1262,14 @@ export default function MapView({
     mapEventCleanupRef.current.push(() => {
       try {
         map.off("click", handleMapClick);
+      } catch {
+        /* ignore */
+      }
+    });
+
+    mapEventCleanupRef.current.push(() => {
+      try {
+        map.off("style.load", primeIcons as any);
       } catch {
         /* ignore */
       }

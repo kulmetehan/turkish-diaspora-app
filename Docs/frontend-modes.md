@@ -15,7 +15,8 @@ Developers adding new features should reuse the existing helpers in `Frontend/sr
 ## Map Tooltip Lifecycle (TDA-107)
 
 - `MapView` owns a single Mapbox popup instance via the popup controller; it survives re-renders and only detaches on unmount or explicit hide, keeping the tooltip stable across List → Map transitions.
-- Marker colouring now relies on Mapbox `feature-state.selected`; `MarkerLayer` toggles the state so the focused marker goes green while clearing the previous selection.
+- `MarkerLayer` registers the category sprite sheet on every `styledata` event and feeds the `icon` field via GeoJSON, so Mapbox reuses the cached canvases after style reloads.
+- Selection still relies on Mapbox `feature-state.selected`, but the symbol layer now enlarges the category icon and adds a halo instead of repainting the fill colour—this keeps the icon palette stable while providing a clear focus ring.
 - The popup controller listens to `move`, `moveend`, `idle`, and `styledata` to recompute anchor classes, keeping the arrow visible even when the camera stops animating.
 - Camera cache behaviour is unchanged: the controller never recreates the map, so `restoreCamera`/`storeCamera` continue to work without triggering cold reloads or extra fetches.
 
