@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b tsconfig.build.json && vite build --base=/turkish-diaspora-app/",
     "build:prod": "NODE_ENV=production tsc -b && vite build",
     "lint": "eslint .",
     "test": "vitest run",
