@@ -1,5 +1,6 @@
-import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/Icon";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/ui/cn";
 
 type MapControlsProps = {
   onResetNorth: () => void;
@@ -11,34 +12,43 @@ type MapControlsProps = {
 export default function MapControls({ onResetNorth, onLocateUser, locating, disabled = false }: MapControlsProps) {
   return (
     <div
-      className="pointer-events-none absolute right-4 top-4 z-20 flex flex-col items-end gap-2 pt-4"
-      style={{
-        paddingTop: "calc(env(safe-area-inset-top, 0px) + 1rem)",
-        paddingRight: "calc(env(safe-area-inset-right, 0px))",
-      }}
+      data-map-controls
+      className={cn(
+        "pointer-events-auto fixed right-3 md:right-4",
+        "bottom-[var(--bottom-offset)]",
+        "z-40 flex flex-col gap-2",
+      )}
+      style={{ paddingRight: "calc(env(safe-area-inset-right, 0px))" }}
     >
-      <div className="pointer-events-auto flex flex-col gap-2">
-        <Button
-          type="button"
-          size="icon"
-          variant="secondary"
-          onClick={onResetNorth}
-          disabled={disabled}
-          aria-label="Reset bearing to north"
-        >
-          <Icon name="Compass" sizeRem={1.1} />
-        </Button>
-        <Button
-          type="button"
-          size="icon"
-          variant="secondary"
-          onClick={onLocateUser}
-          disabled={disabled || locating}
-          aria-label="Center map on my location"
-        >
-          <Icon name="LocateFixed" sizeRem={1.1} className={locating ? "animate-pulse" : undefined} />
-        </Button>
-      </div>
+      <Button
+        type="button"
+        size="icon"
+        variant="secondary"
+        onClick={onResetNorth}
+        disabled={disabled}
+        aria-label="Reset bearing to North"
+        title="Reset bearing to North"
+        className="shadow-md transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        <Icon name="Compass" sizeRem={1.1} aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        size="icon"
+        variant="secondary"
+        onClick={onLocateUser}
+        disabled={disabled || locating}
+        aria-label="Show my location"
+        title="Show my location"
+        className="shadow-md transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+        <Icon
+          name="LocateFixed"
+          sizeRem={1.1}
+          aria-hidden
+          className={locating ? "animate-pulse" : undefined}
+        />
+      </Button>
     </div>
   );
 }

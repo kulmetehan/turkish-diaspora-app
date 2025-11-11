@@ -6,6 +6,10 @@ import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
+import { CategoryChips } from "@/components/search/CategoryChips";
+import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
+import { Icon } from "@/components/Icon";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, writeViewMode, type ViewMode } from "@/lib/routing/viewMode";
@@ -275,7 +279,7 @@ function HomePage() {
 
   const listViewDesktop = (
     <div
-      className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 min-h-[calc(100dvh-56px)] focus:outline-none"
+      className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden px-4 py-4 focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
@@ -289,7 +293,7 @@ function HomePage() {
         Locatielijst
       </h2>
       {renderFilters("list-desktop")}
-      <div className="flex-1">
+      <div className="flex-1 overflow-hidden">
         <LocationList
           locations={filtered}
           selectedId={highlightedId}
@@ -298,6 +302,7 @@ function HomePage() {
           onShowOnMap={handleFocusOnMap}
           autoScrollToSelected
           emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
+          fullHeight
         />
       </div>
     </div>
@@ -305,7 +310,7 @@ function HomePage() {
 
   const listViewMobile = (
     <div
-      className="flex h-[calc(100dvh-56px)] w-full flex-col gap-4 px-4 py-4 focus:outline-none"
+      className="flex h-full w-full flex-col gap-4 overflow-hidden px-4 py-4 focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
@@ -321,13 +326,15 @@ function HomePage() {
       {renderFilters("list-mobile")}
       <div className="flex-1 overflow-hidden">
         {detail ? (
-          <LocationDetail
-            location={detail}
-            onBackToList={() => {
-              setDetailId(null);
-              setHighlightedId(null);
-            }}
-          />
+          <div className="h-full overflow-auto">
+            <LocationDetail
+              location={detail}
+              onBackToList={() => {
+                setDetailId(null);
+                setHighlightedId(null);
+              }}
+            />
+          </div>
         ) : (
           <LocationList
             locations={filtered}
@@ -346,7 +353,7 @@ function HomePage() {
 
   const mapView = (
     <div
-      className="relative h-[calc(100dvh-56px)] w-full focus:outline-none"
+      className="relative h-full w-full overflow-hidden focus:outline-none"
       role="region"
       aria-labelledby={mapHeadingId}
       data-view="map"
@@ -377,9 +384,43 @@ function HomePage() {
         }}
         onSuppressNextViewportFetch={suppressNextViewportFetch}
       />
-      <div className="pointer-events-none absolute left-1/2 top-4 z-10 flex w-full max-w-xl -translate-x-1/2 px-4">
-        <div className="pointer-events-auto w-full" data-filters-overlay>
-          {renderFilters("map")}
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-4 pt-[var(--top-offset)]">
+        <div className="pointer-events-auto w-full max-w-2xl" data-filters-overlay>
+          <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/95 p-4 shadow-2xl supports-[backdrop-filter]:bg-background/80">
+            <Tabs
+              value={viewMode}
+              onValueChange={(value) => {
+                if (value === viewMode) return;
+                if (value === "list" || value === "map") {
+                  handleViewModeChange(value);
+                }
+              }}
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="map" className="flex items-center justify-center gap-2 text-sm">
+                  <Icon name="Map" className="h-4 w-4" aria-hidden />
+                  Kaart
+                </TabsTrigger>
+                <TabsTrigger value="list" className="flex items-center justify-center gap-2 text-sm">
+                  <Icon name="List" className="h-4 w-4" aria-hidden />
+                  Lijst
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <FloatingSearchBar
+              value={filters.search}
+              onValueChange={(next) => setFilters((prev) => ({ ...prev, search: next }))}
+              onClear={() => setFilters((prev) => ({ ...prev, search: "" }))}
+              suggestions={suggestions}
+              loading={loading}
+              ariaLabel="Zoek locaties"
+            />
+            <CategoryChips
+              categories={categoryOptions}
+              activeCategory={filters.category}
+              onSelect={(key) => setFilters((prev) => ({ ...prev, category: key }))}
+            />
+          </div>
         </div>
       </div>
       {loading && (
@@ -391,7 +432,10 @@ function HomePage() {
   );
 
   return (
-    <div className="relative min-h-[calc(100dvh-56px)]">
+    <div
+      data-route-viewport
+      className="relative h-[calc(100svh-var(--footer-height))] overflow-hidden"
+    >
       {viewMode === "map"
         ? mapView
         : (isCompact ? listViewMobile : listViewDesktop)}
