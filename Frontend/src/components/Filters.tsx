@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ViewMode } from "@/lib/routing/viewMode";
+import { humanizeCategoryLabel } from "@/lib/categories";
 import { Search, X } from "lucide-react";
 
 type CategoryOption = { key: string; label: string };
@@ -38,26 +39,6 @@ const KNOWN_CATEGORIES = [
   { key: "butcher", label: "Slager" },
   { key: "fast_food", label: "Fastfood" },
 ] satisfies CategoryOption[];
-
-function humanizeCategoryLabel(input: string | undefined | null): string {
-  if (!input) return "—";
-
-  let s = input as string;
-
-  // Replace "_" and "/" with spaces (global)
-  s = s.replace(/[_/]/g, " ");
-
-  // Collapse multiple spaces and trim
-  s = s.replace(/\s+/g, " ").trim();
-
-  // Capitalize each word
-  s = s
-    .split(" ")
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-
-  return s;
-}
 
 export default function Filters({
   search,

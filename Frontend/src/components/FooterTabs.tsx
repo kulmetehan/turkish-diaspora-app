@@ -1,4 +1,4 @@
-import { forwardRef, type ComponentProps } from "react";
+import { forwardRef, type ComponentProps, type CSSProperties } from "react";
 import { NavLink } from "react-router-dom";
 
 import { Icon } from "@/components/Icon";
@@ -20,18 +20,28 @@ const tabs: TabConfig[] = [
 ];
 
 export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
-  function FooterTabs({ className, ...props }, ref) {
+  function FooterTabs({ className, style, ...props }, ref) {
+    const height = "84px";
+    const combinedStyle = {
+      height,
+      "--footer-height": height,
+      ...style,
+    } as CSSProperties & { "--footer-height"?: string };
     return (
       <div
         ref={ref}
+        style={combinedStyle}
         className={cn(
-          "fixed bottom-0 inset-x-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg lg:hidden",
+          "fixed bottom-0 inset-x-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg",
           "supports-[backdrop-filter]:bg-background/80 backdrop-blur",
           className,
         )}
         {...props}
       >
-        <nav aria-label="Primary mobile tabs" className="mx-auto flex max-w-2xl items-center justify-around px-2 py-1">
+        <nav
+          aria-label="Primary navigation"
+          className="mx-auto flex w-full max-w-3xl items-center justify-around px-3 py-2 md:gap-2"
+        >
           {tabs.map((tab) => (
             <NavLink
               key={tab.to}

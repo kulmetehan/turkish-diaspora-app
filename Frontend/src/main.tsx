@@ -10,7 +10,6 @@ import "./index.css";
 
 import { FooterTabs } from "@/components/FooterTabs";
 import RequireAdmin from "@/components/auth/RequireAdmin";
-import { Header } from "@/components/Header";
 import { Toaster } from "@/components/ui/toaster";
 import { initTheme } from "@/lib/theme/darkMode";
 import { initI18n } from "@/i18n";
@@ -29,8 +28,8 @@ initI18n();
 
 function AppLayout() {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <main className="flex-1 pb-[calc(84px+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="flex min-h-[100svh] flex-col bg-background overflow-hidden">
+      <main className="flex-1 overflow-hidden">
         <Outlet />
       </main>
       <FooterTabs />
@@ -41,7 +40,6 @@ function AppLayout() {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <HashRouter>
-      <Header />
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/map" replace />} />
@@ -57,7 +55,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         {/* Catch-all naar map */}
         <Route path="*" element={<Navigate to="/map" replace />} />
       </Routes>
-      <Toaster />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          className: "mt-[var(--top-offset)]",
+        }}
+      />
     </HashRouter>
   </React.StrictMode>
 );

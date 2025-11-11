@@ -6,6 +6,32 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --footer-height: 84px;
+  --edge-gap: 14px;
+  --top-offset: calc(var(--safe-top) + var(--edge-gap));
+  --bottom-offset: calc(var(--safe-bottom) + var(--footer-height) + var(--edge-gap));
+}
+
+.mapboxgl-ctrl-top-right {
+  top: var(--top-offset) !important;
+  right: calc(var(--safe-right) + 12px) !important;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+html,
+body {
+  overscroll-behavior: none;
+}
 
 /* ==========================================================================
    1) CSS-variabelen (layout tokens)
