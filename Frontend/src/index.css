@@ -40,7 +40,7 @@ body {
    ========================================================================== */
 :root {
   /* Hoogtes */
-  --tda-header-h: 56px;
+  --tda-header-h: 0px;
   /* hoogte van evt. topbar/header (pas aan of laat op 0) */
   --tda-min-map-h: 72vh;
   /* minimum hoogte van de kaart */
