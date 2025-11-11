@@ -136,16 +136,8 @@ class MapStub {
         return Array.from(this.images.keys());
     }
 
-    listImages() {
-        return Array.from(this.images.keys());
-    }
-
     triggerRepaint() {}
     setLayoutProperty() {}
-    getStyle() {
-        return { sprite: this.styleKey, name: this.styleKey, sources: {} };
-    }
-
     moveLayer(id: string, beforeId?: string) {
         if (!this.layers.has(id)) return;
         const layer = this.layers.get(id)!;
@@ -176,7 +168,9 @@ class MapStub {
     on() {}
     once(_event: string, handler: (...args: any[]) => void) { handler(); }
     off() {}
-    getStyle() { return { sources: {} }; }
+    getStyle() {
+        return { sprite: this.styleKey, name: this.styleKey, sources: {} };
+    }
 }
 
 const baseLocations: LocationMarker[] = [
