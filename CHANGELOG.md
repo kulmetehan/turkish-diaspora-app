@@ -24,6 +24,9 @@ All notable changes to the Turkish Diaspora App project.
   - Admin dashboard widget showing inserts vs dedupes vs updates over last 30 days
   - Counters tracked: discovered, inserted, deduped_place_id, deduped_fuzzy, updated_existing, failed
 
+- Database observability improvements: periodic pg_stat_activity sampler logs highlight lingering transactions (`Backend/app/core/db_monitor.py`).
+- Admin bulk-update hardened: shared transactional connection, strict payload validation, asyncpg helper fixes, and CORS-safe error responses.
+
 ### Changed
 - Admin metrics verified count now matches frontend map count (uses shared filter definition)
 - Discovery worker now updates existing records on fuzzy match instead of skipping
@@ -32,4 +35,6 @@ All notable changes to the Turkish Diaspora App project.
 ### Fixed
 - Admin metrics count mismatch with frontend map (now aligned using shared filter)
 - Discovery workflow self-cancellation issue (now completes successfully)
+- Idle `SELECT` sessions lingering in `pg_stat_activity` by refactoring asyncpg helpers, enforcing connection context managers, and adding timeouts/monitoring (TDA-107).
+- Bulk admin updates returning 500 with `AttributeError` and missing CORS headers; resolved by fixing helper signatures, single-connection transactions, and global exception handling.
 

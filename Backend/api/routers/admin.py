@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Body
 
-from services.db_service import fetch, execute, update_location_classification
+from services.db_service import execute, fetch, fetchrow, update_location_classification
 
 router = APIRouter(
     prefix="/admin",
@@ -179,8 +179,8 @@ async def admin_override_location(
         WHERE id = $1
         LIMIT 1
     """
-    rows = await fetch(sql_return, int(location_id))
-    row = dict(rows[0]) if rows else None
+    row = await fetchrow(sql_return, int(location_id))
+    row = dict(row) if row else None
     if not row:
         raise HTTPException(status_code=404, detail="location not found (post-update)")
 

@@ -17,10 +17,19 @@ type Props = {
 
 type StateOption = { value: string; label: string };
 
+const DEFAULT_STATE_OPTIONS: StateOption[] = [
+    { value: "VERIFIED", label: "Verified" },
+    { value: "PENDING_VERIFICATION", label: "Pending Verification" },
+    { value: "CANDIDATE", label: "Candidate" },
+    { value: "RETIRED", label: "Retired" },
+];
+
 export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: Props) {
     const [loading, setLoading] = useState(false);
     const [data, setData] = useState<AdminLocationDetail | null>(null);
     const [stateOptions, setStateOptions] = useState<StateOption[]>([]);
+    const [forceVerify, setForceVerify] = useState(false);
+    const [forceError, setForceError] = useState(false);
 
     useEffect(() => {
         let active = true;
@@ -28,11 +37,14 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
         setLoading(true);
         Promise.all([
             getAdminLocation(id),
-            listLocationStates().catch(() => ({ states: [] })),
+            listLocationStates().catch(() => ({ states: DEFAULT_STATE_OPTIONS })),
         ]).then(([d, s]) => {
             if (!active) return;
             setData(d);
-            setStateOptions(Array.isArray(s?.states) ? s.states : []);
+            const options = Array.isArray(s?.states) && s.states.length > 0 ? s.states : DEFAULT_STATE_OPTIONS;
+            setStateOptions(options);
+            setForceVerify(false);
+            setForceError(false);
         }).catch((e) => {
             toast.error(e?.message || "Kon details niet laden");
         }).finally(() => {
@@ -41,8 +53,16 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
         return () => { active = false; };
     }, [open, id]);
 
+    const requiresForce =
+        Boolean(data?.is_retired) && (data?.state ?? "").toUpperCase() === "VERIFIED";
+
     async function save() {
         if (!id || !data) return;
+        if (requiresForce && !forceVerify) {
+            setForceError(true);
+            toast.warning("Action blocked: 'Unretire & Verify' is required for retired locations.");
+            return;
+        }
         setLoading(true);
         try {
             await updateAdminLocation(id, {
@@ -54,8 +74,13 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
                 business_status: data.business_status ?? undefined,
                 is_probable_not_open_yet: data.is_probable_not_open_yet ?? undefined,
                 notes: data.notes ?? undefined,
+                force: requiresForce && forceVerify ? true : undefined,
             });
-            toast("Locatie bijgewerkt");
+            if (requiresForce && forceVerify) {
+                toast.success("Location verified.");
+            } else {
+                toast.success("Locatie bijgewerkt");
+            }
             onSaved();
             onOpenChange(false);
         } catch (e: any) {
@@ -91,7 +116,18 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="state">State</Label>
-                                <Select value={data.state} onValueChange={(v) => setData({ ...data, state: v })}>
+                                <Select
+                                    value={data.state}
+                                    onValueChange={(v) => {
+                                        setData(prev => prev ? { ...prev, state: v } : prev);
+                                        if (v !== "VERIFIED") {
+                                            setForceVerify(false);
+                                            setForceError(false);
+                                        } else {
+                                            setForceError(false);
+                                        }
+                                    }}
+                                >
                                     <SelectTrigger id="state">
                                         <SelectValue placeholder="Select state..." />
                                     </SelectTrigger>
@@ -106,6 +142,33 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
                                     </SelectContent>
                                 </Select>
                             </div>
+                            {data.is_retired && (
+                                <div className="sm:col-span-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                    Deze locatie is momenteel retired. Gebruik \"Unretire & Verify\" om de status te herstellen.
+                                </div>
+                            )}
+                            {requiresForce && (
+                                <div className="sm:col-span-2 space-y-1">
+                                    <label className="flex items-center gap-2 text-xs font-medium text-amber-900">
+                                        <input
+                                            type="checkbox"
+                                            checked={forceVerify}
+                                            onChange={(e) => {
+                                                setForceVerify(e.target.checked);
+                                                if (e.target.checked) {
+                                                    setForceError(false);
+                                                }
+                                            }}
+                                        />
+                                        Unretire &amp; Verify
+                                    </label>
+                                    {forceError && !forceVerify && (
+                                        <p className="text-xs font-medium text-amber-700">
+                                            Enable 'Unretire & Verify' to verify this retired location.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <Label htmlFor="business_status">Business Status</Label>
                                 <Input id="business_status" value={data.business_status || ""} onChange={e => setData({ ...data, business_status: e.target.value || null })} />

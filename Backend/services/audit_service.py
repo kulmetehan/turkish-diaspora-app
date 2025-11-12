@@ -6,7 +6,9 @@ from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
-from services.db_service import execute, init_db_pool
+import asyncpg
+
+from services.db_service import execute, execute_with_conn, init_db_pool
 
 
 def _json_sanitize(obj: Any) -> Any:
@@ -59,6 +61,7 @@ class AuditService:
         is_success: bool,
         error_message: Optional[str] = None,
         meta: Optional[Dict[str, Any]] = None,
+        conn: Optional[asyncpg.Connection] = None,
     ) -> None:
         payload = {
             "actor": actor,
@@ -96,23 +99,45 @@ class AuditService:
             )
             """
         )
-        await execute(
-            sql,
-            location_id,
-            action_type,
-            "",
-            None,
-            validated_output_json,
-            "admin",
-            bool(is_success),
-            error_message,
-        )
+        if conn is not None:
+            await execute_with_conn(
+                conn,
+                sql,
+                location_id,
+                action_type,
+                "",
+                None,
+                validated_output_json,
+                "admin",
+                bool(is_success),
+                error_message,
+            )
+        else:
+            await execute(
+                sql,
+                location_id,
+                action_type,
+                "",
+                None,
+                validated_output_json,
+                "admin",
+                bool(is_success),
+                error_message,
+            )
 
 
 audit_service = AuditService()
 
 
-async def audit_admin_action(user_email: str, location_id: int, action: str, before: Optional[Dict[str, Any]], after: Optional[Dict[str, Any]]) -> None:
+async def audit_admin_action(
+    user_email: str,
+    location_id: int,
+    action: str,
+    before: Optional[Dict[str, Any]],
+    after: Optional[Dict[str, Any]],
+    *,
+    conn: Optional[asyncpg.Connection] = None,
+) -> None:
     """
     Inserts an audit entry into ai_logs using direct Postgres SQL.
     """
@@ -144,12 +169,38 @@ async def audit_admin_action(user_email: str, location_id: int, action: str, bef
     )
     payload_before = _json_sanitize(before)
     payload_after = _json_sanitize(after)
-    prompt = f"{user_email} performed {action}"
-    await execute(
-        sql,
-        int(location_id),
-        action,
-        prompt,
-        json.dumps(payload_before, ensure_ascii=False) if payload_before is not None else None,
-        json.dumps(payload_after, ensure_ascii=False) if payload_after is not None else None,
+    before_json = (
+        json.dumps(payload_before, ensure_ascii=False)
+        if payload_before is not None
+        else None
     )
+    after_json = (
+        json.dumps(payload_after, ensure_ascii=False)
+        if payload_after is not None
+        else None
+    )
+
+    async def _write(action_name: str) -> None:
+        prompt = f"{user_email} performed {action_name}"
+        args = (
+            int(location_id),
+            action_name,
+            prompt,
+            before_json,
+            after_json,
+        )
+        if conn is not None:
+            await execute_with_conn(conn, sql, *args)
+        else:
+            await execute(sql, *args)
+
+    await _write(action)
+
+    before_retired = bool(before and before.get("is_retired"))
+    after_retired = bool(after and after.get("is_retired"))
+    if (
+        action != "admin_unretire_and_verify"
+        and before_retired
+        and not after_retired
+    ):
+        await _write("admin_unretire_and_verify")
