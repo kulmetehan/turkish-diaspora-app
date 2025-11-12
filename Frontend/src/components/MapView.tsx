@@ -14,6 +14,7 @@ import { cn } from "@/lib/ui/cn";
 import { CONFIG } from "@/lib/config";
 import MarkerLayer from "./MarkerLayer";
 import { attachCategoryIconFallback, ensureCategoryIcons } from "@/lib/map/categoryIcons";
+import { useViewportContext } from "@/contexts/viewport";
 
 // Zorg dat je VITE_MAPBOX_TOKEN in .env staat
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
@@ -482,6 +483,7 @@ export default function MapView({
   centerOnSelect = true,
   onSuppressNextViewportFetch,
 }: Props) {
+  const { setViewport } = useViewportContext();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -750,11 +752,11 @@ export default function MapView({
   // Notify parent about viewport changes (bbox) when map stops moving
   useEffect(() => {
     if (!mapReady || destroyedRef.current) return;
-    if (!onViewportChange) return;
     const map = mapRef.current;
     if (!map) return;
 
     const emit = (bbox: string | null) => {
+      if (!onViewportChange) return;
       if (viewportDebounceRef.current !== null) {
         window.clearTimeout(viewportDebounceRef.current);
       }
@@ -768,24 +770,74 @@ export default function MapView({
 
     const handle = () => {
       try {
+        const zoomValue = typeof map.getZoom === "function" ? map.getZoom() : null;
+        const center = map.getCenter?.();
+        const centerLat =
+          center && typeof (center as any).lat === "number" && Number.isFinite((center as any).lat)
+            ? (center as any).lat
+            : null;
+        const centerLng =
+          center && typeof (center as any).lng === "number" && Number.isFinite((center as any).lng)
+            ? (center as any).lng
+            : null;
+
         const bounds = map.getBounds?.();
-        if (!bounds) {
-          emit(null);
-          return;
+        let nextBbox: string | null = null;
+        let visibleSamples: { city?: string | null }[] | null = null;
+
+        if (bounds) {
+          const sw = bounds.getSouthWest?.();
+          const ne = bounds.getNorthEast?.();
+          const hasValidCorners =
+            sw &&
+            ne &&
+            typeof sw.lng === "number" &&
+            typeof sw.lat === "number" &&
+            typeof ne.lng === "number" &&
+            typeof ne.lat === "number";
+
+          if (hasValidCorners) {
+            const isZoomedOut =
+              typeof zoomValue === "number" &&
+              (zoomValue <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90);
+            nextBbox = isZoomedOut ? null : `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+
+            const minLng = Math.min(sw.lng, ne.lng);
+            const maxLng = Math.max(sw.lng, ne.lng);
+            const minLat = Math.min(sw.lat, ne.lat);
+            const maxLat = Math.max(sw.lat, ne.lat);
+
+            const samples = allLocationsRef.current.filter((loc) => {
+              if (!isFiniteCoord(loc.lng) || !isFiniteCoord(loc.lat)) return false;
+              return (
+                loc.lng! >= minLng &&
+                loc.lng! <= maxLng &&
+                loc.lat! >= minLat &&
+                loc.lat! <= maxLat
+              );
+            });
+
+            if (samples.length > 0) {
+              visibleSamples = samples.map((loc) => ({ city: loc.city ?? null }));
+            }
+          }
         }
 
-        const zoom = map.getZoom?.();
-        const sw = bounds.getSouthWest?.();
-        const ne = bounds.getNorthEast?.();
-        if (!sw || !ne || typeof sw.lng !== "number" || typeof sw.lat !== "number" || typeof ne.lng !== "number" || typeof ne.lat !== "number") {
-          emit(null);
-          return;
-        }
+        setViewport({
+          zoom: typeof zoomValue === "number" && Number.isFinite(zoomValue) ? zoomValue : null,
+          centerLat,
+          centerLng,
+          visible: visibleSamples,
+        });
 
-        const isZoomedOut = typeof zoom === "number" && (zoom <= 2 || (ne.lng - sw.lng) > 180 || (ne.lat - sw.lat) > 90);
-        const nextBbox = isZoomedOut ? null : `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
         emit(nextBbox);
       } catch {
+        setViewport({
+          zoom: null,
+          centerLat: null,
+          centerLng: null,
+          visible: null,
+        });
         emit(null);
       }
     };
@@ -804,7 +856,7 @@ export default function MapView({
         /* ignore */
       }
     };
-  }, [destroyedRef, mapReady, onViewportChange]);
+  }, [destroyedRef, mapReady, onViewportChange, setViewport]);
 
   useEffect(() => {
     allLocationsRef.current = locations;

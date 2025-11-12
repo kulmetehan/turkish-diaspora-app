@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { LocationMarker } from "@/api/fetchLocations";
 import { buildGoogleSearchUrl, buildRouteUrl, deriveCityForLocation, __internal } from "@/lib/urlBuilders";
+import { KNOWN_CITIES } from "@/config/knownCities";
 
 const baseLocation: LocationMarker = {
     id: "1",
@@ -60,18 +61,21 @@ describe("buildRouteUrl", () => {
 });
 
 describe("buildGoogleSearchUrl", () => {
-    it("includes name and derived city in query", () => {
-        const city = deriveCityForLocation({ ...baseLocation, address: "Blaak 34, 3011 TA Rotterdam, Netherlands" });
-        const url = buildGoogleSearchUrl(baseLocation.name, city);
+    it("includes name and provided city in query", () => {
+        const url = buildGoogleSearchUrl(baseLocation.name, "Rotterdam");
         const parsed = new URL(url);
         expect(parsed.origin + parsed.pathname).toBe("https://www.google.com/search");
         expect(parsed.searchParams.get("q")).toBe("Anadolu Restaurant Rotterdam");
     });
 
-    it("uses fallback when city missing", () => {
-        const url = buildGoogleSearchUrl(baseLocation.name, undefined, "Amsterdam");
+    it("resolves nearest city when location missing city", () => {
+        const url = buildGoogleSearchUrl(baseLocation.name, undefined, {
+            loc: { ...baseLocation, city: null },
+            viewport: null,
+            knownCities: KNOWN_CITIES,
+        });
         const parsed = new URL(url);
-        expect(parsed.searchParams.get("q")).toBe("Anadolu Restaurant Amsterdam");
+        expect(parsed.searchParams.get("q")).toBe("Anadolu Restaurant Rotterdam");
     });
 });
 

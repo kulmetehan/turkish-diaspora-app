@@ -1,8 +1,15 @@
 import type { LocationMarker } from "@/api/fetchLocations";
+import {
+    resolveCityForSearchFallback,
+    parseCityFromAddress,
+    type LocForCityFallback,
+    type ViewportContext as CityViewportContext,
+    type KnownCity,
+} from "@/lib/cityResolver";
+import { KNOWN_CITIES } from "@/config/knownCities";
 
 const GOOGLE_MAPS_DIRECTIONS_BASE = "https://www.google.com/maps/dir/";
 const GOOGLE_SEARCH_BASE = "https://www.google.com/search";
-const DEFAULT_CITY_FALLBACK = "Rotterdam";
 
 type LocForRoute = Pick<LocationMarker, "lat" | "lng" | "place_id"> & {
     name?: string | null;
@@ -37,29 +44,7 @@ function hasCoordinates<T extends { lat: number | null | undefined; lng: number 
         Number.isFinite(location.lng);
 }
 
-function parseCityFromAddress(address?: string | null): string | null {
-    if (!address) return null;
-    const segments = address
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean);
-    for (let i = segments.length - 1; i >= 0; i -= 1) {
-        let candidate = segments[i];
-        // Strip postal codes like "3011 AB" or "3011AB"
-        candidate = candidate.replace(/\b\d{4}\s?[A-Z]{2}\b/gi, "").trim();
-        if (!candidate) continue;
-        // Remove country names to avoid returning them as city
-        if (/^(netherlands|nederland|the netherlands)$/i.test(candidate)) {
-            continue;
-        }
-        if (/[a-zA-Z]/.test(candidate)) {
-            return candidate;
-        }
-    }
-    return null;
-}
-
-export function deriveCityForLocation(location: LocForCity, fallback = DEFAULT_CITY_FALLBACK): string {
+export function deriveCityForLocation(location: LocForCity, fallback = ""): string {
     const direct = typeof location.city === "string" && location.city.trim().length > 0
         ? location.city.trim()
         : null;
@@ -102,16 +87,33 @@ export function buildRouteUrl(location: LocForRoute, userAgent?: string): string
     return `${GOOGLE_MAPS_DIRECTIONS_BASE}?${params.toString()}`;
 }
 
-export function buildGoogleSearchUrl(name: string, city?: string | null, fallback = DEFAULT_CITY_FALLBACK): string {
-    const trimmedName = name?.trim();
-    const resolvedCity = typeof city === "string" && city.trim().length > 0 ? city.trim() : fallback;
-    const queryParts = [];
+type BuildGoogleSearchOpts = {
+    viewport?: CityViewportContext | null;
+    loc?: LocForCityFallback;
+    knownCities?: KnownCity[];
+};
+
+export function buildGoogleSearchUrl(name: string, city?: string | null, opts?: BuildGoogleSearchOpts): string {
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const knownCities = opts?.knownCities ?? KNOWN_CITIES;
+
+    let cityToUse = typeof city === "string" && city.trim().length > 0 ? city.trim() : null;
+
+    if (!cityToUse) {
+        const locForFallback: LocForCityFallback = opts?.loc ?? {
+            name,
+            city: city ?? null,
+        };
+        cityToUse = resolveCityForSearchFallback(locForFallback, opts?.viewport ?? null, knownCities);
+    }
+
+    const queryParts: string[] = [];
     if (trimmedName) queryParts.push(trimmedName);
-    if (resolvedCity) queryParts.push(resolvedCity);
+    if (cityToUse) queryParts.push(cityToUse);
 
     const query = queryParts.join(" ").trim();
     const params = new URLSearchParams();
-    params.set("q", query.length > 0 ? query : trimmedName ?? "");
+    params.set("q", query.length > 0 ? query : trimmedName);
 
     return `${GOOGLE_SEARCH_BASE}?${params.toString()}`;
 }
@@ -121,6 +123,5 @@ export const __internal = {
     isAndroid,
     parseCityFromAddress,
     resolveUserAgent,
-    DEFAULT_CITY_FALLBACK,
 };
 

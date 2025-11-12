@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
+import { ViewportProvider } from "@/contexts/viewport";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
@@ -453,22 +454,24 @@ function HomePage() {
   );
 
   return (
-    <div
-      data-route-viewport
-      className="relative h-[calc(100svh-var(--footer-height))] overflow-hidden"
-    >
-      {viewMode === "map"
-        ? mapView
-        : (isCompact ? listViewMobile : listViewDesktop)}
+    <ViewportProvider>
+      <div
+        data-route-viewport
+        className="relative h-[calc(100svh-var(--footer-height))] overflow-hidden"
+      >
+        {viewMode === "map"
+          ? mapView
+          : (isCompact ? listViewMobile : listViewDesktop)}
 
-      {detail && (isDesktop || viewMode === "map") && (
-        <OverlayDetailCard
-          location={detail}
-          open={Boolean(detail)}
-          onClose={handleCloseDetail}
-        />
-      )}
-    </div>
+        {detail && (isDesktop || viewMode === "map") && (
+          <OverlayDetailCard
+            location={detail}
+            open={Boolean(detail)}
+            onClose={handleCloseDetail}
+          />
+        )}
+      </div>
+    </ViewportProvider>
   );
 }
 

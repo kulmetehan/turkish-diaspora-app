@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useViewportContext } from "@/contexts/viewport";
 import { buildGoogleSearchUrl, buildRouteUrl, deriveCityForLocation } from "@/lib/urlBuilders";
 import { cn } from "@/lib/ui/cn";
 
@@ -22,10 +23,18 @@ function safeString(value: unknown): string | null {
 }
 
 export default function OverlayDetailCard({ location, open, onClose }: OverlayDetailCardProps) {
-    const city = useMemo(() => deriveCityForLocation(location), [location]);
+    const { viewport } = useViewportContext();
+    const city = useMemo(() => deriveCityForLocation(location, "Unknown"), [location]);
 
     const routeUrl = useMemo(() => buildRouteUrl(location), [location]);
-    const googleSearchUrl = useMemo(() => buildGoogleSearchUrl(location.name, city), [location, city]);
+    const googleSearchUrl = useMemo(
+        () =>
+            buildGoogleSearchUrl(location.name, location.city, {
+                loc: location,
+                viewport,
+            }),
+        [location, viewport]
+    );
 
     const routeLinkProps = useMemo(() => {
         const isWebTarget = routeUrl.startsWith("http");
