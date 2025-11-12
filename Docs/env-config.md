@@ -1,7 +1,7 @@
 ---
 title: Environment Config Guide
 status: active
-last_updated: 2025-11-04
+last_updated: 2025-11-12
 scope: setup
 owners: [tda-core]
 ---
@@ -41,6 +41,19 @@ The backend and workers read their configuration from `Backend/.env`. All keys a
 | `OPENAI_MODEL` | optional | Defaults to `gpt-4.1-mini`. Override for experiments. |
 | `APP_VERSION` | optional | Displayed by `/version`. Useful for tagging deployments. |
 | `ENVIRONMENT` | optional | `local`, `dev`, `staging`, or `prod`. Dev endpoints are only available when set to a dev-like value. |
+
+### Database connection tuning
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `DB_POOL_MIN_SIZE` | `1` | Minimum size for the asyncpg pool. Keep `1` locally; raise gradually if the Render instance has spare CPU. |
+| `DB_POOL_MAX_SIZE` | `4` | Maximum pool size. Start at `4` for production; increase only after monitoring Supabase load. |
+| `DEFAULT_QUERY_TIMEOUT_MS` | `30000` | Fallback timeout used for all database calls. Lower temporarily to reproduce timeout handling. |
+| `STATEMENT_TIMEOUT_MS` | `30000` | Passed to Postgres to cancel long-running statements. |
+| `IDLE_IN_TX_TIMEOUT_MS` | `60000` | Terminates connections left idle in a transaction. |
+| `LOCK_TIMEOUT_MS` | `5000` | Abort when waiting too long for a lock (helps avoid stuck bulk updates). |
+
+> **Reminder:** add the five new keys to Render and `.env` files so the backend, workers, and automated bulk operations share the same limits.
 
 ### Discovery & OSM tuning
 

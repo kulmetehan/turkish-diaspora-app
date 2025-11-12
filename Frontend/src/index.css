@@ -25,7 +25,11 @@ html,
 body,
 #root {
   height: 100%;
-  overflow: hidden;
+}
+
+#root {
+  /* Allow feature areas (admin tables, dialogs) to control their own scroll contexts (TDA-140) */
+  min-height: 100%;
 }
 
 html,

@@ -114,6 +114,12 @@ Expected response:
 { "ok": true, "admin_email": "admin@example.com" }
 ```
 
+### Admin override safety toggles
+
+- Bulk verification (`PATCH /api/v1/admin/locations/bulk-update`) still defaults to the no-resurrection rule. Include `{"action": {"type": "verify", "force": true}}` or `{"action": {"type": "verify", "clear_retired": true}}` to explicitly promote previously retired rows **and** clear `is_retired`.
+- Single-record edits (`PUT /api/v1/admin/locations/{id}`) require `{"state": "VERIFIED", "force": true}` when promoting a row whose state/`is_retired` indicates it was retired.
+- Whenever `is_retired` flips from `true → false`, an additional audit entry (`action_type = "admin_unretire_and_verify"`) is stored in `ai_logs` to document the resurrection.
+
 ## Metrics & dashboards
 
 - `Infra/monitoring/metrics_dashboard.sql` tracks `conversion_rate_verified_14d`, error rates, latency.

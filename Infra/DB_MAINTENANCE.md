@@ -68,3 +68,20 @@ The `public.ai_logs` table stores audit logs for all AI operations. To manage ta
 - `.github/workflows/tda_weekly_compact.yml` - Weekly compaction workflow
 - `Infra/supabase/0001_init.sql` - Table schema definition
 
+## Session Timeout Safeguards
+
+To prevent lingering backend sessions from blocking autovacuum or accumulating table bloat, apply a session-level timeout on the application role. This complements the application-side statement timeout configured in code.
+
+```sql
+-- Replace <app_role> with the Supabase role the backend uses (see DATABASE_URL user)
+ALTER ROLE <app_role> SET idle_in_transaction_session_timeout = '60s';
+ALTER ROLE <app_role> SET lock_timeout = '5s';
+```
+
+If multiple environments share the same database, you can apply these settings at the database level instead:
+
+```sql
+ALTER DATABASE <database_name> SET idle_in_transaction_session_timeout = '60s';
+ALTER DATABASE <database_name> SET lock_timeout = '5s';
+```
+

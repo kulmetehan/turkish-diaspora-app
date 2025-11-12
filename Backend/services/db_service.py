@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import os
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 import asyncio
+from contextlib import asynccontextmanager
+from time import monotonic
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -35,6 +37,15 @@ def normalize_database_url(raw_dsn: str) -> str:
 
 logger = logging.getLogger(__name__)
 
+APPLICATION_NAME = "tda-backend"
+STATEMENT_TIMEOUT_MS = int(os.getenv("STATEMENT_TIMEOUT_MS", "30000"))
+IDLE_IN_TX_TIMEOUT_MS = int(os.getenv("IDLE_IN_TX_TIMEOUT_MS", "60000"))
+LOCK_TIMEOUT_MS = int(os.getenv("LOCK_TIMEOUT_MS", "5000"))
+DB_POOL_MIN_SIZE = int(os.getenv("DB_POOL_MIN_SIZE", "1"))
+DB_POOL_MAX_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "4"))
+DEFAULT_QUERY_TIMEOUT_MS = int(os.getenv("DEFAULT_QUERY_TIMEOUT_MS", "30000"))
+SLOW_QUERY_THRESHOLD_MS = 1_000  # 1 second
+
 # No DSN rebuilding here; we keep DATABASE_URL as-is and only normalize scheme at pool creation time.
 
 # --------------------------------------------------------------------
@@ -55,38 +66,28 @@ async def ensure_pool() -> asyncpg.Pool:
         raw_dsn = os.getenv("DATABASE_URL", "").strip()
         final_dsn = normalize_database_url(raw_dsn)
 
-        # --- DEBUG START ---
-        try:
-            parsed = urlparse(final_dsn)
-            debug_user = parsed.username
-            debug_host = parsed.hostname
-            debug_port = parsed.port
-            print(
-                "db_engine_debug_user_host_port",
-                debug_user,
-                debug_host,
-                debug_port,
-                flush=True,
-            )
-            # print DSN prefix without leaking host/password
-            print(
-                "db_engine_debug_prefix",
-                final_dsn.split("@")[0],
-                flush=True,
-            )
-        except Exception as e:
-            print("db_engine_debug_parse_error", str(e), flush=True)
-        # --- DEBUG END ---
-
-        logger.info("Initializing asyncpg connection pool (min=1, max=1)...")
+        logger.info(
+            "db_pool_initializing",
+            extra={
+                "dsn_host": urlparse(final_dsn).hostname if final_dsn else None,
+                "dsn_port": urlparse(final_dsn).port if final_dsn else None,
+                "application_name": APPLICATION_NAME,
+            },
+        )
         _pool = await asyncpg.create_pool(
             dsn=final_dsn,
-            min_size=1,
-            max_size=1,
+            min_size=DB_POOL_MIN_SIZE,
+            max_size=DB_POOL_MAX_SIZE,
             command_timeout=60,
             timeout=60,
             statement_cache_size=0,
             max_inactive_connection_lifetime=30,
+            server_settings={
+                "application_name": APPLICATION_NAME,
+                "statement_timeout": str(STATEMENT_TIMEOUT_MS),
+                "idle_in_transaction_session_timeout": str(IDLE_IN_TX_TIMEOUT_MS),
+                "lock_timeout": str(LOCK_TIMEOUT_MS),
+            },
         )
         return _pool
 
@@ -94,15 +95,119 @@ async def init_db_pool() -> asyncpg.Pool:
     # Backwards-compatible wrapper; safe to call multiple times
     return await ensure_pool()
 
-async def fetch(query: str, *args):
-    pool = await ensure_pool()
-    async with pool.acquire() as conn:
-        return await conn.fetch(query, *args)
+async def _execute_with_timing(
+    conn: asyncpg.Connection,
+    method: str,
+    query: str,
+    *args: Any,
+    timeout: Optional[float] = None,
+) -> Any:
+    if not isinstance(conn, asyncpg.Connection):
+        raise TypeError("conn must be an asyncpg.Connection instance")
+    if not isinstance(method, str):
+        raise TypeError("method must be a string")
+    if not isinstance(query, str):
+        raise TypeError("query must be a string")
 
-async def execute(query: str, *args):
+    start_ms = monotonic() * 1000
+    try:
+        func = getattr(conn, method)
+        effective_timeout = (
+            timeout if timeout is not None else DEFAULT_QUERY_TIMEOUT_MS / 1000
+        )
+        return await func(query, *args, timeout=effective_timeout)
+    finally:
+        duration_ms = (monotonic() * 1000) - start_ms
+        if duration_ms >= SLOW_QUERY_THRESHOLD_MS:
+            logger.warning(
+                "db_slow_query",
+                extra={
+                    "duration_ms": round(duration_ms, 2),
+                    "method": method,
+                    "arg_count": len(args),
+                    "query_snippet": query.strip().split("\n")[0][:200],
+                },
+            )
+
+@asynccontextmanager
+async def connection() -> AsyncIterator[asyncpg.Connection]:
     pool = await ensure_pool()
     async with pool.acquire() as conn:
-        return await conn.execute(query, *args)
+        yield conn
+
+async def fetch(
+    query: str,
+    *args: Any,
+    timeout: Optional[float] = None,
+) -> List[asyncpg.Record]:
+    async with connection() as conn:
+        return await _execute_with_timing(conn, "fetch", query, *args, timeout=timeout)
+
+async def fetchrow(
+    query: str,
+    *args: Any,
+    timeout: Optional[float] = None,
+) -> Optional[asyncpg.Record]:
+    async with connection() as conn:
+        return await _execute_with_timing(
+            conn, "fetchrow", query, *args, timeout=timeout
+        )
+
+async def fetchval(query: str, *args: Any) -> Any:
+    async with connection() as conn:
+        return await _execute_with_timing(conn, "fetchval", query, *args)
+
+async def execute(
+    query: str,
+    *args: Any,
+    timeout: Optional[float] = None,
+) -> str:
+    async with connection() as conn:
+        return await _execute_with_timing(conn, "execute", query, *args, timeout=timeout)
+
+@asynccontextmanager
+async def run_in_transaction(
+    *,
+    isolation: Optional[str] = None,
+    readonly: bool = False,
+) -> AsyncIterator[asyncpg.Connection]:
+    pool = await ensure_pool()
+    async with pool.acquire() as conn:
+        tx = conn.transaction(isolation=isolation, readonly=readonly)
+        await tx.start()
+        try:
+            yield conn
+        except Exception:
+            await tx.rollback()
+            raise
+        else:
+            await tx.commit()
+
+async def fetch_with_conn(
+    conn: asyncpg.Connection,
+    query: str,
+    *args: Any,
+    timeout: Optional[float] = None,
+) -> List[asyncpg.Record]:
+    return await _execute_with_timing(conn, "fetch", query, *args, timeout=timeout)
+
+async def fetchrow_with_conn(
+    conn: asyncpg.Connection,
+    query: str,
+    *args: Any,
+    timeout: Optional[float] = None,
+) -> Optional[asyncpg.Record]:
+    return await _execute_with_timing(
+        conn, "fetchrow", query, *args, timeout=timeout
+    )
+
+async def execute_with_conn(
+    conn: asyncpg.Connection,
+    query: str,
+    *args: Any,
+    timeout: Optional[float] = None,
+) -> str:
+    return await _execute_with_timing(conn, "execute", query, *args, timeout=timeout)
 
 # --------------------------------------------------------------------
 # AI log helper
@@ -192,11 +297,14 @@ async def update_location_classification(
     category: str,
     confidence_score: float,
     reason: Optional[str] = None,
+    conn: Optional[asyncpg.Connection] = None,
+    allow_resurrection: bool = False,
 ) -> None:
     """
     Persist AI/manual classification while enforcing:
       - State thresholds (keep=VERIFIED/PENDING_VERIFICATION/CANDIDATE by confidence; ignore=RETIRED)
-      - No downgrade of VERIFIED, no resurrection of RETIRED
+      - No downgrade of VERIFIED
+      - No resurrection of RETIRED unless allow_resurrection=True
       - Always stamps last_verified_at = NOW()
       - Appends reason into notes (newline-separated)
     """
@@ -207,11 +315,14 @@ async def update_location_classification(
         FROM locations
         WHERE id = $1
     """
-    rows = await fetch(row_sql, int(id))
+    if conn is not None:
+        row = await fetchrow_with_conn(conn, row_sql, int(id))
+    else:
+        row = await fetchrow(row_sql, int(id))
     current_state = None
     is_retired = False
-    if rows:
-        rec = dict(rows[0])
+    if row:
+        rec = dict(row)
         current_state = (rec.get("state") or "").upper()
         is_retired = bool(rec.get("is_retired"))
 
@@ -233,10 +344,15 @@ async def update_location_classification(
     final_state = desired_state
     if current_state == "VERIFIED":
         final_state = "VERIFIED"  # never demote VERIFIED
-    elif current_state == "RETIRED" or is_retired:
-        final_state = "RETIRED"   # never resurrect RETIRED
+    elif not allow_resurrection and (current_state == "RETIRED" or is_retired):
+        final_state = "RETIRED"   # never resurrect RETIRED unless explicitly allowed
 
     reason_text = reason or ""
+    should_clear_retired = (
+        allow_resurrection
+        and (current_state == "RETIRED" or is_retired)
+        and final_state != "RETIRED"
+    )
 
     # Update with stamp
     sql = (
@@ -252,20 +368,67 @@ async def update_location_classification(
                            || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\\n' END
                            || $4
                     END,
-            last_verified_at = NOW()
-        WHERE id = $5
+            last_verified_at = NOW(),
+            is_retired = CASE WHEN $5 THEN false ELSE is_retired END
+        WHERE id = $6
         """
     )
 
-    await execute(
-        sql,
+    exec_args = (
         category,
         float(confidence_score),
         final_state,
         reason_text,
+        should_clear_retired,
         int(id),
     )
 
+    if conn is not None:
+        await execute_with_conn(conn, sql, *exec_args)
+    else:
+        await execute(sql, *exec_args)
+
+
+async def unretire_and_verify(
+    *,
+    id: int,
+    actor: str,
+    conn: asyncpg.Connection,
+) -> None:
+    """
+    Convenience helper to resurrect a retired row and stamp it as VERIFIED within an active transaction.
+    """
+    if conn is None:
+        raise ValueError("conn is required for unretire_and_verify")
+
+    row = await fetchrow_with_conn(
+        conn,
+        """
+        SELECT category, confidence_score
+        FROM locations
+        WHERE id = $1
+        """,
+        int(id),
+    )
+    if row is None:
+        raise ValueError(f"location {id} not found")
+
+    rec = dict(row)
+    category = rec.get("category") or "other"
+    raw_confidence = rec.get("confidence_score")
+    confidence = float(raw_confidence) if raw_confidence is not None else 0.95
+    if confidence < 0.9:
+        confidence = 0.9
+
+    await update_location_classification(
+        id=int(id),
+        action="keep",
+        category=category,
+        confidence_score=confidence,
+        reason=f"admin unretire and verify by {actor}",
+        conn=conn,
+        allow_resurrection=True,
+    )
 
 # --------------------------------------------------------------------
 # Mark as inspected without changing classification
