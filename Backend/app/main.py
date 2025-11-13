@@ -41,6 +41,7 @@ from api.routers.admin_locations import router as admin_locations_router
 from api.routers.admin_misc import router as admin_misc_router
 from api.routers.admin_metrics import router as admin_metrics_router
 from api.routers.admin_discovery import router as admin_discovery_router
+from api.routers.admin_workers import router as admin_workers_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -191,6 +192,7 @@ api_v1_router.include_router(admin_locations_router)
 api_v1_router.include_router(admin_misc_router)
 api_v1_router.include_router(admin_metrics_router)
 api_v1_router.include_router(admin_discovery_router)
+api_v1_router.include_router(admin_workers_router)
 
 # Mount the versioned API once on the app
 app.include_router(api_v1_router)

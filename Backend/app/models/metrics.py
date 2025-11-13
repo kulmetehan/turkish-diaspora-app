@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Dict, List, Optional, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -51,6 +52,16 @@ class WorkerStatus(BaseModel):
     notes: Optional[str] = None
 
 
+class WorkerRunStatus(BaseModel):
+    id: UUID
+    bot: str
+    city: Optional[str]
+    category: Optional[str]
+    status: str
+    progress: int
+    started_at: Optional[datetime]
+
+
 class MetricsSnapshot(BaseModel):
     city_progress: CityProgress
     quality: Quality
@@ -58,5 +69,6 @@ class MetricsSnapshot(BaseModel):
     latency: Latency
     weekly_candidates: Optional[List[WeeklyCandidatesItem]] = None
     workers: List[WorkerStatus] = Field(default_factory=list)
+    current_runs: List[WorkerRunStatus] = Field(default_factory=list)
 
 

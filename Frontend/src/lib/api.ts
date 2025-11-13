@@ -163,6 +163,71 @@ export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
 export interface WorkerStatus {
   id: string;
   label: string;
+  lastRun: string | null;
+  durationSeconds: number | null;
+  processedCount: number | null;
+  errorCount: number | null;
+  status: "ok" | "warning" | "error" | "unknown";
+  windowLabel?: string | null;
+  quotaInfo?: Record<string, number | null> | null;
+  notes?: string | null;
+}
+
+export interface WorkerRun {
+  id: string;
+  bot: string;
+  city?: string | null;
+  category?: string | null;
+  status: string;
+  progress: number;
+  startedAt?: string | null;
+}
+
+export interface CityProgressRotterdam {
+  verifiedCount: number;
+  candidateCount: number;
+  coverageRatio: number;
+  growthWeekly: number;
+}
+
+export interface CityProgress {
+  rotterdam: CityProgressRotterdam;
+}
+
+export interface QualityMetrics {
+  conversionRateVerified14d: number;
+  taskErrorRate60m: number;
+  google429Last60m: number;
+}
+
+export interface DiscoveryMetrics {
+  newCandidatesPerWeek: number;
+}
+
+export interface LatencyMetrics {
+  p50Ms: number;
+  avgMs: number;
+  maxMs: number;
+}
+
+export interface WeeklyCandidatesItem {
+  weekStart: string;
+  count: number;
+}
+
+export interface MetricsSnapshot {
+  cityProgress: CityProgress;
+  quality: QualityMetrics | null;
+  discovery: DiscoveryMetrics | null;
+  latency: LatencyMetrics | null;
+  weeklyCandidates?: WeeklyCandidatesItem[] | null;
+  workers: WorkerStatus[];
+  currentRuns: WorkerRun[];
+}
+
+type RawWorkerStatus = {
+  id: string;
+  label: string;
   last_run: string | null;
   duration_seconds: number | null;
   processed_count: number | null;
@@ -171,37 +236,119 @@ export interface WorkerStatus {
   window_label?: string | null;
   quota_info?: Record<string, number | null> | null;
   notes?: string | null;
-}
+};
 
-export interface MetricsSnapshot {
+type RawWorkerRun = {
+  id: string;
+  bot: string;
+  city?: string | null;
+  category?: string | null;
+  status: string;
+  progress: number;
+  started_at?: string | null;
+};
+
+type RawCityProgressRotterdam = {
+  verified_count: number;
+  candidate_count: number;
+  coverage_ratio: number;
+  growth_weekly: number;
+};
+
+type RawMetricsSnapshot = {
   city_progress: {
-    rotterdam: {
-      verified_count: number;
-      candidate_count: number;
-      coverage_ratio: number;
-      growth_weekly: number;
-    };
+    rotterdam: RawCityProgressRotterdam;
   };
   quality: {
     conversion_rate_verified_14d: number;
     task_error_rate_60m: number;
     google429_last60m: number;
-  };
+  } | null;
   discovery: {
     new_candidates_per_week: number;
-  };
+  } | null;
   latency: {
     p50_ms: number;
     avg_ms: number;
     max_ms: number;
+  } | null;
+  weekly_candidates?: { week_start: string; count: number }[] | null;
+  workers: RawWorkerStatus[];
+  current_runs: RawWorkerRun[];
+};
+
+function normalizeWorkerStatus(raw: RawWorkerStatus): WorkerStatus {
+  return {
+    id: raw.id,
+    label: raw.label,
+    lastRun: raw.last_run,
+    durationSeconds: raw.duration_seconds,
+    processedCount: raw.processed_count,
+    errorCount: raw.error_count,
+    status: raw.status,
+    windowLabel: raw.window_label,
+    quotaInfo: raw.quota_info ?? null,
+    notes: raw.notes ?? null,
   };
-  weekly_candidates?: { week_start: string; count: number }[];
-  workers: WorkerStatus[];
+}
+
+function normalizeWorkerRun(raw: RawWorkerRun): WorkerRun {
+  return {
+    id: raw.id,
+    bot: raw.bot,
+    city: raw.city ?? null,
+    category: raw.category ?? null,
+    status: raw.status,
+    progress: raw.progress,
+    startedAt: raw.started_at ?? null,
+  };
+}
+
+function normalizeCityProgress(rotterdam: RawCityProgressRotterdam): CityProgress {
+  return {
+    rotterdam: {
+      verifiedCount: rotterdam.verified_count,
+      candidateCount: rotterdam.candidate_count,
+      coverageRatio: rotterdam.coverage_ratio,
+      growthWeekly: rotterdam.growth_weekly,
+    },
+  };
+}
+
+function normalizeMetricsSnapshot(raw: RawMetricsSnapshot): MetricsSnapshot {
+  return {
+    cityProgress: normalizeCityProgress(raw.city_progress.rotterdam),
+    quality: raw.quality
+      ? {
+          conversionRateVerified14d: raw.quality.conversion_rate_verified_14d,
+          taskErrorRate60m: raw.quality.task_error_rate_60m,
+          google429Last60m: raw.quality.google429_last60m,
+        }
+      : null,
+    discovery: raw.discovery
+      ? { newCandidatesPerWeek: raw.discovery.new_candidates_per_week }
+      : null,
+    latency: raw.latency
+      ? {
+          p50Ms: raw.latency.p50_ms,
+          avgMs: raw.latency.avg_ms,
+          maxMs: raw.latency.max_ms,
+        }
+      : null,
+    weeklyCandidates: raw.weekly_candidates
+      ? raw.weekly_candidates.map((item) => ({
+          weekStart: item.week_start,
+          count: item.count,
+        }))
+      : [],
+    workers: (raw.workers ?? []).map(normalizeWorkerStatus),
+    currentRuns: (raw.current_runs ?? []).map(normalizeWorkerRun),
+  };
 }
 
 export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {
-  // Use versioned API path and include Authorization like other admin calls
-  return authFetch<MetricsSnapshot>("/api/v1/admin/metrics/snapshot");
+  const raw = await authFetch<RawMetricsSnapshot>("/api/v1/admin/metrics/snapshot");
+  return normalizeMetricsSnapshot(raw);
 }
 
 export interface DiscoveryKPIDaily {

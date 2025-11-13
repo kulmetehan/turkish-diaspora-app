@@ -18,6 +18,7 @@ from app.models.metrics import (
     Quality,
     WeeklyCandidatesItem,
     WorkerStatus,
+    WorkerRunStatus,
 )
 # Import shared filter definition (single source of truth for Admin metrics and public API)
 from app.core.location_filters import get_verified_filter_sql
@@ -661,6 +662,36 @@ async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
     return statuses
 
 
+async def _active_worker_runs(limit: int = 10) -> List[WorkerRunStatus]:
+    sql = """
+        SELECT id, bot, city, category, status, progress, started_at
+        FROM worker_runs
+        WHERE status IN ('pending', 'running')
+        ORDER BY created_at DESC
+        LIMIT $1
+    """
+    try:
+        rows = await fetch(sql, int(limit))
+    except asyncpg.UndefinedTableError:
+        logger.warning("worker_runs_table_missing", table="worker_runs")
+        return []
+    runs: List[WorkerRunStatus] = []
+    for row in rows or []:
+        rec = dict(row)
+        runs.append(
+            WorkerRunStatus(
+                id=rec.get("id"),
+                bot=str(rec.get("bot") or ""),
+                city=rec.get("city"),
+                category=rec.get("category"),
+                status=str(rec.get("status") or ""),
+                progress=int(rec.get("progress") or 0),
+                started_at=rec.get("started_at"),
+            )
+        )
+    return runs
+
+
 async def generate_metrics_snapshot() -> MetricsSnapshot:
     # Quality
     conv_14d = await _conversion_rate_14d()
@@ -677,6 +708,9 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
     # City progress
     rot = await _rotterdam_progress()
 
+    workers = await _worker_statuses(err_rate, g429)
+    current_runs = await _active_worker_runs()
+
     return MetricsSnapshot(
         city_progress=CityProgress(rotterdam=rot),
         quality=Quality(
@@ -687,7 +721,8 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
         discovery=Discovery(new_candidates_per_week=latest_count),
         latency=Latency(p50_ms=p50, avg_ms=avg, max_ms=mx),
         weekly_candidates=weekly,
-        workers=await _worker_statuses(err_rate, g429),
+        workers=workers,
+        current_runs=current_runs,
     )
 
 

@@ -88,6 +88,11 @@ python -m app.workers.verify_locations --limit 50 --dry-run 1
 # Verification production run with chunking (6 slices)
 python -m app.workers.verify_locations --limit 600 --chunks 6 --chunk-index 0 --dry-run 0
 
+# Discovery run with worker run tracking (writes to worker_runs table)
+python -m app.workers.discovery_bot \
+  --city rotterdam \
+  --worker-run-id <uuid>
+
 # Monitor freshness (no writes)
 python -m app.workers.monitor_bot --limit 200 --dry-run
 
@@ -102,6 +107,8 @@ python -m app.workers.alert_bot --once 1
 - **Verify**: `[PROMOTE]`, `[SKIP]`, `[ERROR]` lines summarise action; audit logs persisted.
 - **Monitor**: Reports updated `next_check_at` count and skipped terminal states.
 - **Alert**: Summaries of error rate, 429 bursts, optional webhook POST status.
+
+Refer to [`Docs/worker-runs.md`](./worker-runs.md) for run-tracking conventions and guidance on generating `worker_runs` IDs for CLI usage.
 
 ## 4. Scheduled automation
 

@@ -15,11 +15,16 @@
  * DO NOT touch routing, auth, or other admin tabs from here.
  */
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDiscoveryKPIs, getMetricsSnapshot, type DiscoveryKPIs, type MetricsSnapshot, type WorkerStatus } from "@/lib/api";
+import { getDiscoveryKPIs, getMetricsSnapshot, type DiscoveryKPIs, type MetricsSnapshot, type WorkerRun, type WorkerStatus } from "@/lib/api";
+import { listAdminLocationCategories, runWorker } from "@/lib/apiAdmin";
 import { Activity, AlertTriangle, Database, Gauge, Info, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     CartesianGrid,
     Line,
@@ -29,6 +34,7 @@ import {
     XAxis,
     YAxis,
 } from "recharts";
+import { toast } from "sonner";
 
 const RECHARTS_OK =
     typeof ResponsiveContainer !== "undefined" &&
@@ -100,34 +106,109 @@ function formatQuotaInfo(quota: Record<string, number | null> | null | undefined
         .join(", ");
 }
 
+function formatRunStatus(value: string | undefined | null): string {
+    if (!value) return "Unknown";
+    const cleaned = value.toLowerCase().replace(/_/g, " ");
+    return cleaned.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function formatStartedAt(value: string | null | undefined): string {
+    if (!value) return "Not started";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toLocaleString();
+}
+
 export default function MetricsDashboard() {
     const [data, setData] = useState<MetricsSnapshot | null>(null);
     const [discoveryKPIs, setDiscoveryKPIs] = useState<DiscoveryKPIs | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [loadingKPIs, setLoadingKPIs] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [pollIntervalMs, setPollIntervalMs] = useState<number>(60000);
+    const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+    const [selectedBot, setSelectedBot] = useState<string | undefined>("discovery");
+    const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
+    const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
+    const [isRunningWorker, setIsRunningWorker] = useState<boolean>(false);
+    const isMountedRef = useRef(false);
+
+    const ALL_BOTS = "ALL_BOTS";
+    const ALL_CITIES = "ALL_CITIES";
+    const ALL_CATEGORIES = "ALL_CATEGORIES";
+
+    const botOptions = useMemo(
+        () => [
+            { value: "discovery", label: "Discovery" },
+            { value: "classify", label: "Classify" },
+            { value: "verify", label: "Verify" },
+            { value: "monitor", label: "Monitor" },
+        ],
+        []
+    );
+    const cityOptions = useMemo(
+        () => [{ value: "rotterdam", label: "Rotterdam" }],
+        []
+    );
+    const categoryDisabled = selectedBot === "monitor";
 
     useEffect(() => {
-        let isMounted = true;
-        const load = async () => {
-            try {
-                const res = await getMetricsSnapshot();
-                if (isMounted) setData(res);
-            } catch (e: any) {
-                if (isMounted) setError(e?.message || "Failed to load metrics");
-            } finally {
-                if (isMounted) setLoading(false);
-            }
-        };
+        if (categoryDisabled) {
+            setSelectedCategory(undefined);
+        }
+    }, [categoryDisabled]);
 
-        load();
+    const loadMetrics = useCallback(async () => {
+        try {
+            const res = await getMetricsSnapshot();
+            if (!isMountedRef.current) return;
+            setData(res);
+            setError(null);
+            const hasActive = Array.isArray(res.currentRuns) && res.currentRuns.some((run) =>
+                ["pending", "running"].includes(run.status)
+            );
+            setPollIntervalMs((prev) => {
+                const desired = hasActive ? 5000 : 60000;
+                return prev === desired ? prev : desired;
+            });
+        } catch (e: any) {
+            if (!isMountedRef.current) return;
+            setError(e?.message || "Failed to load metrics");
+        } finally {
+            if (!isMountedRef.current) return;
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadMetrics();
         const intervalId = window.setInterval(() => {
-            load();
-        }, 60000);
+            loadMetrics();
+        }, pollIntervalMs);
 
         return () => {
-            isMounted = false;
             window.clearInterval(intervalId);
+        };
+    }, [loadMetrics, pollIntervalMs]);
+
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        listAdminLocationCategories().then((cats) => {
+            if (!cancelled) {
+                setCategoryOptions(cats);
+            }
+        });
+        return () => {
+            cancelled = true;
         };
     }, []);
 
@@ -148,13 +229,65 @@ export default function MetricsDashboard() {
     }, []);
 
     const chartData = useMemo(() => {
-        const arr = data?.weekly_candidates || [];
+        const arr = data?.weeklyCandidates || [];
         const mapped = arr.map((d) => ({
-            week_start: typeof d.week_start === "string" ? d.week_start : (d.week_start as any),
+            week_start: typeof d.weekStart === "string" ? d.weekStart : (d.weekStart as any),
             count: d.count,
         }));
         return mapped.sort((a, b) => a.week_start.localeCompare(b.week_start));
     }, [data]);
+    const categorySelectOptions = useMemo(() => {
+        return Array.from(new Set(categoryOptions.filter((cat) => cat && cat.trim().length > 0)));
+    }, [categoryOptions]);
+    const activeRuns: WorkerRun[] = data?.currentRuns ?? [];
+    const workerStatuses = data?.workers ?? [];
+    const hasActiveRuns = activeRuns.length > 0;
+    const cityProgress = data?.cityProgress?.rotterdam ?? null;
+    const qualityMetrics = data?.quality ?? null;
+    const discoverySummary = data?.discovery ?? null;
+    const latencyMetrics = data?.latency ?? null;
+    const verifiedCount = cityProgress?.verifiedCount ?? 0;
+    const coverageRatio = cityProgress?.coverageRatio ?? 0;
+    const growthWeekly = cityProgress?.growthWeekly ?? 0;
+    const conversionRate14d = qualityMetrics?.conversionRateVerified14d ?? 0;
+    const taskErrorRate = qualityMetrics?.taskErrorRate60m ?? 0;
+    const google429Last60m = qualityMetrics?.google429Last60m ?? 0;
+    const newCandidatesWeekly = discoverySummary?.newCandidatesPerWeek ?? 0;
+    const latencyP50 = latencyMetrics?.p50Ms ?? 0;
+    const latencyAvg = latencyMetrics?.avgMs ?? 0;
+    const latencyMax = latencyMetrics?.maxMs ?? 0;
+
+    const handleRunWorker = useCallback(async () => {
+        const bot = selectedBot ?? botOptions[0]?.value ?? "discovery";
+        const payload: { bot: string; city?: string; category?: string } = { bot };
+        if (selectedCity) {
+            payload.city = selectedCity;
+        }
+        if (selectedCategory && !categoryDisabled) {
+            payload.category = selectedCategory;
+        }
+        setIsRunningWorker(true);
+        try {
+            const result = await runWorker(payload) as {
+                run_id?: string | null;
+                tracking_available?: boolean;
+                detail?: string;
+            };
+            if (result?.tracking_available === false) {
+                toast.warning(
+                    result?.detail || "Worker run accepted, but progress tracking is not available yet."
+                );
+            } else {
+                toast.success("Worker run created.");
+                setPollIntervalMs((prev) => (prev === 5000 ? prev : 5000));
+            }
+            await loadMetrics();
+        } catch (e: any) {
+            toast.error(e?.message || "Failed to trigger worker run.");
+        } finally {
+            setIsRunningWorker(false);
+        }
+    }, [categoryDisabled, loadMetrics, selectedBot, selectedCategory, selectedCity]);
 
     if (error) {
         return (
@@ -185,7 +318,7 @@ export default function MetricsDashboard() {
                         ) : (
                             <>
                                 <div className="text-2xl font-semibold">
-                                    {data?.city_progress.rotterdam.verified_count ?? 0}
+                                    {verifiedCount}
                                 </div>
                                 {/* Filters in effect badge */}
                                 <div className="mt-2 flex items-center gap-1">
@@ -215,7 +348,7 @@ export default function MetricsDashboard() {
                             <Skeleton className="h-8 w-16" />
                         ) : (
                             <div className="text-2xl font-semibold">
-                                {formatPercentFromFraction(data?.city_progress.rotterdam.coverage_ratio)}
+                                {formatPercentFromFraction(coverageRatio)}
                             </div>
                         )}
                     </CardContent>
@@ -232,7 +365,24 @@ export default function MetricsDashboard() {
                             <Skeleton className="h-8 w-16" />
                         ) : (
                             <div className="text-2xl font-semibold">
-                                {formatPercentRaw(data?.city_progress.rotterdam.growth_weekly)}
+                                {formatPercentRaw(growthWeekly)}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Conversion rate (14d) */}
+                <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                        <CardTitle className="text-sm font-medium">Conversion rate (14d)</CardTitle>
+                        <Gauge className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        {loading ? (
+                            <Skeleton className="h-8 w-16" />
+                        ) : (
+                            <div className="text-2xl font-semibold">
+                                {formatPercentFromFraction(conversionRate14d)}
                             </div>
                         )}
                     </CardContent>
@@ -249,7 +399,7 @@ export default function MetricsDashboard() {
                             <Skeleton className="h-8 w-16" />
                         ) : (
                             <div className="text-2xl font-semibold">
-                                {formatPercentFromFraction(data?.quality.task_error_rate_60m)}
+                                {formatPercentFromFraction(taskErrorRate)}
                             </div>
                         )}
                     </CardContent>
@@ -266,7 +416,24 @@ export default function MetricsDashboard() {
                             <Skeleton className="h-8 w-8" />
                         ) : (
                             <div className="text-2xl font-semibold">
-                                {data?.quality.google429_last60m ?? 0}
+                                {google429Last60m}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+
+                {/* Discovery new candidates */}
+                <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                        <CardTitle className="text-sm font-medium">Discovery (weekly)</CardTitle>
+                        <Database className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        {loading ? (
+                            <Skeleton className="h-8 w-16" />
+                        ) : (
+                            <div className="text-2xl font-semibold">
+                                {newCandidatesWeekly}
                             </div>
                         )}
                     </CardContent>
@@ -283,7 +450,7 @@ export default function MetricsDashboard() {
                             <Skeleton className="h-8 w-24" />
                         ) : (
                             <div className="text-sm font-medium">
-                                {formatLatency(data?.latency.p50_ms)} / {formatLatency(data?.latency.avg_ms)} / {formatLatency(data?.latency.max_ms)}
+                                {formatLatency(latencyP50)} / {formatLatency(latencyAvg)} / {formatLatency(latencyMax)}
                             </div>
                         )}
                     </CardContent>
@@ -323,12 +490,107 @@ export default function MetricsDashboard() {
                 </CardContent>
             </Card>
 
+            {/* Worker controls */}
+            <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                    <CardTitle>Worker controls</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="space-y-2">
+                            <Label htmlFor="worker-bot">Bot</Label>
+                            <Select
+                                value={selectedBot ?? ALL_BOTS}
+                                onValueChange={(next) =>
+                                    setSelectedBot(next === ALL_BOTS ? undefined : next)
+                                }
+                            >
+                                <SelectTrigger id="worker-bot">
+                                    <SelectValue placeholder="All bots" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={ALL_BOTS}>All bots</SelectItem>
+                                    {botOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="worker-city">City (optional)</Label>
+                            <Select
+                                value={selectedCity ?? ALL_CITIES}
+                                onValueChange={(next) =>
+                                    setSelectedCity(next === ALL_CITIES ? undefined : next)
+                                }
+                            >
+                                <SelectTrigger id="worker-city">
+                                    <SelectValue placeholder="All cities" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={ALL_CITIES}>All cities</SelectItem>
+                                    {cityOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="worker-category">Category (optional)</Label>
+                            <Select
+                                value={
+                                    categoryDisabled
+                                        ? ALL_CATEGORIES
+                                        : selectedCategory ?? ALL_CATEGORIES
+                                }
+                                onValueChange={(next) =>
+                                    setSelectedCategory(
+                                        next === ALL_CATEGORIES ? undefined : next
+                                    )
+                                }
+                                disabled={categoryDisabled}
+                            >
+                                <SelectTrigger id="worker-category">
+                                    <SelectValue
+                                        placeholder={
+                                            categoryDisabled ? "N/A for monitor" : "All categories"
+                                        }
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={ALL_CATEGORIES}>All categories</SelectItem>
+                                    {categorySelectOptions.map((option) => (
+                                        <SelectItem key={option} value={option}>
+                                            {option}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Button onClick={handleRunWorker} disabled={isRunningWorker}>
+                            {isRunningWorker ? "Starting…" : "Run worker"}
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                            Triggers the selected bot and records progress in the worker_runs table.
+                        </span>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Workers */}
             <Card className="rounded-2xl shadow-sm">
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                         <span>Workers</span>
-                        <span className="text-xs text-muted-foreground">Auto-updates every 60 seconds</span>
+                        <span className="text-xs text-muted-foreground">
+                            Polling every {Math.round(pollIntervalMs / 1000)}s
+                        </span>
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -337,52 +599,95 @@ export default function MetricsDashboard() {
                             <Skeleton className="h-5 w-36" />
                             <Skeleton className="h-32 w-full" />
                         </div>
-                    ) : !data?.workers || data.workers.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No worker telemetry available.</div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="border-b">
-                                        <th className="text-left p-2">Worker</th>
-                                        <th className="text-left p-2">Status</th>
-                                        <th className="text-left p-2">Last run</th>
-                                        <th className="text-left p-2">Duration</th>
-                                        <th className="text-left p-2">Processed</th>
-                                        <th className="text-left p-2">Errors</th>
-                                        <th className="text-left p-2">Quota</th>
-                                        <th className="text-left p-2">Notes</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {data.workers.map((worker) => (
-                                        <tr key={worker.id} className="border-b align-top">
-                                            <td className="p-2">
-                                                <div className="font-medium">{worker.label}</div>
-                                                <div className="text-xs text-muted-foreground">{worker.id}</div>
-                                            </td>
-                                            <td className="p-2">
-                                                <Badge
-                                                    variant="outline"
-                                                    className={`text-xs font-medium px-2 py-1 ${WORKER_STATUS_BADGE_CLASSES[worker.status]}`}
-                                                >
-                                                    {worker.status.toUpperCase()}
-                                                </Badge>
-                                            </td>
-                                            <td className="p-2">{formatLastRun(worker.last_run)}</td>
-                                            <td className="p-2">{formatDurationSeconds(worker.duration_seconds)}</td>
-                                            <td className="p-2">{formatCountWithContext(worker.processed_count, worker.window_label)}</td>
-                                            <td className="p-2">{formatCountWithContext(worker.error_count, worker.window_label)}</td>
-                                            <td className="p-2">{formatQuotaInfo(worker.quota_info ?? null)}</td>
-                                            <td className="p-2">
-                                                <span className="whitespace-pre-line">
-                                                    {worker.notes ? worker.notes : "–"}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div className="space-y-6">
+                            <div>
+                                <h3 className="mb-2 text-sm font-medium">Active runs</h3>
+                                {hasActiveRuns ? (
+                                    <div className="space-y-3">
+                                        {activeRuns.map((run) => (
+                                            <div key={run.id} className="rounded-lg border p-3">
+                                                <div className="flex items-center justify-between gap-2 text-sm">
+                                                    <span className="font-medium capitalize">{run.bot}</span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {formatRunStatus(run.status)}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-1 grid gap-1 text-xs text-muted-foreground sm:grid-cols-3">
+                                                    <div>City: {run.city ?? "—"}</div>
+                                                    <div>Category: {run.category ?? "—"}</div>
+                                                    <div>Started: {formatStartedAt(run.startedAt)}</div>
+                                                </div>
+                                                <div className="mt-2">
+                                                    <Progress value={run.progress ?? 0} />
+                                                    <div className="mt-1 text-xs text-muted-foreground">
+                                                        {run.progress ?? 0}%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-muted-foreground">No pending or running worker runs.</div>
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="mb-2 text-sm font-medium">Worker telemetry</h3>
+                                {workerStatuses.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground">No worker telemetry available.</div>
+                                ) : (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b">
+                                                    <th className="text-left p-2">Worker</th>
+                                                    <th className="text-left p-2">Status</th>
+                                                    <th className="text-left p-2">Last run</th>
+                                                    <th className="text-left p-2">Duration</th>
+                                                    <th className="text-left p-2">Processed</th>
+                                                    <th className="text-left p-2">Errors</th>
+                                                    <th className="text-left p-2">Quota</th>
+                                                    <th className="text-left p-2">Notes</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {workerStatuses.map((worker) => {
+                                                    const notePreview =
+                                                        worker.notes && worker.notes.trim().length > 0
+                                                            ? worker.notes.split("\n")[0]
+                                                            : "–";
+                                                    return (
+                                                        <tr key={worker.id} className="border-b align-top">
+                                                            <td className="p-2">
+                                                                <div className="font-medium">{worker.label}</div>
+                                                                <div className="text-xs text-muted-foreground">{worker.id}</div>
+                                                            </td>
+                                                            <td className="p-2">
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className={`text-xs font-medium px-2 py-1 ${WORKER_STATUS_BADGE_CLASSES[worker.status]}`}
+                                                                >
+                                                                    {worker.status.toUpperCase()}
+                                                                </Badge>
+                                                            </td>
+                                                            <td className="p-2">{formatLastRun(worker.lastRun)}</td>
+                                                            <td className="p-2">{formatDurationSeconds(worker.durationSeconds)}</td>
+                                                            <td className="p-2">{formatCountWithContext(worker.processedCount, worker.windowLabel)}</td>
+                                                            <td className="p-2">{formatCountWithContext(worker.errorCount, worker.windowLabel)}</td>
+                                                            <td className="p-2">{formatQuotaInfo(worker.quotaInfo ?? null)}</td>
+                                                            <td className="p-2">
+                                                                <span className="whitespace-pre-line">
+                                                                    {notePreview}
+                                                                </span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </CardContent>
