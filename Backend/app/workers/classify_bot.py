@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import math
 import os
 import time
 from typing import Optional, Any, Dict
+from uuid import UUID
 
 # --- Uniform logging voor workers ---
 from app.core.logging import configure_logging, get_logger
@@ -29,12 +31,74 @@ Only VERIFIED locations are sent to the frontend.
 from services.db_service import (
     fetch_candidates_for_classification,
     update_location_classification,
+    execute,
 )
 from services.classify_service import ClassifyService
 
 # Unified AI schema entrypoints via services (met structlog)
 from services.ai_validation import validate_classification_payload
 from app.models.ai import AIClassification
+
+
+async def mark_worker_run_running(run_id: UUID) -> None:
+    await execute(
+        """
+        UPDATE worker_runs
+        SET status = 'running',
+            started_at = NOW(),
+            progress = 0
+        WHERE id = $1
+        """,
+        run_id,
+    )
+
+
+async def update_worker_run_progress(run_id: UUID, progress: int) -> None:
+    clamped = max(0, min(100, int(progress)))
+    await execute(
+        """
+        UPDATE worker_runs
+        SET progress = $1
+        WHERE id = $2
+        """,
+        clamped,
+        run_id,
+    )
+
+
+async def finalize_worker_run(
+    run_id: UUID,
+    status: str,
+    progress: int,
+    counters: Optional[Dict[str, Any]] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    counters_json = (
+        json.dumps(counters, ensure_ascii=False) if counters is not None else None
+    )
+    await execute(
+        """
+        UPDATE worker_runs
+        SET status = $1,
+            progress = $2,
+            counters = CASE WHEN $3 IS NULL THEN NULL ELSE CAST($3 AS JSONB) END,
+            error_message = $4,
+            finished_at = NOW()
+        WHERE id = $5
+        """,
+        status,
+        max(0, min(100, progress)),
+        counters_json,
+        error_message,
+        run_id,
+    )
+
+
+def _parse_worker_run_id(value: str) -> UUID:
+    try:
+        return UUID(value)
+    except Exception as exc:
+        raise argparse.ArgumentTypeError("worker-run-id must be a valid UUID") from exc
 
 # ---- Category normalization helpers ----
 # Map raw model outputs / heuristics to our canonical categories.
@@ -275,7 +339,14 @@ def classify_location_with_ai(*, name: str, address: str, existing_category: str
         return {"action": action, "category": category, "confidence": confidence, "reason": reason}
 
 
-async def run(limit: int, min_conf: float, dry_run: bool, model: str, args) -> None:
+async def run(
+    limit: int,
+    min_conf: float,
+    dry_run: bool,
+    model: str,
+    args,
+    worker_run_id: Optional[UUID] = None,
+) -> Dict[str, Any]:
     """
     Batch-classifier:
       - haalt CANDIDATE records op
@@ -285,6 +356,9 @@ async def run(limit: int, min_conf: float, dry_run: bool, model: str, args) -> N
       - schrijft resultaat naar DB (tenzij --dry-run)
     """
     svc = ClassifyService(model=model)
+    last_progress = -1
+    if worker_run_id:
+        await mark_worker_run_running(worker_run_id)
     
     # Use new filtering logic if args provided, otherwise fall back to original
     if args:
@@ -334,76 +408,119 @@ async def run(limit: int, min_conf: float, dry_run: bool, model: str, args) -> N
 
     if not rows:
         print("No candidates found (state=CANDIDATE & confidence_score IS NULL).")
-        return
+        counters: Dict[str, Any] = {
+            "classified": 0,
+            "keep": 0,
+            "ignore": 0,
+            "skipped_low_conf": 0,
+            "autopromoted": 0,
+        }
+        if worker_run_id:
+            await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
+        return counters
 
     keep_cnt = ignore_cnt = skipped_low_conf = 0
-    total = 0
+    autopromoted_cnt = 0
+    total_processed = 0
     keep_conf_sum = 0.0
+    total_rows = len(rows)
 
-    for r in rows:
-        total += 1
+    async def report_progress(current_index: int) -> None:
+        nonlocal last_progress
+        if not worker_run_id or total_rows <= 0:
+            return
+        percent = min(99, max(0, int((current_index * 100) / total_rows)))
+        if percent != last_progress:
+            await update_worker_run_progress(worker_run_id, percent)
+            last_progress = percent
 
-        name = r.get("name") or ""
-        address = r.get("address") or ""
-        existing_cat = r.get("category") or r.get("type") or ""
+    try:
+        for idx, r in enumerate(rows, start=1):
+            total_processed = idx
 
-        # Auto-promotion path before LLM
-        promo = should_force_promote(r)
-        if promo:
-            print(f"[autopromote] id={r['id']} name='{name}' -> category={promo['category']} conf={promo['confidence']:.2f}")
+            name = r.get("name") or ""
+            address = r.get("address") or ""
+            existing_cat = r.get("category") or r.get("type") or ""
+
+            # Auto-promotion path before LLM
+            promo = should_force_promote(r)
+            if promo:
+                autopromoted_cnt += 1
+                print(f"[autopromote] id={r['id']} name='{name}' -> category={promo['category']} conf={promo['confidence']:.2f}")
+                if not dry_run:
+                    await update_location_classification(
+                        id=r["id"],
+                        action="keep",
+                        category=promo["category"],
+                        confidence_score=promo["confidence"],
+                        reason=promo["reason"],
+                    )
+                await report_progress(idx)
+                continue
+
+            result = classify_location_with_ai(
+                name=name,
+                address=address,
+                existing_category=existing_cat,
+                model=model,
+            )
+
+            action = result["action"]
+            raw_category = result["category"]
+            final_category = normalize_category(raw_category)
+            conf = float(result["confidence"])
+
+            if conf < min_conf:
+                skipped_low_conf += 1
+                print(
+                    f"[skip <{min_conf:.2f}] id={r['id']} name={r['name']!r} "
+                    f"-> {action}/{final_category} conf={conf:.2f}"
+                )
+                await report_progress(idx)
+                continue
+
+            if action == "keep":
+                keep_cnt += 1
+                keep_conf_sum += conf
+            elif action == "ignore":
+                ignore_cnt += 1
+
+            print(f"[apply] id={r['id']} -> action={action} category={final_category} conf={conf:.2f}")
+
+            # 4) Persist (tenzij dry-run)
             if not dry_run:
                 await update_location_classification(
                     id=r["id"],
-                    action="keep",
-                    category=promo["category"],
-                    confidence_score=promo["confidence"],
-                    reason=promo["reason"],
+                    action=action,
+                    category=final_category,
+                    confidence_score=conf,
+                    reason=result.get("reason", ""),
                 )
-            continue
-
-        result = classify_location_with_ai(
-            name=name,
-            address=address,
-            existing_category=existing_cat,
-            model=model,
-        )
-
-        action = result["action"]
-        raw_category = result["category"]
-        final_category = normalize_category(raw_category)
-        conf = float(result["confidence"]) 
-
-        if conf < min_conf:
-            skipped_low_conf += 1
-            print(
-                f"[skip <{min_conf:.2f}] id={r['id']} name={r['name']!r} "
-                f"-> {action}/{final_category} conf={conf:.2f}"
-            )
-            continue
-
-        if action == "keep":
-            keep_cnt += 1
-            keep_conf_sum += conf
-        elif action == "ignore":
-            ignore_cnt += 1
-
-        print(f"[apply] id={r['id']} -> action={action} category={final_category} conf={conf:.2f}")
-
-        # 4) Persist (tenzij dry-run)
-        if not dry_run:
-            await update_location_classification(
-                id=r["id"],
-                action=action,
-                category=final_category,
-                confidence_score=conf,
-                reason=result.get("reason", ""),
-            )
+            await report_progress(idx)
+    except Exception as exc:
+        if worker_run_id:
+            progress_snapshot = last_progress if last_progress >= 0 else 0
+            await finalize_worker_run(worker_run_id, "failed", progress_snapshot, None, str(exc))
+        raise
 
     avg_keep_conf = (keep_conf_sum / keep_cnt) if keep_cnt else 0.0
     print(
-        f"\nSummary: classified={total}  keep={keep_cnt}  ignore={ignore_cnt}  "
+        f"\nSummary: classified={total_processed}  keep={keep_cnt}  ignore={ignore_cnt}  "
         f"skipped_low_conf={skipped_low_conf} avg_conf(keep)={avg_keep_conf:.2f}  dry_run={dry_run}"
     )
+    counters = {
+        "classified": total_processed,
+        "keep": keep_cnt,
+        "ignore": ignore_cnt,
+        "skipped_low_conf": skipped_low_conf,
+        "autopromoted": autopromoted_cnt,
+        "avg_keep_conf": avg_keep_conf,
+    }
+
+    if worker_run_id:
+        await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
+
+    return counters
 
 
 def main():
@@ -434,9 +551,20 @@ def main():
         p.add_argument("--center-lat", type=float)
         p.add_argument("--center-lng", type=float)
         p.add_argument("--radius-m", type=float)
+        p.add_argument("--worker-run-id", type=_parse_worker_run_id, help="UUID van worker_runs record voor progress rapportage")
         args = p.parse_args()
 
-        asyncio.run(run(args.limit, args.min_confidence, args.dry_run, args.model, args))
+        worker_run_id: Optional[UUID] = getattr(args, "worker_run_id", None)
+        asyncio.run(
+            run(
+                args.limit,
+                args.min_confidence,
+                args.dry_run,
+                args.model,
+                args,
+                worker_run_id,
+            )
+        )
         
         duration_ms = int((time.perf_counter() - t0) * 1000)
         logger.info("worker_finished", duration_ms=duration_ms)

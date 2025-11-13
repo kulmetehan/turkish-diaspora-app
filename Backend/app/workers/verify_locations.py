@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
+from uuid import UUID
 
 # Load environment variables from .env file
 from dotenv import load_dotenv, find_dotenv
@@ -41,6 +43,67 @@ from services.db_service import (
     update_location_classification,
     mark_last_verified,
 )
+
+
+async def mark_worker_run_running(run_id: UUID) -> None:
+    await execute(
+        """
+        UPDATE worker_runs
+        SET status = 'running',
+            started_at = NOW(),
+            progress = 0
+        WHERE id = $1
+        """,
+        run_id,
+    )
+
+
+async def update_worker_run_progress(run_id: UUID, progress: int) -> None:
+    clamped = max(0, min(100, int(progress)))
+    await execute(
+        """
+        UPDATE worker_runs
+        SET progress = $1
+        WHERE id = $2
+        """,
+        clamped,
+        run_id,
+    )
+
+
+async def finalize_worker_run(
+    run_id: UUID,
+    status: str,
+    progress: int,
+    counters: Optional[Dict[str, Any]] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    counters_json = (
+        json.dumps(counters, ensure_ascii=False) if counters is not None else None
+    )
+    await execute(
+        """
+        UPDATE worker_runs
+        SET status = $1,
+            progress = $2,
+            counters = CASE WHEN $3 IS NULL THEN NULL ELSE CAST($3 AS JSONB) END,
+            error_message = $4,
+            finished_at = NOW()
+        WHERE id = $5
+        """,
+        status,
+        max(0, min(100, progress)),
+        counters_json,
+        error_message,
+        run_id,
+    )
+
+
+def _parse_worker_run_id(value: str) -> UUID:
+    try:
+        return UUID(value)
+    except Exception as exc:
+        raise argparse.ArgumentTypeError("worker-run-id must be a valid UUID") from exc
 
 # ---------------------------------------------------------------------------
 # Services
@@ -201,22 +264,28 @@ async def run_verification(
     source: Optional[str],
     min_confidence: float,
     dry_run: bool,
-    model: Optional[str]
+    model: Optional[str],
+    worker_run_id: Optional[UUID] = None,
 ) -> Dict[str, Any]:
     """Main verification logic."""
     classify_service = ClassifyService(model=model)
+    last_progress = -1
     
     # Fetch candidates
     candidates = await fetch_candidates(limit=limit, min_confidence=min_confidence)
     
     if not candidates:
-        return {
+        counters: Dict[str, Any] = {
             "total_processed": 0,
             "promoted": 0,
             "skipped": 0,
             "errors": 0,
             "results": []
         }
+        if worker_run_id:
+            storage_counters = {k: v for k, v in counters.items() if k != "results"}
+            await finalize_worker_run(worker_run_id, "finished", 100, storage_counters, None)
+        return counters
     
     print(f"[VerifyLocationsBot] Processing {len(candidates)} pending verifications...")
     
@@ -224,39 +293,60 @@ async def run_verification(
     promoted = 0
     skipped = 0
     errors = 0
+    total_candidates = len(candidates)
+
+    async def report_progress(index: int) -> None:
+        nonlocal last_progress
+        if not worker_run_id or total_candidates <= 0:
+            return
+        percent = min(99, max(0, int((index * 100) / total_candidates)))
+        if percent != last_progress:
+            await update_worker_run_progress(worker_run_id, percent)
+            last_progress = percent
     
-    for location in candidates:
-        result = await process_location(
-            location=location,
-            classify_service=classify_service,
-            min_confidence=min_confidence,
-            dry_run=dry_run
-        )
-        
-        results.append(result)
-        
-        # Print result
-        if result["success"]:
-            if result["new_state"] == "VERIFIED":
-                promoted += 1
-                print(f"[PROMOTE] id={result['id']} name={result['name']!r} "
-                      f"-> {result['category']} conf={result['confidence']:.2f}")
-            elif result["new_state"] == "RETIRED":
-                skipped += 1
-                print(f"[RETIRE] id={result['id']} name={result['name']!r} "
-                      f"-> reason={result.get('reason') or 'not_keep_or_low_conf'}")
-        else:
-            errors += 1
-            print(f"[ERROR] id={result['id']} name={result['name']!r} "
-                  f"-> {result['error']}")
-    
-    return {
+    try:
+        for idx, location in enumerate(candidates, start=1):
+            result = await process_location(
+                location=location,
+                classify_service=classify_service,
+                min_confidence=min_confidence,
+                dry_run=dry_run
+            )
+            
+            results.append(result)
+            
+            # Print result
+            if result["success"]:
+                if result["new_state"] == "VERIFIED":
+                    promoted += 1
+                    print(f"[PROMOTE] id={result['id']} name={result['name']!r} "
+                          f"-> {result['category']} conf={result['confidence']:.2f}")
+                elif result["new_state"] == "RETIRED":
+                    skipped += 1
+                    print(f"[RETIRE] id={result['id']} name={result['name']!r} "
+                          f"-> reason={result.get('reason') or 'not_keep_or_low_conf'}")
+            else:
+                errors += 1
+                print(f"[ERROR] id={result['id']} name={result['name']!r} "
+                      f"-> {result['error']}")
+            await report_progress(idx)
+    except Exception as exc:
+        if worker_run_id:
+            progress_snapshot = last_progress if last_progress >= 0 else 0
+            await finalize_worker_run(worker_run_id, "failed", progress_snapshot, None, str(exc))
+        raise
+
+    counters = {
         "total_processed": len(candidates),
         "promoted": promoted,
         "skipped": skipped,
         "errors": errors,
         "results": results
     }
+    if worker_run_id:
+        storage_counters = {k: v for k, v in counters.items() if k != "results"}
+        await finalize_worker_run(worker_run_id, "finished", 100, storage_counters, None)
+    return counters
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -273,6 +363,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--log-json", type=int, default=0, help="Use JSON logging (1=yes, 0=no)")
     ap.add_argument("--min-confidence", type=float, default=0.8, help="Minimum confidence for promotion")
     ap.add_argument("--model", help="Override AI model")
+    ap.add_argument("--worker-run-id", type=_parse_worker_run_id, help="UUID van worker_runs record voor progress rapportage")
     return ap.parse_args()
 
 async def main_async():
@@ -280,6 +371,7 @@ async def main_async():
     with with_run_id() as rid:
         logger.info("worker_started")
         args = parse_args()
+        worker_run_id: Optional[UUID] = getattr(args, "worker_run_id", None)
         
         # Calculate actual limit and offset based on chunking
         if args.chunks > 1:
@@ -301,6 +393,8 @@ async def main_async():
         
         # Ensure DB pool is ready
         await init_db_pool()
+        if worker_run_id:
+            await mark_worker_run_running(worker_run_id)
         result = await run_verification(
             limit=actual_limit,
             offset=actual_offset,
@@ -308,7 +402,8 @@ async def main_async():
             source=args.source,
             min_confidence=args.min_confidence,
             dry_run=bool(args.dry_run),
-            model=args.model
+            model=args.model,
+            worker_run_id=worker_run_id,
         )
         
         # Summary

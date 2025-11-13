@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, List, Dict, Any, Set, Tuple, Optional
+from uuid import UUID
 
 # --- Uniform logging ---
 from app.core.logging import configure_logging, get_logger
@@ -56,6 +57,60 @@ from services.osm_service import OsmPlacesService
 # YAML Config loaders
 # ---------------------------------------------------------------------------
 import yaml
+
+
+async def mark_worker_run_running(run_id: UUID) -> None:
+    await execute(
+        """
+        UPDATE worker_runs
+        SET status = 'running',
+            started_at = NOW(),
+            progress = 0
+        WHERE id = $1
+        """,
+        run_id,
+    )
+
+
+async def update_worker_run_progress(run_id: UUID, progress: int) -> None:
+    clamped = max(0, min(100, int(progress)))
+    await execute(
+        """
+        UPDATE worker_runs
+        SET progress = $1
+        WHERE id = $2
+        """,
+        clamped,
+        run_id,
+    )
+
+
+async def finalize_worker_run(
+    run_id: UUID,
+    status: str,
+    progress: int,
+    counters: Optional[Dict[str, Any]] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    counters_json = (
+        json.dumps(counters, ensure_ascii=False) if counters is not None else None
+    )
+    await execute(
+        """
+        UPDATE worker_runs
+        SET status = $1,
+            progress = $2,
+            counters = CASE WHEN $3 IS NULL THEN NULL ELSE CAST($3 AS JSONB) END,
+            error_message = $4,
+            finished_at = NOW()
+        WHERE id = $5
+        """,
+        status,
+        max(0, min(100, progress)),
+        counters_json,
+        error_message,
+        run_id,
+    )
 
 CATEGORIES_YML = REPO_ROOT / "Infra" / "config" / "categories.yml"
 CITIES_YML = REPO_ROOT / "Infra" / "config" / "cities.yml"
@@ -369,6 +424,8 @@ class DiscoveryBot:
     def __init__(self, cfg: DiscoveryConfig, cfg_yaml: Dict[str, Any]):
         self.cfg = cfg
         self.yaml = cfg_yaml
+        self.worker_run_id: Optional[UUID] = None
+        self._worker_last_progress: int = -1
         
         # Initialize OSM service for enhanced discovery
         self.osm_service = OsmPlacesService(
@@ -416,9 +473,19 @@ class DiscoveryBot:
             "updated_existing": 0,
             "failed": 0,
         }
-        
+        categories_map = self.yaml.get("categories") or {}
+        valid_categories = [
+            cat
+            for cat in self.cfg.categories
+            if (categories_map.get(cat) or {}).get("osm_tags")
+        ]
+        total_units = len(points) * len(valid_categories)
+        if total_units == 0 and points:
+            total_units = len(points)
+        completed_units = 0
+
         for cat_key in self.cfg.categories:
-            cat_def = (self.yaml.get("categories") or {}).get(cat_key)
+            cat_def = categories_map.get(cat_key)
             if not cat_def:
                 print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' niet gevonden in YAML; overslaan.")
                 continue
@@ -494,6 +561,10 @@ class DiscoveryBot:
                     elapsed_time = time.time() - start_time
                     print(f"[DiscoveryBot] {cat_key}: {i}/{len(points)} cellen, totaal ingevoegd={total_inserted}, elapsed={elapsed_time:.1f}s")
 
+                if total_units > 0:
+                    completed_units += 1
+                    await self._report_progress(completed_units, total_units)
+
                 if self.cfg.max_total_inserts > 0 and total_inserted >= self.cfg.max_total_inserts:
                     print(f"[DiscoveryBot] Max totaal inserts bereikt: {total_inserted}. Stoppen.")
                     return aggregated_counters
@@ -502,6 +573,14 @@ class DiscoveryBot:
                     await asyncio.sleep(self.cfg.inter_call_sleep_s)
 
         return aggregated_counters
+
+    async def _report_progress(self, completed: int, total: int) -> None:
+        if not self.worker_run_id or total <= 0:
+            return
+        percent = min(99, max(0, int((completed * 100) / total)))
+        if percent != self._worker_last_progress:
+            await update_worker_run_progress(self.worker_run_id, percent)
+            self._worker_last_progress = percent
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +592,13 @@ class _Arg:
     help: str
     type: Any = None
     default: Any = None
+
+
+def _parse_worker_run_id(value: str) -> UUID:
+    try:
+        return UUID(value)
+    except Exception as exc:
+        raise argparse.ArgumentTypeError("worker-run-id must be a valid UUID") from exc
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="DiscoveryBot — grid-based met YAML mapping + chunking + district")
@@ -530,6 +616,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--chunks", type=int, default=1, help="Verdeel grid in N chunks")
     ap.add_argument("--chunk-index", type=int, default=0, help="Welke chunk index (0-based)")
     ap.add_argument("--language", help="API-taal, bv. nl")
+    ap.add_argument("--worker-run-id", type=_parse_worker_run_id, help="UUID van worker_runs record voor progress rapportage")
     return ap.parse_args()
 
 def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig:
@@ -591,6 +678,7 @@ async def main_async():
     with with_run_id() as rid:
         logger.info("worker_started")
         ns = parse_args()
+        worker_run_id: Optional[UUID] = getattr(ns, "worker_run_id", None)
         yml = load_categories_config()
         cfg = build_config(ns, yml)
 
@@ -614,6 +702,8 @@ async def main_async():
 
         # Ensure DB pool ready before inserts
         await init_db_pool()
+        if worker_run_id:
+            await mark_worker_run_running(worker_run_id)
         
         # Create discovery_run record at start
         try:
@@ -632,7 +722,21 @@ async def main_async():
         
         # Run discovery bot and collect counters
         bot = DiscoveryBot(cfg, yml)
-        counters = await bot.run()
+        bot.worker_run_id = worker_run_id
+        counters: Dict[str, int] = {}
+        try:
+            counters = await bot.run()
+        except Exception as e:
+            if worker_run_id:
+                progress_snapshot = bot._worker_last_progress if bot._worker_last_progress >= 0 else 0
+                await finalize_worker_run(
+                    worker_run_id,
+                    "failed",
+                    progress_snapshot,
+                    None,
+                    str(e),
+                )
+            raise
         
         # Update discovery_run with finished_at and counters
         if discovery_run_id:
@@ -648,6 +752,8 @@ async def main_async():
                 print(f"\n[DiscoveryBot] Counters: {counters}")
             except Exception as e:
                 logger.warning("failed_to_update_discovery_run", exc_info=e, run_id=str(discovery_run_id))
+        if worker_run_id:
+            await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
         else:
             # Log counters even if discovery_run wasn't created
             logger.info("discovery_counters", counters=counters)

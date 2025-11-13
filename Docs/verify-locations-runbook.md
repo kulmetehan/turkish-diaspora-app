@@ -38,6 +38,9 @@ python -m app.workers.verify_locations --limit 50 --dry-run 1
 
 # Large batch with chunking (6 slices)
 python -m app.workers.verify_locations --limit 1200 --chunks 6 --chunk-index 0 --dry-run 0
+
+# Track progress for a monitored run (writes to worker_runs)
+python -m app.workers.verify_locations --limit 200 --worker-run-id <uuid>
 ```
 
 ### Flags
@@ -52,6 +55,7 @@ python -m app.workers.verify_locations --limit 1200 --chunks 6 --chunk-index 0 -
 | `--model` | default | Override OpenAI model name. |
 | `--city`, `--source` | optional | Accepted for future filtering; currently informational (fetch query does not filter yet). |
 | `--log-json` | `0` | Emit JSON logs (helpful for log aggregation). |
+| `--worker-run-id` | optional | When set to an existing `worker_runs.id`, updates status/progress for visibility in admin UI. |
 
 ## Worker flow
 

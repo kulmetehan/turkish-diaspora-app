@@ -126,4 +126,21 @@ export async function listAdminLocationCategories(): Promise<string[]> {
     }
 }
 
+export interface RunWorkerResponse {
+    run_id: string | null;
+    bot: string;
+    city?: string | null;
+    category?: string | null;
+    tracking_available?: boolean;
+    detail?: string;
+}
+
+export async function runWorker(params: { bot: string; city?: string; category?: string }): Promise<RunWorkerResponse> {
+    return authFetch<RunWorkerResponse>("/api/v1/admin/workers/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+    });
+}
+
 
