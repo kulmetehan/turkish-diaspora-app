@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
-from typing import Dict, List, Optional
+from datetime import date, datetime
+from typing import Dict, List, Optional, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CityProgressRotterdam(BaseModel):
@@ -38,11 +38,25 @@ class WeeklyCandidatesItem(BaseModel):
     count: int
 
 
+class WorkerStatus(BaseModel):
+    id: str
+    label: str
+    last_run: Optional[datetime]
+    duration_seconds: Optional[float]
+    processed_count: Optional[int]
+    error_count: Optional[int]
+    status: Literal["ok", "warning", "error", "unknown"]
+    window_label: Optional[str] = None
+    quota_info: Optional[Dict[str, Optional[int]]] = None
+    notes: Optional[str] = None
+
+
 class MetricsSnapshot(BaseModel):
     city_progress: CityProgress
     quality: Quality
     discovery: Discovery
     latency: Latency
     weekly_candidates: Optional[List[WeeklyCandidatesItem]] = None
+    workers: List[WorkerStatus] = Field(default_factory=list)
 
 

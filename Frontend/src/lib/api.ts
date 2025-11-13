@@ -160,6 +160,19 @@ export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
 }
 
 // --- Metrics ---
+export interface WorkerStatus {
+  id: string;
+  label: string;
+  last_run: string | null;
+  duration_seconds: number | null;
+  processed_count: number | null;
+  error_count: number | null;
+  status: "ok" | "warning" | "error" | "unknown";
+  window_label?: string | null;
+  quota_info?: Record<string, number | null> | null;
+  notes?: string | null;
+}
+
 export interface MetricsSnapshot {
   city_progress: {
     rotterdam: {
@@ -183,6 +196,7 @@ export interface MetricsSnapshot {
     max_ms: number;
   };
   weekly_candidates?: { week_start: string; count: number }[];
+  workers: WorkerStatus[];
 }
 
 export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {

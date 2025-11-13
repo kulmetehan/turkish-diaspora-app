@@ -3,8 +3,9 @@ from __future__ import annotations
 import math
 from datetime import datetime, timedelta, timezone
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Callable, Awaitable
 
+import asyncpg
 import yaml
 
 from services.db_service import fetch
@@ -16,9 +17,20 @@ from app.models.metrics import (
     MetricsSnapshot,
     Quality,
     WeeklyCandidatesItem,
+    WorkerStatus,
 )
 # Import shared filter definition (single source of truth for Admin metrics and public API)
 from app.core.location_filters import get_verified_filter_sql
+from app.core.logging import get_logger
+
+WORKER_WINDOW_MINUTES = 60
+DISCOVERY_STALE_HOURS = 6
+VERIFY_STALE_HOURS = 2
+MONITOR_STALE_HOURS = 6
+ALERT_ERR_RATE_THRESHOLD = 0.10
+ALERT_GOOGLE_THRESHOLD = 5
+
+logger = get_logger()
 
 
 def _load_rotterdam_bbox():
@@ -232,6 +244,423 @@ async def _rotterdam_progress() -> CityProgressRotterdam:
     )
 
 
+def _build_notes(lines: List[str]) -> Optional[str]:
+    cleaned = [line for line in lines if line]
+    return "\n".join(cleaned) if cleaned else None
+
+
+async def _discovery_worker_status() -> WorkerStatus:
+    sql_latest_run = """
+        SELECT
+            id,
+            started_at,
+            finished_at,
+            counters
+        FROM discovery_runs
+        ORDER BY COALESCE(finished_at, started_at) DESC
+        LIMIT 1
+    """
+    now = datetime.now(timezone.utc)
+    quota_info: Dict[str, Optional[int]] = {}
+
+    try:
+        rows = await fetch(sql_latest_run)
+
+        sql_overpass = """
+            SELECT
+                COALESCE(COUNT(*) FILTER (
+                    WHERE status_code = 429
+                ), 0)::int AS overpass_429_last_60m,
+                COALESCE(COUNT(*) FILTER (
+                    WHERE (status_code >= 500 OR status_code IS NULL OR error_message IS NOT NULL)
+                ), 0)::int AS overpass_error_count_last_60m
+            FROM overpass_calls
+            WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
+        """
+        overpass_rows = await fetch(sql_overpass, int(WORKER_WINDOW_MINUTES))
+        if overpass_rows:
+            overpass_data = dict(overpass_rows[0])
+            quota_info = {
+                "overpass_429_last_60m": int(overpass_data.get("overpass_429_last_60m") or 0),
+                "overpass_error_count_last_60m": int(overpass_data.get("overpass_error_count_last_60m") or 0),
+            }
+
+        if not rows:
+            return WorkerStatus(
+                id="discovery_bot",
+                label="DiscoveryBot",
+                last_run=None,
+                duration_seconds=None,
+                processed_count=None,
+                error_count=None,
+                status="unknown",
+                window_label="last run",
+                quota_info=quota_info or None,
+                notes="No discovery runs recorded yet.",
+            )
+
+        record = dict(rows[0])
+        started_at = record.get("started_at")
+        finished_at = record.get("finished_at")
+        counters_raw = record.get("counters") or {}
+        counters = counters_raw if isinstance(counters_raw, dict) else {}
+
+        processed = int(counters.get("discovered") or counters.get("inserted") or 0)
+        errors = int(counters.get("failed") or 0)
+        last_run = finished_at or started_at
+
+        duration_seconds: Optional[float] = None
+        if isinstance(started_at, datetime) and isinstance(finished_at, datetime):
+            duration_seconds = max((finished_at - started_at).total_seconds(), 0.0)
+
+        status = "ok"
+        notes: List[str] = ["Processed count uses discovery_runs.counters.discovered."]
+
+        if last_run is None:
+            status = "unknown"
+            notes.append("Run timestamp unavailable.")
+        else:
+            if (now - last_run) > timedelta(hours=DISCOVERY_STALE_HOURS):
+                status = "warning"
+                notes.append(f"Last run more than {DISCOVERY_STALE_HOURS}h ago.")
+            if processed == 0:
+                notes.append("No locations discovered in last run.")
+                if status == "ok":
+                    status = "warning"
+            if errors > 0:
+                notes.append(f"{errors} failures recorded in last run.")
+                status = "error"
+
+        return WorkerStatus(
+            id="discovery_bot",
+            label="DiscoveryBot",
+            last_run=last_run,
+            duration_seconds=duration_seconds,
+            processed_count=processed,
+            error_count=errors,
+            status=status,  # type: ignore[arg-type]
+            window_label="last run",
+            quota_info=quota_info or None,
+            notes=_build_notes(notes),
+        )
+    except asyncpg.exceptions.UndefinedTableError as exc:
+        logger.warning(
+            "worker_status_table_missing",
+            worker_id="discovery_bot",
+            table="discovery_runs",
+            error=str(exc),
+        )
+        return WorkerStatus(
+            id="discovery_bot",
+            label="DiscoveryBot",
+            last_run=None,
+            duration_seconds=None,
+            processed_count=None,
+            error_count=None,
+            status="unknown",
+            window_label=None,
+            quota_info=None,
+            notes="discovery_runs table is missing; run migrations to enable DiscoveryBot metrics.",
+        )
+
+
+async def _verify_locations_status() -> WorkerStatus:
+    now = datetime.now(timezone.utc)
+
+    sql_last_run = """
+        SELECT MAX(created_at) AS last_run
+        FROM ai_logs
+        WHERE action_type = 'verify_locations.classified'
+    """
+    sql_window = """
+        SELECT
+            COALESCE(COUNT(*), 0)::int AS processed_count,
+            COALESCE(COUNT(*) FILTER (WHERE COALESCE(is_success, true) = false OR error_message IS NOT NULL), 0)::int AS error_count,
+            MIN(created_at) AS first_ts,
+            MAX(created_at) AS last_ts
+        FROM ai_logs
+        WHERE action_type = 'verify_locations.classified'
+          AND created_at >= NOW() - (($1::int || ' minutes')::interval)
+    """
+
+    last_run_rows = await fetch(sql_last_run)
+    last_run = None
+    if last_run_rows:
+        last_run = last_run_rows[0].get("last_run")
+
+    window_rows = await fetch(sql_window, int(WORKER_WINDOW_MINUTES))
+    processed_recent = 0
+    error_recent = 0
+    first_ts = None
+    last_ts = None
+    if window_rows:
+        row = window_rows[0]
+        processed_recent = int(row.get("processed_count") or 0)
+        error_recent = int(row.get("error_count") or 0)
+        first_ts = row.get("first_ts")
+        last_ts = row.get("last_ts")
+
+    duration_seconds: Optional[float] = None
+    if isinstance(first_ts, datetime) and isinstance(last_ts, datetime) and first_ts != last_ts:
+        duration_seconds = max((last_ts - first_ts).total_seconds(), 0.0)
+
+    status = "ok"
+    notes: List[str] = ["Counts derived from ai_logs (action_type='verify_locations.classified')."]
+
+    if last_run is None:
+        status = "unknown"
+        notes.append("No verification runs recorded yet.")
+    else:
+        if (now - last_run) > timedelta(hours=VERIFY_STALE_HOURS):
+            status = "warning"
+            notes.append(f"Last verification more than {VERIFY_STALE_HOURS}h ago.")
+    if processed_recent == 0:
+        notes.append("0 items processed in the last 60 minutes.")
+        if status == "ok":
+            status = "warning"
+    else:
+        error_ratio = error_recent / processed_recent if processed_recent else 0.0
+        if error_recent >= processed_recent // 2 and processed_recent >= 4:
+            status = "error"
+            notes.append(f"High failure ratio ({error_recent}/{processed_recent}) in the last 60 minutes.")
+        elif error_recent > 0:
+            status = "warning"
+            notes.append(f"{error_recent} failures in the last 60 minutes.")
+
+    return WorkerStatus(
+        id="verify_locations_bot",
+        label="VerifyLocationsBot",
+        last_run=last_run,
+        duration_seconds=duration_seconds,
+        processed_count=processed_recent,
+        error_count=error_recent,
+        status=status,  # type: ignore[arg-type]
+        window_label=f"last {WORKER_WINDOW_MINUTES} min",
+        quota_info=None,
+        notes=_build_notes(notes),
+    )
+
+
+async def _task_verifier_status() -> WorkerStatus:
+    sql = """
+        SELECT
+            MAX(last_verified_at) AS last_run,
+            COALESCE(COUNT(*) FILTER (
+                WHERE last_verified_at >= NOW() - (($1::int || ' minutes')::interval)
+                  AND notes ILIKE '%task_verifier%'
+            ), 0)::int AS processed_recent,
+            COALESCE(COUNT(*) FILTER (
+                WHERE last_verified_at >= NOW() - (($1::int || ' minutes')::interval)
+                  AND notes ILIKE '%not auto-promoted%'
+            ), 0)::int AS skipped_recent,
+            COALESCE(COUNT(*) FILTER (
+                WHERE last_verified_at >= NOW() - (($1::int || ' minutes')::interval)
+                  AND notes ILIKE '%auto by task_verifier heuristic%'
+            ), 0)::int AS promoted_recent
+        FROM locations
+        WHERE notes ILIKE '%task_verifier%'
+    """
+    rows = await fetch(sql, int(WORKER_WINDOW_MINUTES))
+
+    last_run = None
+    processed_recent = 0
+    skipped_recent = 0
+    promoted_recent = 0
+    if rows:
+        rec = rows[0]
+        last_run = rec.get("last_run")
+        processed_recent = int(rec.get("processed_recent") or 0)
+        skipped_recent = int(rec.get("skipped_recent") or 0)
+        promoted_recent = int(rec.get("promoted_recent") or 0)
+
+    status = "ok"
+    notes: List[str] = ["Derived from locations.notes entries created by task_verifier."]
+
+    if last_run is None:
+        status = "unknown"
+        notes.append("No task_verifier activity detected.")
+    else:
+        if processed_recent == 0:
+            status = "warning"
+            notes.append("0 candidates processed in the last 60 minutes.")
+        if skipped_recent > 0 and promoted_recent == 0:
+            status = "warning"
+            notes.append("All recent checks resulted in non-promotions.")
+
+    return WorkerStatus(
+        id="task_verifier_bot",
+        label="Self-Verify Bot",
+        last_run=last_run,
+        duration_seconds=None,
+        processed_count=processed_recent,
+        error_count=skipped_recent,
+        status=status,  # type: ignore[arg-type]
+        window_label=f"last {WORKER_WINDOW_MINUTES} min",
+        quota_info=None,
+        notes=_build_notes(notes),
+    )
+
+
+async def _monitor_bot_status() -> WorkerStatus:
+    sql_activity = """
+        SELECT
+            MAX(created_at) AS last_created,
+            COALESCE(COUNT(*) FILTER (
+                WHERE created_at >= NOW() - (($1::int || ' minutes')::interval)
+            ), 0)::int AS created_recent,
+            COALESCE(COUNT(*) FILTER (
+                WHERE UPPER(status) = 'FAILED'
+                  AND COALESCE(last_attempted_at, created_at) >= NOW() - (($1::int || ' minutes')::interval)
+            ), 0)::int AS failed_recent
+        FROM tasks
+        WHERE task_type = 'VERIFICATION'
+    """
+    sql_backlog = """
+        SELECT
+            COALESCE(COUNT(*) FILTER (WHERE UPPER(status) = 'PENDING'), 0)::int AS pending_count,
+            COALESCE(COUNT(*) FILTER (WHERE UPPER(status) = 'PROCESSING'), 0)::int AS processing_count
+        FROM tasks
+        WHERE task_type = 'VERIFICATION'
+    """
+    activity_rows = await fetch(sql_activity, int(WORKER_WINDOW_MINUTES))
+    backlog_rows = await fetch(sql_backlog)
+
+    last_created = None
+    created_recent = 0
+    failed_recent = 0
+    if activity_rows:
+        activity = activity_rows[0]
+        last_created = activity.get("last_created")
+        created_recent = int(activity.get("created_recent") or 0)
+        failed_recent = int(activity.get("failed_recent") or 0)
+
+    pending_count = 0
+    processing_count = 0
+    if backlog_rows:
+        backlog = backlog_rows[0]
+        pending_count = int(backlog.get("pending_count") or 0)
+        processing_count = int(backlog.get("processing_count") or 0)
+
+    status = "ok"
+    notes: List[str] = ["Monitors verification queue health via tasks table."]
+    if last_created is None:
+        status = "unknown"
+        notes.append("No verification tasks created yet.")
+    else:
+        if (datetime.now(timezone.utc) - last_created) > timedelta(hours=MONITOR_STALE_HOURS):
+            status = "warning"
+            notes.append(f"No verification tasks created in the last {MONITOR_STALE_HOURS}h.")
+        if created_recent == 0:
+            notes.append("0 tasks enqueued in the last 60 minutes.")
+            if status == "ok":
+                status = "warning"
+        if failed_recent > 0:
+            notes.append(f"{failed_recent} enqueue attempts failed in the last 60 minutes.")
+            status = "error" if failed_recent >= 5 else "warning"
+        if pending_count > 500:
+            notes.append(f"High pending queue ({pending_count}).")
+            if status == "ok":
+                status = "warning"
+
+    quota_info = {
+        "pending_queue": pending_count,
+        "processing_queue": processing_count,
+    }
+
+    return WorkerStatus(
+        id="monitor_bot",
+        label="MonitorBot",
+        last_run=last_created,
+        duration_seconds=None,
+        processed_count=created_recent,
+        error_count=failed_recent,
+        status=status,  # type: ignore[arg-type]
+        window_label=f"last {WORKER_WINDOW_MINUTES} min",
+        quota_info=quota_info,
+        notes=_build_notes(notes),
+    )
+
+
+async def _alert_bot_status(err_rate: float, g429: int) -> WorkerStatus:
+    triggered = 0
+    notes: List[str] = ["Status reflects current error rate and Google 429 bursts."]
+
+    status = "ok"
+    if err_rate >= ALERT_ERR_RATE_THRESHOLD:
+        triggered += 1
+        notes.append(f"Task error rate {err_rate:.2%} exceeds {ALERT_ERR_RATE_THRESHOLD:.0%} threshold.")
+        status = "warning"
+    if err_rate >= (ALERT_ERR_RATE_THRESHOLD * 2):
+        status = "error"
+
+    if g429 >= ALERT_GOOGLE_THRESHOLD:
+        triggered += 1
+        notes.append(f"{g429} Google 429 events in last 60 minutes (threshold {ALERT_GOOGLE_THRESHOLD}).")
+        status = "error"
+
+    return WorkerStatus(
+        id="alert_bot",
+        label="AlertBot",
+        last_run=datetime.now(timezone.utc),
+        duration_seconds=None,
+        processed_count=None,
+        error_count=triggered,
+        status=status,  # type: ignore[arg-type]
+        window_label=f"last {WORKER_WINDOW_MINUTES} min",
+        quota_info={"google429_last_60m": g429},
+        notes=_build_notes(notes),
+    )
+
+
+async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
+    statuses: List[WorkerStatus] = []
+
+    async def safe_call(worker_id: str, label: str, fn: Callable[[], Awaitable[WorkerStatus]]) -> None:
+        try:
+            ws = await fn()
+        except asyncpg.exceptions.UndefinedTableError as exc:
+            logger.warning(
+                "worker_status_table_missing_unexpected",
+                worker_id=worker_id,
+                error=str(exc),
+            )
+            ws = WorkerStatus(
+                id=worker_id,
+                label=label,
+                last_run=None,
+                duration_seconds=None,
+                processed_count=None,
+                error_count=None,
+                status="unknown",
+                window_label=None,
+                quota_info=None,
+                notes="Table missing; run migrations to enable worker metrics.",
+            )
+        except Exception:
+            logger.exception("worker_status_failed", worker_id=worker_id)
+            ws = WorkerStatus(
+                id=worker_id,
+                label=label,
+                last_run=None,
+                duration_seconds=None,
+                processed_count=None,
+                error_count=None,
+                status="error",
+                window_label=None,
+                quota_info=None,
+                notes="Failed to compute worker status; see logs.",
+            )
+        statuses.append(ws)
+
+    await safe_call("discovery_bot", "DiscoveryBot", _discovery_worker_status)
+    await safe_call("verify_locations_bot", "VerifyLocationsBot", _verify_locations_status)
+    await safe_call("task_verifier_bot", "Self-Verify Bot", _task_verifier_status)
+    await safe_call("monitor_bot", "MonitorBot", _monitor_bot_status)
+    await safe_call("alert_bot", "AlertBot", lambda: _alert_bot_status(err_rate, g429))
+
+    return statuses
+
+
 async def generate_metrics_snapshot() -> MetricsSnapshot:
     # Quality
     conv_14d = await _conversion_rate_14d()
@@ -258,6 +687,7 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
         discovery=Discovery(new_candidates_per_week=latest_count),
         latency=Latency(p50_ms=p50, avg_ms=avg, max_ms=mx),
         weekly_candidates=weekly,
+        workers=await _worker_statuses(err_rate, g429),
     )
 
 
