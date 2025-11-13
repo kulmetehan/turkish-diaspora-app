@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { bulkUpdateLocations, listAdminLocations, listLocationStates, retireAdminLocation, type AdminLocationListItem } from "@/lib/apiAdmin";
+import { bulkUpdateLocations, listAdminLocationCategories, listAdminLocations, listLocationStates, retireAdminLocation, type AdminLocationListItem } from "@/lib/apiAdmin";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -30,9 +30,22 @@ export default function AdminLocationsTable() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [stateOptions, setStateOptions] = useState<StateOption[]>(() => [...DEFAULT_STATE_OPTIONS]);
+    const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+    const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
+    const [sort, setSort] = useState<"NONE" | "latest_added" | "latest_verified">("NONE");
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+    const [confidenceMin, setConfidenceMin] = useState<string>("");
+    const [confidenceMax, setConfidenceMax] = useState<string>("");
     const [bulkLoading, setBulkLoading] = useState(false);
     const [bulkUnretire, setBulkUnretire] = useState(false);
     const nav = useNavigate();
+
+    const parseConfidence = (value: string): number | undefined => {
+        if (value.trim() === "") return undefined;
+        const parsed = Number(value);
+        if (Number.isNaN(parsed)) return undefined;
+        return Math.max(0, Math.min(1, parsed));
+    };
 
     const page = useMemo(() => Math.floor(offset / limit) + 1, [offset, limit]);
     const pageCount = useMemo(() => Math.max(1, Math.ceil(total / limit)), [total, limit]);
@@ -51,7 +64,31 @@ export default function AdminLocationsTable() {
         setLoading(true);
         try {
             const effectiveStateParam = stateFilter === "ALL" ? undefined : stateFilter;
-            const res = await listAdminLocations({ search, state: effectiveStateParam, limit, offset });
+            const effectiveCategoryParam = categoryFilter === "ALL" ? undefined : categoryFilter;
+            const params: {
+                search?: string;
+                state?: string;
+                category?: string;
+                confidenceMin?: number;
+                confidenceMax?: number;
+                sort?: string;
+                sortDirection?: "asc" | "desc";
+                limit?: number;
+                offset?: number;
+            } = {
+                search,
+                state: effectiveStateParam,
+                category: effectiveCategoryParam,
+                confidenceMin: parseConfidence(confidenceMin),
+                confidenceMax: parseConfidence(confidenceMax),
+                limit,
+                offset,
+            };
+            if (sort !== "NONE") {
+                params.sort = sort;
+                params.sortDirection = sortDirection;
+            }
+            const res = await listAdminLocations(params);
             setRows(res.rows);
             setTotal(res.total);
             setSelected(new Set());
@@ -93,7 +130,30 @@ export default function AdminLocationsTable() {
         };
     }, []);
 
-    useEffect(() => { void load(); }, [search, stateFilter, limit, offset]);
+    useEffect(() => {
+        let cancelled = false;
+        listAdminLocationCategories()
+            .then((cats) => {
+                if (cancelled) return;
+                setCategoryOptions(cats);
+                setCategoryFilter((prev) => {
+                    if (prev !== "ALL" && !cats.includes(prev)) {
+                        return "ALL";
+                    }
+                    return prev;
+                });
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setCategoryOptions([]);
+                setCategoryFilter("ALL");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => { void load(); }, [search, stateFilter, categoryFilter, confidenceMin, confidenceMax, sort, sortDirection, limit, offset]);
 
     useEffect(() => {
         setSelected((prev) => {
@@ -248,6 +308,66 @@ export default function AdminLocationsTable() {
                             ))}
                         </SelectContent>
                     </Select>
+                    {categoryOptions.length > 0 && (
+                        <Select value={categoryFilter} onValueChange={(val) => { setOffset(0); setCategoryFilter(val); }}>
+                            <SelectTrigger className="w-[220px]">
+                                <SelectValue placeholder="Categorie" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">All categories</SelectItem>
+                                {categoryOptions.map((cat) => (
+                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <Select value={sort} onValueChange={(val) => { setOffset(0); setSort(val as typeof sort); }}>
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Sortering" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="NONE">Geen sortering</SelectItem>
+                            <SelectItem value="latest_added">Laatst toegevoegd</SelectItem>
+                            <SelectItem value="latest_verified">Laatst geverifieerd</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    {sort !== "NONE" && (
+                        <Select value={sortDirection} onValueChange={(val) => { setOffset(0); setSortDirection(val as typeof sortDirection); }}>
+                            <SelectTrigger className="w-[180px]">
+                                <SelectValue placeholder="Richting" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="desc">Nieuwste eerst</SelectItem>
+                                <SelectItem value="asc">Oudste eerst</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Confidence min (0-1)</span>
+                        <Input
+                            type="number"
+                            step="0.05"
+                            min={0}
+                            max={1}
+                            value={confidenceMin}
+                            onChange={(e) => { setOffset(0); setConfidenceMin(e.target.value); }}
+                            placeholder="Min"
+                            className="w-24"
+                        />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                        <span className="text-xs text-muted-foreground">Confidence max (0-1)</span>
+                        <Input
+                            type="number"
+                            step="0.05"
+                            min={0}
+                            max={1}
+                            value={confidenceMax}
+                            onChange={(e) => { setOffset(0); setConfidenceMax(e.target.value); }}
+                            placeholder="Max"
+                            className="w-24"
+                        />
+                    </div>
                     <div className="ml-auto flex items-center gap-2">
                         <Button variant="outline" size="sm" disabled={!canPrev || loading} onClick={() => setOffset(Math.max(0, offset - limit))}><Icon name="ChevronLeft" className="h-4 w-4" /></Button>
                         <span className="text-sm text-muted-foreground">Pagina {page} / {pageCount}</span>

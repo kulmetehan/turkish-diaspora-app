@@ -37,44 +37,96 @@ router = APIRouter(
 )
 
 
+def _clamp_confidence(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return None
+
+
 @router.get("", response_model=Dict[str, Any])
 async def list_admin_locations(
     search: Optional[str] = Query(default=None),
     state: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    confidence_min: Optional[float] = Query(default=None),
+    confidence_max: Optional[float] = Query(default=None),
+    sort: Optional[str] = Query(default=None),
+    sort_direction: Optional[str] = Query(default="desc"),
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     admin: AdminUser = Depends(verify_admin_user),
 ) -> Dict[str, Any]:
-    # filters
     search_val = (search or "").strip()
     state_val = (state or "").strip().upper()
+    category_val = (category or "").strip()
 
-    sql_rows = (
-        """
-        SELECT id, name, category, state, confidence_score, last_verified_at, is_retired
-        FROM locations
-        WHERE ($1::text IS NULL OR $1 = '' OR name ILIKE '%' || $1 || '%' OR address ILIKE '%' || $1 || '%')
-          AND (
-            $2::text IS NULL OR $2 = '' OR state = $2::location_state
-          )
-        ORDER BY id DESC
-        LIMIT $3 OFFSET $4
-        """
-    )
-    rows = await fetch(sql_rows, search_val, state_val, int(limit), int(offset))
+    sort_val = sort if sort in {"latest_added", "latest_verified"} else None
+    direction_val = "asc" if (sort_direction or "").lower() == "asc" else "desc"
+
+    conf_min_val = _clamp_confidence(confidence_min)
+    conf_max_val = _clamp_confidence(confidence_max)
+    if conf_min_val is not None and conf_max_val is not None and conf_min_val > conf_max_val:
+        conf_min_val, conf_max_val = conf_max_val, conf_min_val
+
+    filters = [
+        "($1::text IS NULL OR $1 = '' OR l.name ILIKE '%' || $1 || '%' OR l.address ILIKE '%' || $1 || '%')",
+        "($2::text IS NULL OR $2 = '' OR l.state = $2::location_state)",
+    ]
+    params: List[Any] = [search_val, state_val]
+
+    if category_val:
+        placeholder = len(params) + 1
+        filters.append(f"(l.category = ${placeholder})")
+        params.append(category_val)
+
+    confidence_conditions: List[str] = []
+    if conf_min_val is not None:
+        placeholder = len(params) + 1
+        confidence_conditions.append(f"l.confidence_score >= ${placeholder}")
+        params.append(conf_min_val)
+    if conf_max_val is not None:
+        placeholder = len(params) + 1
+        confidence_conditions.append(f"l.confidence_score <= ${placeholder}")
+        params.append(conf_max_val)
+
+    if confidence_conditions:
+        filters.append("(l.confidence_score IS NOT NULL)")
+        filters.extend(confidence_conditions)
+
+    where_clause = " AND ".join(filters)
+    where_sql = f"WHERE {where_clause}" if where_clause else ""
+
+    if sort_val == "latest_added":
+        order_clause = f"ORDER BY l.first_seen_at {direction_val}, l.id DESC"
+    elif sort_val == "latest_verified":
+        order_clause = f"ORDER BY l.last_verified_at {direction_val} NULLS LAST, l.id DESC"
+    else:
+        order_clause = "ORDER BY l.id DESC"
+
+    limit_placeholder = len(params) + 1
+    offset_placeholder = len(params) + 2
+
+    rows_sql = f"""
+        SELECT l.id, l.name, l.category, l.state, l.confidence_score, l.last_verified_at, l.is_retired
+        FROM locations AS l
+        {where_sql}
+        {order_clause}
+        LIMIT ${limit_placeholder} OFFSET ${offset_placeholder}
+    """
+
+    rows_params = [*params, int(limit), int(offset)]
+    rows = await fetch(rows_sql, *rows_params)
     data = [AdminLocationListItem(**dict(r)).model_dump() for r in rows]
 
-    sql_count = (
-        """
+    count_sql = f"""
         SELECT COUNT(1) AS total
-        FROM locations
-        WHERE ($1::text IS NULL OR $1 = '' OR name ILIKE '%' || $1 || '%' OR address ILIKE '%' || $1 || '%')
-          AND (
-            $2::text IS NULL OR $2 = '' OR state = $2::location_state
-          )
-        """
-    )
-    total_row = await fetchrow(sql_count, search_val, state_val)
+        FROM locations AS l
+        {where_sql}
+    """
+    total_row = await fetchrow(count_sql, *params)
     total = int(dict(total_row).get("total", 0)) if total_row else 0
     return {"rows": data, "total": total}
 
@@ -101,11 +153,28 @@ async def list_location_states(
 async def list_admin_locations_slash(
     search: Optional[str] = Query(default=None),
     state: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    confidence_min: Optional[float] = Query(default=None),
+    confidence_max: Optional[float] = Query(default=None),
+    sort: Optional[str] = Query(default=None),
+    sort_direction: Optional[str] = Query(default="desc"),
     limit: int = Query(default=20, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     admin: AdminUser = Depends(verify_admin_user),
 ) -> Dict[str, Any]:
-    return await list_admin_locations(search=search, state=state, limit=limit, offset=offset, admin=admin)
+    return await list_admin_locations(
+        search=search,
+        state=state,
+        category=category,
+        confidence_min=confidence_min,
+        confidence_max=confidence_max,
+        sort=sort,
+        sort_direction=sort_direction,
+        limit=limit,
+        offset=offset,
+        admin=admin,
+    )
+
 
 
 @router.get("/{location_id}", response_model=AdminLocationDetail)

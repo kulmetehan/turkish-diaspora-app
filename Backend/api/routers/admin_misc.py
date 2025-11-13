@@ -23,3 +23,23 @@ async def list_location_states_alias(
 
     states = [{"value": rec["value"], "label": to_label(rec["value"])} for rec in rows]
     return {"states": states}
+
+
+@router.get("/location-categories", response_model=Dict[str, Any])
+async def list_location_categories_alias(
+    admin: AdminUser = Depends(verify_admin_user),
+) -> Dict[str, Any]:
+    """
+    Return sorted unique category values for admin dropdowns.
+    """
+    rows = await fetch(
+        """
+        SELECT DISTINCT category
+        FROM locations
+        WHERE category IS NOT NULL AND category <> ''
+        ORDER BY category ASC
+        """
+    )
+    categories = [rec["category"] for rec in rows]
+    return {"categories": categories}
+

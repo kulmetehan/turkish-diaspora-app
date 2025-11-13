@@ -22,12 +22,22 @@ export type AdminLocationDetail = AdminLocationListItem & {
 export async function listAdminLocations(params: {
     search?: string;
     state?: string;
+    category?: string;
+    confidenceMin?: number;
+    confidenceMax?: number;
+    sort?: string;
+    sortDirection?: "asc" | "desc";
     limit?: number;
     offset?: number;
 }): Promise<{ rows: AdminLocationListItem[]; total: number }> {
     const q = new URLSearchParams();
     if (params.search) q.set("search", params.search);
     if (params.state) q.set("state", params.state);
+    if (params.category) q.set("category", params.category);
+    if (params.sort && params.sort !== "NONE") q.set("sort", params.sort);
+    if (params.sortDirection) q.set("sort_direction", params.sortDirection);
+    if (params.confidenceMin != null) q.set("confidence_min", String(params.confidenceMin));
+    if (params.confidenceMax != null) q.set("confidence_max", String(params.confidenceMax));
     q.set("limit", String(params.limit ?? 20));
     q.set("offset", String(params.offset ?? 0));
     // Always pass full API path (API_BASE is host-only)
@@ -95,6 +105,24 @@ export async function listLocationStates(): Promise<LocationStatesResponse> {
             return await tryFetch(legacy);
         }
         throw err;
+    }
+}
+
+type LocationCategoriesResponse = { categories: string[] };
+
+export async function listAdminLocationCategories(): Promise<string[]> {
+    try {
+        const res = await authFetch<LocationCategoriesResponse>("/api/v1/admin/location-categories");
+        if (Array.isArray(res?.categories)) {
+            return res.categories;
+        }
+        return [];
+    } catch (err: any) {
+        if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.warn("Failed to fetch location categories", err);
+        }
+        return [];
     }
 }
 
