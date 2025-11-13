@@ -17,7 +17,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDiscoveryKPIs, getMetricsSnapshot, type DiscoveryKPIs, type MetricsSnapshot } from "@/lib/api";
+import { getDiscoveryKPIs, getMetricsSnapshot, type DiscoveryKPIs, type MetricsSnapshot, type WorkerStatus } from "@/lib/api";
 import { Activity, AlertTriangle, Database, Gauge, Info, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -50,6 +50,56 @@ function formatLatency(ms: number | undefined | null): string {
     return `${ms} ms`;
 }
 
+const WORKER_STATUS_BADGE_CLASSES: Record<WorkerStatus["status"], string> = {
+    ok: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    warning: "bg-amber-100 text-amber-800 border-amber-200",
+    error: "bg-red-100 text-red-800 border-red-200",
+    unknown: "bg-slate-100 text-slate-700 border-slate-200",
+};
+
+function formatLastRun(value: string | null | undefined): string {
+    if (!value) return "Not yet run";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+        return value;
+    }
+    return date.toLocaleString();
+}
+
+function formatDurationSeconds(value: number | null | undefined): string {
+    if (!value || value <= 0) {
+        return "–";
+    }
+    const totalSeconds = Math.round(value);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const parts: string[] = [];
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (!hours && !minutes) {
+        parts.push(`${seconds}s`);
+    } else if (seconds && parts.length < 2) {
+        parts.push(`${seconds}s`);
+    }
+    return parts.join(" ");
+}
+
+function formatCountWithContext(value: number | null | undefined, windowLabel?: string | null): string {
+    if (value === null || value === undefined) return "–";
+    const label = windowLabel && windowLabel.trim().length > 0 ? windowLabel : "recent window";
+    return `${value} (${label})`;
+}
+
+function formatQuotaInfo(quota: Record<string, number | null> | null | undefined): string {
+    if (!quota || Object.keys(quota).length === 0) {
+        return "–";
+    }
+    return Object.entries(quota)
+        .map(([key, val]) => `${key}: ${val ?? "n/a"}`)
+        .join(", ");
+}
+
 export default function MetricsDashboard() {
     const [data, setData] = useState<MetricsSnapshot | null>(null);
     const [discoveryKPIs, setDiscoveryKPIs] = useState<DiscoveryKPIs | null>(null);
@@ -59,7 +109,7 @@ export default function MetricsDashboard() {
 
     useEffect(() => {
         let isMounted = true;
-        (async () => {
+        const load = async () => {
             try {
                 const res = await getMetricsSnapshot();
                 if (isMounted) setData(res);
@@ -68,8 +118,17 @@ export default function MetricsDashboard() {
             } finally {
                 if (isMounted) setLoading(false);
             }
-        })();
-        return () => { isMounted = false; };
+        };
+
+        load();
+        const intervalId = window.setInterval(() => {
+            load();
+        }, 60000);
+
+        return () => {
+            isMounted = false;
+            window.clearInterval(intervalId);
+        };
     }, []);
 
     useEffect(() => {
@@ -259,6 +318,71 @@ export default function MetricsDashboard() {
                                     <Line type="monotone" dataKey="count" strokeWidth={2} dot={false} name="New candidates/week" />
                                 </LineChart>
                             </ResponsiveContainer>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Workers */}
+            <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                        <span>Workers</span>
+                        <span className="text-xs text-muted-foreground">Auto-updates every 60 seconds</span>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <div className="space-y-3">
+                            <Skeleton className="h-5 w-36" />
+                            <Skeleton className="h-32 w-full" />
+                        </div>
+                    ) : !data?.workers || data.workers.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No worker telemetry available.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b">
+                                        <th className="text-left p-2">Worker</th>
+                                        <th className="text-left p-2">Status</th>
+                                        <th className="text-left p-2">Last run</th>
+                                        <th className="text-left p-2">Duration</th>
+                                        <th className="text-left p-2">Processed</th>
+                                        <th className="text-left p-2">Errors</th>
+                                        <th className="text-left p-2">Quota</th>
+                                        <th className="text-left p-2">Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {data.workers.map((worker) => (
+                                        <tr key={worker.id} className="border-b align-top">
+                                            <td className="p-2">
+                                                <div className="font-medium">{worker.label}</div>
+                                                <div className="text-xs text-muted-foreground">{worker.id}</div>
+                                            </td>
+                                            <td className="p-2">
+                                                <Badge
+                                                    variant="outline"
+                                                    className={`text-xs font-medium px-2 py-1 ${WORKER_STATUS_BADGE_CLASSES[worker.status]}`}
+                                                >
+                                                    {worker.status.toUpperCase()}
+                                                </Badge>
+                                            </td>
+                                            <td className="p-2">{formatLastRun(worker.last_run)}</td>
+                                            <td className="p-2">{formatDurationSeconds(worker.duration_seconds)}</td>
+                                            <td className="p-2">{formatCountWithContext(worker.processed_count, worker.window_label)}</td>
+                                            <td className="p-2">{formatCountWithContext(worker.error_count, worker.window_label)}</td>
+                                            <td className="p-2">{formatQuotaInfo(worker.quota_info ?? null)}</td>
+                                            <td className="p-2">
+                                                <span className="whitespace-pre-line">
+                                                    {worker.notes ? worker.notes : "–"}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </CardContent>
