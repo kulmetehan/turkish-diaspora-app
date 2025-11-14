@@ -77,14 +77,14 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
                 force: requiresForce && forceVerify ? true : undefined,
             });
             if (requiresForce && forceVerify) {
-                toast.success("Location verified.");
+                toast.success("Locatie succesvol geverifieerd.");
             } else {
-                toast.success("Locatie bijgewerkt");
+                toast.success("Locatie succesvol bijgewerkt.");
             }
             onSaved();
             onOpenChange(false);
         } catch (e: any) {
-            toast.error(e?.message || "Kon locatie niet opslaan");
+            toast.error(e?.message || "Kon locatie niet opslaan.");
         } finally {
             setLoading(false);
         }
