@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Optional, Sequence
 from pathlib import Path
 import sys
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +38,14 @@ logger = logger.bind(worker="monitor_bot")
 
 # DB helpers (asyncpg)
 from services.db_service import init_db_pool, fetch, execute  # noqa: E402
+
+# Worker run tracking
+from services.worker_runs_service import (
+    start_worker_run,
+    mark_worker_run_running,
+    update_worker_run_progress,
+    finish_worker_run,
+)
 
 UTC = timezone.utc
 TERMINAL_STATES: tuple[str, ...] = ("RETIRED", "SUSPENDED")
@@ -274,11 +283,20 @@ async def stats_after() -> Mapping[str, Any]:
 # ------------------------------
 # CLI
 # ------------------------------
-async def main_async(limit: Optional[int], dry_run: Optional[bool]) -> None:
+async def main_async(limit: Optional[int], dry_run: Optional[bool], worker_run_id: Optional[UUID] = None) -> None:
     t0 = time.perf_counter()
     with with_run_id() as rid:
         logger.info("worker_started")
         await init_db_pool()
+        
+        # Auto-create worker_run if not provided
+        if not worker_run_id:
+            worker_run_id = await start_worker_run(bot="monitor_bot", city=None, category=None)
+        
+        if worker_run_id:
+            await mark_worker_run_running(worker_run_id)
+            await update_worker_run_progress(worker_run_id, 10)
+        
         cfg = MonitorSettings.from_env()
         if limit is not None:
             cfg.MONITOR_MAX_PER_RUN = int(limit)
@@ -286,31 +304,66 @@ async def main_async(limit: Optional[int], dry_run: Optional[bool]) -> None:
             cfg.DRY_RUN = bool(dry_run)
 
         print(f"[MonitorBot] start DRY_RUN={cfg.DRY_RUN} limit={cfg.MONITOR_MAX_PER_RUN}")
-
-        # 1) Bootstrap ontbrekende next_check_at (actieve staten)
-        boot = await bootstrap_missing_next_check(cfg)
-        print(f"[MonitorBot] initialized next_check_at for {boot} records")
-
-        # 2) Verwerk due records in batch
-        enq, bump = await enqueue_verification_tasks(cfg)
-        print(f"[MonitorBot] enqueued={enq} bumped_next_check_at={bump}")
-
-        # 3) Sanity stats
-        s = await stats_after()
-        print(f"[MonitorBot] records >90d overdue (after run): {s['older_than_90d']}")
-        print(f"[MonitorBot] oldest due next_check_at (after run): {s['oldest_due']}")
         
-        duration_ms = int((time.perf_counter() - t0) * 1000)
-        logger.info("worker_finished", duration_ms=duration_ms)
+        counters = {}
+        try:
+            # 1) Bootstrap ontbrekende next_check_at (actieve staten)
+            boot = await bootstrap_missing_next_check(cfg)
+            print(f"[MonitorBot] initialized next_check_at for {boot} records")
+            
+            if worker_run_id:
+                await update_worker_run_progress(worker_run_id, 40)
+
+            # 2) Verwerk due records in batch
+            enq, bump = await enqueue_verification_tasks(cfg)
+            print(f"[MonitorBot] enqueued={enq} bumped_next_check_at={bump}")
+            
+            if worker_run_id:
+                await update_worker_run_progress(worker_run_id, 80)
+
+            # 3) Sanity stats
+            s = await stats_after()
+            print(f"[MonitorBot] records >90d overdue (after run): {s['older_than_90d']}")
+            print(f"[MonitorBot] oldest due next_check_at (after run): {s['oldest_due']}")
+            
+            counters = {
+                "enqueued": enq,
+                "bumped": bump,
+                "bootstrapped": boot,
+            }
+            
+            duration_ms = int((time.perf_counter() - t0) * 1000)
+            logger.info("worker_finished", duration_ms=duration_ms)
+            
+            # Finalize worker run on success
+            if worker_run_id:
+                await finish_worker_run(worker_run_id, "finished", 100, counters, None)
+        except Exception as e:
+            duration_ms = int((time.perf_counter() - t0) * 1000)
+            logger.error("worker_failed", duration_ms=duration_ms, error=str(e))
+            # Finalize worker run on error
+            if worker_run_id:
+                progress = 50  # Approximate progress at failure
+                await finish_worker_run(worker_run_id, "failed", progress, counters, str(e))
+            raise
+
+
+def _parse_worker_run_id(value: str) -> UUID:
+    try:
+        return UUID(value)
+    except Exception as exc:
+        raise argparse.ArgumentTypeError("worker-run-id must be a valid UUID") from exc
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="TDA-16 MonitorBot")
     p.add_argument("--limit", type=int, default=None, help="Max records per run (due batch)")
     p.add_argument("--dry-run", action="store_true", help="No writes")
+    p.add_argument("--worker-run-id", type=_parse_worker_run_id, help="UUID of worker_runs record for progress tracking")
     return p.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    asyncio.run(main_async(limit=args.limit, dry_run=args.dry_run))
+    worker_run_id: Optional[UUID] = getattr(args, "worker_run_id", None)
+    asyncio.run(main_async(limit=args.limit, dry_run=args.dry_run, worker_run_id=worker_run_id))

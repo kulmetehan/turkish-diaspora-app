@@ -143,4 +143,61 @@ export async function runWorker(params: { bot: string; city?: string; category?:
     });
 }
 
+// --- Worker Runs ---
+
+export interface WorkerRunListItem {
+    id: string;
+    bot: string;
+    city?: string | null;
+    category?: string | null;
+    status: string;
+    progress: number;
+    started_at?: string | null;
+    finished_at?: string | null;
+    duration_seconds?: number | null;
+}
+
+export interface WorkerRunListResponse {
+    items: WorkerRunListItem[];
+    total: number;
+    limit: number;
+    offset: number;
+}
+
+export interface WorkerRunDetail {
+    id: string;
+    bot: string;
+    city?: string | null;
+    category?: string | null;
+    status: string;
+    progress: number;
+    counters?: Record<string, unknown> | null;
+    error_message?: string | null;
+    started_at?: string | null;
+    finished_at?: string | null;
+    created_at: string;
+    duration_seconds?: number | null;
+    parameters?: Record<string, unknown> | null;
+}
+
+export async function listWorkerRuns(params?: {
+    bot?: string;
+    status?: string;
+    since?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<WorkerRunListResponse> {
+    const q = new URLSearchParams();
+    if (params?.bot) q.set("bot", params.bot);
+    if (params?.status) q.set("status", params.status);
+    if (params?.since) q.set("since", params.since);
+    q.set("limit", String(params?.limit ?? 20));
+    q.set("offset", String(params?.offset ?? 0));
+    return authFetch<WorkerRunListResponse>(`/api/v1/admin/workers/runs?${q.toString()}`);
+}
+
+export async function getWorkerRunDetail(runId: string): Promise<WorkerRunDetail> {
+    return authFetch<WorkerRunDetail>(`/api/v1/admin/workers/runs/${runId}`);
+}
+
 

@@ -39,59 +39,13 @@ from services.classify_service import ClassifyService
 from services.ai_validation import validate_classification_payload
 from app.models.ai import AIClassification
 
-
-async def mark_worker_run_running(run_id: UUID) -> None:
-    await execute(
-        """
-        UPDATE worker_runs
-        SET status = 'running',
-            started_at = NOW(),
-            progress = 0
-        WHERE id = $1
-        """,
-        run_id,
-    )
-
-
-async def update_worker_run_progress(run_id: UUID, progress: int) -> None:
-    clamped = max(0, min(100, int(progress)))
-    await execute(
-        """
-        UPDATE worker_runs
-        SET progress = $1
-        WHERE id = $2
-        """,
-        clamped,
-        run_id,
-    )
-
-
-async def finalize_worker_run(
-    run_id: UUID,
-    status: str,
-    progress: int,
-    counters: Optional[Dict[str, Any]] = None,
-    error_message: Optional[str] = None,
-) -> None:
-    counters_json = (
-        json.dumps(counters, ensure_ascii=False) if counters is not None else None
-    )
-    await execute(
-        """
-        UPDATE worker_runs
-        SET status = $1,
-            progress = $2,
-            counters = CASE WHEN $3 IS NULL THEN NULL ELSE CAST($3 AS JSONB) END,
-            error_message = $4,
-            finished_at = NOW()
-        WHERE id = $5
-        """,
-        status,
-        max(0, min(100, progress)),
-        counters_json,
-        error_message,
-        run_id,
-    )
+# Worker run tracking
+from services.worker_runs_service import (
+    start_worker_run,
+    mark_worker_run_running,
+    update_worker_run_progress,
+    finish_worker_run,
+)
 
 
 def _parse_worker_run_id(value: str) -> UUID:
@@ -416,7 +370,7 @@ async def run(
             "autopromoted": 0,
         }
         if worker_run_id:
-            await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
+            await finish_worker_run(worker_run_id, "finished", 100, counters, None)
         return counters
 
     keep_cnt = ignore_cnt = skipped_low_conf = 0
@@ -500,7 +454,7 @@ async def run(
     except Exception as exc:
         if worker_run_id:
             progress_snapshot = last_progress if last_progress >= 0 else 0
-            await finalize_worker_run(worker_run_id, "failed", progress_snapshot, None, str(exc))
+            await finish_worker_run(worker_run_id, "failed", progress_snapshot, None, str(exc))
         raise
 
     avg_keep_conf = (keep_conf_sum / keep_cnt) if keep_cnt else 0.0
@@ -518,12 +472,12 @@ async def run(
     }
 
     if worker_run_id:
-        await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
+        await finish_worker_run(worker_run_id, "finished", 100, counters, None)
 
     return counters
 
 
-def main():
+async def main_async():
     t0 = time.perf_counter()
     with with_run_id() as rid:
         logger.info("worker_started")
@@ -555,19 +509,28 @@ def main():
         args = p.parse_args()
 
         worker_run_id: Optional[UUID] = getattr(args, "worker_run_id", None)
-        asyncio.run(
-            run(
-                args.limit,
-                args.min_confidence,
-                args.dry_run,
-                args.model,
-                args,
-                worker_run_id,
-            )
+        
+        # Auto-create worker_run if not provided
+        if not worker_run_id:
+            from services.db_service import init_db_pool
+            await init_db_pool()
+            worker_run_id = await start_worker_run(bot="classify_bot", city=getattr(args, "city", None), category=None)
+        
+        await run(
+            args.limit,
+            args.min_confidence,
+            args.dry_run,
+            args.model,
+            args,
+            worker_run_id,
         )
         
         duration_ms = int((time.perf_counter() - t0) * 1000)
         logger.info("worker_finished", duration_ms=duration_ms)
+
+
+def main():
+    asyncio.run(main_async())
 
 
 if __name__ == "__main__":

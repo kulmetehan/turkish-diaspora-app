@@ -1,7 +1,9 @@
 import AdminLocationsTable from "@/components/admin/AdminLocationsTable";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lazy, Suspense } from "react";
+import { Link } from "react-router-dom";
 const MetricsDashboard = lazy(() => import("@/components/admin/MetricsDashboard"));
 
 export default function AdminHomePage() {
@@ -20,6 +22,7 @@ export default function AdminHomePage() {
                         <TabsList>
                             <TabsTrigger value="locations">Locations</TabsTrigger>
                             <TabsTrigger value="metrics">Metrics</TabsTrigger>
+                            <TabsTrigger value="workers">Workers</TabsTrigger>
                             <TabsTrigger value="audit">Audit Log (coming soon)</TabsTrigger>
                         </TabsList>
                         <div className="mt-4">
@@ -30,6 +33,16 @@ export default function AdminHomePage() {
                                 <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading metrics…</div>}>
                                     <MetricsDashboard />
                                 </Suspense>
+                            </TabsContent>
+                            <TabsContent value="workers">
+                                <div className="space-y-4">
+                                    <div className="text-sm text-muted-foreground">
+                                        View and manage worker bots, trigger manual runs, and monitor worker status.
+                                    </div>
+                                    <Link to="/admin/workers">
+                                        <Button>Open Workers Dashboard</Button>
+                                    </Link>
+                                </div>
                             </TabsContent>
                             <TabsContent value="audit">
                                 <div className="text-sm text-muted-foreground">Audit log UI wordt later toegevoegd.</div>

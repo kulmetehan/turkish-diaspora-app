@@ -68,58 +68,12 @@ from services.audit_service import audit_service
 # ---------------------------------------------------------------------------
 # Worker Run Tracking
 # ---------------------------------------------------------------------------
-async def mark_worker_run_running(run_id: UUID) -> None:
-    await execute(
-        """
-        UPDATE worker_runs
-        SET status = 'running',
-            started_at = NOW(),
-            progress = 0
-        WHERE id = $1
-        """,
-        run_id,
-    )
-
-
-async def update_worker_run_progress(run_id: UUID, progress: int) -> None:
-    clamped = max(0, min(100, int(progress)))
-    await execute(
-        """
-        UPDATE worker_runs
-        SET progress = $1
-        WHERE id = $2
-        """,
-        clamped,
-        run_id,
-    )
-
-
-async def finalize_worker_run(
-    run_id: UUID,
-    status: str,
-    progress: int,
-    counters: Optional[Dict[str, Any]] = None,
-    error_message: Optional[str] = None,
-) -> None:
-    counters_json = (
-        json.dumps(counters, ensure_ascii=False) if counters is not None else None
-    )
-    await execute(
-        """
-        UPDATE worker_runs
-        SET status = $1,
-            progress = $2,
-            counters = CASE WHEN $3 IS NULL THEN NULL ELSE CAST($3 AS JSONB) END,
-            error_message = $4,
-            finished_at = NOW()
-        WHERE id = $5
-        """,
-        status,
-        max(0, min(100, progress)),
-        counters_json,
-        error_message,
-        run_id,
-    )
+from services.worker_runs_service import (
+    start_worker_run,
+    mark_worker_run_running,
+    update_worker_run_progress,
+    finish_worker_run,
+)
 
 
 def _parse_worker_run_id(value: str) -> UUID:
@@ -336,7 +290,7 @@ async def run_reclassify(
             "total_errors": 0,
         }
         if worker_run_id:
-            await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
+            await finish_worker_run(worker_run_id, "finished", 100, counters, None)
         return counters
     
     print(f"[ReclassifyOtherBot] Processing {len(candidates)} locations with category='other'...")
@@ -393,7 +347,7 @@ async def run_reclassify(
     except Exception as exc:
         if worker_run_id:
             progress_snapshot = last_progress if last_progress >= 0 else 0
-            await finalize_worker_run(worker_run_id, "failed", progress_snapshot, None, str(exc))
+            await finish_worker_run(worker_run_id, "failed", progress_snapshot, None, str(exc))
         raise
     
     counters = {
@@ -406,7 +360,7 @@ async def run_reclassify(
     }
     
     if worker_run_id:
-        await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
+        await finish_worker_run(worker_run_id, "finished", 100, counters, None)
     
     return counters
 
@@ -442,18 +396,29 @@ async def main_async():
         
         # Ensure DB pool is ready
         await init_db_pool()
+        
+        # Auto-create worker_run if not provided
+        if not worker_run_id:
+            worker_run_id = await start_worker_run(bot="reclassify_other", city=None, category=None)
+        
         if worker_run_id:
             await mark_worker_run_running(worker_run_id)
         
-        result = await run_reclassify(
-            limit=args.limit,
-            min_confidence=args.min_confidence,
-            dry_run=bool(args.dry_run),
-            model=args.model,
-            source=args.source,
-            state=args.state,
-            worker_run_id=worker_run_id,
-        )
+        try:
+            result = await run_reclassify(
+                limit=args.limit,
+                min_confidence=args.min_confidence,
+                dry_run=bool(args.dry_run),
+                model=args.model,
+                source=args.source,
+                state=args.state,
+                worker_run_id=worker_run_id,
+            )
+        except Exception as e:
+            # run_reclassify already handles finish_worker_run on error, but we log here too
+            duration_ms = int((time.perf_counter() - t0) * 1000)
+            logger.error("worker_failed", duration_ms=duration_ms, error=str(e))
+            raise
         
         # Summary
         print(f"\nReclassify 'other' summary:")

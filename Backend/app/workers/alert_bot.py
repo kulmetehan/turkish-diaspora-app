@@ -7,6 +7,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 import httpx
 from pydantic import BaseModel, Field, ConfigDict
@@ -31,6 +32,13 @@ logger = logger.bind(worker="alert_bot")
 
 # DB helpers (asyncpg)
 from services.db_service import init_db_pool, fetch, execute  # noqa: E402
+
+# Worker run tracking
+from services.worker_runs_service import (
+    start_worker_run,
+    mark_worker_run_running,
+    finish_worker_run,
+)
 
 DEFAULT_ERR_RATE_THRESHOLD = 0.10  # 10% in window
 DEFAULT_429_BURST_THRESHOLD = 5    # "burst" drempel
@@ -161,9 +169,17 @@ async def check_and_alert_once(cfg: AlertConfig) -> Dict[str, Any]:
     return {"alerts_triggered": len(alerts), "alerts": alerts, "snapshot": snapshot}
 
 
+def _parse_worker_run_id(value: str) -> UUID:
+    try:
+        return UUID(value)
+    except Exception as exc:
+        raise argparse.ArgumentTypeError("worker-run-id must be a valid UUID") from exc
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="TDA Alert Bot")
     p.add_argument("--once", action="store_true", help="Run one check and exit")
+    p.add_argument("--worker-run-id", type=_parse_worker_run_id, help="UUID of worker_runs record for progress tracking")
     return p.parse_args()
 
 
@@ -175,10 +191,33 @@ async def main_async() -> None:
         logger.info("alert_worker_config", cfg=cfg.model_dump())
 
         args = _parse_args()
+        worker_run_id: Optional[UUID] = getattr(args, "worker_run_id", None)
         run_once = args.once or (os.getenv("ALERT_RUN_ONCE", "0").strip().lower() in ("1", "true", "yes", "y"))
-        if run_once:
-            await check_and_alert_once(cfg)
-            return
+        
+        # Auto-create worker_run if run_once and no worker_run_id provided
+        if run_once and not worker_run_id:
+            worker_run_id = await start_worker_run(bot="alert_bot", city=None, category=None)
+        
+        # Track runs when --once is used or worker_run_id is provided
+        if run_once or worker_run_id:
+            if worker_run_id:
+                await mark_worker_run_running(worker_run_id)
+            
+            try:
+                res = await check_and_alert_once(cfg)
+                if worker_run_id:
+                    counters = {
+                        "alerts_triggered": res["alerts_triggered"],
+                        "checks_performed": 1,
+                    }
+                    await finish_worker_run(worker_run_id, "finished", 100, counters, None)
+            except Exception as e:
+                if worker_run_id:
+                    await finish_worker_run(worker_run_id, "failed", 0, None, str(e))
+                raise
+            
+            if run_once:
+                return
 
         cycle = 0
         while True:
