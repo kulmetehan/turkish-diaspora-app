@@ -39,7 +39,8 @@ const DEMO_DATA = {
 /** Kleine helper voor fetch-calls naar onze API */
 export async function apiFetch<T>(
   path: string,
-  init?: RequestInit
+  init?: RequestInit,
+  timeoutMs: number = 60000
 ): Promise<T> {
   // Require a configured backend in all modes
   if (!API_BASE) {
@@ -52,73 +53,93 @@ export async function apiFetch<T>(
     console.debug("[apiFetch] →", url, init?.method || "GET");
   }
 
-  // Simple retry/backoff for cold starts or transient failures
-  const maxAttempts = 3;
-  const delays = [500, 1500]; // ms between attempts (after first failure)
+  // Create AbortController for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  let lastError: unknown = null;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "Content-Type": "application/json",
-          ...(init?.headers ?? {}),
-        },
-        ...init,
-      });
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.debug("[apiFetch] status", res.status, "for", url);
-      }
+  try {
+    // Simple retry/backoff for cold starts or transient failures
+    const maxAttempts = 3;
+    const delays = [500, 1500]; // ms between attempts (after first failure)
 
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          if (import.meta.env.DEV) {
-            // eslint-disable-next-line no-console
-            console.warn("[apiFetch] auth rejected", res.status, url);
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        // Use timeout controller signal (will override init.signal if provided)
+        // This ensures timeout always works even if caller provides their own signal
+        const res = await fetch(url, {
+          headers: {
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+          },
+          ...init,
+          signal: controller.signal,
+        });
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.debug("[apiFetch] status", res.status, "for", url);
+        }
+
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            if (import.meta.env.DEV) {
+              // eslint-disable-next-line no-console
+              console.warn("[apiFetch] auth rejected", res.status, url);
+            }
+            try { await supabase.auth.signOut(); } catch { }
+            throw new Error(`AUTH_${res.status} ${url}`);
           }
-          try { await supabase.auth.signOut(); } catch { }
-          throw new Error(`AUTH_${res.status} ${url}`);
-        }
-        // Retry on typical warm-up statuses
-        if (res.status === 502 || res.status === 503 || res.status === 504) {
-          const text = await res.text().catch(() => "");
-          lastError = new Error(
-            `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
-          );
-          // fall through to retry logic
+          // Retry on typical warm-up statuses
+          if (res.status === 502 || res.status === 503 || res.status === 504) {
+            const text = await res.text().catch(() => "");
+            lastError = new Error(
+              `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
+            );
+            // fall through to retry logic
+          } else {
+            const text = await res.text().catch(() => "");
+            throw new Error(
+              `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
+            );
+          }
         } else {
-          const text = await res.text().catch(() => "");
-          throw new Error(
-            `API ${res.status} ${res.statusText} @ ${path}${text ? ` — ${text.slice(0, 300)}` : ""}`
-          );
+          // Alleen JSON is geldig; non-JSON behandelen als fout (bv. warm-up HTML)
+          const ct = res.headers.get("content-type") || "";
+          if (!ct.includes("application/json")) {
+            throw new Error(`Invalid response content-type for ${path}: ${ct || "<none>"} @ ${url}`);
+          }
+          return (await res.json()) as T;
         }
-      } else {
-        // Alleen JSON is geldig; non-JSON behandelen als fout (bv. warm-up HTML)
-        const ct = res.headers.get("content-type") || "";
-        if (!ct.includes("application/json")) {
-          throw new Error(`Invalid response content-type for ${path}: ${ct || "<none>"} @ ${url}`);
+      } catch (err) {
+        // Check if aborted (timeout)
+        if (err instanceof Error && err.name === 'AbortError' && controller.signal.aborted) {
+          throw new Error(`Request timeout after ${timeoutMs}ms: ${path}`);
         }
-        return (await res.json()) as T;
+        // Network/CORS/etc.
+        lastError = err;
+        
+        // Don't retry if aborted (timeout)
+        if (controller.signal.aborted) {
+          break;
+        }
       }
-    } catch (err) {
-      // Network/CORS/etc.
-      lastError = err;
+
+      if (attempt < maxAttempts && !controller.signal.aborted) {
+        const wait = delays[attempt - 1] ?? 1500;
+        await new Promise((r) => setTimeout(r, wait));
+      }
     }
 
-    if (attempt < maxAttempts) {
-      const wait = delays[attempt - 1] ?? 1500;
-      await new Promise((r) => setTimeout(r, wait));
+    // Development-only demo fallback to keep local UI usable when backend missing
+    if (import.meta.env.DEV) {
+      const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
+      if (demoResponse) return demoResponse as T;
     }
-  }
 
-  // Development-only demo fallback to keep local UI usable when backend missing
-  if (import.meta.env.DEV) {
-    const demoResponse = DEMO_DATA[path as keyof typeof DEMO_DATA];
-    if (demoResponse) return demoResponse as T;
+    throw (lastError ?? new Error('Failed to fetch API'));
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  throw (lastError ?? new Error('Failed to fetch API'));
 }
 
 /** Admin-key uit localStorage ophalen (niet bundelen) */
@@ -126,7 +147,11 @@ export function getAdminKey(): string {
   return localStorage.getItem("ADMIN_API_KEY") || "";
 }
 
-export async function authFetch<T>(path: string, init?: RequestInit): Promise<T> {
+export async function authFetch<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs?: number
+): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error("Not authenticated");
@@ -136,13 +161,17 @@ export async function authFetch<T>(path: string, init?: RequestInit): Promise<T>
     console.debug("authFetch →", `${API_BASE}${path}`);
   }
   try {
-    return await apiFetch<T>(path, {
-      ...init,
-      headers: {
-        ...(init?.headers ?? {}),
-        Authorization: `Bearer ${token}`,
+    return await apiFetch<T>(
+      path,
+      {
+        ...init,
+        headers: {
+          ...(init?.headers ?? {}),
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+      timeoutMs
+    );
   } catch (err: any) {
     if (typeof err?.message === "string" && err.message.startsWith("AUTH_")) {
       if (import.meta.env.DEV) {
@@ -202,6 +231,47 @@ export interface QualityMetrics {
 
 export interface DiscoveryMetrics {
   newCandidatesPerWeek: number;
+}
+
+// --- Discovery Grid ---
+export interface DiscoveryGridCell {
+  latCenter: number;
+  lngCenter: number;
+  calls: number;
+  inserts: number;
+  error429: number;
+  errorOther: number;
+  district: string | null;
+}
+
+export async function getDiscoveryGrid(
+  city?: string,
+  district?: string
+): Promise<DiscoveryGridCell[]> {
+  const params = new URLSearchParams();
+  if (city) params.set("city", city);
+  if (district) params.set("district", district);
+  const query = params.toString();
+  const raw = await authFetch<
+    Array<{
+      lat_center: number;
+      lng_center: number;
+      calls: number;
+      inserts: number;
+      error_429: number;
+      error_other: number;
+      district: string | null;
+    }>
+  >(`/api/v1/admin/discovery/grid${query ? `?${query}` : ""}`, undefined, 60000);
+  return raw.map((cell) => ({
+    latCenter: cell.lat_center,
+    lngCenter: cell.lng_center,
+    calls: cell.calls,
+    inserts: cell.inserts,
+    error429: cell.error_429,
+    errorOther: cell.error_other,
+    district: cell.district,
+  }));
 }
 
 export interface LatencyMetrics {
