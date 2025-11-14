@@ -54,63 +54,19 @@ from services.db_service import init_db_pool, fetch, execute
 from services.osm_service import OsmPlacesService
 
 # ---------------------------------------------------------------------------
+# Worker run tracking
+# ---------------------------------------------------------------------------
+from services.worker_runs_service import (
+    start_worker_run,
+    mark_worker_run_running,
+    update_worker_run_progress,
+    finish_worker_run,
+)
+
+# ---------------------------------------------------------------------------
 # YAML Config loaders
 # ---------------------------------------------------------------------------
 import yaml
-
-
-async def mark_worker_run_running(run_id: UUID) -> None:
-    await execute(
-        """
-        UPDATE worker_runs
-        SET status = 'running',
-            started_at = NOW(),
-            progress = 0
-        WHERE id = $1
-        """,
-        run_id,
-    )
-
-
-async def update_worker_run_progress(run_id: UUID, progress: int) -> None:
-    clamped = max(0, min(100, int(progress)))
-    await execute(
-        """
-        UPDATE worker_runs
-        SET progress = $1
-        WHERE id = $2
-        """,
-        clamped,
-        run_id,
-    )
-
-
-async def finalize_worker_run(
-    run_id: UUID,
-    status: str,
-    progress: int,
-    counters: Optional[Dict[str, Any]] = None,
-    error_message: Optional[str] = None,
-) -> None:
-    counters_json = (
-        json.dumps(counters, ensure_ascii=False) if counters is not None else None
-    )
-    await execute(
-        """
-        UPDATE worker_runs
-        SET status = $1,
-            progress = $2,
-            counters = CASE WHEN $3 IS NULL THEN NULL ELSE CAST($3 AS JSONB) END,
-            error_message = $4,
-            finished_at = NOW()
-        WHERE id = $5
-        """,
-        status,
-        max(0, min(100, progress)),
-        counters_json,
-        error_message,
-        run_id,
-    )
 
 CATEGORIES_YML = REPO_ROOT / "Infra" / "config" / "categories.yml"
 CITIES_YML = REPO_ROOT / "Infra" / "config" / "cities.yml"
@@ -702,6 +658,13 @@ async def main_async():
 
         # Ensure DB pool ready before inserts
         await init_db_pool()
+        
+        # Auto-create worker_run if not provided
+        if not worker_run_id:
+            # Use first category if multiple, or None
+            category = cfg.categories[0] if cfg.categories else None
+            worker_run_id = await start_worker_run(bot="discovery_bot", city=cfg.city, category=category)
+        
         if worker_run_id:
             await mark_worker_run_running(worker_run_id)
         
@@ -729,7 +692,7 @@ async def main_async():
         except Exception as e:
             if worker_run_id:
                 progress_snapshot = bot._worker_last_progress if bot._worker_last_progress >= 0 else 0
-                await finalize_worker_run(
+                await finish_worker_run(
                     worker_run_id,
                     "failed",
                     progress_snapshot,
@@ -753,7 +716,7 @@ async def main_async():
             except Exception as e:
                 logger.warning("failed_to_update_discovery_run", exc_info=e, run_id=str(discovery_run_id))
         if worker_run_id:
-            await finalize_worker_run(worker_run_id, "finished", 100, counters, None)
+            await finish_worker_run(worker_run_id, "finished", 100, counters, None)
         else:
             # Log counters even if discovery_run wasn't created
             logger.info("discovery_counters", counters=counters)
