@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 const MetricsDashboard = lazy(() => import("@/components/admin/MetricsDashboard"));
+const AdminDiscoveryMap = lazy(() => import("@/components/admin/AdminDiscoveryMap"));
+const DiscoveryCoverageSummary = lazy(() => import("@/components/admin/DiscoveryCoverageSummary"));
 
 export default function AdminHomePage() {
     return (
@@ -23,6 +25,7 @@ export default function AdminHomePage() {
                             <TabsTrigger value="locations">Locations</TabsTrigger>
                             <TabsTrigger value="metrics">Metrics</TabsTrigger>
                             <TabsTrigger value="workers">Workers</TabsTrigger>
+                            <TabsTrigger value="coverage">Discovery Coverage</TabsTrigger>
                             <TabsTrigger value="audit">Audit Log (coming soon)</TabsTrigger>
                         </TabsList>
                         <div className="mt-4">
@@ -43,6 +46,21 @@ export default function AdminHomePage() {
                                         <Button>Open Workers Dashboard</Button>
                                     </Link>
                                 </div>
+                            </TabsContent>
+                            <TabsContent value="coverage">
+                                <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading coverage visualization…</div>}>
+                                    <div className="space-y-4">
+                                        <DiscoveryCoverageSummary />
+                                        <Card className="rounded-2xl shadow-sm">
+                                            <CardHeader>
+                                                <CardTitle>Discovery Grid Coverage Map</CardTitle>
+                                            </CardHeader>
+                                            <CardContent>
+                                                <AdminDiscoveryMap />
+                                            </CardContent>
+                                        </Card>
+                                    </div>
+                                </Suspense>
                             </TabsContent>
                             <TabsContent value="audit">
                                 <div className="text-sm text-muted-foreground">Audit log UI wordt later toegevoegd.</div>

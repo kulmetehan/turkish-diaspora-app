@@ -28,6 +28,8 @@ CREATE INDEX IF NOT EXISTS idx_overpass_calls_endpoint ON public.overpass_calls(
 CREATE INDEX IF NOT EXISTS idx_overpass_calls_status ON public.overpass_calls(status_code);
 CREATE INDEX IF NOT EXISTS idx_overpass_calls_cell_id ON public.overpass_calls(cell_id);
 CREATE INDEX IF NOT EXISTS idx_overpass_calls_category_set ON public.overpass_calls USING GIN(category_set);
+-- Composite index for grid coverage queries (cell_id + status_code for efficient filtering)
+CREATE INDEX IF NOT EXISTS idx_overpass_calls_cell_status ON public.overpass_calls(cell_id, status_code);
 
 -- Comments for clarity
 COMMENT ON TABLE public.overpass_calls IS 'Telemetry for all Overpass API calls made by the discovery bot';
