@@ -6,9 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { bulkUpdateLocations, listAdminLocationCategories, listAdminLocations, listLocationStates, retireAdminLocation, type AdminLocationListItem } from "@/lib/apiAdmin";
 import { supabase } from "@/lib/supabaseClient";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { loadAdminLocationFilters, saveAdminLocationFilters } from "@/lib/adminFilterStorage";
 
 const DEFAULT_STATE_OPTIONS = [
     { value: "VERIFIED", label: "Verified" },
@@ -19,11 +21,72 @@ const DEFAULT_STATE_OPTIONS = [
 
 type StateOption = { value: string; label: string };
 
+type ColumnDef = {
+    id: string;
+    label: string;
+    headerClassName: string;
+    cellClassName: string;
+};
+
+const COLUMNS: ColumnDef[] = [
+    {
+        id: "select",
+        label: "",
+        headerClassName: "w-12 px-2 py-2 text-center",
+        cellClassName: "w-12 px-2 py-2 text-center",
+    },
+    {
+        id: "id",
+        label: "ID",
+        headerClassName: "w-16 px-2 py-2 text-right font-medium",
+        cellClassName: "w-16 px-2 py-2 text-right",
+    },
+    {
+        id: "name",
+        label: "Name",
+        headerClassName: "min-w-[200px] px-3 py-2 text-left font-medium",
+        cellClassName: "min-w-[200px] px-3 py-2 text-left",
+    },
+    {
+        id: "category",
+        label: "Category",
+        headerClassName: "w-32 px-2 py-2 text-left font-medium",
+        cellClassName: "w-32 px-2 py-2 text-left",
+    },
+    {
+        id: "state",
+        label: "State",
+        headerClassName: "w-40 px-2 py-2 text-left font-medium",
+        cellClassName: "w-40 px-2 py-2 text-left",
+    },
+    {
+        id: "confidence",
+        label: "Confidence",
+        headerClassName: "w-24 px-2 py-2 text-right font-medium",
+        cellClassName: "w-24 px-2 py-2 text-right",
+    },
+    {
+        id: "lastVerified",
+        label: "Last Verified",
+        headerClassName: "w-40 px-2 py-2 text-right font-medium",
+        cellClassName: "w-40 px-2 py-2 text-right",
+    },
+    {
+        id: "actions",
+        label: "Actions",
+        headerClassName: "w-40 px-3 py-2 text-right font-medium",
+        cellClassName: "w-40 px-3 py-2 text-right",
+    },
+];
+
 export default function AdminLocationsTable() {
-    const [search, setSearch] = useState("");
-    const [stateFilter, setStateFilter] = useState<string>("ALL");
-    const [limit, setLimit] = useState(20);
-    const [offset, setOffset] = useState(0);
+    // Load persisted filters on mount
+    const savedFilters = loadAdminLocationFilters();
+    
+    const [search, setSearch] = useState(savedFilters.search ?? "");
+    const [stateFilter, setStateFilter] = useState<string>(savedFilters.stateFilter ?? "ALL");
+    const [limit, setLimit] = useState(savedFilters.limit ?? 100);
+    const [offset, setOffset] = useState(savedFilters.offset ?? 0);
     const [rows, setRows] = useState<AdminLocationListItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -31,13 +94,14 @@ export default function AdminLocationsTable() {
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [stateOptions, setStateOptions] = useState<StateOption[]>(() => [...DEFAULT_STATE_OPTIONS]);
     const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
-    const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
-    const [sort, setSort] = useState<"NONE" | "latest_added" | "latest_verified">("NONE");
-    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-    const [confidenceMin, setConfidenceMin] = useState<string>("");
-    const [confidenceMax, setConfidenceMax] = useState<string>("");
+    const [categoryFilter, setCategoryFilter] = useState<string>(savedFilters.categoryFilter ?? "ALL");
+    const [sort, setSort] = useState<"NONE" | "latest_added" | "latest_verified">(savedFilters.sort ?? "NONE");
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedFilters.sortDirection ?? "desc");
+    const [confidenceMin, setConfidenceMin] = useState<string>(savedFilters.confidenceMin ?? "");
+    const [confidenceMax, setConfidenceMax] = useState<string>(savedFilters.confidenceMax ?? "");
     const [bulkLoading, setBulkLoading] = useState(false);
     const [bulkUnretire, setBulkUnretire] = useState(false);
+    const [isOptionsLoading, setIsOptionsLoading] = useState(true);
     const nav = useNavigate();
 
     const parseConfidence = (value: string): number | undefined => {
@@ -113,6 +177,7 @@ export default function AdminLocationsTable() {
 
     useEffect(() => {
         let cancelled = false;
+        setIsOptionsLoading(true);
         listLocationStates()
             .then((res) => {
                 if (cancelled) return;
@@ -123,6 +188,12 @@ export default function AdminLocationsTable() {
             .catch(() => {
                 if (cancelled) return;
                 setStateOptions([...DEFAULT_STATE_OPTIONS]);
+                toast.warning("Kon statussen niet laden, gebruik standaardopties.");
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setIsOptionsLoading(false);
+                }
             });
 
         return () => {
@@ -147,6 +218,7 @@ export default function AdminLocationsTable() {
                 if (cancelled) return;
                 setCategoryOptions([]);
                 setCategoryFilter("ALL");
+                toast.error("Kon categorieën niet laden.");
             });
         return () => {
             cancelled = true;
@@ -154,6 +226,25 @@ export default function AdminLocationsTable() {
     }, []);
 
     useEffect(() => { void load(); }, [search, stateFilter, categoryFilter, confidenceMin, confidenceMax, sort, sortDirection, limit, offset]);
+
+    // Save filters to localStorage with debounce
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            saveAdminLocationFilters({
+                search,
+                stateFilter,
+                categoryFilter,
+                confidenceMin,
+                confidenceMax,
+                sort,
+                sortDirection,
+                limit,
+                offset,
+            });
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
+    }, [search, stateFilter, categoryFilter, confidenceMin, confidenceMax, sort, sortDirection, limit, offset]);
 
     useEffect(() => {
         setSelected((prev) => {
@@ -215,7 +306,7 @@ export default function AdminLocationsTable() {
             setSelected(new Set());
             await load();
         } catch (e: any) {
-            toast.error(e?.message || "Bulkactie mislukt");
+            toast.error(e?.message || "Bulkactie mislukt. Probeer het later opnieuw.");
         } finally {
             setBulkLoading(false);
         }
@@ -242,15 +333,15 @@ export default function AdminLocationsTable() {
             await bulkUpdateLocations({ ids: eligibleIds, action: { type: "verify" } });
         }, () => {
             if (shouldForce) {
-                toast.success("Selected locations verified.");
+                toast.success(`${selectedIds.length} locaties succesvol geverifieerd.`);
                 return;
             }
             if (ok === 0) {
-                toast.warning("No locations verified. Enable 'Unretire & Verify' to include retired ones.");
+                toast.warning("Geen locaties geverifieerd. Schakel 'Unretire & Verify' in om gepensioneerde locaties op te nemen.");
             } else if (blocked > 0) {
-                toast.success(`${ok} of ${total} locations verified. ${blocked} require 'Unretire & Verify'.`);
+                toast.warning(`${ok} van ${total} locaties geverifieerd. ${blocked} vereisen 'Unretire & Verify'.`);
             } else {
-                toast.success("Selected locations verified.");
+                toast.success(`${ok} locaties succesvol geverifieerd.`);
             }
         });
     };
@@ -266,7 +357,7 @@ export default function AdminLocationsTable() {
                 ),
             );
         }, () => {
-            toast.success("Geselecteerde locaties verborgen (RETired)");
+            toast.success(`${selectedIds.length} locaties succesvol met pensioen gezet.`);
         });
     };
 
@@ -284,12 +375,21 @@ export default function AdminLocationsTable() {
                 prevRows.map((row) => (selected.has(row.id) ? { ...row, confidence_score: value } : row))
             );
         }, () => {
-            toast.success("Confidence aangepast");
+            toast.success(`${selectedIds.length} locaties: confidence score aangepast naar ${value}.`);
         });
     };
 
     const canPrev = offset > 0;
     const canNext = offset + limit < total;
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => scrollContainerRef.current,
+        estimateSize: () => 50,
+        overscan: 5,
+    });
+
     return (
         <Card className="max-h-[80vh]">
             <CardContent className="p-4 space-y-4">
@@ -297,9 +397,9 @@ export default function AdminLocationsTable() {
                     <div className="flex-1 min-w-[220px]">
                         <Input placeholder="Zoek op naam of adres…" value={search} onChange={e => { setOffset(0); setSearch(e.target.value); }} />
                     </div>
-                    <Select value={stateFilter} onValueChange={(val) => { setOffset(0); setStateFilter(val); }}>
+                    <Select value={stateFilter} onValueChange={(val) => { setOffset(0); setStateFilter(val); }} disabled={isOptionsLoading}>
                         <SelectTrigger className="w-[220px]">
-                            <SelectValue placeholder="All states" />
+                            <SelectValue placeholder={isOptionsLoading ? "Laden..." : "All states"} />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ALL">All</SelectItem>
@@ -308,19 +408,17 @@ export default function AdminLocationsTable() {
                             ))}
                         </SelectContent>
                     </Select>
-                    {categoryOptions.length > 0 && (
-                        <Select value={categoryFilter} onValueChange={(val) => { setOffset(0); setCategoryFilter(val); }}>
-                            <SelectTrigger className="w-[220px]">
-                                <SelectValue placeholder="Categorie" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="ALL">All categories</SelectItem>
-                                {categoryOptions.map((cat) => (
-                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
+                    <Select value={categoryFilter} onValueChange={(val) => { setOffset(0); setCategoryFilter(val); }} disabled={isOptionsLoading}>
+                        <SelectTrigger className="w-[220px]">
+                            <SelectValue placeholder={isOptionsLoading ? "Laden..." : categoryOptions.length > 0 ? "Categorie" : "Geen categorieën"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">All categories</SelectItem>
+                            {categoryOptions.map((cat) => (
+                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                     <Select value={sort} onValueChange={(val) => { setOffset(0); setSort(val as typeof sort); }}>
                         <SelectTrigger className="w-[200px]">
                             <SelectValue placeholder="Sortering" />
@@ -375,7 +473,7 @@ export default function AdminLocationsTable() {
                     </div>
                 </div>
 
-                <div className="relative h-[60vh] min-h-[360px] overflow-auto rounded-md border">
+                <div ref={scrollContainerRef} className="relative h-[60vh] min-h-[360px] overflow-auto rounded-md border">
                     {selected.size > 0 && (
                         <div className="sticky top-0 z-10 flex items-center gap-2 border-b bg-background/90 px-4 py-2 text-sm backdrop-blur">
                             <span>{selected.size} geselecteerd</span>
@@ -416,70 +514,144 @@ export default function AdminLocationsTable() {
                             </Button>
                         </div>
                     )}
-                    <table className="w-full text-sm">
-                        <thead className="text-left text-muted-foreground border-b">
-                            <tr>
-                                <th className="w-12 px-4 py-2">
-                                    <input
-                                        type="checkbox"
-                                        checked={allChecked}
-                                        aria-checked={allChecked}
-                                        onChange={toggleAll}
-                                        aria-label="Selecteer alles"
-                                    />
-                                </th>
-                                <th className="py-2 pr-3">ID</th>
-                                <th className="py-2 pr-3">Name</th>
-                                <th className="py-2 pr-3">Category</th>
-                                <th className="py-2 pr-3">State</th>
-                                <th className="py-2 pr-3">Confidence</th>
-                                <th className="py-2 pr-3">Last Verified</th>
-                                <th className="py-2 pr-3">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {rows.map(r => (
-                                <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
-                                    <td className="px-4 py-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={selected.has(r.id)}
-                                            onChange={() => toggleOne(r.id)}
-                                            aria-label={`Selecteer locatie ${r.name}`}
-                                        />
-                                    </td>
-                                    <td className="py-2 pr-3 whitespace-nowrap">{r.id}</td>
-                                    <td className="py-2 pr-3">{r.name}</td>
-                                    <td className="py-2 pr-3">{r.category || "—"}</td>
-                                    <td className="py-2 pr-3">{r.state}</td>
-                                    <td className="py-2 pr-3">{r.confidence_score ?? "—"}</td>
-                                    <td className="py-2 pr-3">{r.last_verified_at ? new Date(r.last_verified_at).toLocaleString() : "—"}</td>
-                                    <td className="py-2 pr-3">
-                                        <div className="flex items-center gap-2">
-                                            <Button size="sm" variant="secondary" onClick={() => setEditingId(r.id)}>
-                                                <Icon name="PenSquare" className="h-4 w-4 mr-1" /> Edit
-                                            </Button>
-                                            <Button size="sm" variant="destructive" onClick={async () => {
-                                                if (!confirm("Weet je zeker dat je deze locatie wil verbergen?")) return;
-                                                try {
-                                                    await retireAdminLocation(r.id);
-                                                    toast("Locatie verborgen (RETired)");
-                                                    void load();
-                                                } catch (e: any) {
-                                                    toast.error(e?.message || "Kon locatie niet verbergen");
-                                                }
-                                            }}>
-                                                <Icon name="Archive" className="h-4 w-4 mr-1" /> Retire
-                                            </Button>
-                                        </div>
-                                    </td>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm min-w-[800px] table-fixed">
+                            <thead className="sticky top-0 z-20 bg-background text-muted-foreground border-b">
+                                <tr className="divide-x divide-border">
+                                    {COLUMNS.map((col) => (
+                                        <th key={col.id} className={col.headerClassName}>
+                                            {col.id === "select" ? (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={allChecked}
+                                                    aria-checked={allChecked}
+                                                    onChange={toggleAll}
+                                                    aria-label="Selecteer alles"
+                                                    className="cursor-pointer"
+                                                />
+                                            ) : (
+                                                col.label
+                                            )}
+                                        </th>
+                                    ))}
                                 </tr>
-                            ))}
-                            {rows.length === 0 && !loading && (
-                                <tr><td colSpan={7} className="py-6 text-center text-muted-foreground">Geen resultaten</td></tr>
+                            </thead>
+                        <tbody style={{ height: `${virtualizer.getTotalSize()}px`, position: "relative" }}>
+                            {rows.length === 0 && !loading ? (
+                                <tr>
+                                    <td colSpan={8} className="px-2 py-6 text-center text-muted-foreground">Geen resultaten</td>
+                                </tr>
+                            ) : (
+                                virtualizer.getVirtualItems().map((virtualRow) => {
+                                    const r = rows[virtualRow.index];
+                                    return (
+                                        <tr
+                                            key={r.id}
+                                            style={{
+                                                position: "absolute",
+                                                top: 0,
+                                                left: 0,
+                                                width: "100%",
+                                                transform: `translateY(${virtualRow.start}px)`,
+                                            }}
+                                            className="border-b hover:bg-muted/30 divide-x divide-border"
+                                        >
+                                            {COLUMNS.map((col) => {
+                                                if (col.id === "select") {
+                                                    return (
+                                                        <td key={col.id} className={col.cellClassName}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selected.has(r.id)}
+                                                                onChange={() => toggleOne(r.id)}
+                                                                aria-label={`Selecteer locatie ${r.name}`}
+                                                                className="cursor-pointer"
+                                                            />
+                                                        </td>
+                                                    );
+                                                }
+                                                if (col.id === "id") {
+                                                    return (
+                                                        <td key={col.id} className={`${col.cellClassName} whitespace-nowrap text-muted-foreground`}>
+                                                            {r.id}
+                                                        </td>
+                                                    );
+                                                }
+                                                if (col.id === "name") {
+                                                    return (
+                                                        <td key={col.id} className={col.cellClassName}>
+                                                            <div className="truncate" title={r.name}>
+                                                                {r.name}
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+                                                if (col.id === "category") {
+                                                    return (
+                                                        <td key={col.id} className={col.cellClassName}>
+                                                            <div className="truncate" title={r.category || undefined}>
+                                                                {r.category || "—"}
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+                                                if (col.id === "state") {
+                                                    return (
+                                                        <td key={col.id} className={col.cellClassName}>
+                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted">
+                                                                {r.state}
+                                                            </span>
+                                                        </td>
+                                                    );
+                                                }
+                                                if (col.id === "confidence") {
+                                                    return (
+                                                        <td key={col.id} className={`${col.cellClassName} whitespace-nowrap`}>
+                                                            {r.confidence_score != null ? r.confidence_score.toFixed(2) : "—"}
+                                                        </td>
+                                                    );
+                                                }
+                                                if (col.id === "lastVerified") {
+                                                    return (
+                                                        <td key={col.id} className={col.cellClassName}>
+                                                            <div className="truncate" title={r.last_verified_at ? new Date(r.last_verified_at).toLocaleString() : undefined}>
+                                                                {r.last_verified_at ? new Date(r.last_verified_at).toLocaleString() : "—"}
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+                                                if (col.id === "actions") {
+                                                    return (
+                                                        <td key={col.id} className={col.cellClassName}>
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <Button size="sm" variant="secondary" onClick={() => setEditingId(r.id)} className="h-7 px-2 text-xs">
+                                                                    <Icon name="PenSquare" className="h-3.5 w-3.5 mr-1" /> Edit
+                                                                </Button>
+                                                                <Button size="sm" variant="destructive" onClick={async () => {
+                                                                    if (!confirm("Weet je zeker dat je deze locatie wil verbergen?")) return;
+                                                                    try {
+                                                                        await retireAdminLocation(r.id);
+                                                                        toast.success("Locatie succesvol met pensioen gezet.");
+                                                                        void load();
+                                                                    } catch (e: any) {
+                                                                        toast.error(e?.message || "Kon locatie niet met pensioen zetten.");
+                                                                    }
+                                                                }} className="h-7 px-2 text-xs">
+                                                                    <Icon name="Archive" className="h-3.5 w-3.5 mr-1" /> Retire
+                                                                </Button>
+                                                            </div>
+                                                        </td>
+                                                    );
+                                                }
+                                                return null;
+                                            })}
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </CardContent>
             <EditLocationDialog id={editingId} open={editingId !== null} onOpenChange={(o) => { if (!o) setEditingId(null); }} onSaved={() => void load()} />
