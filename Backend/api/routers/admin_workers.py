@@ -8,14 +8,15 @@ from uuid import UUID
 
 import asyncpg
 import yaml
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 
 from app.core.logging import get_logger
 from app.deps.admin_auth import AdminUser, verify_admin_user
-from services.db_service import fetchrow
+from services.db_service import fetchrow, fetch
 from services.worker_runs_service import get_worker_run, list_worker_runs
+from services.worker_orchestrator import start_worker_run
 
 
 router = APIRouter(
@@ -103,9 +104,35 @@ def get_category_keys() -> Set[str]:
 )
 async def create_worker_run(
     body: WorkerRunRequest,
+    background_tasks: BackgroundTasks,
     admin: AdminUser = Depends(verify_admin_user),
 ) -> dict:
     try:
+        # Optional: Check for overlapping runs (lenient - warn but allow)
+        try:
+            overlapping = await fetch(
+                """
+                SELECT id, status, started_at
+                FROM worker_runs
+                WHERE bot = $1
+                  AND status IN ('pending', 'running')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                body.bot,
+            )
+            if overlapping:
+                existing = overlapping[0]
+                logger.warning(
+                    "overlapping_worker_run_detected",
+                    bot=body.bot,
+                    existing_run_id=str(existing["id"]),
+                    existing_status=existing["status"],
+                )
+        except Exception as check_error:
+            # Don't fail the request if overlap check fails
+            logger.warning("overlap_check_failed", error=str(check_error))
+        
         row = await fetchrow(
             """
             INSERT INTO worker_runs (bot, city, category)
@@ -146,6 +173,24 @@ async def create_worker_run(
             detail="Failed to create worker run",
         )
     run_id = row.get("id")
+    
+    # Add background task to start the worker
+    background_tasks.add_task(
+        start_worker_run,
+        run_id=run_id,
+        bot=body.bot,
+        city=body.city,
+        category=body.category,
+    )
+    
+    logger.info(
+        "worker_run_created_and_queued",
+        run_id=str(run_id),
+        bot=body.bot,
+        city=body.city,
+        category=body.category,
+    )
+    
     return {
         "run_id": str(run_id),
         "bot": body.bot,
