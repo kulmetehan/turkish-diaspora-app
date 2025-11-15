@@ -8,6 +8,7 @@ const MetricsDashboard = lazy(() => import("@/components/admin/MetricsDashboard"
 const AdminDiscoveryMap = lazy(() => import("@/components/admin/AdminDiscoveryMap"));
 const DiscoveryCoverageSummary = lazy(() => import("@/components/admin/DiscoveryCoverageSummary"));
 const AdminAIPolicyPage = lazy(() => import("@/pages/AdminAIPolicyPage"));
+const TasksPanel = lazy(() => import("@/components/admin/TasksPanel"));
 
 export default function AdminHomePage() {
     return (
@@ -26,6 +27,7 @@ export default function AdminHomePage() {
                             <TabsTrigger value="locations">Locations</TabsTrigger>
                             <TabsTrigger value="metrics">Metrics</TabsTrigger>
                             <TabsTrigger value="workers">Workers</TabsTrigger>
+                            <TabsTrigger value="tasks">Tasks</TabsTrigger>
                             <TabsTrigger value="coverage">Discovery Coverage</TabsTrigger>
                             <TabsTrigger value="ai-policy">AI Policy</TabsTrigger>
                             <TabsTrigger value="audit">Audit Log (coming soon)</TabsTrigger>
@@ -48,6 +50,11 @@ export default function AdminHomePage() {
                                         <Button>Open Workers Dashboard</Button>
                                     </Link>
                                 </div>
+                            </TabsContent>
+                            <TabsContent value="tasks">
+                                <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading tasks…</div>}>
+                                    <TasksPanel />
+                                </Suspense>
                             </TabsContent>
                             <TabsContent value="coverage">
                                 <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading coverage visualization…</div>}>

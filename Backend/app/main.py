@@ -44,6 +44,7 @@ from api.routers.admin_discovery import router as admin_discovery_router
 from api.routers.admin_workers import router as admin_workers_router
 from api.routers.admin_ai_logs import router as admin_ai_logs_router
 from api.routers.admin_ai_config import router as admin_ai_config_router
+from api.routers.admin_tasks import router as admin_tasks_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -197,6 +198,7 @@ api_v1_router.include_router(admin_discovery_router)
 api_v1_router.include_router(admin_workers_router)
 api_v1_router.include_router(admin_ai_logs_router)
 api_v1_router.include_router(admin_ai_config_router)
+api_v1_router.include_router(admin_tasks_router)
 
 # Mount the versioned API once on the app
 app.include_router(api_v1_router)

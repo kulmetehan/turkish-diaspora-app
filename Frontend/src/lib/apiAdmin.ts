@@ -239,4 +239,48 @@ export async function listAILogs(params?: {
     return authFetch<AILogsResponse>(`/api/v1/admin/ai/logs?${q.toString()}`);
 }
 
+// --- Tasks ---
+
+export type TaskItem = {
+    id: number;
+    task_type: string;
+    status: string;
+    created_at: string;
+    last_attempted_at?: string | null;
+    location_id?: number | null;
+    attempts: number;
+    payload?: Record<string, unknown> | null;
+};
+
+export type TaskSummary = {
+    pending: number;
+    processing: number;
+    completed: number;
+    failed: number;
+};
+
+export type TasksResponse = {
+    summary: Record<string, TaskSummary>;
+    items: TaskItem[];
+    total: number;
+    limit: number;
+    offset: number;
+};
+
+export async function getTasks(params?: {
+    task_type?: string;
+    status?: string;
+    since?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<TasksResponse> {
+    const q = new URLSearchParams();
+    if (params?.task_type) q.set("task_type", params.task_type);
+    if (params?.status) q.set("status", params.status);
+    if (params?.since) q.set("since", params.since);
+    q.set("limit", String(params?.limit ?? 50));
+    q.set("offset", String(params?.offset ?? 0));
+    return authFetch<TasksResponse>(`/api/v1/admin/tasks?${q.toString()}`);
+}
+
 
