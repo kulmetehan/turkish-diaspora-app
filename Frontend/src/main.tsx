@@ -16,6 +16,7 @@ import { initI18n } from "@/i18n";
 const AdminHomePage = React.lazy(() => import("@/pages/AdminHomePage"));
 const AdminCitiesPage = React.lazy(() => import("@/pages/AdminCitiesPage"));
 const WorkersDashboardPage = React.lazy(() => import("@/pages/WorkersDashboardPage"));
+const WorkerRunDetailPage = React.lazy(() => import("@/pages/WorkerRunDetailPage"));
 import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
 import AccountPage from "@/pages/AccountPage";
@@ -71,6 +72,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <RequireAdmin>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <WorkersDashboardPage />
+            </Suspense>
+          </RequireAdmin>
+        } />
+        <Route path="/admin/workers/runs/:runId" element={
+          <RequireAdmin>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <WorkerRunDetailPage />
             </Suspense>
           </RequireAdmin>
         } />
