@@ -14,6 +14,33 @@ class CityProgressRotterdam(BaseModel):
     growth_weekly: float
 
 
+class CityProgressData(BaseModel):
+    """Generic city progress data (same structure as CityProgressRotterdam)."""
+    verified_count: int
+    candidate_count: int
+    coverage_ratio: float
+    growth_weekly: float
+
+
+class CityReadiness(BaseModel):
+    """City configuration and readiness status."""
+    city_key: str
+    city_name: str
+    has_districts: bool
+    districts_count: int
+    verified_count: int
+    candidate_count: int
+    coverage_ratio: float
+    growth_weekly: Optional[float]
+    readiness_status: Literal["active", "configured_inactive", "config_incomplete"]
+    readiness_notes: Optional[str] = None
+
+
+class CitiesOverview(BaseModel):
+    """Overview of all cities with their readiness status."""
+    cities: List[CityReadiness] = Field(default_factory=list)
+
+
 class CityProgress(BaseModel):
     rotterdam: CityProgressRotterdam
 

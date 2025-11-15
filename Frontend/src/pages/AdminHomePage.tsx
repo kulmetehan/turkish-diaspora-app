@@ -15,6 +15,14 @@ export default function AdminHomePage() {
         <div className="p-6 space-y-4">
             <header className="flex items-center justify-between">
                 <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
+                <div className="flex gap-2">
+                    <Link to="/admin/cities">
+                        <Button variant="outline">Cities</Button>
+                    </Link>
+                    <Link to="/admin/workers">
+                        <Button variant="outline">Workers</Button>
+                    </Link>
+                </div>
             </header>
 
             <Card className="rounded-2xl shadow-sm">

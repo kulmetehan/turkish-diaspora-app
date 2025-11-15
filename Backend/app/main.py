@@ -40,6 +40,7 @@ from api.routers.admin_auth import router as admin_auth_router
 from api.routers.admin_locations import router as admin_locations_router
 from api.routers.admin_misc import router as admin_misc_router
 from api.routers.admin_metrics import router as admin_metrics_router
+from api.routers.admin_cities import router as admin_cities_router
 from api.routers.admin_discovery import router as admin_discovery_router
 from api.routers.admin_workers import router as admin_workers_router
 from api.routers.admin_ai_logs import router as admin_ai_logs_router
@@ -194,6 +195,7 @@ api_v1_router.include_router(admin_auth_router)
 api_v1_router.include_router(admin_locations_router)
 api_v1_router.include_router(admin_misc_router)
 api_v1_router.include_router(admin_metrics_router)
+api_v1_router.include_router(admin_cities_router)
 api_v1_router.include_router(admin_discovery_router)
 api_v1_router.include_router(admin_workers_router)
 api_v1_router.include_router(admin_ai_logs_router)

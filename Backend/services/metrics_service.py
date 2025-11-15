@@ -11,6 +11,7 @@ import yaml
 from services.db_service import fetch
 from app.models.metrics import (
     CityProgress,
+    CityProgressData,
     CityProgressRotterdam,
     Discovery,
     Latency,
@@ -24,6 +25,21 @@ from app.models.metrics import (
 from app.core.location_filters import get_verified_filter_sql
 from app.core.logging import get_logger
 
+# Import load_cities_config from discovery_bot
+try:
+    from app.workers.discovery_bot import load_cities_config
+except ImportError:
+    # Fallback if import fails
+    def load_cities_config() -> Dict[str, Any]:
+        path = "Infra/config/cities.yml"
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"Config niet gevonden: {path}")
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if not isinstance(data, dict) or "cities" not in data:
+            raise ValueError("cities.yml is ongeldig: mist 'cities' root-key.")
+        return data
+
 WORKER_WINDOW_MINUTES = 60
 DISCOVERY_STALE_HOURS = 6
 VERIFY_STALE_HOURS = 2
@@ -32,6 +48,48 @@ ALERT_ERR_RATE_THRESHOLD = 0.10
 ALERT_GOOGLE_THRESHOLD = 5
 
 logger = get_logger()
+
+
+def _compute_city_bbox(city_key: str) -> Optional[Tuple[float, float, float, float]]:
+    """
+    Compute union bounding box from all districts for a given city.
+    
+    Returns (lat_min, lat_max, lng_min, lng_max) or None if city/districts not found.
+    """
+    try:
+        cfg = load_cities_config()
+        cities = cfg.get("cities", {})
+        city_def = cities.get(city_key)
+        
+        if not city_def:
+            return None
+        
+        districts = city_def.get("districts", {})
+        if not districts:
+            return None
+        
+        # Compute union bbox from all districts
+        lat_mins = []
+        lat_maxs = []
+        lng_mins = []
+        lng_maxs = []
+        
+        for district_name, district_data in districts.items():
+            if isinstance(district_data, dict):
+                if "lat_min" in district_data and "lat_max" in district_data:
+                    lat_mins.append(float(district_data["lat_min"]))
+                    lat_maxs.append(float(district_data["lat_max"]))
+                if "lng_min" in district_data and "lng_max" in district_data:
+                    lng_mins.append(float(district_data["lng_min"]))
+                    lng_maxs.append(float(district_data["lng_max"]))
+        
+        if not lat_mins or not lat_maxs or not lng_mins or not lng_maxs:
+            return None
+        
+        return (min(lat_mins), max(lat_maxs), min(lng_mins), max(lng_maxs))
+    except Exception as e:
+        logger.warning("failed_to_compute_city_bbox", city_key=city_key, error=str(e))
+        return None
 
 
 def _load_rotterdam_bbox():
@@ -45,17 +103,10 @@ def _load_rotterdam_bbox():
     This fallback ensures the endpoint still works locally
     by returning a hardcoded Rotterdam bounding box if the file is missing.
     """
-    path = "Infra/config/cities.yml"
-
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f)
-        rot = cfg["rotterdam"]["bbox"]
-        return (
-            rot["lat_min"], rot["lat_max"],
-            rot["lng_min"], rot["lng_max"],
-        )
-
+    bbox = _compute_city_bbox("rotterdam")
+    if bbox:
+        return bbox
+    
     # Local dev fallback bbox for Rotterdam (approximate city extent)
     lat_min = 51.85
     lat_max = 51.98
@@ -182,20 +233,26 @@ async def _weekly_candidates_series(weeks: int = 8) -> List[WeeklyCandidatesItem
     return items
 
 
-async def _rotterdam_progress() -> CityProgressRotterdam:
+async def _city_progress(city_key: str) -> Optional[CityProgressData]:
     """
-    Calculate Rotterdam progress metrics using shared verified filter definition.
+    Calculate city progress metrics using shared verified filter definition.
     
     This function uses the same filters as the public locations API (see
     app.core.location_filters.get_verified_filter_sql) to maintain parity
     between Admin metrics and frontend map counts.
+    
+    Returns None if city bbox cannot be computed (no districts).
     """
-    lat_min, lat_max, lng_min, lng_max = _load_rotterdam_bbox()
-    bbox = (lat_min, lat_max, lng_min, lng_max)
+    bbox = _compute_city_bbox(city_key)
+    if not bbox:
+        return None
+    
+    lat_min, lat_max, lng_min, lng_max = bbox
+    bbox_tuple = (lat_min, lat_max, lng_min, lng_max)
     
     # Use shared filter definition (single source of truth)
     # This ensures Admin verified count matches public API count
-    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=bbox)
+    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=bbox_tuple)
     
     # Count verified locations using shared filter
     sql_verified = f"SELECT COUNT(*)::int AS verified_count FROM locations WHERE {verified_filter_sql}"
@@ -237,11 +294,39 @@ async def _rotterdam_progress() -> CityProgressRotterdam:
     elif cur > 0:
         growth = 100.0
 
-    return CityProgressRotterdam(
+    return CityProgressData(
         verified_count=verified,
         candidate_count=candidates,
         coverage_ratio=coverage,
         growth_weekly=growth,
+    )
+
+
+async def _rotterdam_progress() -> CityProgressRotterdam:
+    """
+    Calculate Rotterdam progress metrics using shared verified filter definition.
+    
+    This function uses the same filters as the public locations API (see
+    app.core.location_filters.get_verified_filter_sql) to maintain parity
+    between Admin metrics and frontend map counts.
+    
+    Maintained for backward compatibility.
+    """
+    progress = await _city_progress("rotterdam")
+    if not progress:
+        # Fallback to zero values if bbox cannot be computed
+        return CityProgressRotterdam(
+            verified_count=0,
+            candidate_count=0,
+            coverage_ratio=0.0,
+            growth_weekly=0.0,
+        )
+    
+    return CityProgressRotterdam(
+        verified_count=progress.verified_count,
+        candidate_count=progress.candidate_count,
+        coverage_ratio=progress.coverage_ratio,
+        growth_weekly=progress.growth_weekly,
     )
 
 
