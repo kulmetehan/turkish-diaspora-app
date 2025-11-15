@@ -200,4 +200,43 @@ export async function getWorkerRunDetail(runId: string): Promise<WorkerRunDetail
     return authFetch<WorkerRunDetail>(`/api/v1/admin/workers/runs/${runId}`);
 }
 
+// --- AI Logs ---
+
+export type AILogItem = {
+    id: number;
+    location_id?: number | null;
+    action_type: string;
+    model_used?: string | null;
+    confidence_score?: number | null;
+    category?: string | null;
+    created_at: string;
+    validated_output?: Record<string, unknown> | null;
+    is_success: boolean;
+    error_message?: string | null;
+    explanation: string;
+};
+
+export type AILogsResponse = {
+    items: AILogItem[];
+    total: number;
+    limit: number;
+    offset: number;
+};
+
+export async function listAILogs(params?: {
+    location_id?: number;
+    action_type?: string;
+    since?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<AILogsResponse> {
+    const q = new URLSearchParams();
+    if (params?.location_id != null) q.set("location_id", String(params.location_id));
+    if (params?.action_type) q.set("action_type", params.action_type);
+    if (params?.since) q.set("since", params.since);
+    q.set("limit", String(params?.limit ?? 20));
+    q.set("offset", String(params?.offset ?? 0));
+    return authFetch<AILogsResponse>(`/api/v1/admin/ai/logs?${q.toString()}`);
+}
+
 

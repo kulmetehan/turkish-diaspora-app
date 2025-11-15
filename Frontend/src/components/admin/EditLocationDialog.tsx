@@ -3,7 +3,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getAdminLocation, listLocationStates, updateAdminLocation, type AdminLocationDetail } from "@/lib/apiAdmin";
+import AIDecisionsTab from "@/components/admin/AIDecisionsTab";
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -92,7 +94,7 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg w-full">
+            <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="text-lg font-semibold">Edit Location</DialogTitle>
                     <DialogDescription className="text-sm text-muted-foreground">Update details for this place. Mark state = RETIRED to hide it from users.</DialogDescription>
@@ -100,8 +102,13 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
                 {!data ? (
                     <div className="py-8 text-center text-muted-foreground">Laden…</div>
                 ) : (
-                    <div className="space-y-4">
-                        <div className="grid gap-3 sm:grid-cols-2">
+                    <Tabs defaultValue="details" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="details">Details</TabsTrigger>
+                            <TabsTrigger value="ai-decisions">AI Decisions</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="details" className="space-y-4 mt-4">
+                            <div className="grid gap-3 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Name</Label>
                                 <Input id="name" value={data.name} onChange={e => setData({ ...data, name: e.target.value })} />
@@ -205,12 +212,18 @@ export default function EditLocationDialog({ id, open, onOpenChange, onSaved }: 
                                 <Label htmlFor="notes">Notes</Label>
                                 <textarea id="notes" className="w-full border rounded-md p-2 bg-background" rows={4} value={data.notes || ""} onChange={e => setData({ ...data, notes: e.target.value || null })} />
                             </div>
-                        </div>
-                        <div className="flex justify-end gap-2 mt-6">
-                            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
-                            <Button onClick={save} disabled={loading}>Save</Button>
-                        </div>
-                    </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-6">
+                                <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>Cancel</Button>
+                                <Button onClick={save} disabled={loading}>Save</Button>
+                            </div>
+                        </TabsContent>
+                        <TabsContent value="ai-decisions" className="mt-4">
+                            {id ? <AIDecisionsTab locationId={id} /> : (
+                                <div className="py-8 text-center text-muted-foreground">No location selected</div>
+                            )}
+                        </TabsContent>
+                    </Tabs>
                 )}
             </DialogContent>
         </Dialog>
