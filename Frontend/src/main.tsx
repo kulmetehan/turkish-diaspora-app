@@ -14,6 +14,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { initTheme } from "@/lib/theme/darkMode";
 import { initI18n } from "@/i18n";
 const AdminHomePage = React.lazy(() => import("@/pages/AdminHomePage"));
+const AdminCitiesPage = React.lazy(() => import("@/pages/AdminCitiesPage"));
 const WorkersDashboardPage = React.lazy(() => import("@/pages/WorkersDashboardPage"));
 import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
@@ -56,6 +57,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <RequireAdmin>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminHomePage />
+            </Suspense>
+          </RequireAdmin>
+        } />
+        <Route path="/admin/cities" element={
+          <RequireAdmin>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminCitiesPage />
             </Suspense>
           </RequireAdmin>
         } />

@@ -188,6 +188,28 @@ export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
   return authFetch("/api/v1/admin/whoami");
 }
 
+// Cities Overview types
+export interface CityReadiness {
+  city_key: string;
+  city_name: string;
+  has_districts: boolean;
+  districts_count: number;
+  verified_count: number;
+  candidate_count: number;
+  coverage_ratio: number;
+  growth_weekly: number | null;
+  readiness_status: "active" | "configured_inactive" | "config_incomplete";
+  readiness_notes: string | null;
+}
+
+export interface CitiesOverview {
+  cities: CityReadiness[];
+}
+
+export async function getCitiesOverview(): Promise<CitiesOverview> {
+  return authFetch("/api/v1/admin/cities");
+}
+
 // AI Config types
 export interface AIConfig {
   id: number;
