@@ -1,8 +1,9 @@
 import WorkerCard from "@/components/admin/WorkerCard";
 import RunWorkerDialog from "@/components/admin/RunWorkerDialog";
+import WorkerDiagnosisDialog from "@/components/admin/WorkerDiagnosisDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getMetricsSnapshot, type MetricsSnapshot } from "@/lib/api";
+import { getMetricsSnapshot, type MetricsSnapshot, type WorkerStatus } from "@/lib/api";
 import { listWorkerRuns, runWorker, type RunWorkerResponse, type WorkerRunListItem } from "@/lib/apiAdmin";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -28,6 +29,8 @@ export default function WorkersDashboardPage() {
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedBotForRun, setSelectedBotForRun] = useState<string | null>(null);
+    const [selectedWorker, setSelectedWorker] = useState<WorkerStatus | null>(null);
+    const [diagnosisOpen, setDiagnosisOpen] = useState(false);
     const [pollIntervalMs, setPollIntervalMs] = useState<number>(60000);
     const isMountedRef = useRef(false);
 
@@ -100,6 +103,13 @@ export default function WorkersDashboardPage() {
         // Set polling to fast mode if tracking is available
         if (response.tracking_available !== false) {
             setPollIntervalMs(5000);
+        }
+    };
+
+    const handleWorkerStatusClick = (worker: WorkerStatus) => {
+        if (worker.status === "warning" || worker.status === "error") {
+            setSelectedWorker(worker);
+            setDiagnosisOpen(true);
         }
     };
 
@@ -206,6 +216,7 @@ export default function WorkersDashboardPage() {
                                 key={worker.id}
                                 worker={worker}
                                 onRunClick={handleRunClick}
+                                onStatusClick={handleWorkerStatusClick}
                             />
                         ))}
                     </div>
@@ -269,6 +280,18 @@ export default function WorkersDashboardPage() {
                     onSuccess={handleRunSuccess}
                 />
             )}
+
+            {/* Worker Diagnosis Dialog */}
+            <WorkerDiagnosisDialog
+                worker={selectedWorker}
+                open={diagnosisOpen && !!selectedWorker}
+                onOpenChange={(open) => {
+                    setDiagnosisOpen(open);
+                    if (!open) {
+                        setSelectedWorker(null);
+                    }
+                }}
+            />
         </div>
     );
 }

@@ -250,6 +250,77 @@ def _build_notes(lines: List[str]) -> Optional[str]:
     return "\n".join(cleaned) if cleaned else None
 
 
+def _compute_diagnosis_code(
+    worker_id: str,
+    status: str,
+    last_run: Optional[datetime],
+    metrics: Dict[str, Any]
+) -> Optional[str]:
+    """
+    Compute machine-readable diagnosis code based on worker status and metrics.
+    
+    Args:
+        worker_id: Worker identifier (e.g., "discovery_bot", "verify_locations_bot")
+        status: Current status ("ok", "warning", "error", "unknown")
+        last_run: Last run timestamp or None
+        metrics: Dictionary with worker-specific metrics (quota_info, processed_count, error_count, etc.)
+    
+    Returns:
+        Diagnosis code string or None if status is OK
+    """
+    if status == "ok":
+        return "OK"
+    
+    if last_run is None and status == "unknown":
+        return "NEVER_RAN"
+    
+    # Worker-specific diagnosis logic
+    if worker_id == "discovery_bot":
+        overpass_errors = metrics.get("overpass_error_count_last_60m", 0)
+        if overpass_errors and overpass_errors > 10:
+            return "OSM_ERROR_RATE_HIGH"
+        
+        # Check for no inserts in last 30 days (if metrics include this)
+        total_inserted_30d = metrics.get("total_inserted_30d", None)
+        total_runs_30d = metrics.get("total_runs_30d", None)
+        if total_inserted_30d is not None and total_runs_30d is not None:
+            if total_inserted_30d == 0 and total_runs_30d > 0:
+                return "NO_NEW_INSERTS_LAST_30_DAYS"
+    
+    elif worker_id == "verify_locations_bot":
+        processed = metrics.get("processed_count", 0) or 0
+        error_count = metrics.get("error_count", 0) or 0
+        if processed > 0:
+            error_ratio = error_count / processed if processed else 0.0
+            if error_ratio >= 0.5 and processed >= 4:
+                return "AI_ERROR_RATE_HIGH"
+    
+    elif worker_id == "monitor_bot":
+        pending = metrics.get("pending_queue", 0) or 0
+        processing = metrics.get("processing_queue", 0) or 0
+        if pending > 500 and pending > 2 * processing:
+            return "TASK_QUEUE_BACKLOG"
+    
+    elif worker_id == "alert_bot":
+        err_rate = metrics.get("error_rate", 0.0)
+        if err_rate >= ALERT_ERR_RATE_THRESHOLD * 2:
+            return "AI_ERROR_RATE_HIGH"
+        g429 = metrics.get("google429_last_60m", 0) or 0
+        if g429 >= ALERT_GOOGLE_THRESHOLD:
+            return "AI_ERROR_RATE_HIGH"
+    
+    # Check for missing metrics data (table missing case)
+    if "METRICS_DATA_MISSING" in str(metrics.get("notes", "")):
+        return "METRICS_DATA_MISSING"
+    
+    # Fallback for unknown status
+    if status == "unknown":
+        return "UNKNOWN"
+    
+    # Default fallback
+    return None
+
+
 async def _discovery_worker_status() -> WorkerStatus:
     sql_latest_run = """
         SELECT
@@ -286,7 +357,29 @@ async def _discovery_worker_status() -> WorkerStatus:
                 "overpass_error_count_last_60m": int(overpass_data.get("overpass_error_count_last_60m") or 0),
             }
 
+        # Check for 30-day insert statistics
+        sql_30d = """
+            SELECT 
+                COALESCE(SUM((counters->>'inserted')::int), 0)::int AS total_inserted,
+                COUNT(*)::int AS total_runs
+            FROM discovery_runs
+            WHERE started_at >= NOW() - INTERVAL '30 days'
+        """
+        rows_30d = await fetch(sql_30d)
+        total_inserted_30d = 0
+        total_runs_30d = 0
+        if rows_30d:
+            row_30d = dict(rows_30d[0])
+            total_inserted_30d = int(row_30d.get("total_inserted") or 0)
+            total_runs_30d = int(row_30d.get("total_runs") or 0)
+
         if not rows:
+            metrics = {
+                "overpass_error_count_last_60m": quota_info.get("overpass_error_count_last_60m", 0),
+                "total_inserted_30d": total_inserted_30d,
+                "total_runs_30d": total_runs_30d,
+            }
+            diagnosis_code = _compute_diagnosis_code("discovery_bot", "unknown", None, metrics)
             return WorkerStatus(
                 id="discovery_bot",
                 label="DiscoveryBot",
@@ -298,6 +391,7 @@ async def _discovery_worker_status() -> WorkerStatus:
                 window_label="last run",
                 quota_info=quota_info or None,
                 notes="No discovery runs recorded yet.",
+                diagnosis_code=diagnosis_code,
             )
 
         record = dict(rows[0])
@@ -332,6 +426,16 @@ async def _discovery_worker_status() -> WorkerStatus:
                 notes.append(f"{errors} failures recorded in last run.")
                 status = "error"
 
+        # Compute diagnosis code
+        metrics = {
+            "overpass_error_count_last_60m": quota_info.get("overpass_error_count_last_60m", 0),
+            "total_inserted_30d": total_inserted_30d,
+            "total_runs_30d": total_runs_30d,
+            "processed_count": processed,
+            "error_count": errors,
+        }
+        diagnosis_code = _compute_diagnosis_code("discovery_bot", status, last_run, metrics)
+
         return WorkerStatus(
             id="discovery_bot",
             label="DiscoveryBot",
@@ -343,6 +447,7 @@ async def _discovery_worker_status() -> WorkerStatus:
             window_label="last run",
             quota_info=quota_info or None,
             notes=_build_notes(notes),
+            diagnosis_code=diagnosis_code,
         )
     except asyncpg.exceptions.UndefinedTableError as exc:
         logger.warning(
@@ -351,6 +456,8 @@ async def _discovery_worker_status() -> WorkerStatus:
             table="discovery_runs",
             error=str(exc),
         )
+        metrics = {"notes": "METRICS_DATA_MISSING"}
+        diagnosis_code = _compute_diagnosis_code("discovery_bot", "unknown", None, metrics)
         return WorkerStatus(
             id="discovery_bot",
             label="DiscoveryBot",
@@ -362,6 +469,7 @@ async def _discovery_worker_status() -> WorkerStatus:
             window_label=None,
             quota_info=None,
             notes="discovery_runs table is missing; run migrations to enable DiscoveryBot metrics.",
+            diagnosis_code=diagnosis_code,
         )
 
 
@@ -428,6 +536,13 @@ async def _verify_locations_status() -> WorkerStatus:
             status = "warning"
             notes.append(f"{error_recent} failures in the last 60 minutes.")
 
+    # Compute diagnosis code
+    metrics = {
+        "processed_count": processed_recent,
+        "error_count": error_recent,
+    }
+    diagnosis_code = _compute_diagnosis_code("verify_locations_bot", status, last_run, metrics)
+
     return WorkerStatus(
         id="verify_locations_bot",
         label="VerifyLocationsBot",
@@ -439,6 +554,7 @@ async def _verify_locations_status() -> WorkerStatus:
         window_label=f"last {WORKER_WINDOW_MINUTES} min",
         quota_info=None,
         notes=_build_notes(notes),
+        diagnosis_code=diagnosis_code,
     )
 
 
@@ -488,6 +604,13 @@ async def _task_verifier_status() -> WorkerStatus:
             status = "warning"
             notes.append("All recent checks resulted in non-promotions.")
 
+    # Compute diagnosis code
+    metrics = {
+        "processed_count": processed_recent,
+        "error_count": skipped_recent,
+    }
+    diagnosis_code = _compute_diagnosis_code("task_verifier_bot", status, last_run, metrics)
+
     return WorkerStatus(
         id="task_verifier_bot",
         label="Self-Verify Bot",
@@ -499,6 +622,7 @@ async def _task_verifier_status() -> WorkerStatus:
         window_label=f"last {WORKER_WINDOW_MINUTES} min",
         quota_info=None,
         notes=_build_notes(notes),
+        diagnosis_code=diagnosis_code,
     )
 
 
@@ -568,6 +692,15 @@ async def _monitor_bot_status() -> WorkerStatus:
         "processing_queue": processing_count,
     }
 
+    # Compute diagnosis code
+    metrics = {
+        "pending_queue": pending_count,
+        "processing_queue": processing_count,
+        "processed_count": created_recent,
+        "error_count": failed_recent,
+    }
+    diagnosis_code = _compute_diagnosis_code("monitor_bot", status, last_created, metrics)
+
     return WorkerStatus(
         id="monitor_bot",
         label="MonitorBot",
@@ -579,6 +712,7 @@ async def _monitor_bot_status() -> WorkerStatus:
         window_label=f"last {WORKER_WINDOW_MINUTES} min",
         quota_info=quota_info,
         notes=_build_notes(notes),
+        diagnosis_code=diagnosis_code,
     )
 
 
@@ -599,6 +733,13 @@ async def _alert_bot_status(err_rate: float, g429: int) -> WorkerStatus:
         notes.append(f"{g429} Google 429 events in last 60 minutes (threshold {ALERT_GOOGLE_THRESHOLD}).")
         status = "error"
 
+    # Compute diagnosis code
+    metrics = {
+        "error_rate": err_rate,
+        "google429_last_60m": g429,
+    }
+    diagnosis_code = _compute_diagnosis_code("alert_bot", status, datetime.now(timezone.utc), metrics)
+
     return WorkerStatus(
         id="alert_bot",
         label="AlertBot",
@@ -610,6 +751,7 @@ async def _alert_bot_status(err_rate: float, g429: int) -> WorkerStatus:
         window_label=f"last {WORKER_WINDOW_MINUTES} min",
         quota_info={"google429_last_60m": g429},
         notes=_build_notes(notes),
+        diagnosis_code=diagnosis_code,
     )
 
 
@@ -625,6 +767,8 @@ async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
                 worker_id=worker_id,
                 error=str(exc),
             )
+            metrics = {"notes": "METRICS_DATA_MISSING"}
+            diagnosis_code = _compute_diagnosis_code(worker_id, "unknown", None, metrics)
             ws = WorkerStatus(
                 id=worker_id,
                 label=label,
@@ -636,9 +780,12 @@ async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
                 window_label=None,
                 quota_info=None,
                 notes="Table missing; run migrations to enable worker metrics.",
+                diagnosis_code=diagnosis_code,
             )
         except Exception:
             logger.exception("worker_status_failed", worker_id=worker_id)
+            metrics = {}
+            diagnosis_code = _compute_diagnosis_code(worker_id, "error", None, metrics)
             ws = WorkerStatus(
                 id=worker_id,
                 label=label,
@@ -650,6 +797,7 @@ async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
                 window_label=None,
                 quota_info=None,
                 notes="Failed to compute worker status; see logs.",
+                diagnosis_code=diagnosis_code,
             )
         statuses.append(ws)
 
