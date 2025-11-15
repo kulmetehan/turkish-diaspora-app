@@ -317,7 +317,29 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--chunk-index", type=int, default=0, help="Which chunk to process (0-based)")
     ap.add_argument("--dry-run", type=int, default=0, help="Dry run mode (1=yes, 0=no)")
     ap.add_argument("--log-json", type=int, default=0, help="Use JSON logging (1=yes, 0=no)")
-    ap.add_argument("--min-confidence", type=float, default=0.8, help="Minimum confidence for promotion")
+    
+    # Pre-parse to check if --min-confidence was explicitly provided
+    import sys
+    explicit_min_conf = '--min-confidence' in sys.argv
+    
+    # Default: try config, then hard-coded default
+    default_conf = 0.8
+    if not explicit_min_conf:
+        try:
+            import asyncio
+            from services.db_service import init_db_pool
+            from services.ai_config_service import get_threshold_for_bot
+            # Use asyncio.run for one-time config fetch
+            async def _get_config():
+                await init_db_pool()
+                return await get_threshold_for_bot("verify_locations")
+            config_threshold = asyncio.run(_get_config())
+            if config_threshold is not None:
+                default_conf = config_threshold
+        except Exception as e:
+            logger.warning("failed_to_load_config", error=str(e), fallback_to_default=True)
+    
+    ap.add_argument("--min-confidence", type=float, default=default_conf, help="Minimum confidence for promotion. Precedence: CLI > config > default")
     ap.add_argument("--model", help="Override AI model")
     ap.add_argument("--worker-run-id", type=_parse_worker_run_id, help="UUID van worker_runs record voor progress rapportage")
     return ap.parse_args()

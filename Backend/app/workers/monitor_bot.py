@@ -92,10 +92,51 @@ class MonitorSettings(BaseModel):
             except Exception:
                 return default
 
+        # Try to load freshness days from ai_config, fallback to defaults
+        low_conf_days = cls.LOW_CONF_DAYS_FAST
+        medium_conf_days = cls.LOW_CONF_DAYS_SLOW
+        high_conf_days = cls.NEW_HIGH_CONF_DAYS
+        few_reviews_days = cls.VERIFIED_FEW_REVIEWS_DAYS
+        medium_reviews_days = cls.VERIFIED_MEDIUM_REVIEWS_DAYS
+        many_reviews_days = cls.VERIFIED_MANY_REVIEWS_DAYS
+        
+        try:
+            import asyncio
+            from services.db_service import init_db_pool
+            from services.ai_config_service import get_ai_config
+            
+            async def _load_config():
+                await init_db_pool()
+                config = await get_ai_config()
+                if config:
+                    return (
+                        config.monitor_low_conf_days,
+                        config.monitor_medium_conf_days,
+                        config.monitor_high_conf_days,
+                        config.monitor_verified_few_reviews_days,
+                        config.monitor_verified_medium_reviews_days,
+                        config.monitor_verified_many_reviews_days,
+                    )
+                return None
+            
+            config_values = asyncio.run(_load_config())
+            if config_values:
+                low_conf_days, medium_conf_days, high_conf_days, few_reviews_days, medium_reviews_days, many_reviews_days = config_values
+        except Exception as e:
+            from app.core.logging import get_logger
+            logger = get_logger()
+            logger.warning("failed_to_load_monitor_config", error=str(e), fallback_to_defaults=True)
+
         return cls(
             MONITOR_MAX_PER_RUN=_i("MONITOR_MAX_PER_RUN", 200),
             BOOTSTRAP_BATCH=_i("MONITOR_BOOTSTRAP_BATCH", 2000),
             DRY_RUN=_b("MONITOR_DRY_RUN", False),
+            LOW_CONF_DAYS_FAST=low_conf_days,
+            LOW_CONF_DAYS_SLOW=medium_conf_days,
+            NEW_HIGH_CONF_DAYS=high_conf_days,
+            VERIFIED_FEW_REVIEWS_DAYS=few_reviews_days,
+            VERIFIED_MEDIUM_REVIEWS_DAYS=medium_reviews_days,
+            VERIFIED_MANY_REVIEWS_DAYS=many_reviews_days,
         )
 
 

@@ -188,6 +188,50 @@ export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
   return authFetch("/api/v1/admin/whoami");
 }
 
+// AI Config types
+export interface AIConfig {
+  id: number;
+  classify_min_conf: number;
+  verify_min_conf: number;
+  task_verifier_min_conf: number;
+  auto_promote_conf: number;
+  monitor_low_conf_days: number;
+  monitor_medium_conf_days: number;
+  monitor_high_conf_days: number;
+  monitor_verified_few_reviews_days: number;
+  monitor_verified_medium_reviews_days: number;
+  monitor_verified_many_reviews_days: number;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface AIConfigUpdate {
+  classify_min_conf?: number;
+  verify_min_conf?: number;
+  task_verifier_min_conf?: number;
+  auto_promote_conf?: number;
+  monitor_low_conf_days?: number;
+  monitor_medium_conf_days?: number;
+  monitor_high_conf_days?: number;
+  monitor_verified_few_reviews_days?: number;
+  monitor_verified_medium_reviews_days?: number;
+  monitor_verified_many_reviews_days?: number;
+}
+
+export async function getAIConfig(): Promise<AIConfig> {
+  return authFetch<AIConfig>("/api/v1/admin/ai/config");
+}
+
+export async function updateAIConfig(update: AIConfigUpdate): Promise<AIConfig> {
+  return authFetch<AIConfig>("/api/v1/admin/ai/config", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(update),
+  });
+}
+
 // --- Metrics ---
 export interface WorkerStatus {
   id: string;

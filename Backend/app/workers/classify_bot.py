@@ -6,6 +6,7 @@ import asyncio
 import json
 import math
 import os
+import sys
 import time
 from typing import Optional, Any, Dict
 from uuid import UUID
@@ -205,7 +206,7 @@ def normalize_category(raw_cat: str) -> str:
     return key
 
 
-def should_force_promote(row: dict) -> Optional[dict]:
+def should_force_promote(row: dict, auto_promote_conf: float = 0.90) -> Optional[dict]:
     diaspora_cats = {"bakery", "butcher", "barbershop", "mosque", "supermarket", "restaurant", "travel_agency"}
     state = str(row.get("state") or "")
     conf = row.get("confidence_score")
@@ -216,7 +217,7 @@ def should_force_promote(row: dict) -> Optional[dict]:
     if state not in ("PENDING_VERIFICATION", "CANDIDATE"):
         return None
     try:
-        if conf is None or float(conf) < 0.90:
+        if conf is None or float(conf) < float(auto_promote_conf):
             return None
     except Exception:
         return None
@@ -484,12 +485,35 @@ async def main_async():
         p = argparse.ArgumentParser(description="Batch classify candidates")
         p.add_argument("--limit", type=int, default=50, help="Max items to classify")
 
-        default_conf = float(os.getenv("CLASSIFY_MIN_CONF", "0.80"))
+        # Pre-parse to check if --min-confidence was explicitly provided
+        pre_args, _ = p.parse_known_args()
+        explicit_min_conf = hasattr(pre_args, 'min_confidence') and '--min-confidence' in sys.argv
+        
+        # Default: try config, then env, then hard-coded
+        default_conf = 0.80
+        if not explicit_min_conf:
+            try:
+                from services.db_service import init_db_pool
+                from services.ai_config_service import get_threshold_for_bot
+                await init_db_pool()
+                config_threshold = await get_threshold_for_bot("classify_bot")
+                if config_threshold is not None:
+                    default_conf = config_threshold
+                else:
+                    env_val = os.getenv("CLASSIFY_MIN_CONF")
+                    if env_val:
+                        default_conf = float(env_val)
+            except Exception as e:
+                logger.warning("failed_to_load_config", error=str(e), fallback_to_env=True)
+                env_val = os.getenv("CLASSIFY_MIN_CONF")
+                if env_val:
+                    default_conf = float(env_val)
+        
         p.add_argument(
             "--min-confidence",
             type=float,
             default=default_conf,
-            help="Minimale confidence score (0..1)"
+            help="Minimale confidence score (0..1). Precedence: CLI > config > env > default"
         )
 
         p.add_argument("--dry-run", action="store_true", help="Don't write to DB")
