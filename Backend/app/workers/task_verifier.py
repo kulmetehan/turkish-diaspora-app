@@ -35,7 +35,7 @@ from services.worker_runs_service import (
 )
 
 
-async def _fetch_ready_rows(limit: int) -> list[dict[str, Any]]:
+async def _fetch_ready_rows(limit: int, auto_promote_conf: float = 0.90) -> list[dict[str, Any]]:
     sql = (
         """
         SELECT id,
@@ -49,19 +49,19 @@ async def _fetch_ready_rows(limit: int) -> list[dict[str, Any]]:
                notes
         FROM locations
         WHERE state IN ('CANDIDATE', 'PENDING_VERIFICATION')
-          AND (confidence_score IS NOT NULL AND confidence_score >= 0.90)
+          AND (confidence_score IS NOT NULL AND confidence_score >= $1)
           AND (is_retired = false OR is_retired IS NULL)
           AND last_verified_at IS NULL
         ORDER BY first_seen_at DESC
-        LIMIT $1
+        LIMIT $2
         """
     )
-    rows = await fetch(sql, int(limit))
+    rows = await fetch(sql, float(auto_promote_conf), int(limit))
     return [dict(r) for r in rows]
 
 
-async def run_tasks(limit: int, min_confidence: float, dry_run: bool, worker_run_id: Optional[UUID] = None) -> Dict[str, Any]:
-    rows = await _fetch_ready_rows(limit)
+async def run_tasks(limit: int, min_confidence: float, auto_promote_conf: float, dry_run: bool, worker_run_id: Optional[UUID] = None) -> Dict[str, Any]:
+    rows = await _fetch_ready_rows(limit, auto_promote_conf)
     if not rows:
         if worker_run_id:
             await finish_worker_run(worker_run_id, "finished", 100, {"fetched": 0, "promoted": 0, "stamped": 0}, None)
@@ -72,7 +72,7 @@ async def run_tasks(limit: int, min_confidence: float, dry_run: bool, worker_run
     stamped = 0
     
     for idx, r in enumerate(rows, start=1):
-        decision = should_force_promote(r)
+        decision = should_force_promote(r, auto_promote_conf)
         if decision and float(decision.get("confidence", 0.0)) >= float(min_confidence):
             if not dry_run:
                 await update_location_classification(
@@ -106,7 +106,35 @@ def _parse_worker_run_id(value: str) -> UUID:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="TDA Task Verifier — heuristic auto-promotion (no OpenAI)")
     p.add_argument("--limit", type=int, default=500, help="Max rows per run")
-    p.add_argument("--min-confidence", type=float, default=0.80, help="Threshold to keep as VERIFIED")
+    
+    # Pre-parse to check if --min-confidence was explicitly provided
+    import sys
+    explicit_min_conf = '--min-confidence' in sys.argv
+    
+    # Default: try config, then hard-coded default
+    default_min_conf = 0.80
+    default_auto_promote = 0.90
+    if not explicit_min_conf:
+        try:
+            import asyncio
+            from services.db_service import init_db_pool
+            from services.ai_config_service import get_threshold_for_bot, get_auto_promote_conf
+            # Use asyncio.run for one-time config fetch
+            async def _get_config():
+                await init_db_pool()
+                min_conf = await get_threshold_for_bot("task_verifier")
+                auto_promote = await get_auto_promote_conf()
+                return min_conf, auto_promote
+            config_min_conf, config_auto_promote = asyncio.run(_get_config())
+            if config_min_conf is not None:
+                default_min_conf = config_min_conf
+            if config_auto_promote is not None:
+                default_auto_promote = config_auto_promote
+        except Exception as e:
+            logger.warning("failed_to_load_config", error=str(e), fallback_to_default=True)
+    
+    p.add_argument("--min-confidence", type=float, default=default_min_conf, help="Threshold to keep as VERIFIED. Precedence: CLI > config > default")
+    p.add_argument("--auto-promote-conf", type=float, default=default_auto_promote, help="Auto-promotion threshold (high confidence + Turkish cues). Precedence: CLI > config > default")
     p.add_argument("--dry-run", action="store_true", help="No writes")
     p.add_argument("--worker-run-id", type=_parse_worker_run_id, help="UUID of worker_runs record for progress tracking")
     return p.parse_args()
@@ -128,9 +156,11 @@ async def main_async() -> None:
             await mark_worker_run_running(worker_run_id)
         
         try:
+            auto_promote_conf = float(getattr(args, "auto_promote_conf", 0.90))
             res = await run_tasks(
                 limit=int(args.limit),
                 min_confidence=float(args.min_confidence),
+                auto_promote_conf=auto_promote_conf,
                 dry_run=bool(args.dry_run),
                 worker_run_id=worker_run_id,
             )

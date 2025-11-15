@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 const MetricsDashboard = lazy(() => import("@/components/admin/MetricsDashboard"));
 const AdminDiscoveryMap = lazy(() => import("@/components/admin/AdminDiscoveryMap"));
 const DiscoveryCoverageSummary = lazy(() => import("@/components/admin/DiscoveryCoverageSummary"));
+const AdminAIPolicyPage = lazy(() => import("@/pages/AdminAIPolicyPage"));
 
 export default function AdminHomePage() {
     return (
@@ -26,6 +27,7 @@ export default function AdminHomePage() {
                             <TabsTrigger value="metrics">Metrics</TabsTrigger>
                             <TabsTrigger value="workers">Workers</TabsTrigger>
                             <TabsTrigger value="coverage">Discovery Coverage</TabsTrigger>
+                            <TabsTrigger value="ai-policy">AI Policy</TabsTrigger>
                             <TabsTrigger value="audit">Audit Log (coming soon)</TabsTrigger>
                         </TabsList>
                         <div className="mt-4">
@@ -60,6 +62,11 @@ export default function AdminHomePage() {
                                             </CardContent>
                                         </Card>
                                     </div>
+                                </Suspense>
+                            </TabsContent>
+                            <TabsContent value="ai-policy">
+                                <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading AI policy configuration…</div>}>
+                                    <AdminAIPolicyPage />
                                 </Suspense>
                             </TabsContent>
                             <TabsContent value="audit">
