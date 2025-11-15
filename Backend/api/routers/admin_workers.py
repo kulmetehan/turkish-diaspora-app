@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 from uuid import UUID
 
 import asyncpg
@@ -32,6 +33,50 @@ CITIES_PATH = REPO_ROOT / "Infra" / "config" / "cities.yml"
 CATEGORIES_PATH = REPO_ROOT / "Infra" / "config" / "categories.yml"
 
 logger = get_logger()
+
+
+def _normalize_counters(raw: Any) -> Optional[Dict[str, Any]]:
+    """
+    Normalize the counters value from the database to always be a dict or None.
+    
+    Handles cases where counters might be:
+    - None
+    - A dict (already normalized)
+    - A JSON string (needs parsing)
+    - Other types (returns None)
+    """
+    if raw is None:
+        return None
+    
+    if isinstance(raw, dict):
+        return raw
+    
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+            else:
+                logger.warning(
+                    "counters_parse_result_not_dict",
+                    raw_type=type(raw).__name__,
+                    parsed_type=type(parsed).__name__,
+                )
+                return None
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning(
+                "counters_parse_failed",
+                raw_type=type(raw).__name__,
+                error=str(e),
+            )
+            return None
+    
+    # For any other type, return None
+    logger.warning(
+        "counters_unexpected_type",
+        raw_type=type(raw).__name__,
+    )
+    return None
 
 
 class WorkerRunRequest(BaseModel):
@@ -326,6 +371,9 @@ async def get_worker_run_detail(
             detail=f"Worker run {run_id} not found",
         )
 
+    # Normalize counters to ensure it's always a dict or None
+    normalized_counters = _normalize_counters(run.get("counters"))
+
     # Compute duration
     started = run.get("started_at")
     finished = run.get("finished_at")
@@ -339,11 +387,10 @@ async def get_worker_run_detail(
         params["city"] = run["city"]
     if run.get("category"):
         params["category"] = run["category"]
-    counters = run.get("counters")
-    if counters and isinstance(counters, dict):
-        for key in ["limit", "chunks", "chunk_index", "min_confidence", "model"]:
-            if key in counters:
-                params[key] = counters[key]
+    counters_for_params = normalized_counters or {}
+    for key in ["limit", "chunks", "chunk_index", "min_confidence", "model"]:
+        if key in counters_for_params:
+            params[key] = counters_for_params[key]
 
     return WorkerRunDetail(
         id=run["id"],
@@ -352,7 +399,7 @@ async def get_worker_run_detail(
         category=run.get("category"),
         status=run["status"],
         progress=run.get("progress", 0),
-        counters=counters,
+        counters=normalized_counters,
         error_message=run.get("error_message"),
         started_at=started,
         finished_at=finished,
