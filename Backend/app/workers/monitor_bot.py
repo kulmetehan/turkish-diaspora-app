@@ -50,6 +50,14 @@ from services.worker_runs_service import (
 UTC = timezone.utc
 TERMINAL_STATES: tuple[str, ...] = ("RETIRED", "SUSPENDED")
 
+# Module-level defaults for monitor freshness policy (days)
+DEFAULT_LOW_CONF_DAYS_FAST = 3
+DEFAULT_LOW_CONF_DAYS_SLOW = 7
+DEFAULT_NEW_HIGH_CONF_DAYS = 14
+DEFAULT_VERIFIED_FEW_REVIEWS_DAYS = 30
+DEFAULT_VERIFIED_MEDIUM_REVIEWS_DAYS = 60
+DEFAULT_VERIFIED_MANY_REVIEWS_DAYS = 90
+
 
 # ------------------------------
 # Config (Pydantic v2 style)
@@ -63,14 +71,14 @@ class MonitorSettings(BaseModel):
     DRY_RUN: bool = Field(False, description="Geen writes uitvoeren")
 
     # Freshness Policy (dagen)
-    LOW_CONF_DAYS_FAST: int = 3
-    LOW_CONF_DAYS_SLOW: int = 7
-    NEW_HIGH_CONF_DAYS: int = 14
+    LOW_CONF_DAYS_FAST: int = DEFAULT_LOW_CONF_DAYS_FAST
+    LOW_CONF_DAYS_SLOW: int = DEFAULT_LOW_CONF_DAYS_SLOW
+    NEW_HIGH_CONF_DAYS: int = DEFAULT_NEW_HIGH_CONF_DAYS
     PROBABLE_NOT_OPEN_YET_DAYS: int = 14
-    VERIFIED_FEW_REVIEWS_DAYS: int = 30
-    VERIFIED_MEDIUM_REVIEWS_DAYS: int = 60
+    VERIFIED_FEW_REVIEWS_DAYS: int = DEFAULT_VERIFIED_FEW_REVIEWS_DAYS
+    VERIFIED_MEDIUM_REVIEWS_DAYS: int = DEFAULT_VERIFIED_MEDIUM_REVIEWS_DAYS
     VERIFIED_MANY_REVIEWS_MIN: int = 100
-    VERIFIED_MANY_REVIEWS_DAYS: int = 90
+    VERIFIED_MANY_REVIEWS_DAYS: int = DEFAULT_VERIFIED_MANY_REVIEWS_DAYS
     TEMP_CLOSED_MIN_DAYS: int = 7
     TEMP_CLOSED_MAX_DAYS: int = 14
     ABS_MAX_DAYS: int = 90  # harde cap â€" nooit ouder dan 90 dagen
@@ -93,12 +101,12 @@ class MonitorSettings(BaseModel):
                 return default
 
         # Try to load freshness days from ai_config, fallback to defaults
-        low_conf_days = cls.LOW_CONF_DAYS_FAST
-        medium_conf_days = cls.LOW_CONF_DAYS_SLOW
-        high_conf_days = cls.NEW_HIGH_CONF_DAYS
-        few_reviews_days = cls.VERIFIED_FEW_REVIEWS_DAYS
-        medium_reviews_days = cls.VERIFIED_MEDIUM_REVIEWS_DAYS
-        many_reviews_days = cls.VERIFIED_MANY_REVIEWS_DAYS
+        low_conf_days = DEFAULT_LOW_CONF_DAYS_FAST
+        medium_conf_days = DEFAULT_LOW_CONF_DAYS_SLOW
+        high_conf_days = DEFAULT_NEW_HIGH_CONF_DAYS
+        few_reviews_days = DEFAULT_VERIFIED_FEW_REVIEWS_DAYS
+        medium_reviews_days = DEFAULT_VERIFIED_MEDIUM_REVIEWS_DAYS
+        many_reviews_days = DEFAULT_VERIFIED_MANY_REVIEWS_DAYS
         
         try:
             import asyncio
