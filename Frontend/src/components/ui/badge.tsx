@@ -1,3 +1,4 @@
+import * as React from "react";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/ui/cn";
 
@@ -15,14 +16,16 @@ const badge = cva(
   }
 );
 
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: "default" | "secondary" | "outline";
+  children: React.ReactNode;
+}
+
 export function Badge({
   className,
   variant,
-  children
-}: {
-  className?: string;
-  variant?: "default" | "secondary" | "outline";
-  children: React.ReactNode;
-}) {
-  return <span className={cn(badge({ variant }), className)}>{children}</span>;
+  children,
+  ...props
+}: BadgeProps) {
+  return <span className={cn(badge({ variant }), className)} {...props}>{children}</span>;
 }

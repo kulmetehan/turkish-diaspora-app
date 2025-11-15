@@ -244,6 +244,7 @@ export interface WorkerStatus {
   windowLabel?: string | null;
   quotaInfo?: Record<string, number | null> | null;
   notes?: string | null;
+  diagnosisCode?: string | null;
 }
 
 export interface WorkerRun {
@@ -350,6 +351,7 @@ type RawWorkerStatus = {
   window_label?: string | null;
   quota_info?: Record<string, number | null> | null;
   notes?: string | null;
+  diagnosis_code?: string | null;
 };
 
 type RawWorkerRun = {
@@ -403,6 +405,7 @@ function normalizeWorkerStatus(raw: RawWorkerStatus): WorkerStatus {
     windowLabel: raw.window_label,
     quotaInfo: raw.quota_info ?? null,
     notes: raw.notes ?? null,
+    diagnosisCode: raw.diagnosis_code ?? null,
   };
 }
 

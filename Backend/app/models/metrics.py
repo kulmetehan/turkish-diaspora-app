@@ -50,6 +50,7 @@ class WorkerStatus(BaseModel):
     window_label: Optional[str] = None
     quota_info: Optional[Dict[str, Optional[int]]] = None
     notes: Optional[str] = None
+    diagnosis_code: Optional[str] = None
 
 
 class WorkerRunStatus(BaseModel):

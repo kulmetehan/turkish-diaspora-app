@@ -21,8 +21,10 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/ui/cn";
 import { getDiscoveryKPIs, getMetricsSnapshot, type DiscoveryKPIs, type MetricsSnapshot, type WorkerRun, type WorkerStatus } from "@/lib/api";
 import { listAdminLocationCategories, runWorker } from "@/lib/apiAdmin";
+import WorkerDiagnosisDialog from "@/components/admin/WorkerDiagnosisDialog";
 import { Activity, AlertTriangle, Database, Gauge, Info, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -62,6 +64,7 @@ const WORKER_STATUS_BADGE_CLASSES: Record<WorkerStatus["status"], string> = {
     error: "bg-red-100 text-red-800 border-red-200",
     unknown: "bg-slate-100 text-slate-700 border-slate-200",
 };
+
 
 function formatLastRun(value: string | null | undefined): string {
     if (!value) return "Not yet run";
@@ -133,6 +136,8 @@ export default function MetricsDashboard() {
     const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
     const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
     const [isRunningWorker, setIsRunningWorker] = useState<boolean>(false);
+    const [selectedWorker, setSelectedWorker] = useState<WorkerStatus | null>(null);
+    const [selectedRun, setSelectedRun] = useState<WorkerRun | null>(null);
     const isMountedRef = useRef(false);
 
     const ALL_BOTS = "ALL_BOTS";
@@ -606,7 +611,23 @@ export default function MetricsDashboard() {
                                 {hasActiveRuns ? (
                                     <div className="space-y-3">
                                         {activeRuns.map((run) => (
-                                            <div key={run.id} className="rounded-lg border p-3">
+                                            <div
+                                                key={run.id}
+                                                role="button"
+                                                tabIndex={0}
+                                                className="rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                                onClick={() => {
+                                                    console.log("[AdminWorkers] Run clicked", run);
+                                                    setSelectedRun(run);
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" || e.key === " ") {
+                                                        e.preventDefault();
+                                                        console.log("[AdminWorkers] Run clicked (keyboard)", run);
+                                                        setSelectedRun(run);
+                                                    }
+                                                }}
+                                            >
                                                 <div className="flex items-center justify-between gap-2 text-sm">
                                                     <span className="font-medium capitalize">{run.bot}</span>
                                                     <span className="text-xs text-muted-foreground">
@@ -663,12 +684,24 @@ export default function MetricsDashboard() {
                                                                 <div className="text-xs text-muted-foreground">{worker.id}</div>
                                                             </td>
                                                             <td className="p-2">
-                                                                <Badge
-                                                                    variant="outline"
-                                                                    className={`text-xs font-medium px-2 py-1 ${WORKER_STATUS_BADGE_CLASSES[worker.status]}`}
-                                                                >
-                                                                    {worker.status.toUpperCase()}
-                                                                </Badge>
+                                                                {(() => {
+                                                                    const isInteractive = worker.status === "warning" || worker.status === "error";
+                                                                    return (
+                                                                        <Badge
+                                                                            variant="outline"
+                                                                            className={cn(
+                                                                                "text-xs font-medium px-2 py-1",
+                                                                                WORKER_STATUS_BADGE_CLASSES[worker.status],
+                                                                                isInteractive && "cursor-pointer hover:opacity-80"
+                                                                            )}
+                                                                            onClick={isInteractive ? () => setSelectedWorker(worker) : undefined}
+                                                                            role={isInteractive ? "button" : undefined}
+                                                                            aria-label={isInteractive ? `Show diagnosis for ${worker.label} (${worker.status})` : undefined}
+                                                                        >
+                                                                            {worker.status.toUpperCase()}
+                                                                        </Badge>
+                                                                    );
+                                                                })()}
                                                             </td>
                                                             <td className="p-2">{formatLastRun(worker.lastRun)}</td>
                                                             <td className="p-2">{formatDurationSeconds(worker.durationSeconds)}</td>
@@ -768,6 +801,17 @@ export default function MetricsDashboard() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Worker Diagnosis Dialog */}
+            <WorkerDiagnosisDialog
+                worker={selectedWorker}
+                open={selectedWorker !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setSelectedWorker(null);
+                    }
+                }}
+            />
         </div>
     );
 }

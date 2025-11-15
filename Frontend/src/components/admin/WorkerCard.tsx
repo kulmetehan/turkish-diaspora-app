@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/ui/cn";
 import { type WorkerStatus } from "@/lib/api";
 
 const WORKER_STATUS_BADGE_CLASSES: Record<WorkerStatus["status"], string> = {
@@ -67,15 +68,23 @@ function formatQuotaInfo(quota: Record<string, number | null> | null | undefined
 interface WorkerCardProps {
     worker: WorkerStatus;
     onRunClick?: (botId: string) => void;
+    onStatusClick?: (worker: WorkerStatus) => void;
 }
 
-export default function WorkerCard({ worker, onRunClick }: WorkerCardProps) {
+export default function WorkerCard({ worker, onRunClick, onStatusClick }: WorkerCardProps) {
     const canRun = SUPPORTED_BOTS.has(worker.id);
     const runBotValue = BOT_ID_TO_RUN_VALUE[worker.id];
+    const isInteractiveStatus = worker.status === "warning" || worker.status === "error";
 
     const handleRunClick = () => {
         if (canRun && onRunClick && runBotValue) {
             onRunClick(runBotValue);
+        }
+    };
+
+    const handleStatusClick = () => {
+        if (isInteractiveStatus && onStatusClick) {
+            onStatusClick(worker);
         }
     };
 
@@ -90,7 +99,14 @@ export default function WorkerCard({ worker, onRunClick }: WorkerCardProps) {
                     <CardTitle className="text-lg">{worker.label}</CardTitle>
                     <Badge
                         variant="outline"
-                        className={`text-xs font-medium px-2 py-1 ${WORKER_STATUS_BADGE_CLASSES[worker.status]}`}
+                        className={cn(
+                            "text-xs font-medium px-2 py-1",
+                            WORKER_STATUS_BADGE_CLASSES[worker.status],
+                            isInteractiveStatus && "cursor-pointer hover:opacity-80"
+                        )}
+                        onClick={isInteractiveStatus ? handleStatusClick : undefined}
+                        role={isInteractiveStatus ? "button" : undefined}
+                        aria-label={isInteractiveStatus ? `Show diagnosis for ${worker.label} (${worker.status})` : undefined}
                     >
                         {worker.status.toUpperCase()}
                     </Badge>
