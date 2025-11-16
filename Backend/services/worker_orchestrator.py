@@ -66,6 +66,8 @@ async def start_worker_run(
             await _run_verify_locations(run_id, city, category)
         elif bot == "monitor":
             await _run_monitor_bot(run_id)
+        elif bot == "verification_consumer":
+            await _run_verification_consumer(run_id, city)
         else:
             raise ValueError(f"Unknown bot: {bot}")
             
@@ -199,3 +201,23 @@ async def _run_monitor_bot(run_id: UUID) -> None:
     # monitor_bot accepts parameters directly
     await main_async(limit=None, dry_run=False, worker_run_id=run_id)
 
+
+async def _run_verification_consumer(run_id: UUID, city: Optional[str]) -> None:
+    """
+    Run verification_consumer with direct call. This worker accepts keyword args.
+    """
+    from app.workers.verification_consumer import main_async as verification_consumer_main
+
+    logger.info(
+        "starting_verification_consumer",
+        run_id=str(run_id),
+        city=city,
+    )
+
+    await verification_consumer_main(
+        limit=100,            # default batch size
+        city=city,
+        dry_run=False,        # real execution
+        max_attempts=3,       # default attempts
+        worker_run_id=run_id,
+    )

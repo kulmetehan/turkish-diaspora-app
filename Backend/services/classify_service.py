@@ -8,6 +8,9 @@ from typing import Optional, Tuple, Dict, Any, Literal, Callable
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models.ai import Category
+from app.services.category_map import normalize_category
+
 # --- Imports met fallback zodat zowel `services.*` als `app.services.*` werken ---
 try:
     from services.db_service import ai_log  # kan sync of async zijn
@@ -59,6 +62,55 @@ JSON_SCHEMA = {
     "required": ["action", "confidence_score", "reason"],
     "additionalProperties": False
 }
+
+def map_llm_category_to_enum(raw: Optional[str]) -> Category:
+    """
+    Map a raw LLM category string (e.g. 'bakkal/supermarket', 'barber', 'kebab')
+    into a valid Category enum value.
+
+    Uses category_map.normalize_category and then collapses to our enum set.
+    """
+    if not raw or not str(raw).strip():
+        return Category.other
+
+    # Normalize via category_map
+    try:
+        normalized = normalize_category(str(raw))
+    except Exception:
+        # Be defensive: never let normalization errors crash classification
+        return Category.other
+
+    # Extract normalized key from dict result
+    normalized_key = None
+    if isinstance(normalized, dict):
+        normalized_key = normalized.get("category_key") or normalized.get("key") or normalized.get("category")
+    elif isinstance(normalized, str):
+        normalized_key = normalized
+    else:
+        normalized_key = None
+
+    if not normalized_key:
+        return Category.other
+
+    key = normalized_key.lower().strip()
+
+    # Map normalized keys to enum values
+    if key in ("bakery",):
+        return Category.bakery
+    if key in ("restaurant", "fast_food", "kebab"):
+        # We treat fast food / kebab as restaurant for now
+        return Category.restaurant
+    if key in ("supermarket", "bakkal", "bakkal_supermarket", "bakkal/supermarket"):
+        return Category.supermarket
+    if key in ("barber", "barbershop", "kapper"):
+        return Category.barbershop
+    if key in ("mosque",):
+        return Category.mosque
+    if key in ("travel_agency", "travel", "agency"):
+        return Category.travel_agency
+
+    # Fallback: anything else
+    return Category.other
 
 def _build_user_prompt(name: str, address: Optional[str], typ: Optional[str]) -> str:
     parts = [f'Naam: "{name}"']
@@ -193,9 +245,12 @@ class ClassifyService:
 
             # Normalisatie / defaulting van category
             if parsed.action != "keep":
-                parsed.category = "other"
+                parsed.category = Category.other.value
             elif not parsed.category:
-                parsed.category = "other"
+                parsed.category = Category.other.value
+            else:
+                # Normalize LLM category output to valid enum value
+                parsed.category = map_llm_category_to_enum(parsed.category).value
 
             # log non-blocking
             _maybe_schedule(
@@ -217,16 +272,19 @@ class ClassifyService:
             data = json.loads(raw_text)
             parsed = ClassificationResult(**data)
             if parsed.action != "keep":
-                parsed.category = "other"
+                parsed.category = Category.other.value
             elif not parsed.category:
-                parsed.category = "other"
+                parsed.category = Category.other.value
+            else:
+                # Normalize LLM category output to valid enum value
+                parsed.category = map_llm_category_to_enum(parsed.category).value
 
             is_success = True
             error_message = None
             validated_output = parsed.model_dump()
         except Exception as e:
             parsed = ClassificationResult(
-                action="ignore", category="other", confidence_score=0.0, reason="parse_error"
+                action="ignore", category=Category.other.value, confidence_score=0.0, reason="parse_error"
             )
             is_success = False
             error_message = str(e)

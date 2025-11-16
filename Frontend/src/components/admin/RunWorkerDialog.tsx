@@ -326,6 +326,16 @@ export default function RunWorkerDialog({
         </div>
     );
 
+    const renderVerificationConsumerForm = () => (
+        <div className="space-y-2 text-sm text-muted-foreground">
+            <p>
+                This worker consumes <span className="font-semibold">VERIFICATION</span> tasks created by MonitorBot,
+                re-verifies locations, and updates their status and freshness.
+            </p>
+            <p>No additional parameters are required.</p>
+        </div>
+    );
+
     const renderForm = () => {
         switch (botId) {
             case "discovery":
@@ -336,6 +346,8 @@ export default function RunWorkerDialog({
                 return renderClassifyForm();
             case "monitor":
                 return renderMonitorForm();
+            case "verification_consumer":
+                return renderVerificationConsumerForm();
             default:
                 return <div className="text-sm text-muted-foreground">Unknown bot type</div>;
         }
@@ -346,6 +358,7 @@ export default function RunWorkerDialog({
         verify: "Verify Locations Bot",
         classify: "Classify Bot",
         monitor: "Monitor Bot",
+        verification_consumer: "Verification Tasks Consumer",
     };
 
     return (
