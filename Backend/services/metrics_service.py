@@ -43,6 +43,7 @@ except ImportError:
 WORKER_WINDOW_MINUTES = 60
 DISCOVERY_STALE_HOURS = 6
 VERIFY_STALE_HOURS = 2
+VERIFICATION_CONSUMER_STALE_HOURS = 2
 MONITOR_STALE_HOURS = 6
 ALERT_ERR_RATE_THRESHOLD = 0.10
 ALERT_GOOGLE_THRESHOLD = 5
@@ -373,6 +374,14 @@ def _compute_diagnosis_code(
                 return "NO_NEW_INSERTS_LAST_30_DAYS"
     
     elif worker_id == "verify_locations_bot":
+        processed = metrics.get("processed_count", 0) or 0
+        error_count = metrics.get("error_count", 0) or 0
+        if processed > 0:
+            error_ratio = error_count / processed if processed else 0.0
+            if error_ratio >= 0.5 and processed >= 4:
+                return "AI_ERROR_RATE_HIGH"
+    
+    elif worker_id == "verification_consumer":
         processed = metrics.get("processed_count", 0) or 0
         error_count = metrics.get("error_count", 0) or 0
         if processed > 0:
@@ -801,6 +810,91 @@ async def _monitor_bot_status() -> WorkerStatus:
     )
 
 
+async def _verification_consumer_status() -> WorkerStatus:
+    now = datetime.now(timezone.utc)
+
+    sql_last_run = """
+        SELECT MAX(created_at) AS last_run
+        FROM ai_logs
+        WHERE action_type = 'verification_consumer.classified'
+    """
+    sql_window = """
+        SELECT
+            COALESCE(COUNT(*), 0)::int AS processed_count,
+            COALESCE(COUNT(*) FILTER (WHERE COALESCE(is_success, true) = false OR error_message IS NOT NULL), 0)::int AS error_count,
+            MIN(created_at) AS first_ts,
+            MAX(created_at) AS last_ts
+        FROM ai_logs
+        WHERE action_type = 'verification_consumer.classified'
+          AND created_at >= NOW() - (($1::int || ' minutes')::interval)
+    """
+
+    last_run_rows = await fetch(sql_last_run)
+    last_run = None
+    if last_run_rows:
+        last_run = last_run_rows[0].get("last_run")
+
+    window_rows = await fetch(sql_window, int(WORKER_WINDOW_MINUTES))
+    processed_recent = 0
+    error_recent = 0
+    first_ts = None
+    last_ts = None
+    if window_rows:
+        row = window_rows[0]
+        processed_recent = int(row.get("processed_count") or 0)
+        error_recent = int(row.get("error_count") or 0)
+        first_ts = row.get("first_ts")
+        last_ts = row.get("last_ts")
+
+    duration_seconds: Optional[float] = None
+    if isinstance(first_ts, datetime) and isinstance(last_ts, datetime) and first_ts != last_ts:
+        duration_seconds = max((last_ts - first_ts).total_seconds(), 0.0)
+
+    status = "ok"
+    notes: List[str] = ["Consumes verification tasks from the queue and classifies them via OpenAI."]
+
+    if last_run is None:
+        status = "unknown"
+        notes.append("No verification consumer runs recorded yet.")
+    else:
+        if (now - last_run) > timedelta(hours=VERIFICATION_CONSUMER_STALE_HOURS):
+            status = "warning"
+            notes.append(f"Last run more than {VERIFICATION_CONSUMER_STALE_HOURS}h ago.")
+    if processed_recent == 0:
+        notes.append("0 items processed in the last 60 minutes.")
+        if status == "ok":
+            status = "warning"
+    else:
+        error_ratio = error_recent / processed_recent if processed_recent else 0.0
+        if error_recent >= processed_recent // 2 and processed_recent >= 4:
+            status = "error"
+            notes.append(f"High failure ratio ({error_recent}/{processed_recent}) in the last 60 minutes.")
+        elif error_recent > 0:
+            status = "warning"
+            notes.append(f"{error_recent} failures in the last 60 minutes.")
+
+    # Compute diagnosis code
+    metrics = {
+        "processed_count": processed_recent,
+        "error_count": error_recent,
+    }
+    diagnosis_code = _compute_diagnosis_code("verification_consumer", status, last_run, metrics)
+
+    return WorkerStatus(
+        id="verification_consumer",
+        label="Tasks Consumer",
+        last_run=last_run,
+        duration_seconds=duration_seconds,
+        processed_count=processed_recent,
+        error_count=error_recent,
+        status=status,  # type: ignore[arg-type]
+        window_label=f"last {WORKER_WINDOW_MINUTES} min",
+        quota_info=None,
+        notes=_build_notes(notes),
+        diagnosis_code=diagnosis_code,
+    )
+
+
 async def _alert_bot_status(err_rate: float, g429: int) -> WorkerStatus:
     triggered = 0
     notes: List[str] = ["Status reflects current error rate and Google 429 bursts."]
@@ -890,6 +984,7 @@ async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
     await safe_call("verify_locations_bot", "VerifyLocationsBot", _verify_locations_status)
     await safe_call("task_verifier_bot", "Self-Verify Bot", _task_verifier_status)
     await safe_call("monitor_bot", "MonitorBot", _monitor_bot_status)
+    await safe_call("verification_consumer", "Tasks Consumer", _verification_consumer_status)
     await safe_call("alert_bot", "AlertBot", lambda: _alert_bot_status(err_rate, g429))
 
     return statuses

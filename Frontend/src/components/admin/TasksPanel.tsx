@@ -99,10 +99,13 @@ export default function TasksPanel() {
                 <div className="text-sm text-blue-900">
                     <p className="font-medium mb-1">About Tasks Queue</p>
                     <p className="mb-2">
-                        MonitorBot creates VERIFICATION tasks for stale VERIFIED locations.
+                        MonitorBot periodically creates <span className="font-semibold">VERIFICATION</span> tasks for stale VERIFIED locations.
                     </p>
                     <p>
-                        Currently there is no separate worker consuming tasks (unless implemented later), so a growing queue is expected until a consumer exists.
+                        The <span className="font-semibold">Verification Tasks Consumer</span> worker (<code>verification_consumer</code>)
+                        processes these tasks and updates locations or retires them when needed. A temporarily growing queue is normal
+                        between runs, but over time tasks should move to <span className="font-semibold">COMPLETED</span> or
+                        <span className="font-semibold"> FAILED</span>.
                     </p>
                 </div>
             </div>

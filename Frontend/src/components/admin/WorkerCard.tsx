@@ -17,10 +17,11 @@ const BOT_ID_TO_RUN_VALUE: Record<string, string> = {
     verify_locations_bot: "verify",
     monitor_bot: "monitor",
     classify_bot: "classify",
+    verification_consumer: "verification_consumer",
 };
 
 // Bots that can be manually triggered
-const SUPPORTED_BOTS = new Set(["discovery_bot", "verify_locations_bot", "monitor_bot", "classify_bot"]);
+const SUPPORTED_BOTS = new Set(["discovery_bot", "verify_locations_bot", "monitor_bot", "classify_bot", "verification_consumer"]);
 
 function formatLastRun(value: string | null | undefined): string {
     if (!value) return "Not yet run";

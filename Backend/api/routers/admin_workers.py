@@ -25,7 +25,7 @@ router = APIRouter(
     tags=["admin-workers"],
 )
 
-BOT_CHOICES = {"discovery", "classify", "verify", "monitor"}
+BOT_CHOICES = {"discovery", "classify", "verify", "monitor", "verification_consumer"}
 
 THIS_FILE = Path(__file__).resolve()
 REPO_ROOT = THIS_FILE.parents[3]
