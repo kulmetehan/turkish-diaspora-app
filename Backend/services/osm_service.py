@@ -180,7 +180,8 @@ class OsmPlacesService:
         duration_ms: int,
         error_message: Optional[str] = None,
         retry_after_s: Optional[int] = None,
-        raw_preview: Optional[str] = None
+        raw_preview: Optional[str] = None,
+        raw_preview_json: Optional[Dict[str, Any]] = None,
     ):
         """Log Overpass API call to database for telemetry."""
         try:
@@ -190,7 +191,8 @@ class OsmPlacesService:
             safe_preview = None
             if raw_preview is not None:
                 try:
-                    safe_preview = str(raw_preview)[:4000]
+                    # raw_preview is expected to be pre-truncated at construction time
+                    safe_preview = str(raw_preview)
                 except Exception:
                     safe_preview = "preview_error"
 
@@ -199,11 +201,11 @@ class OsmPlacesService:
                 INSERT INTO overpass_calls (
                     endpoint, bbox_or_center, radius_m, query_bytes, status_code,
                     found, normalized, category_set, cell_id, attempt, duration_ms,
-                    error_message, retry_after_s, user_agent, timeout_s, max_results, raw_preview
+                    error_message, retry_after_s, user_agent, timeout_s, max_results, raw_preview, raw_preview_json
                 ) VALUES (
                     $1, $2, $3, $4, $5,
                     $6, $7, $8, $9, $10, $11,
-                    $12, $13, $14, $15, $16, $17
+                    $12, $13, $14, $15, $16, $17, $18
                 )
                 """
             )
@@ -226,6 +228,7 @@ class OsmPlacesService:
                 int(self.timeout_s),
                 int(self.max_results),
                 safe_preview,
+                raw_preview_json,
             )
         except Exception as e:
             logger.warning("osm_telemetry_log_failed", error=str(e))
@@ -601,10 +604,56 @@ out center;
             
             # Log successful call with raw preview
             raw_preview = None
+            preview_json: Optional[Dict[str, Any]] = None
             try:
-                raw_preview = json.dumps(data)[:4000] if data else None
+                # Human-readable snippet (may be invalid JSON if cut mid-structure)
+                if data:
+                    raw_preview = json.dumps(data)[:4000]
+                else:
+                    raw_preview = None
             except Exception:
-                raw_preview = str(data)[:4000] if data else None
+                raw_preview = (str(data)[:4000]) if data else None
+
+            # Build compact, always-valid JSON summary
+            try:
+                N = 20
+                total_elements: Optional[int] = None
+                elems: List[Any] = []
+                if isinstance(data, dict) and "elements" in data:
+                    if isinstance(data.get("elements"), list):
+                        elems = data.get("elements")  # type: ignore[assignment]
+                        total_elements = len(elems)
+                    else:
+                        # elements exists but is not a list
+                        total_elements = None
+                        elems = []
+                elif isinstance(data, dict):
+                    # no elements key
+                    total_elements = None
+                    elems = []
+                else:
+                    # non-dict or None
+                    total_elements = None
+                    elems = []
+
+                preview_elements = elems[:N] if isinstance(elems, list) else []
+                truncated_flag = (isinstance(total_elements, int) and total_elements > N)
+
+                meta = {}
+                if isinstance(data, dict):
+                    if "version" in data:
+                        meta["version"] = data.get("version")
+                    if "generator" in data:
+                        meta["generator"] = data.get("generator")
+
+                preview_json = {
+                    "truncated": bool(truncated_flag),
+                    "total_elements": total_elements,
+                    "preview_elements": preview_elements,
+                    "meta": meta or None,
+                }
+            except Exception:
+                preview_json = {"truncated": None, "error": "preview_json_build_failed"}
                 
             await self._log_overpass_call(
                 endpoint=self.endpoint,
@@ -618,7 +667,8 @@ out center;
                 cell_id=cell_id,
                 attempt=attempt,
                 duration_ms=duration_ms,
-                raw_preview=raw_preview
+                raw_preview=raw_preview,
+                raw_preview_json=preview_json,
             )
             
             logger.info(
