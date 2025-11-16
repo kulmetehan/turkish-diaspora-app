@@ -7,12 +7,24 @@ export const ICON_VERSION = "v2";
 export const ICON_BASE_ID = `tda-marker-${ICON_VERSION}`;
 export const FALLBACK_KEY = "other";
 export const DEFAULT_ICON_ID = `${ICON_BASE_ID}-${FALLBACK_KEY}`;
-export const CATEGORY_ICON_BASE_SIZE = 48;
 
-const CATEGORY_BACKGROUND = "#E30A17";
-const GLYPH_STROKE = "#FFFFFF";
-const GLYPH_SCALE = 0.7;
-const RIM_STROKE = "#00000033";
+// F4-S2: Snap-style marker design tokens
+// Compact 32px markers with red base and white Lucide icons
+export const MARKER_BASE_SIZE = 32; // Compact size, down from 48px
+export const MARKER_FILL_DEFAULT = "#EF4444"; // red-500, Snap-style red
+export const MARKER_FILL_SELECTED = "#DC2626"; // red-600, optional for future use
+export const MARKER_ICON_COLOR = "#FFFFFF"; // white
+export const MARKER_STROKE_COLOR = "rgba(0, 0, 0, 0.1)"; // subtle shadow
+export const MARKER_BORDER_RADIUS = 8; // pill/rounded rect shape
+export const MARKER_ICON_PADDING = 6; // inner padding for Lucide glyph
+export const MARKER_ICON_SIZE = 16; // Lucide icon size within marker
+
+export const CATEGORY_ICON_BASE_SIZE = MARKER_BASE_SIZE;
+
+const CATEGORY_BACKGROUND = MARKER_FILL_DEFAULT;
+const GLYPH_STROKE = MARKER_ICON_COLOR;
+const GLYPH_SCALE = 0.5; // Adjusted for 16px icon in 32px marker (16/32 = 0.5)
+const RIM_STROKE = MARKER_STROKE_COLOR;
 
 type CategoryIconDefinition = {
   key: string;
@@ -86,14 +98,30 @@ function buildLucideSvg(name: string, size = 24, strokeWidth = 2): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${children}</svg>`;
 }
 
+/**
+ * F4-S2: Build Snap-style marker SVG
+ * Generates a compact rounded rectangle badge with red base and white Lucide icon.
+ * Uses integer-based viewBox (0 0 32 32) to avoid sub-pixel blurring.
+ */
 function buildMarkerSvg(definition: CategoryIconDefinition): string {
   const lucideSvg = buildLucideSvg(definition.lucide);
   const inner = lucideSvg.replace(/^<svg[^>]*>/, "").replace(/<\/svg>\s*$/, "");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CATEGORY_ICON_BASE_SIZE}" height="${CATEGORY_ICON_BASE_SIZE}" viewBox="0 0 24 24">
-  <circle cx="12" cy="12" r="11" fill="${definition.background}" />
-  <circle cx="12" cy="12" r="11" fill="none" stroke="${RIM_STROKE}" stroke-width="1" />
+  const size = MARKER_BASE_SIZE;
+  const radius = MARKER_BORDER_RADIUS;
+  const center = size / 2;
+  
+  // Calculate icon transform to center it with padding
+  const iconSize = MARKER_ICON_SIZE;
+  const iconScale = iconSize / 24; // Lucide icons are 24x24, scale to desired size
+  
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+  <!-- Rounded rectangle background -->
+  <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="${definition.background}" />
+  <!-- Subtle inner shadow/highlight -->
+  <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="none" stroke="${RIM_STROKE}" stroke-width="1" />
+  <!-- Centered white Lucide icon -->
   <g stroke="${definition.stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
-    <g transform="translate(12 12) scale(${GLYPH_SCALE}) translate(-12 -12)">
+    <g transform="translate(${center} ${center}) scale(${iconScale}) translate(-12 -12)">
       ${inner}
     </g>
   </g>

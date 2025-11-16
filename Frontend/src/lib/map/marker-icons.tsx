@@ -1,33 +1,86 @@
 // Frontend/src/lib/map/marker-icons.tsx
+// F4-S2: Snap-style category-based marker icons matching map design
 import type { LocationMarker } from "@/api/fetchLocations";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils"; // uit je design system (shadcn helper)
-import { AlertTriangle, CheckCircle2, CircleDot, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  MARKER_BASE_SIZE,
+  MARKER_FILL_DEFAULT,
+  MARKER_ICON_COLOR,
+  MARKER_BORDER_RADIUS,
+  MARKER_ICON_SIZE,
+  normalizeCategoryKey,
+} from "@/lib/map/categoryIcons";
+import {
+  Utensils,
+  ShoppingCart,
+  Croissant,
+  Beef,
+  Scissors,
+  Coffee,
+  Building2,
+  MapPin,
+  type LucideIcon,
+} from "lucide-react";
 
 type Props = { loc: LocationMarker; selected?: boolean };
 
-export function MarkerIcon({ loc, selected }: Props) {
-  const status = loc.state;
-  const color =
-    status === "VERIFIED" ? "bg-emerald-600" :
-      status === "PENDING_VERIFICATION" ? "bg-amber-500" :
-        status === "SUSPENDED" ? "bg-rose-600" :
-          status === "RETIRED" ? "bg-gray-400" : "bg-sky-600";
+/**
+ * F4-S2: Map category key to Lucide icon component
+ * Matches the mapping in categoryIcons.ts RAW_CATEGORY_CONFIG
+ */
+function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
+  const normalized = normalizeCategoryKey(categoryKey);
+  switch (normalized) {
+    case "restaurant":
+      return Utensils;
+    case "supermarket":
+      return ShoppingCart;
+    case "bakery":
+      return Croissant;
+    case "butcher":
+      return Beef;
+    case "barber":
+      return Scissors;
+    case "cafe":
+      return Coffee;
+    case "mosque":
+      return Building2;
+    default:
+      return MapPin; // fallback
+  }
+}
 
-  const Icon =
-    status === "VERIFIED" ? CheckCircle2 :
-      status === "PENDING_VERIFICATION" ? Clock :
-        status === "SUSPENDED" ? AlertTriangle :
-          CircleDot;
+/**
+ * F4-S2: Snap-style marker icon component
+ * Renders a red badge with white Lucide icon matching the map marker design
+ */
+export function MarkerIcon({ loc, selected }: Props) {
+  // F4-S2: Use category instead of status for icon selection
+  const categoryKey = loc.category_key ?? loc.category ?? null;
+  const Icon = getCategoryIcon(categoryKey);
+
+  // F4-S2: Use Snap-style design tokens
+  const size = MARKER_BASE_SIZE; // 32px, can be scaled down for list context if needed
+  const borderRadius = MARKER_BORDER_RADIUS;
 
   return (
-    <div className={cn(
-      "rounded-full text-white shadow-lg border border-white/60",
-      color,
-      selected ? "ring-2 ring-black/20 scale-105" : "ring-1 ring-black/10",
-      "transition-transform will-change-transform"
-    )} style={{ width: 28, height: 28, display: "grid", placeItems: "center" }}>
-      <Icon size={16} />
+    <div
+      className={cn(
+        "text-white shadow-lg border border-white/60",
+        selected ? "ring-2 ring-black/20 scale-105" : "ring-1 ring-black/10",
+        "transition-transform will-change-transform"
+      )}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: `${borderRadius}px`,
+        backgroundColor: MARKER_FILL_DEFAULT,
+        display: "grid",
+        placeItems: "center",
+      }}
+    >
+      <Icon size={MARKER_ICON_SIZE} color={MARKER_ICON_COLOR} strokeWidth={2} />
       <span className="sr-only">{loc.name}</span>
     </div>
   );
