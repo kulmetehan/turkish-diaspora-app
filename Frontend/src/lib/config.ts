@@ -30,4 +30,11 @@ export const CONFIG = {
   FETCH_DEBOUNCE_MS: 300,
 } as const;
 
+export const CLUSTER_CONFIG = {
+  MAX_ZOOM: 15, // Increased from 14 to show more individual markers at district-level zoom
+  RADIUS: 30, // Reduced from 50 for less aggressive clustering
+  MOBILE_MAX_ZOOM: 16, // Mobile devices can handle slightly higher zoom before clustering stops
+  MOBILE_RADIUS_MULTIPLIER: 0.8, // Mobile uses 80% of desktop radius for better clarity
+} as const;
+
 export type BBox = { west: number; south: number; east: number; north: number };
