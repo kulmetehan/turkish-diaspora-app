@@ -1,0 +1,67 @@
+name: Verification Consumer
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Max number of tasks to process"
+        required: false
+        default: "200"
+  # NOTE: You may adjust the schedule later based on load.
+  schedule:
+    - cron: "0 0 * * *" # every 24 hours at midnight UTC
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "tda-verification-consumer"
+  cancel-in-progress: false
+
+jobs:
+  run-verification-consumer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Run verification_consumer worker
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PYTHONUNBUFFERED: "1"
+          DB_SSL_VERIFY: "0"
+          PYTHONPATH: .
+        run: |
+          LIMIT="${{ github.event.inputs.limit }}"
+          if [ -z "$LIMIT" ]; then LIMIT=200; fi
+          echo "Running verification_consumer with limit=$LIMIT"
+          python -m app.workers.verification_consumer \
+            --city rotterdam \
+            --limit "$LIMIT" \
+            --max-attempts 3
+
