@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDiscoveryGrid, getMetricsSnapshot, type MetricsSnapshot } from "@/lib/api";
+import { getDiscoveryCoverageSummary, getMetricsSnapshot, type MetricsSnapshot, type DiscoveryCoverageSummary } from "@/lib/api";
 
 export default function DiscoveryCoverageSummary() {
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
-  const [gridData, setGridData] = useState<Awaited<ReturnType<typeof getDiscoveryGrid>> | null>(null);
+  const [summary, setSummary] = useState<DiscoveryCoverageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,12 +13,12 @@ export default function DiscoveryCoverageSummary() {
       setLoading(true);
       setError(null);
       try {
-        const [metricsData, gridDataResult] = await Promise.all([
+        const [metricsData, coverageSummary] = await Promise.all([
           getMetricsSnapshot(),
-          getDiscoveryGrid("rotterdam"),
+          getDiscoveryCoverageSummary("rotterdam"),
         ]);
         setMetrics(metricsData);
-        setGridData(gridDataResult);
+        setSummary(coverageSummary);
       } catch (err) {
         console.error("Failed to fetch summary data:", err);
         // Handle timeout specifically
@@ -61,10 +61,9 @@ export default function DiscoveryCoverageSummary() {
     );
   }
 
-  // Calculate coverage ratio
-  const totalCells = gridData?.length || 0;
-  const visitedCells = gridData?.filter((cell) => cell.calls > 0).length || 0;
-  const coverageRatio = totalCells > 0 ? (visitedCells / totalCells) * 100 : 0;
+  const totalCells = summary?.totalCells || 0;
+  const visitedCells = summary?.visitedCells || 0;
+  const coverageRatio = (summary?.coverageRatio || 0) * 100;
 
   // Get 30-day discovery stats from metrics
   const discoveryMetrics = metrics?.discovery;
@@ -72,14 +71,12 @@ export default function DiscoveryCoverageSummary() {
   // Estimate 30-day inserts (roughly 4 weeks)
   const estimated30DayInserts = weeklyCandidates * 4;
 
-  // Get updates and dedupes from latest discovery run (if available)
   const discoveryWorker = metrics?.workers.find((w) => w.id === "discovery_bot");
   const lastRunNotes = discoveryWorker?.notes || "";
 
-  // Extract stats from grid data
-  const totalInserts = gridData?.reduce((sum, cell) => sum + cell.inserts, 0) || 0;
-  const totalCalls = gridData?.reduce((sum, cell) => sum + cell.calls, 0) || 0;
-  const totalErrors = gridData?.reduce((sum, cell) => sum + cell.error429 + cell.errorOther, 0) || 0;
+  const totalCalls = summary?.totalCalls || 0;
+  const totalErrors = Math.round((summary?.errorRate || 0) * totalCalls);
+  const totalInserts = summary?.totalInserts30d ?? estimated30DayInserts;
 
   return (
     <Card>

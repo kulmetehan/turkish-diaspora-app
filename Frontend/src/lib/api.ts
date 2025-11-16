@@ -311,6 +311,19 @@ export interface DiscoveryGridCell {
   district: string | null;
 }
 
+export interface DiscoveryCoverageCell {
+  latCenter: number;
+  lngCenter: number;
+  district: string | null;
+  totalCalls: number;
+  visitCount: number;
+  successfulCalls: number;
+  error429: number;
+  errorOther: number;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+}
+
 export async function getDiscoveryGrid(
   city?: string,
   district?: string
@@ -339,6 +352,82 @@ export async function getDiscoveryGrid(
     errorOther: cell.error_other,
     district: cell.district,
   }));
+}
+
+export async function getDiscoveryCoverage(
+  city: string,
+  district?: string,
+  from?: string,
+  to?: string
+): Promise<DiscoveryCoverageCell[]> {
+  const params = new URLSearchParams();
+  params.set("city", city);
+  if (district) params.set("district", district);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  
+  const raw = await authFetch<
+    Array<{
+      lat_center: number;
+      lng_center: number;
+      district: string | null;
+      total_calls: number;
+      visit_count: number;
+      successful_calls: number;
+      error_429: number;
+      error_other: number;
+      first_seen_at: string | null;
+      last_seen_at: string | null;
+    }>
+  >(`/api/v1/admin/discovery/coverage?${params.toString()}`, undefined, 60000);
+  
+  return raw.map((cell) => ({
+    latCenter: cell.lat_center,
+    lngCenter: cell.lng_center,
+    district: cell.district,
+    totalCalls: cell.total_calls,
+    visitCount: cell.visit_count,
+    successfulCalls: cell.successful_calls,
+    error429: cell.error_429,
+    errorOther: cell.error_other,
+    firstSeenAt: cell.first_seen_at,
+    lastSeenAt: cell.last_seen_at,
+  }));
+}
+
+// Unified coverage summary for admin summary widget
+export interface DiscoveryCoverageSummary {
+  visitedCells: number;
+  totalCells: number;
+  coverageRatio: number;
+  totalCalls: number;
+  errorRate: number;
+  totalInserts30d: number;
+}
+
+export async function getDiscoveryCoverageSummary(
+  city: string,
+  district?: string,
+  from?: string,
+  to?: string
+): Promise<DiscoveryCoverageSummary> {
+  const params = new URLSearchParams();
+  params.set("city", city);
+  if (district) params.set("district", district);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  return authFetch<DiscoveryCoverageSummary>(
+    `/api/v1/admin/discovery/summary?${params.toString()}`,
+    undefined,
+    60000
+  );
+}
+
+export async function getCityDistricts(city: string): Promise<string[]> {
+  const res = await authFetch<{ districts: string[] }>(
+    `/api/v1/admin/discovery/districts?city=${city}`
+  );
+  return res.districts ?? [];
 }
 
 export interface LatencyMetrics {

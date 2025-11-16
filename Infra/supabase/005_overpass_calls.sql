@@ -30,6 +30,8 @@ CREATE INDEX IF NOT EXISTS idx_overpass_calls_cell_id ON public.overpass_calls(c
 CREATE INDEX IF NOT EXISTS idx_overpass_calls_category_set ON public.overpass_calls USING GIN(category_set);
 -- Composite index for grid coverage queries (cell_id + status_code for efficient filtering)
 CREATE INDEX IF NOT EXISTS idx_overpass_calls_cell_status ON public.overpass_calls(cell_id, status_code);
+-- Composite index for date-filtered coverage queries
+CREATE INDEX IF NOT EXISTS idx_overpass_calls_cell_ts ON public.overpass_calls(cell_id, ts);
 
 -- Comments for clarity
 COMMENT ON TABLE public.overpass_calls IS 'Telemetry for all Overpass API calls made by the discovery bot';

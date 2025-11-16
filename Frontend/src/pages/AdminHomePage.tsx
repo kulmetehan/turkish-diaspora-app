@@ -72,8 +72,10 @@ export default function AdminHomePage() {
                                             <CardHeader>
                                                 <CardTitle>Discovery Grid Coverage Map</CardTitle>
                                             </CardHeader>
-                                            <CardContent>
-                                                <AdminDiscoveryMap />
+                                            <CardContent className="p-0">
+                                                <div className="relative w-full h-[600px] min-h-[400px]">
+                                                    <AdminDiscoveryMap />
+                                                </div>
                                             </CardContent>
                                         </Card>
                                     </div>
