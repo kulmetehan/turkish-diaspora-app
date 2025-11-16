@@ -6,6 +6,8 @@ import {
   getCategoryIconIdForLocation,
   normalizeCategoryKey,
 } from "@/lib/map/categoryIcons";
+import { CLUSTER_CONFIG } from "@/lib/config";
+import { isMobile } from "@/lib/utils";
 import type { Map as MapboxMap } from "mapbox-gl";
 
 const SRC_ID = "tda-places";
@@ -19,6 +21,23 @@ export const MARKER_POINT_RADIUS = 6;
 export const MARKER_POINT_STROKE_WIDTH = 2;
 export const MARKER_POINT_OUTER_RADIUS = MARKER_POINT_RADIUS + MARKER_POINT_STROKE_WIDTH;
 export const MARKER_POINT_DIAMETER = MARKER_POINT_OUTER_RADIUS * 2;
+
+// Track cluster config per map instance to detect changes
+type ClusterConfig = { clusterMaxZoom: number; clusterRadius: number };
+const mapClusterConfigs = new WeakMap<MapboxMap, ClusterConfig>();
+
+/**
+ * Calculate cluster configuration based on device type
+ */
+function getClusterConfig(): ClusterConfig {
+  const mobile = isMobile();
+  return {
+    clusterMaxZoom: mobile ? CLUSTER_CONFIG.MOBILE_MAX_ZOOM : CLUSTER_CONFIG.MAX_ZOOM,
+    clusterRadius: mobile
+      ? CLUSTER_CONFIG.RADIUS * CLUSTER_CONFIG.MOBILE_RADIUS_MULTIPLIER
+      : CLUSTER_CONFIG.RADIUS,
+  };
+}
 
 export function buildMarkerGeoJSON(locations: LocationMarker[]) {
   return {
@@ -43,7 +62,7 @@ export function buildMarkerGeoJSON(locations: LocationMarker[]) {
   };
 }
 
-function addLayers(map: MapboxMap) {
+function addLayers(map: MapboxMap, config: ClusterConfig) {
   attachCategoryIconFallback(map);
   void ensureCategoryIcons(map);
 
@@ -52,8 +71,8 @@ function addLayers(map: MapboxMap) {
       type: "geojson",
       data: { type: "FeatureCollection", features: [] },
       cluster: true,
-      clusterMaxZoom: 14,
-      clusterRadius: 50,
+      clusterMaxZoom: config.clusterMaxZoom,
+      clusterRadius: config.clusterRadius,
       promoteId: "id",
     } as any);
   }
@@ -153,6 +172,58 @@ function addLayers(map: MapboxMap) {
   }
 }
 
+/**
+ * Remove all marker layers in reverse order (dependencies first)
+ */
+function removeMarkerLayers(map: MapboxMap) {
+  // Remove layers in reverse dependency order
+  const layersToRemove = [L_POINT, L_HALO, L_POINT_FALLBACK, L_CLUSTER_COUNT, L_CLUSTER];
+  for (const layerId of layersToRemove) {
+    try {
+      if (map.getLayer(layerId)) {
+        map.removeLayer(layerId);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * Recreate source and layers with new cluster configuration
+ */
+function recreateSourceWithConfig(map: MapboxMap, config: ClusterConfig) {
+  const existingSource = map.getSource(SRC_ID);
+  const existingData = existingSource && typeof (existingSource as any).getData === "function"
+    ? (existingSource as any).getData()
+    : null;
+
+  // Remove layers first
+  removeMarkerLayers(map);
+
+  // Remove source
+  try {
+    if (existingSource) {
+      map.removeSource(SRC_ID);
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Add source with new config
+  map.addSource(SRC_ID, {
+    type: "geojson",
+    data: existingData || { type: "FeatureCollection", features: [] },
+    cluster: true,
+    clusterMaxZoom: config.clusterMaxZoom,
+    clusterRadius: config.clusterRadius,
+    promoteId: "id",
+  } as any);
+
+  // Re-add layers
+  addLayers(map, config);
+}
+
 export function ensureBaseLayers(map: MapboxMap) {
   if (!map) return;
   const isStyleLoaded = typeof map.isStyleLoaded === "function" ? map.isStyleLoaded() : true;
@@ -165,7 +236,7 @@ export function ensureBaseLayers(map: MapboxMap) {
       } catch {
         /* ignore */
       }
-      addLayers(map);
+      ensureBaseLayers(map);
     };
     try {
       map.once("styledata", handler as any);
@@ -174,7 +245,37 @@ export function ensureBaseLayers(map: MapboxMap) {
     }
     return;
   }
-  addLayers(map);
+
+  const currentConfig = getClusterConfig();
+  const existingSource = map.getSource(SRC_ID);
+  const storedConfig = mapClusterConfigs.get(map);
+
+  // Check if source exists and config has changed
+  if (existingSource && storedConfig) {
+    const configChanged =
+      storedConfig.clusterMaxZoom !== currentConfig.clusterMaxZoom ||
+      storedConfig.clusterRadius !== currentConfig.clusterRadius;
+
+    if (configChanged) {
+      // Recreate source and layers with new config
+      recreateSourceWithConfig(map, currentConfig);
+      mapClusterConfigs.set(map, currentConfig);
+      return;
+    }
+  }
+
+  // Source doesn't exist or config matches - proceed normally
+  if (!existingSource) {
+    addLayers(map, currentConfig);
+    mapClusterConfigs.set(map, currentConfig);
+  } else {
+    // Source exists and config matches - just ensure layers exist
+    addLayers(map, currentConfig);
+    // Update stored config in case it wasn't set before
+    if (!storedConfig) {
+      mapClusterConfigs.set(map, currentConfig);
+    }
+  }
 }
 
 export const MarkerLayerIds = {

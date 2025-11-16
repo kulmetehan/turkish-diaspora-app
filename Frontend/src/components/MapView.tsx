@@ -1139,6 +1139,8 @@ export default function MapView({
     (center: LngLatLike, zoom: number) => {
       const map = mapRef.current;
       if (!map || destroyedRef.current) return;
+      // Suppress viewport fetch when expanding cluster to prevent unnecessary API calls
+      onSuppressNextViewportFetch?.();
       const currentZoom = typeof map.getZoom === "function" ? map.getZoom() : 0;
       const targetZoom = Math.max(currentZoom, zoom ?? currentZoom);
       performCameraTransition(
@@ -1150,7 +1152,7 @@ export default function MapView({
         undefined,
       );
     },
-    [destroyedRef, performCameraTransition],
+    [destroyedRef, onSuppressNextViewportFetch, performCameraTransition],
   );
 
   const startFocusTransition = useCallback(
