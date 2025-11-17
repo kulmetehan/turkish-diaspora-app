@@ -17,7 +17,7 @@ Reference examples used when tuning the Dutch/Turkish classification prompt for 
 | 1 | Kaya Bakkerij | Westblaak 1, Rotterdam | bakery | `{ "action": "keep", "category": "bakery", "confidence_score": 0.90, "reason": "Turks klinkende naam + bakkerij." }` |
 | 2 | Istanbul Döner & Pide | Beijerlandselaan 100, Rotterdam | restaurant | `{ "action": "keep", "category": "kebab", "confidence_score": 0.95, "reason": "Döner/Pide → kebab/pide zaak." }` |
 | 3 | Saray Baklava | Den Haag | bakery | `{ "action": "keep", "category": "sweets", "confidence_score": 0.92, "reason": "Baklava → Turkse patisserie/sweets." }` |
-| 4 | Kuaför Ayşe | Amsterdam | hair_care | `{ "action": "keep", "category": "barbershop", "confidence_score": 0.88, "reason": "TR woord 'Kuaför' → kapsalon." }` |
+| 4 | Kuaför Ayşe | Amsterdam | hair_care | `{ "action": "keep", "category": "barber", "confidence_score": 0.88, "reason": "TR woord 'Kuaför' → kapsalon." }` |
 | 5 | Kasap Yıldız | Utrecht | butcher | `{ "action": "keep", "category": "butcher", "confidence_score": 0.93, "reason": "TR 'Kasap' → slagerij." }` |
 | 6 | Anadolu Market | Schiedam | supermarket | `{ "action": "keep", "category": "supermarket", "confidence_score": 0.92, "reason": "Market/bakkal → supermarkt met TR focus." }` |
 | 7 | Eyüp Sultan Camii | Vlaardingen | mosque | `{ "action": "keep", "category": "mosque", "confidence_score": 0.98, "reason": "Camii/Moskee → religieuze locatie." }` |

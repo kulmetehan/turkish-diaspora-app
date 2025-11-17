@@ -140,25 +140,25 @@ CATEGORY_NORMALIZATION_MAP = {
     "adana kebap": "restaurant",
     "bakery & restaurant": "restaurant",
 
-    # --- BARBERSHOP / HAIR ---
-    "barbershop": "barbershop",
-    "barber": "barbershop",
-    "barber shop": "barbershop",
-    "barbier": "barbershop",
-    "kapper": "barbershop",
-    "kappers": "barbershop",
-    "kapsalon": "barbershop",
-    "hairdresser": "barbershop",
-    "hair salon": "barbershop",
-    "salon": "barbershop",
+    # --- BARBER / HAIR ---
+    "barbershop": "barber",
+    "barber": "barber",
+    "barber shop": "barber",
+    "barbier": "barber",
+    "kapper": "barber",
+    "kappers": "barber",
+    "kapsalon": "barber",
+    "hairdresser": "barber",
+    "hair salon": "barber",
+    "salon": "barber",
     # Turkish
-    "berber": "barbershop",
-    "kuaför": "barbershop",
-    "kuafor": "barbershop",
-    "erkek kuaförü": "barbershop",
-    "erkek kuaforu": "barbershop",
-    "bayan kuaförü": "barbershop",
-    "bayan kuaforu": "barbershop",
+    "berber": "barber",
+    "kuaför": "barber",
+    "kuafor": "barber",
+    "erkek kuaförü": "barber",
+    "erkek kuaforu": "barber",
+    "bayan kuaförü": "barber",
+    "bayan kuaforu": "barber",
 
     # --- MOSQUE / RELIGIOUS / COMMUNITY ---
     "mosque": "mosque",
@@ -207,7 +207,7 @@ def normalize_category(raw_cat: str) -> str:
 
 
 def should_force_promote(row: dict, auto_promote_conf: float = 0.90) -> Optional[dict]:
-    diaspora_cats = {"bakery", "butcher", "barbershop", "mosque", "supermarket", "restaurant", "travel_agency"}
+    diaspora_cats = {"bakery", "butcher", "barber", "mosque", "supermarket", "restaurant", "travel_agency"}
     state = str(row.get("state") or "")
     conf = row.get("confidence_score")
     is_retired = row.get("is_retired")

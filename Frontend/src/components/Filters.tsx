@@ -38,6 +38,7 @@ const KNOWN_CATEGORIES = [
   { key: "travel_agency", label: "Reisbureau" },
   { key: "butcher", label: "Slager" },
   { key: "fast_food", label: "Fastfood" },
+  { key: "cafe", label: "Café" },
 ] satisfies CategoryOption[];
 
 export default function Filters({

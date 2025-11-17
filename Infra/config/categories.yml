@@ -77,6 +77,7 @@ categories:
     label: "kapper"
     description: "Kappers en barbershops."
     google_types:
+      - "barber_shop"
       - "hair_care"
     osm_tags:
       any:
@@ -84,6 +85,7 @@ categories:
     aliases:
       - "barber"
       - "barbershop"
+      - "kapper"
       - "kuaför"         # TR (kapsalon)
       - "berber"         # TR (barbier)
     discovery:
@@ -124,18 +126,57 @@ categories:
 
   butcher:
     label: "slagerij"
-    description: "Slagerijen en vleeswinkels."
+    description: "Slagerijen, vleeswinkels en halal slagers."
     google_types:
+      - "butcher_shop"
       - "store"
     osm_tags:
       any:
         - { shop: "butcher" }
     aliases:
+      - "butcher"
+      - "slager"
       - "kasap"          # TR
       - "et dükkanı"     # TR
       - "turkse slager"
     discovery:
       enabled: true
       priority: 4
+
+  fast_food:
+    label: "Fastfood"
+    description: "Snackbars, dönerzaken, kebab en andere snelle eetgelegenheden."
+    google_types:
+      - "fast_food_restaurant"
+    osm_tags:
+      any:
+        - { amenity: "fast_food" }
+    aliases:
+      - "fast_food"
+      - "snackbar"
+      - "kebab"
+      - "döner"
+      - "doner"
+      - "shoarma"
+    discovery:
+      enabled: true
+      priority: 6
+
+  cafe:
+    label: "Café"
+    description: "Cafés en koffiezaken (niet per se restaurants)."
+    google_types:
+      - "cafe"
+      - "coffee_shop"
+    osm_tags:
+      any:
+        - { amenity: "cafe" }
+    aliases:
+      - "cafe"
+      - "coffee"
+      - "koffie"
+    discovery:
+      enabled: true
+      priority: 6
 
 # Einde van bestand

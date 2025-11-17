@@ -41,6 +41,7 @@ function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
     case "butcher":
       return Beef;
     case "barber":
+    case "barbershop": // Alias handled by normalizeCategoryKey, but keep for safety
       return Scissors;
     case "cafe":
       return Coffee;
