@@ -171,3 +171,4 @@ To add a new category icon:
 - **F4-S2**: Snap-style design implemented (32px compact markers, red badges, white icons)
 - **v2**: Previous version with 48px circular markers
 
+

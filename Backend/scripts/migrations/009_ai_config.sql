@@ -47,3 +47,4 @@ COMMENT ON COLUMN ai_config.monitor_verified_few_reviews_days IS 'Freshness inte
 COMMENT ON COLUMN ai_config.monitor_verified_medium_reviews_days IS 'Freshness interval (days) for VERIFIED locations with 10-99 reviews';
 COMMENT ON COLUMN ai_config.monitor_verified_many_reviews_days IS 'Freshness interval (days) for VERIFIED locations with >= 100 reviews';
 
+

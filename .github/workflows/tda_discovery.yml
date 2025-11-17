@@ -56,7 +56,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food]
+        category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food, cafe]
         chunk_index: [0, 1, 2, 3, 4, 5]   # 6 chunks -> pas aan indien nodig
     defaults:
       run:
@@ -120,7 +120,7 @@ jobs:
           echo "=== Discovery Run Summary ==="
           echo "Category: ${{ matrix.category }}"
           echo "Chunk: ${{ matrix.chunk_index }} / 5 (0-indexed)"
-          echo "Total chunks: 48 (8 categories × 6 chunks)"
+          echo "Total chunks: 54 (9 categories × 6 chunks)"
           echo "Job status: ${{ job.status }}"
           echo "Elapsed time: ${{ job.duration }} seconds"
           echo "============================"

@@ -71,3 +71,4 @@ async def update_ai_config_endpoint(
         logger.exception("update_ai_config_failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to update AI config: {str(e)}") from e
 
+
