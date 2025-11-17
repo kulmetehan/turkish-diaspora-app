@@ -36,16 +36,21 @@ def _trace(msg: str):
         print(f"[OSM_TRACE] {msg}")
 
 # Overpass endpoint pool for rotation
-OVERPASS_ENDPOINTS = [
-    "https://overpass-api.de/api/interpreter",
-    "https://z.overpass-api.de/api/interpreter", 
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.openstreetmap.ru/api/interpreter",
-]
+# Can be overridden via OVERPASS_ENDPOINTS env var (comma-separated URLs)
+_ENDPOINTS_STR = os.getenv("OVERPASS_ENDPOINTS", "")
+if _ENDPOINTS_STR:
+    OVERPASS_ENDPOINTS = [url.strip() for url in _ENDPOINTS_STR.split(",") if url.strip()]
+else:
+    OVERPASS_ENDPOINTS = [
+        "https://overpass-api.de/api/interpreter",
+        "https://z.overpass-api.de/api/interpreter", 
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.openstreetmap.ru/api/interpreter",
+    ]
 
 # Default configuration
 DEFAULT_USER_AGENT = "TurkishDiasporaApp/1.0 (contact: m.kul@lamarka.nl)"
-DEFAULT_TIMEOUT_S = int(os.getenv("OVERPASS_TIMEOUT_S", "30"))
+DEFAULT_TIMEOUT_S = int(os.getenv("OVERPASS_REQUEST_TIMEOUT_SECONDS", os.getenv("OVERPASS_TIMEOUT_S", "45")))
 DEFAULT_MAX_RESULTS = int(os.getenv("DISCOVERY_MAX_RESULTS", "25"))
 DEFAULT_RATE_LIMIT_QPS = float(os.getenv("DISCOVERY_RATE_LIMIT_QPS", "0.15"))
 DEFAULT_SLEEP_BASE_S = float(os.getenv("DISCOVERY_SLEEP_BASE_S", "3.0"))
@@ -53,6 +58,23 @@ DEFAULT_SLEEP_JITTER_PCT = float(os.getenv("DISCOVERY_SLEEP_JITTER_PCT", "0.20")
 DEFAULT_BACKOFF_SERIES = [int(x) for x in os.getenv("DISCOVERY_BACKOFF_SERIES", "20,60,180,420").split(",")]
 DEFAULT_MAX_SUBDIVIDE_DEPTH = int(os.getenv("MAX_SUBDIVIDE_DEPTH", "2"))
 DEFAULT_TURKISH_HINTS = os.getenv("OSM_TURKISH_HINTS", "1").lower() == "true"
+
+# New Overpass safety configuration (industry-grade defaults)
+DEFAULT_MAX_CONCURRENT_PER_ENDPOINT = int(os.getenv("OVERPASS_MAX_CONCURRENT_PER_ENDPOINT", "1"))
+DEFAULT_MIN_DELAY_SECONDS = float(os.getenv("OVERPASS_MIN_DELAY_SECONDS", "8"))
+DEFAULT_MAX_RETRIES = int(os.getenv("OVERPASS_MAX_RETRIES", "2"))
+DEFAULT_BACKOFF_BASE_SECONDS = float(os.getenv("OVERPASS_BACKOFF_BASE_SECONDS", "2"))
+DEFAULT_BACKOFF_JITTER_FRACTION = float(os.getenv("OVERPASS_BACKOFF_JITTER_FRACTION", "0.3"))
+DEFAULT_ENABLE_ENDPOINT_FALLBACK = os.getenv("OVERPASS_ENABLE_ENDPOINT_FALLBACK", "false").lower() == "true"
+OVERPASS_PRIMARY_ENDPOINT = os.getenv("OVERPASS_PRIMARY_ENDPOINT")  # Optional override
+
+# Module-level per-endpoint concurrency control
+# These dictionaries are shared across all OsmPlacesService instances to enforce
+# global rate limits per Overpass endpoint (respecting public usage guidelines:
+# ≤10k queries/day, ≤1GB/day, max 1 concurrent request per endpoint)
+_endpoint_semaphores: Dict[str, asyncio.Semaphore] = {}
+_endpoint_last_request: Dict[str, float] = {}
+_semaphore_lock = asyncio.Lock()  # Protects semaphore dictionary initialization
 
 # Rate limiting
 class TokenBucket:
@@ -92,7 +114,15 @@ class OsmPlacesService:
     ):
         self.endpoints = OVERPASS_ENDPOINTS.copy()
         self.current_endpoint_index = 0
-        self.endpoint = endpoint or self.endpoints[0]
+        
+        # Use primary endpoint override if provided, otherwise use passed endpoint or default
+        if OVERPASS_PRIMARY_ENDPOINT:
+            self.endpoint = OVERPASS_PRIMARY_ENDPOINT
+        elif endpoint:
+            self.endpoint = endpoint
+        else:
+            self.endpoint = self.endpoints[0]
+            
         self.timeout_s = timeout_s
         self.user_agent = user_agent or os.getenv("OVERPASS_USER_AGENT", DEFAULT_USER_AGENT)
         self.max_results = max_results
@@ -102,6 +132,7 @@ class OsmPlacesService:
         self.turkish_hints = turkish_hints
         self.max_subdivide_depth = max_subdivide_depth
         
+        # Legacy rate limiter (kept for backward compat, but superseded by per-endpoint semaphore + delay)
         self.rate_limiter = TokenBucket(capacity=1.0, refill_rate=rate_limit_qps)
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(timeout_s),
@@ -115,6 +146,64 @@ class OsmPlacesService:
         await self._client.aclose()
         if self._db_session:
             await self._db_session.close()
+
+    async def _get_endpoint_semaphore(self, endpoint: str) -> asyncio.Semaphore:
+        """
+        Get or create a semaphore for the given endpoint.
+        Ensures max concurrent requests per endpoint is enforced globally.
+        """
+        async with _semaphore_lock:
+            if endpoint not in _endpoint_semaphores:
+                max_concurrent = DEFAULT_MAX_CONCURRENT_PER_ENDPOINT
+                _endpoint_semaphores[endpoint] = asyncio.Semaphore(max_concurrent)
+            return _endpoint_semaphores[endpoint]
+
+    async def _enforce_min_delay(self, endpoint: str) -> None:
+        """
+        Enforce minimum delay since last request to this endpoint.
+        Respects Overpass public usage guidelines (≤1 request per 5-10s).
+        """
+        if endpoint in _endpoint_last_request:
+            elapsed = time.time() - _endpoint_last_request[endpoint]
+            min_delay = DEFAULT_MIN_DELAY_SECONDS
+            if elapsed < min_delay:
+                sleep_time = min_delay - elapsed
+                _trace(f"enforcing min delay: sleeping {sleep_time:.2f}s for {endpoint}")
+                await asyncio.sleep(sleep_time)
+        _endpoint_last_request[endpoint] = time.time()
+
+    def _categorize_error_message(self, error: Exception, status_code: Optional[int] = None) -> str:
+        """
+        Categorize error messages with standardized prefixes for metrics analysis.
+        Returns prefixed error message string.
+        """
+        error_str = str(error) if error else ""
+        
+        # Network disconnects (status_code 0 or specific error messages)
+        if status_code == 0 or "Server disconnected without sending a response" in error_str:
+            return f"DISCONNECT: Server disconnected without sending a response."
+        
+        # Timeouts (504 or timeout exceptions)
+        if status_code == 504 or isinstance(error, (httpx.TimeoutException, asyncio.TimeoutError)):
+            return f"TIMEOUT: HTTP 504"
+        
+        # Rate limiting (429)
+        if status_code == 429:
+            return f"RATE_LIMIT: HTTP 429"
+        
+        # Other 5xx server errors
+        if status_code and status_code >= 500:
+            return f"SERVER_5XX: HTTP {status_code}"
+        
+        # Network errors (connection issues, etc.)
+        if isinstance(error, (httpx.ConnectError, httpx.NetworkError)) or "network" in error_str.lower():
+            return f"NETWORK_ERROR: {error_str[:200]}"
+        
+        # Generic fallback
+        if status_code:
+            return f"HTTP_ERROR: HTTP {status_code} - {error_str[:200]}"
+        
+        return f"ERROR: {error_str[:200]}"
 
     def _parse_overpass_response(self, response: httpx.Response) -> Dict[str, Any]:
         """Parse Overpass response with defensive JSON handling."""
@@ -297,7 +386,18 @@ class OsmPlacesService:
         max_results: int,
         timeout_s: int = 25
     ) -> str:
-        """Build a single Overpass query that combines multiple categories."""
+        """
+        Build a single Overpass query that combines multiple categories.
+        
+        Query design choices (for Overpass safety compliance):
+        - Uses `(around:radius,lat,lng)` selector instead of bbox to limit result size
+        - Queries node/way/relation in union to ensure complete coverage
+        - Includes `[timeout:...]` directive to prevent runaway queries
+        - Limits output with `out center {max_results}` to avoid large payloads
+        - Smaller radius (typically 1000m) prevents overwhelming Overpass servers
+        
+        These choices respect Overpass public usage guidelines (≤10k queries/day, ≤1GB/day).
+        """
         all_filter_snippets = []
         
         # Collect all filter snippets from all categories
@@ -471,10 +571,8 @@ out center;
         if cell_id is None:
             cell_id = self._generate_cell_id(lat, lng, radius)
         
-        # Rate limiting with jitter
-        await self.rate_limiter.acquire()
-        jitter = random.uniform(0, self.sleep_jitter_pct * self.sleep_base_s)
-        await asyncio.sleep(self.sleep_base_s + jitter)
+        # Rate limiting is now handled via per-endpoint semaphore + min delay in _make_request
+        # Legacy TokenBucket and fixed sleep are replaced by industry-grade controls
         
         # Use provided OSM tags or fallback to basic types
         if category_osm_tags:
@@ -509,251 +607,388 @@ out center;
             attempt=attempt
         )
         
-        start_time = time.time()
-        status_code = 0
-        error_message = None
+        # Get semaphore for this endpoint (enforces max concurrent requests)
+        semaphore = await self._get_endpoint_semaphore(self.endpoint)
+        
+        # Retry logic with exponential backoff
+        max_retries = DEFAULT_MAX_RETRIES
+        backoff_base = DEFAULT_BACKOFF_BASE_SECONDS
+        jitter_frac = DEFAULT_BACKOFF_JITTER_FRACTION
+        last_exception = None
+        last_status_code = None
         retry_after_s = None
         
-        try:
-            # Make the request with proper form encoding
-            response = await self._client.post(
-                self.endpoint,
-                data={'data': query},
-                headers={
-                    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                    "User-Agent": self.user_agent
-                }
-            )
+        for retry_attempt in range(max_retries + 1):  # 0 to max_retries (inclusive)
+            current_attempt = retry_attempt + 1
+            start_time = time.time()
+            status_code = 0
+            error_message = None
+            should_retry = False
             
-            status_code = response.status_code
-            
-            if status_code in (400, 422):
-                error_message = "Syntax error"
-                logger.error(
-                    "osm_query_syntax_error",
-                    provider="osm",
-                    status_code=status_code,
-                    query=query,
-                    response_text=response.text[:500]
-                )
-                raise RuntimeError("Overpass 400 (syntax). See logged query.")
-            
-            if status_code == 429:
-                retry_after_s = int(response.headers.get("Retry-After", "60"))
-                error_message = "Rate limited"
-                logger.warning(
-                    "osm_rate_limited",
-                    provider="osm",
-                    retry_after=retry_after_s
-                )
-                # Don't raise here, we'll handle retry logic
-                raise httpx.HTTPStatusError("Rate limited", request=response.request, response=response)
-            
-            if status_code >= 500:
-                error_message = f"Server error {status_code}"
-                logger.error(
-                    "osm_server_error",
-                    provider="osm",
-                    status_code=status_code
-                )
-                raise httpx.HTTPStatusError("Server error", request=response.request, response=response)
-            
-            response.raise_for_status()
-            
-            # Use defensive JSON parsing
-            data = self._parse_overpass_response(response)
-            elements = data.get("elements", [])
-            
-            # Defensive conversions for elements
-            if isinstance(elements, str):
-                try:
-                    elements = json.loads(elements)
-                except Exception:
-                    elements = []
-            elif not isinstance(elements, list):
-                elements = []
-            
-            # Normalize results with defensive element handling
-            normalized = []
-            for element in elements:
-                try:
-                    # Skip non-dict elements safely
-                    if not isinstance(element, dict):
-                        _trace(f"skipping non-dict element: {type(element).__name__}")
-                        continue
-                        
-                    normalized_element = self._normalize_osm_result(element)
-                    if normalized_element and normalized_element.get("location"):  # Only include if we have coordinates
-                        normalized.append(normalized_element)
-                except Exception as e:
-                    logger.warning(
-                        "osm_normalization_error",
-                        provider="osm",
-                        element_id=element.get("id") if isinstance(element, dict) else "unknown",
-                        error=str(e)
+            try:
+                # Acquire semaphore and enforce minimum delay between requests
+                async with semaphore:
+                    await self._enforce_min_delay(self.endpoint)
+                    
+                    # Make the request with proper form encoding
+                    response = await self._client.post(
+                        self.endpoint,
+                        data={'data': query},
+                        headers={
+                            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                            "User-Agent": self.user_agent
+                        }
                     )
-                    continue
-            
-            # Limit results
-            result = normalized[:max_results]
-            
-            # Check if we need subdivision (found >= max_results)
-            needs_subdivision = len(elements) >= max_results
-            
-            duration_ms = int((time.time() - start_time) * 1000)
-            
-            # Log successful call with raw preview
-            raw_preview = None
-            preview_json: Optional[Dict[str, Any]] = None
-            try:
-                # Human-readable snippet (may be invalid JSON if cut mid-structure)
-                if data:
-                    raw_preview = json.dumps(data)[:4000]
-                else:
-                    raw_preview = None
-            except Exception:
-                raw_preview = (str(data)[:4000]) if data else None
-
-            # Build compact, always-valid JSON summary
-            try:
-                N = 20
-                total_elements: Optional[int] = None
-                elems: List[Any] = []
-                if isinstance(data, dict) and "elements" in data:
-                    if isinstance(data.get("elements"), list):
-                        elems = data.get("elements")  # type: ignore[assignment]
-                        total_elements = len(elems)
+                    
+                    status_code = response.status_code
+                    last_status_code = status_code
+                    
+                    # Handle non-retryable errors (4xx except 429)
+                    if status_code in (400, 422):
+                        error_message = self._categorize_error_message(
+                            RuntimeError("Syntax error"), status_code
+                        )
+                        logger.error(
+                            "osm_query_syntax_error",
+                            provider="osm",
+                            status_code=status_code,
+                            query=query,
+                            response_text=response.text[:500]
+                        )
+                        # Log and return empty (don't retry syntax errors)
+                        duration_ms = int((time.time() - start_time) * 1000)
+                        await self._log_overpass_call(
+                            endpoint=self.endpoint,
+                            bbox_or_center=f"{lat},{lng}",
+                            radius_m=radius,
+                            query_bytes=len(query),
+                            status_code=status_code,
+                            found=0,
+                            normalized=0,
+                            category_set=included_types or [],
+                            cell_id=cell_id,
+                            attempt=current_attempt,
+                            duration_ms=duration_ms,
+                            error_message=error_message,
+                        )
+                        return [], False
+                    
+                    # Handle rate limiting (429) - retryable
+                    if status_code == 429:
+                        retry_after_s = int(response.headers.get("Retry-After", "60"))
+                        retry_after_s = min(retry_after_s, 60)  # Cap to 60s
+                        error_message = self._categorize_error_message(
+                            httpx.HTTPStatusError("Rate limited", request=response.request, response=response),
+                            status_code
+                        )
+                        logger.warning(
+                            "osm_rate_limited",
+                            provider="osm",
+                            retry_after=retry_after_s,
+                            attempt=current_attempt,
+                            max_retries=max_retries
+                        )
+                        should_retry = retry_attempt < max_retries
+                        last_exception = httpx.HTTPStatusError("Rate limited", request=response.request, response=response)
+                        if not should_retry:
+                            raise last_exception
+                    
+                    # Handle server errors (5xx) - retryable
+                    elif status_code >= 500:
+                        error_message = self._categorize_error_message(
+                            httpx.HTTPStatusError("Server error", request=response.request, response=response),
+                            status_code
+                        )
+                        logger.error(
+                            "osm_server_error",
+                            provider="osm",
+                            status_code=status_code,
+                            attempt=current_attempt,
+                            max_retries=max_retries
+                        )
+                        should_retry = retry_attempt < max_retries
+                        last_exception = httpx.HTTPStatusError("Server error", request=response.request, response=response)
+                        if not should_retry:
+                            raise last_exception
+                    
+                    # Success case
                     else:
-                        # elements exists but is not a list
-                        total_elements = None
-                        elems = []
-                elif isinstance(data, dict):
-                    # no elements key
-                    total_elements = None
-                    elems = []
-                else:
-                    # non-dict or None
-                    total_elements = None
-                    elems = []
+                        response.raise_for_status()
+                        
+                        # Use defensive JSON parsing
+                        data = self._parse_overpass_response(response)
+                        elements = data.get("elements", [])
+                        
+                        # Defensive conversions for elements
+                        if isinstance(elements, str):
+                            try:
+                                elements = json.loads(elements)
+                            except Exception:
+                                elements = []
+                        elif not isinstance(elements, list):
+                            elements = []
+                        
+                        # Normalize results with defensive element handling
+                        normalized = []
+                        for element in elements:
+                            try:
+                                # Skip non-dict elements safely
+                                if not isinstance(element, dict):
+                                    _trace(f"skipping non-dict element: {type(element).__name__}")
+                                    continue
+                                    
+                                normalized_element = self._normalize_osm_result(element)
+                                if normalized_element and normalized_element.get("location"):  # Only include if we have coordinates
+                                    normalized.append(normalized_element)
+                            except Exception as e:
+                                logger.warning(
+                                    "osm_normalization_error",
+                                    provider="osm",
+                                    element_id=element.get("id") if isinstance(element, dict) else "unknown",
+                                    error=str(e)
+                                )
+                                continue
+                        
+                        # Limit results
+                        result = normalized[:max_results]
+                        
+                        # Check if we need subdivision (found >= max_results)
+                        needs_subdivision = len(elements) >= max_results
+                        
+                        duration_ms = int((time.time() - start_time) * 1000)
+                        
+                        # Log successful call with raw preview
+                        raw_preview = None
+                        preview_json: Optional[Dict[str, Any]] = None
+                        try:
+                            # Human-readable snippet (may be invalid JSON if cut mid-structure)
+                            if data:
+                                raw_preview = json.dumps(data)[:4000]
+                            else:
+                                raw_preview = None
+                        except Exception:
+                            raw_preview = (str(data)[:4000]) if data else None
 
-                preview_elements = elems[:N] if isinstance(elems, list) else []
-                truncated_flag = (isinstance(total_elements, int) and total_elements > N)
+                        # Build compact, always-valid JSON summary
+                        try:
+                            N = 20
+                            total_elements: Optional[int] = None
+                            elems: List[Any] = []
+                            if isinstance(data, dict) and "elements" in data:
+                                if isinstance(data.get("elements"), list):
+                                    elems = data.get("elements")  # type: ignore[assignment]
+                                    total_elements = len(elems)
+                                else:
+                                    # elements exists but is not a list
+                                    total_elements = None
+                                    elems = []
+                            elif isinstance(data, dict):
+                                # no elements key
+                                total_elements = None
+                                elems = []
+                            else:
+                                # non-dict or None
+                                total_elements = None
+                                elems = []
 
-                meta = {}
-                if isinstance(data, dict):
-                    if "version" in data:
-                        meta["version"] = data.get("version")
-                    if "generator" in data:
-                        meta["generator"] = data.get("generator")
+                            preview_elements = elems[:N] if isinstance(elems, list) else []
+                            truncated_flag = (isinstance(total_elements, int) and total_elements > N)
 
-                preview_json = {
-                    "truncated": bool(truncated_flag),
-                    "total_elements": total_elements,
-                    "preview_elements": preview_elements,
-                    "meta": meta or None,
-                }
-            except Exception:
-                preview_json = {"truncated": None, "error": "preview_json_build_failed"}
-                
-            await self._log_overpass_call(
-                endpoint=self.endpoint,
-                bbox_or_center=f"{lat},{lng}",
-                radius_m=radius,
-                query_bytes=len(query),
-                status_code=status_code,
-                found=len(elements),
-                normalized=len(result),
-                category_set=included_types or [],
-                cell_id=cell_id,
-                attempt=attempt,
-                duration_ms=duration_ms,
-                raw_preview=raw_preview,
-                raw_preview_json=preview_json,
-            )
-            
-            logger.info(
-                "osm_search_success",
-                provider="osm",
-                found=len(elements),
-                normalized=len(result),
-                lat=lat,
-                lng=lng,
-                needs_subdivision=needs_subdivision,
-                duration_ms=duration_ms
-            )
-            
-            return result, needs_subdivision
-            
-        except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
-            duration_ms = int((time.time() - start_time) * 1000)
-            
-            if isinstance(e, httpx.HTTPStatusError):
-                status_code = e.response.status_code
-                error_message = f"HTTP {status_code}"
-            else:
+                            meta = {}
+                            if isinstance(data, dict):
+                                if "version" in data:
+                                    meta["version"] = data.get("version")
+                                if "generator" in data:
+                                    meta["generator"] = data.get("generator")
+
+                            preview_json = {
+                                "truncated": bool(truncated_flag),
+                                "total_elements": total_elements,
+                                "preview_elements": preview_elements,
+                                "meta": meta or None,
+                            }
+                        except Exception:
+                            preview_json = {"truncated": None, "error": "preview_json_build_failed"}
+                            
+                        await self._log_overpass_call(
+                            endpoint=self.endpoint,
+                            bbox_or_center=f"{lat},{lng}",
+                            radius_m=radius,
+                            query_bytes=len(query),
+                            status_code=status_code,
+                            found=len(elements),
+                            normalized=len(result),
+                            category_set=included_types or [],
+                            cell_id=cell_id,
+                            attempt=current_attempt,
+                            duration_ms=duration_ms,
+                            raw_preview=raw_preview,
+                            raw_preview_json=preview_json,
+                        )
+                        
+                        logger.info(
+                            "osm_search_success",
+                            provider="osm",
+                            found=len(elements),
+                            normalized=len(result),
+                            lat=lat,
+                            lng=lng,
+                            needs_subdivision=needs_subdivision,
+                            duration_ms=duration_ms,
+                            attempt=current_attempt
+                        )
+                        
+                        return result, needs_subdivision
+                        
+            except httpx.TimeoutException as e:
+                duration_ms = int((time.time() - start_time) * 1000)
                 status_code = 504
-                error_message = "Timeout"
+                error_message = self._categorize_error_message(e, status_code)
+                last_exception = e
+                last_status_code = status_code
+                should_retry = retry_attempt < max_retries
+                
+                # Log timeout attempt
+                await self._log_overpass_call(
+                    endpoint=self.endpoint,
+                    bbox_or_center=f"{lat},{lng}",
+                    radius_m=radius,
+                    query_bytes=len(query),
+                    status_code=status_code,
+                    found=0,
+                    normalized=0,
+                    category_set=included_types or [],
+                    cell_id=cell_id,
+                    attempt=current_attempt,
+                    duration_ms=duration_ms,
+                    error_message=error_message,
+                )
+                
+                logger.warning(
+                    "osm_search_timeout",
+                    provider="osm",
+                    lat=lat,
+                    lng=lng,
+                    attempt=current_attempt,
+                    max_retries=max_retries,
+                    will_retry=should_retry
+                )
+                
+                if not should_retry:
+                    # Final attempt failed - optionally rotate endpoint if enabled
+                    if DEFAULT_ENABLE_ENDPOINT_FALLBACK:
+                        self._rotate_endpoint()
+                    return [], False
+                    
+            except (httpx.HTTPStatusError, httpx.NetworkError, httpx.ConnectError) as e:
+                # Handle retryable HTTP errors that weren't caught above
+                # This catches cases where should_retry was set but exception needs to propagate for retry logic
+                duration_ms = int((time.time() - start_time) * 1000)
+                
+                # Determine status code from exception
+                exc_status_code = None
+                if hasattr(e, 'response') and e.response:
+                    exc_status_code = e.response.status_code
+                elif last_status_code:
+                    exc_status_code = last_status_code
+                
+                if error_message is None:
+                    error_message = self._categorize_error_message(e, exc_status_code)
+                
+                # Log this attempt
+                await self._log_overpass_call(
+                    endpoint=self.endpoint,
+                    bbox_or_center=f"{lat},{lng}",
+                    radius_m=radius,
+                    query_bytes=len(query),
+                    status_code=exc_status_code or 0,
+                    found=0,
+                    normalized=0,
+                    category_set=included_types or [],
+                    cell_id=cell_id,
+                    attempt=current_attempt,
+                    duration_ms=duration_ms,
+                    error_message=error_message,
+                    retry_after_s=retry_after_s,
+                )
+                
+                if not should_retry:
+                    # Final attempt failed
+                    logger.error(
+                        "osm_search_error_final",
+                        provider="osm",
+                        error=error_message,
+                        lat=lat,
+                        lng=lng,
+                        status_code=exc_status_code,
+                        attempts=current_attempt
+                    )
+                    
+                    # Optionally rotate endpoint if enabled
+                    if DEFAULT_ENABLE_ENDPOINT_FALLBACK:
+                        self._rotate_endpoint()
+                    
+                    return [], False
+                
+                # If should_retry is True, exception will propagate and we'll continue to backoff logic below
+                
+            except Exception as e:
+                # Unexpected error - log and return empty (don't retry unknown errors)
+                duration_ms = int((time.time() - start_time) * 1000)
+                error_message = self._categorize_error_message(e, None)
+                
+                await self._log_overpass_call(
+                    endpoint=self.endpoint,
+                    bbox_or_center=f"{lat},{lng}",
+                    radius_m=radius,
+                    query_bytes=len(query),
+                    status_code=0,
+                    found=0,
+                    normalized=0,
+                    category_set=included_types or [],
+                    cell_id=cell_id,
+                    attempt=current_attempt,
+                    duration_ms=duration_ms,
+                    error_message=error_message
+                )
+                
+                logger.error(
+                    "osm_search_error_unexpected",
+                    provider="osm",
+                    error=error_message,
+                    lat=lat,
+                    lng=lng,
+                    error_type=type(e).__name__
+                )
+                
+                return [], False
             
-            # Log failed call
-            await self._log_overpass_call(
-                endpoint=self.endpoint,
-                bbox_or_center=f"{lat},{lng}",
-                radius_m=radius,
-                query_bytes=len(query),
-                status_code=status_code,
-                found=0,
-                normalized=0,
-                category_set=included_types or [],
-                cell_id=cell_id,
-                attempt=attempt,
-                duration_ms=duration_ms,
-                error_message=error_message,
-                retry_after_s=retry_after_s
-            )
-            
-            logger.error(
-                "osm_search_error",
-                provider="osm",
-                error=error_message,
-                lat=lat,
-                lng=lng,
-                status_code=status_code
-            )
-            
-            # Rotate endpoint on failure
-            self._rotate_endpoint()
-            
-            return [], False
-            
-        except Exception as e:
-            duration_ms = int((time.time() - start_time) * 1000)
-            error_message = str(e)
-            
-            # Log failed call
-            await self._log_overpass_call(
-                endpoint=self.endpoint,
-                bbox_or_center=f"{lat},{lng}",
-                radius_m=radius,
-                query_bytes=len(query),
-                status_code=0,
-                found=0,
-                normalized=0,
-                category_set=included_types or [],
-                cell_id=cell_id,
-                attempt=attempt,
-                duration_ms=duration_ms,
-                error_message=error_message
-            )
-            
-            logger.error(
-                "osm_search_error",
-                provider="osm",
-                error=error_message,
-                lat=lat,
-                lng=lng
-            )
-            
-            return [], False
+            # Calculate backoff and retry
+            if should_retry:
+                # For 429, respect Retry-After header if present
+                if last_status_code == 429 and retry_after_s:
+                    wait_time = retry_after_s
+                else:
+                    # Exponential backoff: base * 2^(attempt)
+                    wait_time = backoff_base * (2 ** retry_attempt)
+                
+                # Add jitter
+                jitter = random.uniform(0, wait_time * jitter_frac)
+                total_wait = wait_time + jitter
+                
+                logger.info(
+                    "osm_retry_backoff",
+                    provider="osm",
+                    attempt=current_attempt,
+                    max_retries=max_retries,
+                    wait_seconds=total_wait,
+                    endpoint=self.endpoint
+                )
+                
+                await asyncio.sleep(total_wait)
+        
+        # Should never reach here, but safety fallback
+        return [], False
 
     async def search_nearby_with_subdivision(
         self,

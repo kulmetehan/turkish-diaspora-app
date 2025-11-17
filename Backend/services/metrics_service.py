@@ -362,9 +362,26 @@ def _compute_diagnosis_code(
     
     # Worker-specific diagnosis logic
     if worker_id == "discovery_bot":
+        # Enhanced Overpass error categorization
+        overpass_calls = metrics.get("overpass_calls_last_60m", 0)
         overpass_errors = metrics.get("overpass_error_count_last_60m", 0)
-        if overpass_errors and overpass_errors > 10:
-            return "OSM_ERROR_RATE_HIGH"
+        error_ratio = metrics.get("overpass_error_ratio_last_60m", 0.0)
+        timeout_errors = metrics.get("timeout_errors_last_60m", 0)
+        rate_limit_errors = metrics.get("rate_limit_errors_last_60m", 0)
+        server_5xx_errors = metrics.get("server_5xx_errors_last_60m", 0)
+        
+        # Only diagnose if we have enough calls (avoid false positives on low activity)
+        if overpass_calls >= 10 and overpass_errors > 0:
+            # Check which error type dominates (≥50% of errors)
+            if timeout_errors > 0 and timeout_errors >= (overpass_errors * 0.5):
+                return "OSM_TIMEOUT_STORM"
+            elif rate_limit_errors > 0 and rate_limit_errors >= (overpass_errors * 0.5):
+                return "OSM_RATE_LIMITED"
+            elif server_5xx_errors > 0 and server_5xx_errors >= (overpass_errors * 0.5):
+                return "OSM_SERVER_UNSTABLE"
+            elif error_ratio >= 0.5:
+                # Generic fallback: high error rate but unclear category
+                return "OSM_ERROR_RATE_HIGH"
         
         # Check for no inserts in last 30 days (if metrics include this)
         total_inserted_30d = metrics.get("total_inserted_30d", None)
@@ -416,14 +433,18 @@ def _compute_diagnosis_code(
 
 
 async def _discovery_worker_status() -> WorkerStatus:
+    # Only consider finished runs for metrics (ignore in-progress runs)
+    # This avoids false "no locations discovered" when a run is still in progress
     sql_latest_run = """
         SELECT
             id,
             started_at,
             finished_at,
-            counters
+            counters,
+            notes
         FROM discovery_runs
-        ORDER BY COALESCE(finished_at, started_at) DESC
+        WHERE finished_at IS NOT NULL
+        ORDER BY finished_at DESC
         LIMIT 1
     """
     now = datetime.now(timezone.utc)
@@ -432,23 +453,42 @@ async def _discovery_worker_status() -> WorkerStatus:
     try:
         rows = await fetch(sql_latest_run)
 
+        # Enhanced Overpass metrics with error categorization
         sql_overpass = """
             SELECT
+                COALESCE(COUNT(*), 0)::int AS overpass_calls_last_60m,
                 COALESCE(COUNT(*) FILTER (
                     WHERE status_code = 429
                 ), 0)::int AS overpass_429_last_60m,
                 COALESCE(COUNT(*) FILTER (
                     WHERE (status_code >= 500 OR status_code IS NULL OR error_message IS NOT NULL)
-                ), 0)::int AS overpass_error_count_last_60m
+                ), 0)::int AS overpass_error_count_last_60m,
+                COALESCE(COUNT(*) FILTER (
+                    WHERE error_message LIKE 'TIMEOUT:%'
+                ), 0)::int AS timeout_errors_last_60m,
+                COALESCE(COUNT(*) FILTER (
+                    WHERE error_message LIKE 'RATE_LIMIT:%'
+                ), 0)::int AS rate_limit_errors_last_60m,
+                COALESCE(COUNT(*) FILTER (
+                    WHERE error_message LIKE 'SERVER_5XX:%'
+                ), 0)::int AS server_5xx_errors_last_60m
             FROM overpass_calls
             WHERE ts >= NOW() - (($1::int || ' minutes')::interval)
         """
         overpass_rows = await fetch(sql_overpass, int(WORKER_WINDOW_MINUTES))
         if overpass_rows:
             overpass_data = dict(overpass_rows[0])
+            calls_total = int(overpass_data.get("overpass_calls_last_60m") or 0)
+            errors_total = int(overpass_data.get("overpass_error_count_last_60m") or 0)
+            error_ratio = errors_total / max(calls_total, 1)
             quota_info = {
+                "overpass_calls_last_60m": calls_total,
                 "overpass_429_last_60m": int(overpass_data.get("overpass_429_last_60m") or 0),
-                "overpass_error_count_last_60m": int(overpass_data.get("overpass_error_count_last_60m") or 0),
+                "overpass_error_count_last_60m": errors_total,
+                "overpass_error_ratio_last_60m": error_ratio,
+                "timeout_errors_last_60m": int(overpass_data.get("timeout_errors_last_60m") or 0),
+                "rate_limit_errors_last_60m": int(overpass_data.get("rate_limit_errors_last_60m") or 0),
+                "server_5xx_errors_last_60m": int(overpass_data.get("server_5xx_errors_last_60m") or 0),
             }
 
         # Check for 30-day insert statistics
@@ -468,12 +508,28 @@ async def _discovery_worker_status() -> WorkerStatus:
             total_runs_30d = int(row_30d.get("total_runs") or 0)
 
         if not rows:
+            # No finished runs found - check if there are any in-progress runs
+            sql_in_progress = """
+                SELECT COUNT(*)::int AS in_progress_count
+                FROM discovery_runs
+                WHERE finished_at IS NULL
+            """
+            in_progress_rows = await fetch(sql_in_progress)
+            in_progress_count = int(in_progress_rows[0].get("in_progress_count") or 0) if in_progress_rows else 0
+            
             metrics = {
                 "overpass_error_count_last_60m": quota_info.get("overpass_error_count_last_60m", 0),
+                "overpass_calls_last_60m": quota_info.get("overpass_calls_last_60m", 0),
+                "overpass_error_ratio_last_60m": quota_info.get("overpass_error_ratio_last_60m", 0.0),
                 "total_inserted_30d": total_inserted_30d,
                 "total_runs_30d": total_runs_30d,
             }
             diagnosis_code = _compute_diagnosis_code("discovery_bot", "unknown", None, metrics)
+            
+            notes_msg = "No finished discovery runs recorded yet."
+            if in_progress_count > 0:
+                notes_msg += f" ({in_progress_count} run(s) currently in progress - excluded from metrics)"
+            
             return WorkerStatus(
                 id="discovery_bot",
                 label="DiscoveryBot",
@@ -484,7 +540,7 @@ async def _discovery_worker_status() -> WorkerStatus:
                 status="unknown",
                 window_label="last run",
                 quota_info=quota_info or None,
-                notes="No discovery runs recorded yet.",
+                notes=notes_msg,
                 diagnosis_code=diagnosis_code,
             )
 
@@ -493,10 +549,15 @@ async def _discovery_worker_status() -> WorkerStatus:
         finished_at = record.get("finished_at")
         counters_raw = record.get("counters") or {}
         counters = counters_raw if isinstance(counters_raw, dict) else {}
+        notes_field = record.get("notes") or ""
 
-        processed = int(counters.get("discovered") or counters.get("inserted") or 0)
+        # Separate discovered vs inserted counts for better messaging
+        discovered = int(counters.get("discovered") or 0)
+        inserted = int(counters.get("inserted") or 0)
+        processed = discovered  # Use discovered for backward compat with processed_count field
         errors = int(counters.get("failed") or 0)
-        last_run = finished_at or started_at
+        is_degraded = bool(counters.get("degraded", False))
+        last_run = finished_at  # Only use finished_at (we filtered for finished runs)
 
         duration_seconds: Optional[float] = None
         if isinstance(started_at, datetime) and isinstance(finished_at, datetime):
@@ -504,6 +565,10 @@ async def _discovery_worker_status() -> WorkerStatus:
 
         status = "ok"
         notes: List[str] = ["Processed count uses discovery_runs.counters.discovered."]
+        
+        # Add degraded mode indicator if applicable
+        if is_degraded:
+            notes.insert(0, "Run completed in degraded mode: ")
 
         if last_run is None:
             status = "unknown"
@@ -512,17 +577,29 @@ async def _discovery_worker_status() -> WorkerStatus:
             if (now - last_run) > timedelta(hours=DISCOVERY_STALE_HOURS):
                 status = "warning"
                 notes.append(f"Last run more than {DISCOVERY_STALE_HOURS}h ago.")
-            if processed == 0:
-                notes.append("No locations discovered in last run.")
+            
+            # Better messaging for discovered vs inserted
+            if inserted > 0:
+                notes.append(f"Last run inserted {inserted} new location(s).")
+            elif discovered > 0:
+                notes.append("Last run found only duplicates; no new locations inserted.")
+            else:
+                notes.append("Last finished run discovered no locations in the scanned tiles.")
                 if status == "ok":
                     status = "warning"
+            
             if errors > 0:
                 notes.append(f"{errors} failures recorded in last run.")
                 status = "error"
 
-        # Compute diagnosis code
+        # Compute diagnosis code with enhanced Overpass error metrics
         metrics = {
             "overpass_error_count_last_60m": quota_info.get("overpass_error_count_last_60m", 0),
+            "overpass_calls_last_60m": quota_info.get("overpass_calls_last_60m", 0),
+            "overpass_error_ratio_last_60m": quota_info.get("overpass_error_ratio_last_60m", 0.0),
+            "timeout_errors_last_60m": quota_info.get("timeout_errors_last_60m", 0),
+            "rate_limit_errors_last_60m": quota_info.get("rate_limit_errors_last_60m", 0),
+            "server_5xx_errors_last_60m": quota_info.get("server_5xx_errors_last_60m", 0),
             "total_inserted_30d": total_inserted_30d,
             "total_runs_30d": total_runs_30d,
             "processed_count": processed,

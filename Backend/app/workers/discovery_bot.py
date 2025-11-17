@@ -415,10 +415,22 @@ class DiscoveryBot:
     async def _run_osm_discovery(self, points: List[Tuple[float, float]], seen: Set[str], total_inserted: int) -> Dict[str, int]:
         """
         Run OSM-based discovery with adaptive subdivision.
+        Includes circuit breaker to abort Overpass calls if error rate is too high.
         Returns aggregated counters dictionary.
         """
+        # Circuit breaker configuration (protects Overpass from overload)
+        # These thresholds detect "error storms" where Overpass is clearly struggling
+        DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES = int(os.getenv("DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES", "10"))
+        DISCOVERY_MAX_OVERPASS_ERROR_RATIO = float(os.getenv("DISCOVERY_MAX_OVERPASS_ERROR_RATIO", "0.8"))
+        
         start_time = time.time()
         safety_timeout_s = 25 * 60  # 25 minutes safety timeout
+        
+        # Circuit breaker state tracking
+        overpass_calls_total = 0
+        overpass_calls_failed = 0
+        consecutive_failures = 0
+        circuit_breaker_triggered = False
         
         # Initialize aggregated counters
         aggregated_counters = {
@@ -461,6 +473,13 @@ class DiscoveryBot:
             processed_cells = 0
 
             for i, (lat, lng) in enumerate(points, start=1):
+                # Check circuit breaker - stop making Overpass calls if error storm detected
+                if circuit_breaker_triggered:
+                    print(f"[DiscoveryBot] Circuit breaker active: skipping remaining Overpass calls. Processing already-found results.")
+                    # Break from inner loop but continue outer loop to process remaining categories if needed
+                    # Actually, we should break from both loops since we're done with Overpass
+                    break
+                
                 # Check safety timeout
                 elapsed_time = time.time() - start_time
                 if elapsed_time > safety_timeout_s:
@@ -471,6 +490,10 @@ class DiscoveryBot:
                     print(f"[DiscoveryBot] Max cellen voor {cat_key} bereikt: {processed_cells}")
                     break
 
+                # Track Overpass call attempt
+                overpass_calls_total += 1
+                overpass_call_failed = False
+                
                 try:
                     # Use OSM service with subdivision
                     places = await self.osm_service.search_nearby_with_subdivision(
@@ -488,6 +511,43 @@ class DiscoveryBot:
                     print(f"[DiscoveryBot] {cat_key} @({lat:.5f},{lng:.5f}) OSM error: {type(e).__name__}: {e}")
                     print(f"[DiscoveryBot] Traceback: {tb}")
                     places = []
+                    overpass_call_failed = True
+                
+                # Track failures for circuit breaker
+                if overpass_call_failed:
+                    overpass_calls_failed += 1
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 0  # Reset on success
+                
+                # Check circuit breaker thresholds
+                if overpass_calls_total > 0:
+                    error_ratio = overpass_calls_failed / overpass_calls_total
+                    
+                    if consecutive_failures >= DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES:
+                        circuit_breaker_triggered = True
+                        logger.warning(
+                            "discovery_circuit_breaker_triggered",
+                            reason="consecutive_failures",
+                            consecutive_failures=consecutive_failures,
+                            threshold=DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES,
+                            total_calls=overpass_calls_total,
+                            failed_calls=overpass_calls_failed
+                        )
+                        print(f"[DiscoveryBot] CIRCUIT BREAKER TRIGGERED: {consecutive_failures} consecutive Overpass failures (threshold: {DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES})")
+                        print(f"[DiscoveryBot] Stopping Overpass calls to avoid overloading public servers. Processing already-found results.")
+                    elif error_ratio >= DISCOVERY_MAX_OVERPASS_ERROR_RATIO:
+                        circuit_breaker_triggered = True
+                        logger.warning(
+                            "discovery_circuit_breaker_triggered",
+                            reason="error_ratio",
+                            error_ratio=error_ratio,
+                            threshold=DISCOVERY_MAX_OVERPASS_ERROR_RATIO,
+                            total_calls=overpass_calls_total,
+                            failed_calls=overpass_calls_failed
+                        )
+                        print(f"[DiscoveryBot] CIRCUIT BREAKER TRIGGERED: Overpass error ratio {error_ratio:.1%} exceeds threshold {DISCOVERY_MAX_OVERPASS_ERROR_RATIO:.1%}")
+                        print(f"[DiscoveryBot] Stopping Overpass calls to avoid overloading public servers. Processing already-found results.")
 
                 batch: List[Dict[str, Any]] = []
                 for p in places or []:
@@ -527,7 +587,19 @@ class DiscoveryBot:
 
                 if self.cfg.inter_call_sleep_s:
                     await asyncio.sleep(self.cfg.inter_call_sleep_s)
+            
+            # If circuit breaker triggered, break from outer category loop too
+            if circuit_breaker_triggered:
+                break
 
+        # Mark run as degraded if circuit breaker was triggered
+        if circuit_breaker_triggered:
+            aggregated_counters["degraded"] = True
+            aggregated_counters["overpass_failures"] = overpass_calls_failed
+            aggregated_counters["overpass_total_calls"] = overpass_calls_total
+            error_ratio = overpass_calls_failed / max(overpass_calls_total, 1)
+            print(f"[DiscoveryBot] Run completed in DEGRADED mode: {overpass_calls_failed}/{overpass_calls_total} Overpass calls failed ({error_ratio:.1%})")
+        
         return aggregated_counters
 
     async def _report_progress(self, completed: int, total: int) -> None:
@@ -704,13 +776,20 @@ async def main_async():
         # Update discovery_run with finished_at and counters
         if discovery_run_id:
             try:
+                # Build notes string (include degraded info if applicable)
+                notes_parts = [f"Discovery run: city={cfg.city}, categories={','.join(cfg.categories)}, chunk={cfg.chunk_index}/{cfg.chunks-1}"]
+                if counters.get("degraded"):
+                    error_ratio = counters.get("overpass_failures", 0) / max(counters.get("overpass_total_calls", 1), 1)
+                    notes_parts.append(f"degraded: overpass error storm ({counters.get('overpass_failures', 0)} failures out of {counters.get('overpass_total_calls', 0)} calls)")
+                
                 sql_update = """
                     UPDATE discovery_runs
-                    SET finished_at = NOW(), counters = $1::jsonb
+                    SET finished_at = NOW(), counters = $1::jsonb, notes = $3
                     WHERE id = $2
                 """
                 counters_json = json.dumps(counters, ensure_ascii=False)
-                await execute(sql_update, counters_json, discovery_run_id)
+                notes_str = " | ".join(notes_parts)
+                await execute(sql_update, counters_json, discovery_run_id, notes_str)
                 logger.info("discovery_run_completed", run_id=str(discovery_run_id), counters=counters)
                 print(f"\n[DiscoveryBot] Counters: {counters}")
             except Exception as e:
