@@ -455,13 +455,22 @@ class DiscoveryBot:
         for cat_key in self.cfg.categories:
             cat_def = categories_map.get(cat_key)
             if not cat_def:
-                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' niet gevonden in YAML; overslaan.")
+                print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' niet gevonden in categories.yml; overslaan.")
+                logger.warning("discovery_category_not_found", category=cat_key, available=list(categories_map.keys()))
+                continue
+
+            # Check if discovery is enabled for this category
+            discovery_cfg = cat_def.get("discovery", {})
+            if not discovery_cfg.get("enabled", True):
+                print(f"[DiscoveryBot] INFO: categorie '{cat_key}' heeft discovery.enabled=false; overslaan.")
+                logger.info("discovery_category_disabled", category=cat_key)
                 continue
 
             # Get OSM tags for this category
             osm_tags_raw = cat_def.get("osm_tags")
             if not osm_tags_raw:
                 print(f"[DiscoveryBot] WAARSCHUWING: categorie '{cat_key}' heeft geen osm_tags; overslaan.")
+                logger.warning("discovery_category_no_osm_tags", category=cat_key)
                 continue
 
             # Convert YAML structure to expected format: List[List[Dict[str, Any]]]

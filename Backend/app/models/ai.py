@@ -24,9 +24,12 @@ class Category(str, Enum):
     bakery = "bakery"
     restaurant = "restaurant"
     supermarket = "supermarket"
-    barbershop = "barbershop"
+    barber = "barber"
     mosque = "mosque"
     travel_agency = "travel_agency"
+    butcher = "butcher"
+    fast_food = "fast_food"
+    cafe = "cafe"
     other = "other"
 
 

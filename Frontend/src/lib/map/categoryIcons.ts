@@ -272,6 +272,12 @@ export function normalizeCategoryKey(raw?: string | null): string {
   if (!trimmed) return fallback;
   const sanitized = trimmed.replace(/[^a-z0-9_-]+/g, "_");
   if (!sanitized) return fallback;
+  
+  // Handle barbershop alias -> barber
+  if (sanitized === "barbershop") {
+    return "barber";
+  }
+  
   if (!SVG_BY_KEY.has(sanitized)) return fallback;
   return sanitized;
 }

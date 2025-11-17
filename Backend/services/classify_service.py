@@ -63,17 +63,32 @@ JSON_SCHEMA = {
     "additionalProperties": False
 }
 
+# Explicit mapping from canonical category keys to enum values
+COLLAPSE_MAP: Dict[str, Category] = {
+    "bakery": Category.bakery,
+    "restaurant": Category.restaurant,
+    "supermarket": Category.supermarket,
+    "butcher": Category.butcher,
+    "barber": Category.barber,
+    "fast_food": Category.fast_food,
+    "cafe": Category.cafe,
+    "mosque": Category.mosque,
+    "travel_agency": Category.travel_agency,
+}
+
+
 def map_llm_category_to_enum(raw: Optional[str]) -> Category:
     """
     Map a raw LLM category string (e.g. 'bakkal/supermarket', 'barber', 'kebab')
     into a valid Category enum value.
 
-    Uses category_map.normalize_category and then collapses to our enum set.
+    Uses category_map.normalize_category to get canonical key from YAML,
+    then maps to enum via COLLAPSE_MAP.
     """
     if not raw or not str(raw).strip():
         return Category.other
 
-    # Normalize via category_map
+    # Normalize via category_map (uses YAML aliases)
     try:
         normalized = normalize_category(str(raw))
     except Exception:
@@ -83,7 +98,7 @@ def map_llm_category_to_enum(raw: Optional[str]) -> Category:
     # Extract normalized key from dict result
     normalized_key = None
     if isinstance(normalized, dict):
-        normalized_key = normalized.get("category_key") or normalized.get("key") or normalized.get("category")
+        normalized_key = normalized.get("category_key")
     elif isinstance(normalized, str):
         normalized_key = normalized
     else:
@@ -94,20 +109,18 @@ def map_llm_category_to_enum(raw: Optional[str]) -> Category:
 
     key = normalized_key.lower().strip()
 
-    # Map normalized keys to enum values
-    if key in ("bakery",):
-        return Category.bakery
-    if key in ("restaurant", "fast_food", "kebab"):
-        # We treat fast food / kebab as restaurant for now
-        return Category.restaurant
-    if key in ("supermarket", "bakkal", "bakkal_supermarket", "bakkal/supermarket"):
-        return Category.supermarket
-    if key in ("barber", "barbershop", "kapper"):
-        return Category.barbershop
-    if key in ("mosque",):
-        return Category.mosque
-    if key in ("travel_agency", "travel", "agency"):
-        return Category.travel_agency
+    # Try explicit mapping first
+    if key in COLLAPSE_MAP:
+        return COLLAPSE_MAP[key]
+
+    # If not in COLLAPSE_MAP but matches an enum member name exactly, use it
+    try:
+        # Check if key matches any Category enum member name
+        for cat in Category:
+            if cat.value == key:
+                return cat
+    except Exception:
+        pass
 
     # Fallback: anything else
     return Category.other
