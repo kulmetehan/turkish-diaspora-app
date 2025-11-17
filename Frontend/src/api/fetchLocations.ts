@@ -1,5 +1,11 @@
 // src/api/fetchLocations.ts
 import { getAcceptLanguageHeader } from "@/i18n";
+
+export interface CategoryOption {
+    key: string;
+    label: string;
+}
+
 export interface LocationMarker {
     id: string;
     name: string;
@@ -120,6 +126,33 @@ export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSi
 
     const data = await resp.json();
     return typeof data.count === "number" ? data.count : 0;
+}
+
+export async function fetchCategories(signal?: AbortSignal): Promise<CategoryOption[]> {
+    const fallbackBase = "http://127.0.0.1:8000";
+    const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
+    const API_BASE = (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase;
+
+    const url = `${API_BASE}/api/v1/locations/categories`;
+
+    const resp = await fetch(url, {
+        method: "GET",
+        headers: {
+            "Accept": "application/json",
+            "Accept-Language": getAcceptLanguageHeader(),
+        },
+        signal,
+    });
+
+    if (!resp.ok) {
+        throw new Error(`Failed to load categories: ${resp.status} ${resp.statusText}`);
+    }
+
+    const data = await resp.json();
+    return (Array.isArray(data) ? data : []).map((c: any) => ({
+        key: String(c.key ?? "").toLowerCase().trim(),
+        label: String(c.label ?? c.key ?? "").trim() || String(c.key ?? "").trim(),
+    })).filter((c) => c.key && c.key !== "other");
 }
 
 
