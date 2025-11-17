@@ -1275,7 +1275,7 @@ export default function MapView({
 
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
-      style: import.meta.env.VITE_MAPBOX_STYLE || "mapbox://styles/mapbox/streets-v12",
+      style: CONFIG.MAPBOX_STYLE,
       center: [4.4777, 51.9244], // Rotterdam default
       zoom: 11,
       attributionControl: false,
