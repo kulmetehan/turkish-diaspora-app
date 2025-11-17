@@ -306,3 +306,4 @@ async def get_auto_promote_conf() -> Optional[float]:
         return config.auto_promote_conf
     return None
 
+

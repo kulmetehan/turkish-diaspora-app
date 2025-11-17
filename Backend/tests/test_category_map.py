@@ -102,3 +102,4 @@ def test_category_raw_preserved():
     assert result["category_raw"] == "  BAKERY  "
     assert result["category_key"] == "bakery"  # But key is normalized
 
+
