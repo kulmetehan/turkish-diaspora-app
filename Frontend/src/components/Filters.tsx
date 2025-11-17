@@ -58,13 +58,17 @@ export default function Filters({
   const suggestBoxRef = useRef<HTMLDivElement | null>(null);
   const showSuggestions = Boolean(openSuggest && suggestions && suggestions.length && search.trim().length);
   const categories = useMemo(() => {
+    // Prefer categoryOptions from App.tsx (now global when available)
     const base = (categoryOptions && categoryOptions.length)
       ? [...categoryOptions]
       : [...KNOWN_CATEGORIES];
 
+    // Ensure currently selected category is always included
     const withCurrent = (() => {
       if (!category || category === "all") return base;
+      // If selected category already exists, return base
       if (base.some((c) => c.key === category)) return base;
+      // Otherwise, append selected category so chip stays visible
       return [...base, { key: category, label: humanizeCategoryLabel(category) }];
     })();
 

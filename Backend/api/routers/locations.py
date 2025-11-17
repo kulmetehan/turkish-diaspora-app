@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from services.db_service import fetch
 from app.services.category_map import normalize_category
@@ -12,6 +13,11 @@ router = APIRouter(
     prefix="/locations",
     tags=["locations"],
 )
+
+
+class CategoryItem(BaseModel):
+    key: str
+    label: str
 
 
 def parse_bbox(bbox_str: Optional[str]) -> Optional[Tuple[float, float, float, float]]:
@@ -344,4 +350,59 @@ async def count_locations(
         return {"count": count}
     except Exception as e:
         print(f"[locations/count] query failed: {e}")
+        raise HTTPException(status_code=503, detail="database unavailable")
+
+
+@router.get("/categories", response_model=List[CategoryItem])
+async def list_categories() -> List[CategoryItem]:
+    """
+    Get all available categories from VERIFIED locations.
+    Returns distinct category_key and category_label pairs.
+    """
+    sql = """
+        SELECT DISTINCT category
+        FROM locations
+        WHERE state = 'VERIFIED'
+          AND category IS NOT NULL
+          AND category <> ''
+        ORDER BY category
+    """
+    
+    try:
+        rows = await fetch(sql)
+        unique: dict[str, str] = {}
+        
+        for row in rows:
+            r = dict(row)
+            raw_category = str(r.get("category") or "").strip()
+            if not raw_category:
+                continue
+            
+            # Normalize using same logic as /locations endpoint
+            try:
+                cat_info = normalize_category(raw_category)
+                key = (cat_info.get("category_key") or "").strip().lower()
+                label = (cat_info.get("category_label") or "").strip()
+            except Exception:
+                # Fallback: simple normalization if normalize_category fails
+                key = raw_category.lower().strip().replace("/", "_").replace(" ", "_")
+                tmp = raw_category.replace("/", " ").replace("_", " ").strip()
+                label = " ".join([t[:1].upper() + t[1:].lower() for t in tmp.split()]) if tmp else raw_category
+            
+            # Skip empty keys and "other" category
+            if not key or key == "other":
+                continue
+            
+            # Use first occurrence (label may vary, but key should be stable)
+            if key not in unique:
+                unique[key] = label or key
+        
+        # Build response sorted by key
+        items = [
+            CategoryItem(key=k, label=v)
+            for k, v in sorted(unique.items(), key=lambda kv: kv[0])
+        ]
+        return items
+    except Exception as e:
+        print(f"[categories] query failed: {e}")
         raise HTTPException(status_code=503, detail="database unavailable")

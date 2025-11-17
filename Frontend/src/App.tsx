@@ -15,7 +15,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, writeViewMode, type ViewMode } from "@/lib/routing/viewMode";
 
-import { fetchLocations, fetchLocationsCount, type LocationMarker } from "@/api/fetchLocations";
+import { fetchLocations, fetchLocationsCount, fetchCategories, type LocationMarker, type CategoryOption } from "@/api/fetchLocations";
 
 function HomePage() {
   const [all, setAll] = useState<LocationMarker[]>([]);
@@ -23,6 +23,11 @@ function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [viewportBbox, setViewportBbox] = useState<string | null>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
+
+  // Global categories state (viewport-independent)
+  const [globalCategories, setGlobalCategories] = useState<CategoryOption[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState<boolean>(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
 
   // UI-filters (komen overeen met Filters.tsx props)
   const [filters, setFilters] = useState({
@@ -95,6 +100,15 @@ function HomePage() {
     debounceMs: 350,
     cacheSize: 30,
   });
+
+  // Compute empty state conditions
+  const hasCategoryFilter = filters.category && filters.category !== "all";
+  const hasSearchQuery = filters.search.trim().length > 0;
+  const noResultsForSelection =
+    !loading &&
+    !error &&
+    filtered.length === 0 &&
+    (hasCategoryFilter || hasSearchQuery);
 
   // Load locations based on viewport bbox
   const suppressNextViewportFetch = useCallback(() => {
@@ -216,9 +230,39 @@ function HomePage() {
     };
   }, []);
 
-  // filtered comes from useSearch; keep API order (no client sorting)
-  // Build category options from data (canonical key + label)
-  const categoryOptions = useMemo(() => {
+  // Fetch global categories on mount (independent of viewport)
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    async function loadCategories() {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+      try {
+        const result = await fetchCategories(controller.signal);
+        if (cancelled) return;
+        setGlobalCategories(result);
+      } catch (e: any) {
+        if (cancelled) return;
+        console.error("[App] Failed to load categories", e);
+        setCategoriesError(e instanceof Error ? e.message : "Failed to load categories");
+        // Do NOT throw; fall back to dynamic/KNOWN_CATEGORIES
+      } finally {
+        if (cancelled) return;
+        setCategoriesLoading(false);
+      }
+    }
+
+    void loadCategories();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, []);
+
+  // Dynamic categories from current viewport (fallback)
+  const dynamicCategoryOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const l of all) {
       const key = (l.category_key ?? l.category ?? "").toLowerCase();
@@ -232,6 +276,20 @@ function HomePage() {
       .sort((a, b) => a[0].localeCompare(b[0], "en"))
       .map(([key, label]) => ({ key, label }));
   }, [all]);
+
+  // Prefer global categories, fall back to dynamic
+  const categoryOptions = useMemo(() => {
+    // 1) Prefer global categories when available
+    if (globalCategories.length > 0) {
+      return [...globalCategories];
+    }
+    // 2) Fall back to dynamic options from current viewport
+    if (dynamicCategoryOptions.length > 0) {
+      return [...dynamicCategoryOptions];
+    }
+    // 3) Absolute last fallback handled in Filters.tsx (KNOWN_CATEGORIES)
+    return [];
+  }, [globalCategories, dynamicCategoryOptions]);
 
   // Huidige selectie-object
   const highlighted = useMemo(() => filtered.find((l) => l.id === highlightedId) ?? null, [filtered, highlightedId]);
@@ -302,7 +360,13 @@ function HomePage() {
           onSelectDetail={handleOpenDetail}
           onShowOnMap={handleFocusOnMap}
           autoScrollToSelected
-          emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
+          emptyText={
+            loading
+              ? "Warming up the backend… Getting your data…"
+              : error ?? (noResultsForSelection
+                  ? "No results for your filter in this region. Try moving the map or clearing filters."
+                  : "Geen resultaten")
+          }
           fullHeight
         />
       </div>
@@ -344,7 +408,13 @@ function HomePage() {
             onSelectDetail={handleOpenDetail}
             onShowOnMap={handleFocusOnMap}
             autoScrollToSelected
-            emptyText={loading ? "Warming up the backend… Getting your data…" : error ?? "Geen resultaten"}
+            emptyText={
+              loading
+                ? "Warming up the backend… Getting your data…"
+                : error ?? (noResultsForSelection
+                    ? "No results for your filter in this region. Try moving the map or clearing filters."
+                    : "Geen resultaten")
+            }
             fullHeight
           />
         )}
