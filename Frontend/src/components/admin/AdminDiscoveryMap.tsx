@@ -22,6 +22,15 @@ function formatDateOrDash(value: string | null | undefined): string {
 
 mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
 
+function safeHasLayer(map: MapboxMap | null | undefined, id: string): boolean {
+  if (!map) return false;
+  try {
+    return Boolean(map.getLayer(id));
+  } catch {
+    return false;
+  }
+}
+
 const COVERAGE_SOURCE_ID = "tda-discovery-coverage";
 const COVERAGE_LAYER_ID = "tda-discovery-coverage-layer";
 const COVERAGE_OUTLINE_LAYER_ID = "tda-discovery-coverage-outline";
@@ -296,7 +305,7 @@ export default function AdminDiscoveryMap() {
 
       // Add or update heatmap layer (always ensure it exists)
       if (!map.getLayer(HEATMAP_LAYER_ID)) {
-        map.addLayer({
+        const heatmapLayerConfig: mapboxgl.Layer = {
           id: HEATMAP_LAYER_ID,
           type: "heatmap",
           source: HEATMAP_SOURCE_ID,
@@ -317,7 +326,15 @@ export default function AdminDiscoveryMap() {
             "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 2, 10, 25],
             "heatmap-opacity": 0.8,
           },
-        }, "waterway-label"); // Add before waterway labels to ensure visibility
+        };
+        const heatmapBeforeId = safeHasLayer(map, "waterway-label")
+          ? "waterway-label"
+          : undefined;
+        if (heatmapBeforeId) {
+          map.addLayer(heatmapLayerConfig, heatmapBeforeId);
+        } else {
+          map.addLayer(heatmapLayerConfig);
+        }
       } else {
         // Update source data for existing layer
         const existingSource = map.getSource(HEATMAP_SOURCE_ID);
@@ -344,7 +361,7 @@ export default function AdminDiscoveryMap() {
 
       // Add fill layer if it doesn't exist
       if (!map.getLayer(COVERAGE_LAYER_ID)) {
-        map.addLayer({
+        const coverageLayerConfig: mapboxgl.Layer = {
           id: COVERAGE_LAYER_ID,
           type: "fill",
           source: COVERAGE_SOURCE_ID,
@@ -352,7 +369,15 @@ export default function AdminDiscoveryMap() {
             "fill-color": ["get", "color"],
             "fill-opacity": 0.5,
           },
-        }, HEATMAP_LAYER_ID); // Add after heatmap layer
+        };
+        const coverageBeforeId = safeHasLayer(map, HEATMAP_LAYER_ID)
+          ? HEATMAP_LAYER_ID
+          : undefined;
+        if (coverageBeforeId) {
+          map.addLayer(coverageLayerConfig, coverageBeforeId);
+        } else {
+          map.addLayer(coverageLayerConfig);
+        }
       } else {
         // Update source data for existing layer
         const existingSource = map.getSource(COVERAGE_SOURCE_ID);
@@ -363,7 +388,7 @@ export default function AdminDiscoveryMap() {
 
       // Add outline layer if it doesn't exist
       if (!map.getLayer(COVERAGE_OUTLINE_LAYER_ID)) {
-        map.addLayer({
+        const outlineLayerConfig: mapboxgl.Layer = {
           id: COVERAGE_OUTLINE_LAYER_ID,
           type: "line",
           source: COVERAGE_SOURCE_ID,
@@ -372,7 +397,15 @@ export default function AdminDiscoveryMap() {
             "line-width": 0.5,
             "line-opacity": 0.3,
           },
-        }, COVERAGE_LAYER_ID); // Add after fill layer
+        };
+        const outlineBeforeId = safeHasLayer(map, COVERAGE_LAYER_ID)
+          ? COVERAGE_LAYER_ID
+          : undefined;
+        if (outlineBeforeId) {
+          map.addLayer(outlineLayerConfig, outlineBeforeId);
+        } else {
+          map.addLayer(outlineLayerConfig);
+        }
       }
 
       // Update grid overlay visibility based on toggle
