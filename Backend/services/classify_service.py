@@ -162,10 +162,12 @@ class ClassifyService:
         self.fewshot = FEWSHOT_PATH.read_text(encoding="utf-8")
         self.JSON_SCHEMA = JSON_SCHEMA
 
-        if _HAVE_OPENAI:
-            self.ai = OpenAIService(model=self.model)  # type: ignore
-        else:
-            self.ai = SimpleOpenAIClient(model=self.model)
+        if not _HAVE_OPENAI:
+            raise RuntimeError(
+                "OpenAIService is not available; check dependencies and OPENAI_API_KEY. "
+                "ClassifyService requires OpenAI to be properly configured for production use."
+            )
+        self.ai = OpenAIService(model=self.model)  # type: ignore
 
     def _call_generate_json_compat(
         self,
@@ -249,74 +251,46 @@ class ClassifyService:
         system_prompt = f"{self.system_prompt}\n\n-- FEW-SHOT --\n{self.fewshot}"
         user_prompt = _build_user_prompt(name, address, typ)
 
-        # ---- Pad 1: echte OpenAIService met compat-call ----
-        if _HAVE_OPENAI and hasattr(self.ai, "generate_json"):
-            parsed, meta = self._call_generate_json_compat(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
+        # Defensive check: ensure we have a proper OpenAIService instance
+        if not hasattr(self.ai, "generate_json"):
+            raise RuntimeError(
+                f"ClassifyService.ai does not have generate_json method. "
+                f"Expected OpenAIService instance, got {type(self.ai)}"
             )
 
-            # Normalisatie / defaulting van category
-            if parsed.action != "keep":
-                parsed.category = Category.other.value
-            elif not parsed.category:
+        # Call OpenAI service with compatibility layer
+        parsed, meta = self._call_generate_json_compat(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+        )
+
+        # Category normalization / defaulting
+        # For action="ignore": preserve None (don't force to "other")
+        # For action="keep": normalize category or use fallback
+        if parsed.action == "keep":
+            if not parsed.category:
                 parsed.category = Category.other.value
             else:
                 # Normalize LLM category output to valid enum value
                 parsed.category = map_llm_category_to_enum(parsed.category).value
+        # else: action="ignore" -> leave parsed.category as None (preserves existing DB category)
 
-            # log non-blocking
-            _maybe_schedule(
-                ai_log,
-                location_id=location_id,
-                action_type="classify",
-                prompt={"system": self.system_prompt, "fewshot": self.fewshot, "user": user_prompt},
-                raw_response={"raw_text": meta.get("raw_text") if isinstance(meta, dict) else None, "meta": meta},
-                validated_output=parsed.model_dump(),
-                model_used=self.model,
-                is_success=True,
-                error_message=None,
-            )
-            return parsed, meta
-
-        # ---- Pad 2: fallback client (zonder echte OpenAI-call) ----
-        raw_text, raw_meta = self.ai.generate_json_like(system_prompt, user_prompt)
-        try:
-            data = json.loads(raw_text)
-            parsed = ClassificationResult(**data)
-            if parsed.action != "keep":
-                parsed.category = Category.other.value
-            elif not parsed.category:
-                parsed.category = Category.other.value
-            else:
-                # Normalize LLM category output to valid enum value
-                parsed.category = map_llm_category_to_enum(parsed.category).value
-
-            is_success = True
-            error_message = None
-            validated_output = parsed.model_dump()
-        except Exception as e:
-            parsed = ClassificationResult(
-                action="ignore", category=Category.other.value, confidence_score=0.0, reason="parse_error"
-            )
-            is_success = False
-            error_message = str(e)
-            validated_output = None
-
+        # log non-blocking
         _maybe_schedule(
             ai_log,
             location_id=location_id,
             action_type="classify",
             prompt={"system": self.system_prompt, "fewshot": self.fewshot, "user": user_prompt},
-            raw_response={"raw_text": raw_text, "meta": raw_meta},
-            validated_output=validated_output,
+            raw_response={"raw_text": meta.get("raw_text") if isinstance(meta, dict) else None, "meta": meta},
+            validated_output=parsed.model_dump(),
             model_used=self.model,
-            is_success=is_success,
-            error_message=error_message,
+            is_success=True,
+            error_message=None,
         )
-        return parsed, raw_meta
+        return parsed, meta
 
 
+# NOTE: Stub client only for unit tests / offline experiments; not used in production pipeline.
 class SimpleOpenAIClient:
     def __init__(self, model: str):
         self.model = model

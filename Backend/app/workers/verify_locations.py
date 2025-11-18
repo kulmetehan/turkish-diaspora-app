@@ -87,7 +87,8 @@ async def fetch_candidates(
                category,
                state,
                confidence_score,
-               notes
+               notes,
+               source
         FROM locations
         WHERE state IN ('CANDIDATE', 'PENDING_VERIFICATION')
           AND (confidence_score IS NULL OR confidence_score < $1)
@@ -107,7 +108,7 @@ async def _apply_classification(
     *,
     location_id: int,
     action: str,
-    category: str,
+    category: Optional[str],  # Can be None to preserve existing category
     confidence: float,
     reason: Optional[str],
     dry_run: bool,
@@ -117,7 +118,7 @@ async def _apply_classification(
     await update_location_classification(
         id=int(location_id),
         action=action,
-        category=category,
+        category=category,  # Can be None for action="ignore"
         confidence_score=float(confidence),
         reason=reason or "verify_locations: applied",
     )
@@ -162,9 +163,32 @@ async def process_location(
         )
 
         action = validated_classification.action.value
-        category_result = validated_classification.category.value
+        category_result = validated_classification.category.value if validated_classification.category else None
         confidence = float(validated_classification.confidence_score)
         reason = validated_classification.reason
+
+        # Mosque-specific heuristic: prevent false RETIRE for OSM mosques with strong cues
+        original_category = (location.get("category") or "").lower()
+        source = (location.get("source") or "").upper()
+        name_lower = (name or "").lower()
+        
+        mosque_keywords = [
+            "cami", "camii", "moskee", "moschee",
+            "eyüp", "eyup", "sultan", "süleymaniye", "suleymaniye",
+            "fatih", "selimiye", "diyanet",
+            "islamitisch centrum", "islamic center", "cemevi"
+        ]
+        
+        is_osm_mosque = (source == "OSM_OVERPASS" and original_category == "mosque")
+        has_mosque_keyword = any(k in name_lower for k in mosque_keywords)
+        
+        if is_osm_mosque and has_mosque_keyword:
+            # Override to keep/mosque if model was uncertain or ignored it
+            if action != "keep" or confidence < 0.6:
+                action = "keep"
+                category_result = "mosque"
+                confidence = max(confidence, 0.75)  # Floor at 0.75
+                reason = (reason or "") + " [mosque heuristic override]"
 
         result.update({
             "action": action,
@@ -322,8 +346,8 @@ def parse_args() -> argparse.Namespace:
     import sys
     explicit_min_conf = '--min-confidence' in sys.argv
     
-    # Default: try config, then hard-coded default
-    default_conf = 0.8
+    # Default slightly relaxed (0.70) to avoid over-retiring borderline but clearly Turkish locations, especially for OSM sources. Real values are still controlled via ai_config table.
+    default_conf = 0.70
     if not explicit_min_conf:
         try:
             import asyncio

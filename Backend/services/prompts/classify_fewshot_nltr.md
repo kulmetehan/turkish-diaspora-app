@@ -28,6 +28,8 @@ Reference examples used when tuning the Dutch/Turkish classification prompt for 
 | 12 | Bakkerij Kees | Nieuw-Beijerland | bakery | `{ "action": "ignore", "category": "other", "confidence_score": 0.70, "reason": "Geen TR indicaties, generiek NL." }` |
 | 13 | Pizzeria Napoli | Rotterdam | restaurant | `{ "action": "ignore", "category": "other", "confidence_score": 0.75, "reason": "Italiaans; geen TR signalen." }` |
 | 14 | Barber Bros | Rotterdam | hair_care | `{ "action": "ignore", "category": "other", "confidence_score": 0.65, "reason": "Generiek Engels; geen TR signalen." }` |
+| 15 | Yeni Cami | Schiedam | mosque | `{ "action": "keep", "category": "mosque", "confidence_score": 0.95, "reason": "Cami/Moskee met Turkse naam → duidelijk diaspora-relevant." }` |
+| 16 | Süleymaniye Moskee | Rotterdam | mosque | `{ "action": "keep", "category": "mosque", "confidence_score": 0.97, "reason": "Moskee met Turkse religieuze naam → duidelijk Turkse gemeenschap." }` |
 
 ## Usage tips
 
