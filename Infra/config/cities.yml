@@ -102,3 +102,17 @@ cities:
         lng_min: 4.3800
         lng_max: 4.4300
         apply: *rotterdam_defaults
+
+  vlaardingen:
+    city_name: "Vlaardingen"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 51.912
+    center_lng: 4.341
+
+  schiedam:
+    city_name: "Schiedam"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 51.918
+    center_lng: 4.395

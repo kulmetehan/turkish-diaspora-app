@@ -662,8 +662,44 @@ def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig
     yaml_lang = defaults.get("language")
 
     city = ns.city or "rotterdam"
-    center_lat = ns.center_lat if ns.center_lat is not None else 51.9244
-    center_lng = ns.center_lng if ns.center_lng is not None else 4.4777
+    # Default center coordinates (Rotterdam fallback for backward compatibility)
+    default_center_lat = 51.9244
+    default_center_lng = 4.4777
+    
+    # If CLI overrides provided, use those; otherwise try to lookup from cities.yml
+    if ns.center_lat is not None and ns.center_lng is not None:
+        # Both CLI overrides provided, use them directly
+        center_lat = ns.center_lat
+        center_lng = ns.center_lng
+    else:
+        # Try to lookup city center from cities.yml
+        try:
+            cities = load_cities_config()
+            city_def = (cities.get("cities") or {}).get(city)
+            if city_def:
+                # Check if city has center_lat/center_lng defined
+                if "center_lat" in city_def and "center_lng" in city_def:
+                    center_lat = float(city_def["center_lat"])
+                    center_lng = float(city_def["center_lng"])
+                else:
+                    # Fall back to defaults if city found but no center defined
+                    center_lat = default_center_lat
+                    center_lng = default_center_lng
+            else:
+                # City not found in config, use defaults
+                center_lat = default_center_lat
+                center_lng = default_center_lng
+        except Exception as e:
+            # If cities.yml load fails, use defaults (backward compatibility)
+            logger.warning("failed_to_load_cities_config_for_center", city=city, exc_info=e)
+            center_lat = default_center_lat
+            center_lng = default_center_lng
+        
+        # CLI overrides take precedence if provided (partial overrides allowed)
+        if ns.center_lat is not None:
+            center_lat = ns.center_lat
+        if ns.center_lng is not None:
+            center_lng = ns.center_lng
 
     district = ns.district.strip() if ns.district else None
     if district:

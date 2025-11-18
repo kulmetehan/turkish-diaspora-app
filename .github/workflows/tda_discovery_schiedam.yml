@@ -1,10 +1,8 @@
-name: TDA Discovery (weekly, chunked)
-# This workflow is for Rotterdam discovery only.
-# For other cities, see: tda_discovery_vlaardingen.yml and tda_discovery_schiedam.yml
+name: TDA Discovery Schiedam (weekly, chunked)
 
 on:
   schedule:
-    - cron: "0 */2 * * *"    # every 2 hours
+    - cron: "20 */2 * * *"    # every 2 hours, at minute 20
   workflow_dispatch:
 
 permissions:
@@ -12,7 +10,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: "tda-discovery"
+  group: "tda-discovery-schiedam"
   cancel-in-progress: false
 
 jobs:
@@ -31,7 +29,7 @@ jobs:
         with:
           script: |
             // Use the workflow FILE path here
-            const workflowFile = '.github/workflows/tda_discovery.yml';
+            const workflowFile = '.github/workflows/tda_discovery_schiedam.yml';
             const res = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -91,7 +89,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
+      - name: Run Discovery Schiedam (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
@@ -110,7 +108,7 @@ jobs:
           DISCOVERY_MAX_RESULTS: "25"
         run: >
           python -m app.workers.discovery_bot
-          --city rotterdam
+          --city schiedam
           --categories ${{ matrix.category }}
           --nearby-radius-m 1200
           --grid-span-km 6
@@ -124,10 +122,11 @@ jobs:
       - name: Run summary
         if: always()
         run: |
-          echo "=== Discovery Run Summary ==="
+          echo "=== Discovery Run Summary (Schiedam) ==="
           echo "Category: ${{ matrix.category }}"
           echo "Chunk: ${{ matrix.chunk_index }} / 5 (0-indexed)"
-          echo "Total chunks: 54 (9 categories × 6 chunks)"
+          echo "Total chunks per city: 54 (9 categories × 6 chunks)"
           echo "Job status: ${{ job.status }}"
           echo "Elapsed time: ${{ job.duration }} seconds"
           echo "============================"
+
