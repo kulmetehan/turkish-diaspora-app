@@ -1,9 +1,12 @@
 // Frontend/src/hooks/useSearch.ts
+// NOTE: 'dataset' is the new preferred input (e.g. globalLocations).
+// 'locations' is kept for backward compatibility and will be removed later.
 import type { LocationMarker } from "@/api/fetchLocations";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type UseSearchParams = {
-    locations: LocationMarker[];
+    dataset?: LocationMarker[];   // NEW: preferred source (e.g. globalLocations)
+    locations?: LocationMarker[]; // LEGACY: backward compatibility, will be removed later
     search: string;
     category: string; // "all" or canonical key
     debounceMs?: number; // default 350
@@ -55,7 +58,10 @@ function useLruCache(maxSize: number) {
 }
 
 export function useSearch(params: UseSearchParams): UseSearchResult {
-    const { locations, search, category, debounceMs = 350, cacheSize = 30 } = params;
+    const { dataset, locations, search, category, debounceMs = 350, cacheSize = 30 } = params;
+
+    // Use dataset as preferred source, fallback to locations for backward compatibility
+    const source = dataset ?? locations ?? [];
 
     // Debounced query
     const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -76,7 +82,7 @@ export function useSearch(params: UseSearchParams): UseSearchResult {
         if (cached) return cached;
 
         const ids: string[] = [];
-        for (const l of locations) {
+        for (const l of source) {
             const locCat = normalizeCategory((l as any).category_key ?? l.category);
             if (cat !== "all" && locCat !== cat) continue;
             if (q && !String(l.name ?? "").toLowerCase().includes(q)) continue;
@@ -84,19 +90,19 @@ export function useSearch(params: UseSearchParams): UseSearchResult {
         }
         lru.set(key, ids);
         return ids;
-    }, [locations, debouncedQuery, category]);
+    }, [source, debouncedQuery, category]);
 
     const filtered = useMemo(() => {
         if (!filteredIds.length) return [] as LocationMarker[];
         // Build a quick id → location map for stable ordering by original list
         const byId = new Map<string, LocationMarker>();
-        for (const l of locations) byId.set(String(l.id), l);
+        for (const l of source) byId.set(String(l.id), l);
         return filteredIds
             .map((id) => byId.get(id))
             .filter((l): l is LocationMarker => Boolean(l));
-    }, [filteredIds, locations]);
+    }, [filteredIds, source]);
 
-    // Local suggestions derived from locations (name + category keywords)
+    // Local suggestions derived from source (name + category keywords)
     const suggestions = useMemo(() => {
         const q = debouncedQuery.trim().toLowerCase();
         if (!q) return [];
@@ -105,7 +111,7 @@ export function useSearch(params: UseSearchParams): UseSearchResult {
         const out: string[] = [];
 
         // Name suggestions
-        for (const l of locations) {
+        for (const l of source) {
             const name = String(l.name ?? "");
             if (!name) continue;
             if (name.toLowerCase().includes(q)) {
@@ -120,7 +126,7 @@ export function useSearch(params: UseSearchParams): UseSearchResult {
 
         // If still room, add category label/key suggestions
         if (out.length < 8) {
-            for (const l of locations) {
+            for (const l of source) {
                 const key = normalizeCategory((l as any).category_key ?? l.category);
                 const label = String((l as any).category_label ?? l.category ?? "");
                 const candidates = [label, key].filter(Boolean) as string[];
@@ -138,14 +144,14 @@ export function useSearch(params: UseSearchParams): UseSearchResult {
         }
 
         return out;
-    }, [debouncedQuery, locations]);
+    }, [debouncedQuery, source]);
 
     // Clear cache when base dataset changes notably (e.g., upon reload)
     useEffect(() => {
         // Heuristic: reset cache when number of locations changes
         // (keeps it simple and safe for this session-only cache)
         lru.clear();
-    }, [locations.length]);
+    }, [source.length]);
 
     return { debouncedQuery, filtered, suggestions };
 }
