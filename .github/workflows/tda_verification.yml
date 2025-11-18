@@ -45,10 +45,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           OPENAI_MODEL: gpt-4.1-mini
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_JWT_SECRET: "dummy-ci-secret"
+          ALLOWED_ADMIN_EMAILS: "ci@example.com"
           CLASSIFY_MIN_CONF: "0.70"
           PYTHONUNBUFFERED: "1"
           DB_SSL_VERIFY: "0"
