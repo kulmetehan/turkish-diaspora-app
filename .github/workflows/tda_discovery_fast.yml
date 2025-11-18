@@ -20,7 +20,11 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        category: [restaurant, supermarket, bakery, cafe]
+        # Fast/high-frequency sweep for core food & daily life categories
+        # Includes high-value categories that change frequently or are most relevant to users
+        # Note: mosque and travel_agency are excluded here (covered by weekly tda_discovery.yml)
+        # The full extended set (all 9 categories) is covered by the weekly tda_discovery.yml workflow
+        category: [restaurant, supermarket, bakery, fast_food, cafe, butcher]
         chunk_index: [0, 1, 2]   # 3 chunks for faster execution
     defaults:
       run:

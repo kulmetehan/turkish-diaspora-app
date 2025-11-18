@@ -56,6 +56,11 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
+        # Canonical discovery categories: all Category enum values except 'other'
+        # This list must stay in sync with:
+        #   - Backend/app/models/ai.py (Category enum)
+        #   - Infra/config/categories.yml (discovery.enabled: true)
+        # Note: 'other' is intentionally excluded as it's a fallback category, not a discovery target
         category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food, cafe]
         chunk_index: [0, 1, 2, 3, 4, 5]   # 6 chunks -> pas aan indien nodig
     defaults:

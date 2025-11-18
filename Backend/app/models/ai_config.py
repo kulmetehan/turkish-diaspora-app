@@ -100,3 +100,4 @@ class AIConfigUpdate(BaseModel):
             raise ValueError(f"Invalid days value: {v}") from e
 
 
+

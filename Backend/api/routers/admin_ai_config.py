@@ -72,3 +72,4 @@ async def update_ai_config_endpoint(
         raise HTTPException(status_code=500, detail=f"Failed to update AI config: {str(e)}") from e
 
 
+

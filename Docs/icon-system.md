@@ -172,3 +172,4 @@ To add a new category icon:
 - **v2**: Previous version with 48px circular markers
 
 
+
