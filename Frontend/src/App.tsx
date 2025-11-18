@@ -18,11 +18,18 @@ import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, wr
 import { fetchLocations, fetchLocationsCount, fetchCategories, type LocationMarker, type CategoryOption } from "@/api/fetchLocations";
 
 function HomePage() {
-  const [all, setAll] = useState<LocationMarker[]>([]);
+  // Global locations state (viewport-independent, fetched on mount)
+  const [globalLocations, setGlobalLocations] = useState<LocationMarker[]>([]);
+  const [globalLocationsLoading, setGlobalLocationsLoading] = useState(true);
+  const [globalLocationsError, setGlobalLocationsError] = useState<string | null>(null);
+
+  // Viewport locations state (for map marker rendering performance)
+  const [viewportLocations, setViewportLocations] = useState<LocationMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewportBbox, setViewportBbox] = useState<string | null>(null);
   const debounceTimeoutRef = useRef<number | null>(null);
+
 
   // Global categories state (viewport-independent)
   const [globalCategories, setGlobalCategories] = useState<CategoryOption[]>([]);
@@ -94,7 +101,7 @@ function HomePage() {
 
   // Search + filter with debounce and session cache
   const { filtered, suggestions } = useSearch({
-    locations: all,
+    dataset: globalLocations,
     search: filters.search,
     category: filters.category,
     debounceMs: 350,
@@ -104,11 +111,7 @@ function HomePage() {
   // Compute empty state conditions
   const hasCategoryFilter = filters.category && filters.category !== "all";
   const hasSearchQuery = filters.search.trim().length > 0;
-  const noResultsForSelection =
-    !loading &&
-    !error &&
-    filtered.length === 0 &&
-    (hasCategoryFilter || hasSearchQuery);
+  const hasActiveSearch = hasSearchQuery || hasCategoryFilter;
 
   // Load locations based on viewport bbox
   const suppressNextViewportFetch = useCallback(() => {
@@ -117,6 +120,11 @@ function HomePage() {
 
   useEffect(() => {
     const nextBbox = viewportBbox ?? null;
+
+    // Skip viewport fetch if no bbox (global fetch handles this case)
+    if (!nextBbox) {
+      return;
+    }
 
     if (debounceTimeoutRef.current !== null) {
       window.clearTimeout(debounceTimeoutRef.current);
@@ -157,36 +165,16 @@ function HomePage() {
 
       const load = async () => {
         try {
-          if (!requestBbox) {
-            const totalCount = await fetchLocationsCount(null, controller.signal);
-            if (controller.signal.aborted || cancelled) return;
+          // Viewport fetch only handles bbox-based requests (global fetch is separate)
+          // requestBbox should never be null here due to early return in useEffect
+          const rows = await fetchLocations(requestBbox, 1000, 0, controller.signal);
+          if (controller.signal.aborted || cancelled) return;
 
-            const allLocations: LocationMarker[] = [];
-            const pageSize = 10000;
-            let offset = 0;
-
-            while (offset < totalCount) {
-              if (controller.signal.aborted || cancelled) return;
-              const page = await fetchLocations(null, pageSize, offset, controller.signal);
-              allLocations.push(...page);
-              if (page.length < pageSize) {
-                break;
-              }
-              offset += pageSize;
-            }
-
-            if (controller.signal.aborted || cancelled) return;
-            setAll(allLocations);
-          } else {
-            const rows = await fetchLocations(requestBbox, 1000, 0, controller.signal);
-            if (controller.signal.aborted || cancelled) return;
-
-            if (import.meta.env.DEV) {
-              console.debug(`[App] Fetched ${rows.length} locations for bbox: ${requestBbox}`);
-            }
-
-            setAll(rows);
+          if (import.meta.env.DEV) {
+            console.debug(`[App] Fetched ${rows.length} locations for bbox: ${requestBbox}`);
           }
+
+          setViewportLocations(rows);
 
           if (controller.signal.aborted || cancelled) return;
           lastSettledBboxRef.current = requestBbox;
@@ -261,10 +249,55 @@ function HomePage() {
     };
   }, []);
 
+  // Fetch global locations on mount (independent of viewport)
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+
+    async function loadGlobalLocations() {
+      setGlobalLocationsLoading(true);
+      setGlobalLocationsError(null);
+      try {
+        const totalCount = await fetchLocationsCount(null, controller.signal);
+        if (controller.signal.aborted || cancelled) return;
+
+        const allLocations: LocationMarker[] = [];
+        const pageSize = 10000;
+        let offset = 0;
+
+        while (offset < totalCount) {
+          if (controller.signal.aborted || cancelled) return;
+          const page = await fetchLocations(null, pageSize, offset, controller.signal);
+          allLocations.push(...page);
+          if (page.length < pageSize) {
+            break;
+          }
+          offset += pageSize;
+        }
+
+        if (controller.signal.aborted || cancelled) return;
+        setGlobalLocations(allLocations);
+      } catch (e: any) {
+        if (controller.signal.aborted || cancelled) return;
+        setGlobalLocationsError(e instanceof Error ? e.message : "Failed to load locations");
+      } finally {
+        if (cancelled) return;
+        setGlobalLocationsLoading(false);
+      }
+    }
+
+    void loadGlobalLocations();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, []);
+
   // Dynamic categories from current viewport (fallback)
   const dynamicCategoryOptions = useMemo(() => {
     const map = new Map<string, string>();
-    for (const l of all) {
+    for (const l of viewportLocations) {
       const key = (l.category_key ?? l.category ?? "").toLowerCase();
       if (!key || key === "other") continue;
       const label = l.category_label || key;
@@ -275,7 +308,7 @@ function HomePage() {
     return Array.from(map.entries())
       .sort((a, b) => a[0].localeCompare(b[0], "en"))
       .map(([key, label]) => ({ key, label }));
-  }, [all]);
+  }, [viewportLocations]);
 
   // Prefer global categories, fall back to dynamic
   const categoryOptions = useMemo(() => {
@@ -360,13 +393,9 @@ function HomePage() {
           onSelectDetail={handleOpenDetail}
           onShowOnMap={handleFocusOnMap}
           autoScrollToSelected
-          emptyText={
-            loading
-              ? "Warming up the backend… Getting your data…"
-              : error ?? (noResultsForSelection
-                  ? "No results for your filter in this region. Try moving the map or clearing filters."
-                  : "Geen resultaten")
-          }
+          isLoading={globalLocationsLoading}
+          error={globalLocationsError}
+          hasActiveSearch={hasActiveSearch}
           fullHeight
         />
       </div>
@@ -408,13 +437,9 @@ function HomePage() {
             onSelectDetail={handleOpenDetail}
             onShowOnMap={handleFocusOnMap}
             autoScrollToSelected
-            emptyText={
-              loading
-                ? "Warming up the backend… Getting your data…"
-                : error ?? (noResultsForSelection
-                    ? "No results for your filter in this region. Try moving the map or clearing filters."
-                    : "Geen resultaten")
-            }
+            isLoading={globalLocationsLoading}
+            error={globalLocationsError}
+            hasActiveSearch={hasActiveSearch}
             fullHeight
           />
         )}
@@ -439,6 +464,7 @@ function HomePage() {
       </h2>
       <MapView
         locations={filtered}
+        globalLocations={globalLocations}
         highlightedId={highlightedId}
         detailId={detailId}
         interactionDisabled={Boolean(detail)}

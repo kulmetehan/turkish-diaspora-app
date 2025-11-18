@@ -10,8 +10,11 @@ type Props = {
   onSelectDetail?: (id: string) => void;
   onShowOnMap?: (id: string) => void;
   autoScrollToSelected?: boolean;
-  emptyText?: string;
+  emptyText?: string; // Keep for backward compatibility, but may not be used
   fullHeight?: boolean;
+  isLoading?: boolean; // NEW: global loading state
+  error?: string | null; // NEW: global error state
+  hasActiveSearch?: boolean; // NEW: whether there's an active search/filter
 };
 
 export default function LocationList({
@@ -23,6 +26,9 @@ export default function LocationList({
   autoScrollToSelected = true,
   emptyText = "Geen resultaten",
   fullHeight = false,
+  isLoading = false,
+  error = null,
+  hasActiveSearch = false,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -54,10 +60,32 @@ export default function LocationList({
     }
   }, [selectedId, autoScrollToSelected]);
 
-  if (!locations.length) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
-        {emptyText}
+        Warming up the backend… Getting your data…
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+        {error || "Er ging iets mis bij het laden van de locaties."}
+      </div>
+    );
+  }
+
+  // Empty state - distinguish between search vs no data
+  if (!locations.length) {
+    const message = hasActiveSearch
+      ? "Geen resultaten gevonden voor deze zoekopdracht."
+      : "Er zijn nog geen locaties beschikbaar in deze stad.";
+    return (
+      <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+        {message}
       </div>
     );
   }

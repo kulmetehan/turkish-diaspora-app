@@ -21,6 +21,7 @@ mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
 type Props = {
   locations: LocationMarker[];
+  globalLocations?: LocationMarker[]; // NEW: entire global dataset for lookup
   highlightedId: string | null;
   detailId: string | null;
   onHighlight?: (id: string | null) => void;
@@ -471,6 +472,7 @@ function usePopupController(
  */
 export default function MapView({
   locations,
+  globalLocations,
   highlightedId,
   detailId,
   onHighlight,
@@ -491,6 +493,7 @@ export default function MapView({
   const lastFocusRef = useRef<string | null>(null);
   const focusPendingRef = useRef<{ id: string; cancel: () => void } | null>(null);
   const allLocationsRef = useRef<LocationMarker[]>(locations);
+  const globalLocationsRef = useRef<LocationMarker[]>([]);
   const destroyedRef = useRef(false);
   const pendingFocusDataRef = useRef<{ id: string; location: LocationMarker } | null>(null);
   const mapEventCleanupRef = useRef<(() => void)[]>([]);
@@ -712,7 +715,21 @@ export default function MapView({
 
   const findLocationById = useCallback((id: string | number | null | undefined) => {
     if (id == null) return null;
-    return allLocationsRef.current.find((loc) => String(loc.id) === String(id)) ?? null;
+    const key = String(id);
+    
+    // 1) Try currently rendered/filtered locations first
+    const fromRendered = allLocationsRef.current.find(
+      (loc) => String(loc.id) === key
+    );
+    if (fromRendered) return fromRendered;
+    
+    // 2) Fallback to global dataset
+    const fromGlobal = globalLocationsRef.current.find(
+      (loc) => String(loc.id) === key
+    );
+    if (fromGlobal) return fromGlobal;
+    
+    return null;
   }, []);
 
   const switchPopupToLocation = useCallback(
@@ -861,6 +878,10 @@ export default function MapView({
   useEffect(() => {
     allLocationsRef.current = locations;
   }, [locations]);
+
+  useEffect(() => {
+    globalLocationsRef.current = globalLocations ?? [];
+  }, [globalLocations]);
 
   const computeFocusPadding = useCallback(() => {
     const map = mapRef.current;
@@ -1112,7 +1133,11 @@ export default function MapView({
     (id: string) => {
       if (destroyedRef.current) return;
       const location = findLocationById(id);
-      if (!location || !isFiniteCoord(location.lng) || !isFiniteCoord(location.lat)) {
+      if (!location) {
+        console.warn("MapView: location not found for id", id);
+        return;
+      }
+      if (!isFiniteCoord(location.lng) || !isFiniteCoord(location.lat)) {
         return;
       }
       onHighlight?.(String(location.id));
@@ -1394,6 +1419,7 @@ export default function MapView({
 
     const location = findLocationById(focusId);
     if (!location) {
+      console.warn("MapView: cannot focus, location not found for id", focusId);
       onFocusConsumed?.();
       return;
     }
@@ -1471,7 +1497,11 @@ export default function MapView({
     }
 
     const location = findLocationById(highlightedId);
-    if (!location || typeof location.lng !== "number" || typeof location.lat !== "number") {
+    if (!location) {
+      hidePopup();
+      return;
+    }
+    if (typeof location.lng !== "number" || typeof location.lat !== "number") {
       hidePopup();
       return;
     }
