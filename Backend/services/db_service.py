@@ -294,7 +294,7 @@ async def update_location_classification(
     *,
     id: int,
     action: str,             # "keep" | "ignore"
-    category: str,
+    category: Optional[str],  # Can be None for action="ignore" to preserve existing category
     confidence_score: float,
     reason: Optional[str] = None,
     conn: Optional[asyncpg.Connection] = None,
@@ -355,11 +355,15 @@ async def update_location_classification(
     )
 
     # Update with stamp
+    # Preserve existing category when new category is None (for action="ignore" cases)
     sql = (
         """
         UPDATE locations
         SET
-            category = $1,
+            category = CASE 
+                         WHEN $1 IS NOT NULL THEN $1
+                         ELSE category  -- Preserve existing category when new one is NULL
+                       END,
             confidence_score = $2,
             state = $3,
             notes = CASE
@@ -375,7 +379,7 @@ async def update_location_classification(
     )
 
     exec_args = (
-        category,
+        category,  # Can be None to preserve existing category
         float(confidence_score),
         final_state,
         reason_text,

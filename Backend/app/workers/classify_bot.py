@@ -275,7 +275,8 @@ def classify_location_with_ai(*, name: str, address: str, existing_category: str
                 raw_dict = dict(raw_payload) if isinstance(raw_payload, dict) else {"__raw__": raw_payload}
             parsed = validate_classification_payload(raw_dict)
         action = parsed.action.value
-        category = parsed.category.value
+        # For action="ignore", category should be None to preserve existing category
+        category = parsed.category.value if parsed.action.value == "keep" and parsed.category else None
         confidence = float(parsed.confidence_score or 0.0)
         reason = parsed.reason or ""
         return {"action": action, "category": category, "confidence": confidence, "reason": reason}
@@ -421,15 +422,22 @@ async def run(
             )
 
             action = result["action"]
-            raw_category = result["category"]
-            final_category = normalize_category(raw_category)
+            raw_category = result.get("category")
+            # For action="ignore", category may be None - preserve existing category
+            # For action="keep", normalize the category or use fallback
+            if action == "keep":
+                final_category = normalize_category(raw_category) if raw_category else "other"
+            else:
+                # action="ignore": pass None to preserve existing category
+                final_category = None
+            
             conf = float(result["confidence"])
 
             if conf < min_conf:
                 skipped_low_conf += 1
                 print(
                     f"[skip <{min_conf:.2f}] id={r['id']} name={r['name']!r} "
-                    f"-> {action}/{final_category} conf={conf:.2f}"
+                    f"-> {action}/{final_category or 'preserve'} conf={conf:.2f}"
                 )
                 await report_progress(idx)
                 continue
@@ -440,14 +448,14 @@ async def run(
             elif action == "ignore":
                 ignore_cnt += 1
 
-            print(f"[apply] id={r['id']} -> action={action} category={final_category} conf={conf:.2f}")
+            print(f"[apply] id={r['id']} -> action={action} category={final_category or 'preserve'} conf={conf:.2f}")
 
             # 4) Persist (tenzij dry-run)
             if not dry_run:
                 await update_location_classification(
                     id=r["id"],
                     action=action,
-                    category=final_category,
+                    category=final_category,  # Can be None for action="ignore"
                     confidence_score=conf,
                     reason=result.get("reason", ""),
                 )
@@ -489,8 +497,8 @@ async def main_async():
         pre_args, _ = p.parse_known_args()
         explicit_min_conf = hasattr(pre_args, 'min_confidence') and '--min-confidence' in sys.argv
         
-        # Default: try config, then env, then hard-coded
-        default_conf = 0.80
+        # Default slightly relaxed (0.70) to avoid over-retiring borderline but clearly Turkish locations, especially for OSM sources. Real values are still controlled via ai_config table.
+        default_conf = 0.70
         if not explicit_min_conf:
             try:
                 from services.db_service import init_db_pool

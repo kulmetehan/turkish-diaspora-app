@@ -8,12 +8,18 @@ TAKEN
 CONTEXT & REGELS
 - Gebruik vooral naam + type + adres; let op duidelijke Turkse cues.
 - Turkse cues (niet-limitatief): kebab, döner, grill, ocakbaşı, lahmacun, pide, börek, simit, baklava, saray, istanbul, anadolu/anatolia, osmanlı, sultan, firat, vatan, ankara, konya, urfa, antep, helal/halal (i.c.m. Turks eten), bakkal, kasap, berber/kuaför (barber), lokanta, çiğköfte, tantuni, avrasya, enes, mehmet, ahmet, ali, fatma, ayşe, zeynep, emre, can, deniz, selin, özlem, türk, turk, turks, turkse, anatolia, ege, marmara, karadeniz, akdeniz, doğu, batı, güney, kuzey.
+- Moskee cues: cami, camii, moskee, moschee, eyüp sultan, eyup sultan, süleymaniye, suleymaniye, fatih, selimiye, diyanet, islamitisch centrum, islamic center, cemevi, alevi.
 - Anti-cues: generieke NL namen (bv. HEMA, Limburgia, De Brug, Hollandse termen zonder Turkse link).
 - Als type=bakery en je ziet Turkse cues → category="bakery".
 - Als er wél duidelijke Turkse cues zitten maar type wijst op iets anders (kebab, grill, barber, butcher, bakkal) → kies die category.
 - Als je géén Turkse indicaties vindt → action="ignore", category=null.
 - Houd categories beperkt tot: {"bakery","kebab","restaurant","bakkal/supermarket","barber","butcher","mosque","association"}.
 - Ga NOOIT gokken buiten deze set.
+
+MOSKEE REGELS
+- Als type=mosque of de naam woorden bevat als 'cami', 'camii', 'moskee', 'Eyüp Sultan', 'Süleymaniye', 'Diyanet' en er geen sterke tegenindicaties zijn → ga uit van action="keep" en category="mosque" met hoge confidence (≥0.85).
+- Moskeeën met duidelijke Turkse/Ottomaanse namen zijn zeer waarschijnlijk relevant voor de Turkse diaspora.
+- Algemene regel: Als je type=mosque ziet en er zijn geen duidelijke anti-cues (bv. expliciet niet-Turks), kies action="keep".
 
 STRICTE OUTPUT
 - Altijd geldige JSON op één regel:
