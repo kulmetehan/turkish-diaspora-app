@@ -53,7 +53,14 @@ jobs:
           PYTHONUNBUFFERED: "1"
           DB_SSL_VERIFY: "0"
           PYTHONPATH: .
-        run: >
-          python -m app.workers.verify_locations
-          --limit 1500
-          --min-confidence 0.80
+        run: |
+          # Verify OpenAI API key is set (without printing the value)
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "ERROR: OPENAI_API_KEY is not set"
+            exit 1
+          else
+            echo "✓ OPENAI_API_KEY is set (length: ${#OPENAI_API_KEY})"
+          fi
+          python -m app.workers.verify_locations \
+            --limit 1500 \
+            --min-confidence 0.80

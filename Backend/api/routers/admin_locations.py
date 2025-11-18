@@ -16,6 +16,7 @@ from app.models.admin_locations import (
     AdminLocationsBulkUpdateResponse,
     AdminLocationsBulkUpdateError,
 )
+from app.core.logging import get_logger
 from services.audit_service import audit_admin_action
 from services.db_service import (
     execute,
@@ -27,6 +28,8 @@ from services.db_service import (
     run_in_transaction,
     update_location_classification,
 )
+
+logger = get_logger()
 
 DEFAULT_TIMEOUT_S = DEFAULT_QUERY_TIMEOUT_MS / 1000
 
@@ -391,6 +394,7 @@ async def bulk_update_admin_locations(
             continue
 
         before = dict(before_row)
+        allow_resurrection = False  # Initialize for logging access
         try:
             async with run_in_transaction() as conn:
                 if body.action.type == "verify":
@@ -419,17 +423,6 @@ async def bulk_update_admin_locations(
                         conn=conn,
                         allow_resurrection=allow_resurrection,
                     )
-                    if allow_resurrection and was_retired:
-                        await execute_with_conn(
-                            conn,
-                            """
-                            UPDATE locations
-                            SET is_retired = false
-                            WHERE id = $1
-                            """,
-                            int(location_id),
-                            timeout=DEFAULT_TIMEOUT_S,
-                        )
                 elif body.action.type == "retire":
                     await execute_with_conn(
                         conn,
@@ -495,6 +488,14 @@ async def bulk_update_admin_locations(
                 )
                 updated.append(int(location_id))
         except (asyncio.TimeoutError, asyncpg.QueryCanceledError) as exc:
+            logger.warning(
+                "bulk_update_timeout",
+                extra={
+                    "location_id": int(location_id),
+                    "action_type": body.action.type,
+                    "allow_resurrection": allow_resurrection if body.action.type == "verify" else None,
+                }
+            )
             errors.append(
                 AdminLocationsBulkUpdateError(
                     id=int(location_id),
@@ -502,6 +503,16 @@ async def bulk_update_admin_locations(
                 )
             )
         except Exception as exc:  # pragma: no cover - defensive
+            logger.error(
+                "bulk_update_error",
+                extra={
+                    "location_id": int(location_id),
+                    "action_type": body.action.type,
+                    "allow_resurrection": allow_resurrection if body.action.type == "verify" else None,
+                    "error_type": type(exc).__name__,
+                    "error_message": str(exc)[:200],
+                }
+            )
             errors.append(
                 AdminLocationsBulkUpdateError(
                     id=int(location_id),

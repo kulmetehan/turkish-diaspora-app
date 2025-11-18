@@ -20,13 +20,21 @@ except Exception:  # pragma: no cover
 try:
     from services.openai_service import OpenAIService
     _HAVE_OPENAI = True
-except Exception:  # pragma: no cover
+except (ImportError, ModuleNotFoundError):  # Only catch import-related errors
     try:
         from app.services.openai_service import OpenAIService  # type: ignore
         _HAVE_OPENAI = True
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         OpenAIService = None  # type: ignore
         _HAVE_OPENAI = False
+except Exception as e:
+    # For non-import errors (e.g., config issues during import), log and mark unavailable
+    import sys
+    if "pytest" not in sys.modules:
+        import logging
+        logging.warning(f"Unexpected error importing OpenAIService: {e}")
+    OpenAIService = None  # type: ignore
+    _HAVE_OPENAI = False
 
 # -----------------------------------------------------------------------------
 # Prompt-bestanden relatief t.o.v. deze file
@@ -167,7 +175,25 @@ class ClassifyService:
                 "OpenAIService is not available; check dependencies and OPENAI_API_KEY. "
                 "ClassifyService requires OpenAI to be properly configured for production use."
             )
-        self.ai = OpenAIService(model=self.model)  # type: ignore
+
+        # Runtime check: verify OpenAIService can actually be instantiated
+        try:
+            self.ai = OpenAIService(model=self.model)  # type: ignore
+        except RuntimeError as e:
+            # OpenAIService.__init__ calls require_openai() which raises RuntimeError if key missing
+            error_msg = str(e)
+            if "OPENAI_API_KEY" in error_msg or "ontbreekt" in error_msg:
+                raise RuntimeError(
+                    f"OpenAI API key is not configured. {error_msg} "
+                    "Please set OPENAI_API_KEY environment variable."
+                ) from e
+            raise
+        except Exception as e:
+            # Catch any other unexpected initialization errors
+            raise RuntimeError(
+                f"Failed to initialize OpenAIService: {e}. "
+                "Check that the 'openai' package is installed and OPENAI_API_KEY is set correctly."
+            ) from e
 
     def _call_generate_json_compat(
         self,
