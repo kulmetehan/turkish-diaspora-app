@@ -311,7 +311,7 @@ async def update_location_classification(
 
     # Fetch current state to enforce no-downgrade/no-resurrection
     row_sql = """
-        SELECT state, COALESCE(is_retired, false) AS is_retired
+        SELECT state, COALESCE(is_retired, false) AS is_retired, category, confidence_score
         FROM locations
         WHERE id = $1
     """
@@ -321,10 +321,14 @@ async def update_location_classification(
         row = await fetchrow(row_sql, int(id))
     current_state = None
     is_retired = False
+    current_category = None
+    current_confidence = None
     if row:
         rec = dict(row)
         current_state = (rec.get("state") or "").upper()
         is_retired = bool(rec.get("is_retired"))
+        current_category = rec.get("category")
+        current_confidence = rec.get("confidence_score")
 
     # Derive desired target state from action + confidence
     action_l = (action or "").strip().lower()
@@ -354,27 +358,74 @@ async def update_location_classification(
         and final_state != "RETIRED"
     )
 
-    # Update with stamp
+    # Optimize: Use lightweight UPDATE for VERIFIED→VERIFIED no-op cases
+    # Only when: state stays VERIFIED, no resurrection, confidence already high
+    is_noop_reverify = (
+        current_state == "VERIFIED"
+        and final_state == "VERIFIED"
+        and not should_clear_retired
+        and float(confidence_score) >= 0.90
+        and (current_confidence is None or float(current_confidence) >= 0.90)
+    )
+
+    if is_noop_reverify:
+        # Check if category or confidence actually need to change
+        category_changes = category is not None and category != current_category
+        confidence_changes = abs(float(confidence_score) - (float(current_confidence) if current_confidence is not None else 0.0)) > 0.001
+        
+        if not category_changes and not confidence_changes:
+            # True no-op: only update last_verified_at and notes (if reason provided)
+            if reason_text:
+                sql_lightweight = """
+                    UPDATE locations
+                    SET last_verified_at = NOW(),
+                        notes = CASE
+                                  WHEN $1::text = '' THEN notes
+                                  ELSE COALESCE(notes, '')
+                                       || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\\n' END
+                                       || $1::text
+                                END
+                    WHERE id = $2::bigint
+                """
+                if conn is not None:
+                    await execute_with_conn(conn, sql_lightweight, reason_text, int(id))
+                else:
+                    await execute(sql_lightweight, reason_text, int(id))
+            else:
+                # Even lighter: just update last_verified_at
+                sql_minimal = """
+                    UPDATE locations
+                    SET last_verified_at = NOW()
+                    WHERE id = $1::bigint
+                """
+                if conn is not None:
+                    await execute_with_conn(conn, sql_minimal, int(id))
+                else:
+                    await execute(sql_minimal, int(id))
+            return  # Early exit for true no-op
+
+    # Full UPDATE for all other cases
     # Preserve existing category when new category is None (for action="ignore" cases)
+    # All parameters must have explicit type context to avoid AmbiguousParameterError
     sql = (
         """
         UPDATE locations
         SET
             category = CASE 
-                         WHEN $1 IS NOT NULL THEN $1
+                         WHEN $1::text IS NOT NULL THEN $1::text
                          ELSE category  -- Preserve existing category when new one is NULL
                        END,
-            confidence_score = $2,
-            state = $3,
+            confidence_score = $2::numeric,
+            state = $3::location_state,
             notes = CASE
-                      WHEN $4 = '' THEN notes
+                      WHEN $4::text = '' THEN notes
                       ELSE COALESCE(notes, '')
                            || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\\n' END
-                           || $4
+                           || $4::text
                     END,
             last_verified_at = NOW(),
-            is_retired = CASE WHEN $5 THEN false ELSE is_retired END
-        WHERE id = $6
+            is_retired = CASE WHEN $5::boolean THEN false ELSE is_retired END
+        WHERE id = $6::bigint
         """
     )
 
