@@ -50,10 +50,10 @@ jobs:
         working-directory: Frontend
         run: npm ci
 
-      # Explicit base because we deploy to /turkish-diaspora-app/
-      - name: Build with explicit base
+      # Base path is configured in vite.config.ts
+      - name: Build
         working-directory: Frontend
-        run: npm run build -- --base=/turkish-diaspora-app/
+        run: npm run build
 
       # Validatie: index.html moet /turkish-diaspora-app/ bevatten vóór assets
       - name: Inspect built index.html

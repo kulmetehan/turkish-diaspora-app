@@ -13,7 +13,7 @@ export default defineConfig({
     },
   },
   // GitHub Pages configuration
-  base: process.env.NODE_ENV === 'production' ? '/Turkish-Diaspora-App/' : '/',
+  base: process.env.NODE_ENV === 'production' ? '/turkish-diaspora-app/' : '/',
   // Optioneel: wat vriendelijkere build warnings
   build: {
     sourcemap: false,
