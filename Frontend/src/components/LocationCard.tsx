@@ -2,6 +2,7 @@
 
 import type { LocationMarker } from "@/api/fetchLocations";
 import React from "react";
+import { cn } from "@/lib/ui/cn";
 
 type Props = {
   location: LocationMarker;
@@ -48,20 +49,21 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
       aria-selected={isSelected}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className={[
-        "loc-card",
-        isSelected ? "loc-card--selected" : "",
-      ].join(" ").trim()}
+      className={cn(
+        "border rounded-xl p-3.5 my-2 cursor-pointer bg-card text-card-foreground transition-colors",
+        "hover:bg-accent/40 hover:shadow-sm",
+        isSelected && "bg-accent/60 border-brand-red shadow-md"
+      )}
     >
-      <div className="loc-card__header">
-        <h3 className="loc-card__title">{location.name}</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-base leading-tight m-0 font-semibold">{location.name}</h3>
         <span className={badgeClass}>{statusText}</span>
       </div>
 
-      <div className="loc-card__meta">
-        <div className="loc-card__row">
-          <span className="loc-card__label">Categorie</span>
-          <span className="loc-card__value">{location.category_label ?? location.category ?? "—"}</span>
+      <div className="mt-2 grid gap-1">
+        <div className="grid grid-cols-[110px_1fr] gap-2">
+          <span className="text-xs text-muted-foreground">Categorie</span>
+          <span className="text-sm">{location.category_label ?? location.category ?? "—"}</span>
         </div>
       </div>
     </div>

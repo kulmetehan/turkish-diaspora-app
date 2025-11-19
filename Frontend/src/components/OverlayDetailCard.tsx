@@ -80,12 +80,15 @@ export default function OverlayDetailCard({ location, open, onClose }: OverlayDe
                 >
                     <header className="flex flex-col gap-4 border-b pb-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex-1 space-y-3">
-                            <DialogPrimitive.Title
-                                id="overlay-detail-title"
-                                className="truncate text-2xl font-semibold tracking-tight"
-                            >
-                                {location.name}
-                            </DialogPrimitive.Title>
+                            <div>
+                                <DialogPrimitive.Title
+                                    id="overlay-detail-title"
+                                    className="truncate text-2xl font-semibold tracking-tight"
+                                >
+                                    {location.name}
+                                </DialogPrimitive.Title>
+                                <div className="h-[3px] w-12 rounded-full bg-brand-redSoft mt-2" />
+                            </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 {categoryLabel && (
                                     <Badge variant="secondary" className="capitalize">

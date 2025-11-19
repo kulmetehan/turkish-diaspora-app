@@ -486,7 +486,7 @@ function HomePage() {
       </div>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-4 pt-[var(--top-offset)]">
         <div className="pointer-events-auto w-full max-w-2xl" data-filters-overlay>
-          <div className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-background/95 p-4 shadow-2xl supports-[backdrop-filter]:bg-background/80">
+          <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl shadow-[0_0_0_1px_hsl(var(--brand-red-soft))] supports-[backdrop-filter]:bg-background/80">
             <Tabs
               value={viewMode}
               onValueChange={(value) => {
@@ -542,7 +542,7 @@ function HomePage() {
         </div>
       </div>
       {loading && (
-        <div className="absolute top-4 right-4 z-10 rounded-md bg-white/90 px-4 py-2 text-sm shadow-md">
+        <div className="absolute top-4 right-4 z-10 rounded-md bg-background/90 px-4 py-2 text-sm text-foreground shadow-md">
           Loading locations...
         </div>
       )}

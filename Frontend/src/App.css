@@ -8,6 +8,8 @@
 }
 
 /* ---------- Kaarten / lijst kaarten ---------- */
+/* .loc-card styles migrated to Tailwind tokens in LocationCard.tsx */
+/* Legacy CSS kept for reference but no longer used:
 .loc-card {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -27,11 +29,31 @@
 .loc-card__row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; }
 .loc-card__label { color: #6b7280; font-size: 12px; }
 .loc-card__value { font-size: 14px; }
+*/
 
-.badge { display:inline-block; font-size:12px; padding:2px 8px; border-radius:999px; background:#e5e7eb; color:#111827; }
-.badge--success { background:#dcfce7; color:#065f46; }
-.badge--warn { background:#fef3c7; color:#92400e; }
-.badge--error { background:#fee2e2; color:#991b1b; }
+.badge {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.badge--success {
+  background: #dcfce7;
+  color: #065f46;
+}
+
+.badge--warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.badge--error {
+  background: #fee2e2;
+  color: #991b1b;
+}
 
 /* ---------- Lijst / filters ---------- */
 .location-list {
@@ -42,21 +64,89 @@
   padding-right: 4px;
 }
 
-.filters { padding: 8px 0; }
-.filters__header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-.filters__title { font-size:14px; margin:0; }
-.filters__actions { display:flex; gap:6px; }
-.btn { border:1px solid #e5e7eb; background:#fff; padding:4px 8px; border-radius:8px; cursor:pointer; }
-.btn--ghost { background:#fff; }
-.filters__list { display:flex; flex-wrap:wrap; gap:6px; }
-.chip { display:inline-flex; align-items:center; gap:6px; border:1px solid #e5e7eb; border-radius:999px; padding:4px 10px; cursor:pointer; user-select:none; }
-.chip input { display:none; }
-.chip--active { background: hsl(var(--brand-red-soft)); border-color: hsl(var(--brand-red)); color: hsl(var(--brand-white)); }
-.filters__empty { color:#6b7280; font-size:13px; }
+.filters {
+  padding: 8px 0;
+}
 
-.sort-bar { display:flex; align-items:center; gap:8px; margin:8px 0; }
-.sort-bar__label { font-size:14px; color: #374151; }
-.sort-bar__select { padding:6px 10px; border-radius:8px; border:1px solid #e5e7eb; background:#fff; }
+.filters__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.filters__title {
+  font-size: 14px;
+  margin: 0;
+}
+
+.filters__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.btn--ghost {
+  background: #fff;
+}
+
+.filters__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chip input {
+  display: none;
+}
+
+.chip--active {
+  background: hsl(var(--brand-red-soft));
+  border-color: hsl(var(--brand-red));
+  color: hsl(var(--brand-white));
+}
+
+.filters__empty {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.sort-bar__label {
+  font-size: 14px;
+  color: #374151;
+}
+
+.sort-bar__select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
 
 /* ---------- Layout ---------- */
 /* Mobile-first: 1 kolom (sidebar boven, map onder) */
@@ -85,16 +175,34 @@
   flex-direction: column;
 }
 
-.toolbar { position: sticky; top: 0; background: #fafafa; padding-bottom: 8px; z-index: 10; }
-.loading, .error { padding: 8px 0; color: #374151; }
-.error { color: #b91c1c; }
+.toolbar {
+  position: sticky;
+  top: 0;
+  background: #fafafa;
+  padding-bottom: 8px;
+  z-index: 10;
+}
+
+.loading,
+.error {
+  padding: 8px 0;
+  color: #374151;
+}
+
+.error {
+  color: #b91c1c;
+}
 
 /* Map-pane moet kunnen krimpen/uitvullen */
-.app-map { min-width: 0; }
+.app-map {
+  min-width: 0;
+}
 
 /* Desktop: prettige hoogte voor de kaart */
 @media (min-width: 900px) {
-  .app-map { min-height: 80vh; }
+  .app-map {
+    min-height: 80vh;
+  }
 }
 
 /* Geselecteerde marker */

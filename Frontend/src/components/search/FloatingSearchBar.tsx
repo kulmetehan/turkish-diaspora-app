@@ -54,7 +54,7 @@ export function FloatingSearchBar({
           autoComplete="off"
           placeholder={placeholder}
           value={value}
-          className="h-12 rounded-xl border border-border bg-white pl-9 pr-12 text-base shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="h-12 rounded-xl border border-border bg-background pl-9 pr-12 text-base shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           onChange={(event) => {
             onValueChange(event.target.value);
             setOpenSuggest(true);
