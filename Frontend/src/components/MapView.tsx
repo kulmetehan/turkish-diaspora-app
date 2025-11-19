@@ -11,10 +11,14 @@ import { restoreCamera, storeCamera } from "@/components/mapCameraCache";
 import { MARKER_POINT_OUTER_RADIUS, MarkerLayerIds } from "@/components/markerLayerUtils";
 import PreviewTooltip from "@/components/PreviewTooltip";
 import { cn } from "@/lib/ui/cn";
-import { CONFIG } from "@/lib/config";
+import { CONFIG, CLUSTER_CONFIG } from "@/lib/config";
 import MarkerLayer from "./MarkerLayer";
 import { attachCategoryIconFallback, ensureCategoryIcons } from "@/lib/map/categoryIcons";
 import { useViewportContext } from "@/contexts/viewport";
+import { useInitialMapCenter } from "@/hooks/useInitialMapCenter";
+import { clearCamera } from "@/components/mapCameraCache";
+import { computeInitialUnclusteredView } from "@/lib/initialView";
+import { isMobile } from "@/lib/utils";
 
 // Zorg dat je VITE_MAPBOX_TOKEN in .env staat
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
@@ -505,6 +509,10 @@ export default function MapView({
   const [isLocating, setIsLocating] = useState(false);
   const userLocationDataRef = useRef<FeatureCollection<Point, UserLocationProperties>>(EMPTY_FEATURE_COLLECTION);
   const userLocationPaintRef = useRef<{ z10: number; z14: number; z18: number }>({ z10: 0, z14: 0, z18: 0 });
+  const initialCenterResult = useInitialMapCenter();
+  const initialCenterAppliedRef = useRef(false);
+  const initialViewSettledRef = useRef(false);
+  const initialViewAttemptedRef = useRef(false);
 
   const applyAccuracyPaint = useCallback(
     (targetMap: MapboxMap | null = mapRef.current) => {
@@ -859,7 +867,14 @@ export default function MapView({
       }
     };
 
-    handle();
+    // Only emit initial bbox if initial view is settled or we're using fallback
+    const shouldEmitInitial = initialViewSettledRef.current || 
+      (initialCenterResult.status === "resolved" && initialCenterResult.source === "fallback_city");
+    
+    if (shouldEmitInitial) {
+      handle();
+    }
+    
     map.on("moveend", handle);
 
     return () => {
@@ -873,7 +888,7 @@ export default function MapView({
         /* ignore */
       }
     };
-  }, [destroyedRef, mapReady, onViewportChange, setViewport]);
+  }, [destroyedRef, mapReady, onViewportChange, setViewport, initialCenterResult.status, initialCenterResult.source]);
 
   useEffect(() => {
     allLocationsRef.current = locations;
@@ -1298,11 +1313,15 @@ export default function MapView({
 
     destroyedRef.current = false;
 
+    // Use initial center from hook (starts with Rotterdam fallback, may update if geolocation resolves)
+    const initialCenter = initialCenterResult.initialCenter;
+    const initialZoom = initialCenterResult.initialZoom;
+
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: CONFIG.MAPBOX_STYLE,
-      center: [4.4777, 51.9244], // Rotterdam default
-      zoom: 11,
+      center: [initialCenter.lng, initialCenter.lat],
+      zoom: initialZoom,
       attributionControl: false,
     });
 
@@ -1398,13 +1417,157 @@ export default function MapView({
     };
   }, []);
 
+  // Handle initial center resolution and camera cache
+  useEffect(() => {
+    if (destroyedRef.current) return;
+    
+    // Clear camera cache proactively when geolocation is being used or resolved
+    // (status === "resolving" means we're requesting geolocation, source === "geolocation" means it succeeded)
+    if (initialCenterResult.source === "geolocation" || initialCenterResult.status === "resolving") {
+      clearCamera();
+    }
+    
+    if (initialCenterResult.status === "resolved" && !initialCenterAppliedRef.current) {
+      initialCenterAppliedRef.current = true;
+    }
+  }, [initialCenterResult.status, initialCenterResult.source]);
+
   useEffect(() => {
     if (!mapReady || destroyedRef.current) return;
     const map = mapRef.current;
     if (!map) return;
+    
+    // Wait until we know what the initial center is
+    if (initialCenterResult.status !== "resolved") return;
+    
+    // If geolocation is used, skip camera restore entirely
+    if (initialCenterResult.source === "geolocation") {
+      return;
+    }
+    
+    // If initial view already applied, don't override it
+    if (initialViewSettledRef.current) {
+      return;
+    }
+    
     const isFocusActive = Boolean(focusId);
     restoreCamera(map, isFocusActive);
-  }, [mapReady, focusId]);
+  }, [mapReady, focusId, initialCenterResult.status, initialCenterResult.source]);
+
+  const applyInitialView = useCallback(
+    (target: { center: [number, number]; zoom: number }) => {
+      if (destroyedRef.current || initialViewSettledRef.current) return;
+      if (cameraBusyRef.current) return;
+
+      const map = mapRef.current;
+      if (!map) return;
+
+      if (import.meta.env.DEV) {
+        console.debug("[InitialMapCameraApplied]", {
+          center: target.center,
+          zoom: target.zoom,
+          source: initialCenterResult.source,
+        });
+      }
+
+      const success = performCameraTransition(
+        {
+          center: target.center,
+          zoom: target.zoom,
+          duration: 400,
+        },
+        () => {
+          initialViewSettledRef.current = true;
+        }
+      );
+
+      if (success) {
+        onSuppressNextViewportFetch?.();
+        // Mark as settled even if transition completes later
+        // (the callback will also set it, but this ensures it's set immediately)
+        initialViewSettledRef.current = true;
+      } else {
+        // Transition failed, mark as settled anyway to avoid retrying
+        initialViewSettledRef.current = true;
+      }
+    },
+    [destroyedRef, onSuppressNextViewportFetch, performCameraTransition, initialCenterResult.source]
+  );
+
+  // Apply unclustered marker visibility heuristic once on initial load
+  useEffect(() => {
+    if (!mapReady || destroyedRef.current) return;
+    if (initialViewSettledRef.current) return;
+    if (initialCenterResult.status !== "resolved") return;
+    if (locations.length === 0) return; // Wait for locations to be loaded
+    
+    // Only check cameraBusy if we've already attempted initial view
+    if (initialViewAttemptedRef.current && cameraBusyRef.current) return;
+    initialViewAttemptedRef.current = true;
+
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Check if marker layer is ready (source exists and has data)
+    const source = map.getSource(MarkerLayerIds.SRC_ID);
+    if (!source) return;
+
+    const mobile = isMobile();
+    const initialCenter: [number, number] = [
+      initialCenterResult.initialCenter.lng,
+      initialCenterResult.initialCenter.lat,
+    ];
+    const fallbackCenter: [number, number] = [
+      CONFIG.MAP_DEFAULT.lng,
+      CONFIG.MAP_DEFAULT.lat,
+    ];
+    const fallbackZoom = CONFIG.MAP_DEFAULT.zoom;
+
+    const target = computeInitialUnclusteredView({
+      map,
+      isMobile: mobile,
+      initialCenter,
+      fallbackCenter,
+      fallbackZoom,
+    });
+
+    if (!target) {
+      // No target computed - keep current view
+      initialViewSettledRef.current = true;
+      return;
+    }
+
+    // If it's a cluster, try to get expansion zoom
+    if (typeof target.clusterId === "number") {
+      const geojsonSource = source as any;
+      if (typeof geojsonSource.getClusterExpansionZoom === "function") {
+        geojsonSource.getClusterExpansionZoom(
+          target.clusterId,
+          (err: unknown, expansionZoom: number) => {
+            if (destroyedRef.current || initialViewSettledRef.current) return;
+            if (err || !Number.isFinite(expansionZoom)) {
+              // Use the target zoom we already computed
+              applyInitialView(target);
+              return;
+            }
+
+            // Cap zoom at cluster max zoom
+            const clusterMaxZoom = mobile ? CLUSTER_CONFIG.MOBILE_MAX_ZOOM : CLUSTER_CONFIG.MAX_ZOOM;
+            const finalZoom = Math.min(expansionZoom, clusterMaxZoom);
+
+            applyInitialView({
+              center: target.center,
+              zoom: finalZoom,
+            });
+          }
+        );
+        return;
+      }
+    }
+
+    // Not a cluster or expansion zoom not available - apply directly
+    applyInitialView(target);
+  }, [mapReady, locations.length, initialCenterResult.status, initialCenterResult.initialCenter, initialCenterResult.initialZoom, applyInitialView]);
 
   useEffect(() => {
     if (!focusId) {
