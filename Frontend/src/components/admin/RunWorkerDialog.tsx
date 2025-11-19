@@ -15,7 +15,8 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { listAdminLocationCategories, runWorker, type RunWorkerResponse } from "@/lib/apiAdmin";
+import { runWorker, type RunWorkerResponse } from "@/lib/apiAdmin";
+import { fetchCategories, type CategoryOption } from "@/api/fetchLocations";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -35,7 +36,8 @@ export default function RunWorkerDialog({
     botId,
     onSuccess,
 }: RunWorkerDialogProps) {
-    const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+    const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
+    const [categoriesLoading, setCategoriesLoading] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [categories, setCategories] = useState<string>("");
     const [city, setCity] = useState<string>("rotterdam");
@@ -47,9 +49,16 @@ export default function RunWorkerDialog({
     // Load categories on mount
     useEffect(() => {
         if (open && botId === "discovery") {
-            listAdminLocationCategories().then(setCategoryOptions).catch(() => {
-                // Silently fail, categories are optional
-            });
+            setCategoriesLoading(true);
+            fetchCategories()
+                .then(setCategoryOptions)
+                .catch(() => {
+                    // Silently fail, categories are optional
+                    setCategoryOptions([]);
+                })
+                .finally(() => {
+                    setCategoriesLoading(false);
+                });
         }
     }, [open, botId]);
 
@@ -75,7 +84,8 @@ export default function RunWorkerDialog({
             if (categories && categories.trim() !== "") {
                 // Validate categories are comma-separated valid category keys
                 const cats = categories.split(",").map((c) => c.trim()).filter(Boolean);
-                const invalid = cats.filter((c) => !categoryOptions.includes(c));
+                const validKeys = categoryOptions.map((opt) => opt.key);
+                const invalid = cats.filter((c) => !validKeys.includes(c));
                 if (invalid.length > 0) {
                     newErrors.categories = `Invalid categories: ${invalid.join(", ")}`;
                 }
@@ -180,7 +190,11 @@ export default function RunWorkerDialog({
                     <div className="text-sm text-red-600">{errors.categories}</div>
                 )}
                 <div className="text-xs text-muted-foreground">
-                    Available: {categoryOptions.length > 0 ? categoryOptions.join(", ") : "Loading..."}
+                    {categoriesLoading
+                        ? "Loading categories..."
+                        : categoryOptions.length > 0
+                        ? `Available: ${categoryOptions.map((opt) => opt.label).join(", ")}`
+                        : "No categories available"}
                 </div>
             </div>
 

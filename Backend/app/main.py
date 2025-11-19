@@ -30,6 +30,7 @@ from app.core.db_monitor import DbSessionMonitor
 
 # Routers from the top-level `api/routers` package:
 from api.routers.locations import router as locations_router
+from api.routers.categories import router as categories_router
 from api.routers.dev_classify import router as dev_classify_router
 try:
     from api.routers.dev_ai import router as dev_ai_router  # optional, may not exist
@@ -191,6 +192,7 @@ async def whoami():
 
 # Routers that are externally consumed by frontend/clients
 api_v1_router.include_router(locations_router)
+api_v1_router.include_router(categories_router)
 api_v1_router.include_router(admin_auth_router)
 api_v1_router.include_router(admin_locations_router)
 api_v1_router.include_router(admin_misc_router)

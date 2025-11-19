@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { bulkUpdateLocations, listAdminLocationCategories, listAdminLocations, listLocationStates, retireAdminLocation, type AdminLocationListItem } from "@/lib/apiAdmin";
+import type { CategoryOption } from "@/api/fetchLocations";
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -93,7 +94,7 @@ export default function AdminLocationsTable() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [selected, setSelected] = useState<Set<number>>(new Set());
     const [stateOptions, setStateOptions] = useState<StateOption[]>(() => [...DEFAULT_STATE_OPTIONS]);
-    const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+    const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
     const [categoryFilter, setCategoryFilter] = useState<string>(savedFilters.categoryFilter ?? "ALL");
     const [sort, setSort] = useState<"NONE" | "latest_added" | "latest_verified">(savedFilters.sort ?? "NONE");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">(savedFilters.sortDirection ?? "desc");
@@ -208,7 +209,7 @@ export default function AdminLocationsTable() {
                 if (cancelled) return;
                 setCategoryOptions(cats);
                 setCategoryFilter((prev) => {
-                    if (prev !== "ALL" && !cats.includes(prev)) {
+                    if (prev !== "ALL" && !cats.some((cat) => cat.key === prev)) {
                         return "ALL";
                     }
                     return prev;
@@ -415,7 +416,7 @@ export default function AdminLocationsTable() {
                         <SelectContent>
                             <SelectItem value="ALL">All categories</SelectItem>
                             {categoryOptions.map((cat) => (
-                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                <SelectItem key={cat.key} value={cat.key}>{cat.label}</SelectItem>
                             ))}
                         </SelectContent>
                     </Select>

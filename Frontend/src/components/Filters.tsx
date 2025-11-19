@@ -28,8 +28,8 @@ type Props = {
   }>) => void;
 };
 
-// Officiële categorieën (TDA-107)
-const KNOWN_CATEGORIES = [
+// Fallback categories if API fails (should rarely be used)
+const FALLBACK_CATEGORIES: CategoryOption[] = [
   { key: "restaurant", label: "Restaurant" },
   { key: "bakery", label: "Bakkerij" },
   { key: "supermarket", label: "Supermarkt" },
@@ -39,7 +39,10 @@ const KNOWN_CATEGORIES = [
   { key: "butcher", label: "Slager" },
   { key: "fast_food", label: "Fastfood" },
   { key: "cafe", label: "Café" },
-] satisfies CategoryOption[];
+  { key: "car_dealer", label: "Autodealer" },
+  { key: "insurance", label: "Verzekering" },
+  { key: "tailor", label: "Kleermaker" },
+];
 
 export default function Filters({
   search,
@@ -59,10 +62,11 @@ export default function Filters({
   const suggestBoxRef = useRef<HTMLDivElement | null>(null);
   const showSuggestions = Boolean(openSuggest && suggestions && suggestions.length && search.trim().length);
   const categories = useMemo(() => {
-    // Prefer categoryOptions from App.tsx (now global when available)
+    // Prefer categoryOptions from App.tsx (loaded from API)
+    // Fall back to FALLBACK_CATEGORIES only if API hasn't loaded yet
     const base = (categoryOptions && categoryOptions.length)
       ? [...categoryOptions]
-      : [...KNOWN_CATEGORIES];
+      : [...FALLBACK_CATEGORIES];
 
     // Ensure currently selected category is always included
     const withCurrent = (() => {

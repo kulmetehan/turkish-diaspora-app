@@ -639,6 +639,7 @@ def _parse_worker_run_id(value: str) -> UUID:
 
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="DiscoveryBot — grid-based met YAML mapping + chunking + district")
+    ap.add_argument("--job-id", type=str, help="UUID of discovery_jobs record to execute (overrides city/district/category)")
     ap.add_argument("--city", help="Stad key in cities.yml (default: rotterdam)", default="rotterdam")
     ap.add_argument("--district", help="District key in cities.yml (bv. centrum)")
     ap.add_argument("--categories", help="Komma-gescheiden interne categorieën (anders: alle uit categories.yml)")
@@ -744,6 +745,139 @@ def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig
     }
     return DiscoveryConfig(**cfg)
 
+async def run_discovery_job(
+    city_key: str,
+    district_key: Optional[str],
+    category: str,
+    worker_run_id: Optional[UUID] = None,
+) -> Dict[str, int]:
+    """
+    Pure function to run discovery for a single (city, district?, category) job.
+    
+    This function is used by both the CLI and the Discovery Train worker.
+    It resolves bbox/center from cities.yml, uses categories.yml for discovery params,
+    and returns counters dict.
+    
+    Args:
+        city_key: City key from cities.yml
+        district_key: Optional district key (None for city-level jobs)
+        category: Category key from categories.yml
+        worker_run_id: Optional worker_run UUID for progress tracking
+    
+    Returns:
+        Counters dict: discovered, inserted, deduped_place_id, deduped_fuzzy, updated_existing, failed
+    """
+    yml = load_categories_config()
+    
+    # Build config from job parameters
+    # Use build_config logic but with job-specific parameters
+    defaults = yml.get("defaults") or {}
+    disc_def = defaults.get("discovery") or {}
+    yaml_lang = defaults.get("language")
+    
+    # Resolve center/bbox from cities.yml
+    cities = load_cities_config()
+    city_def = (cities.get("cities") or {}).get(city_key)
+    if not city_def:
+        raise ValueError(f"City '{city_key}' not found in cities.yml")
+    
+    if district_key:
+        # District-level job
+        districts = city_def.get("districts", {})
+        if not districts or district_key not in districts:
+            raise ValueError(f"District '{district_key}' not found for city '{city_key}'")
+        d = districts[district_key]
+        lat_min, lat_max = float(d["lat_min"]), float(d["lat_max"])
+        lng_min, lng_max = float(d["lng_min"]), float(d["lng_max"])
+        center_lat = (lat_min + lat_max) / 2.0
+        center_lng = (lng_min + lng_max) / 2.0
+        # Compute grid span from district bbox
+        lat_span_km = deg_lat_to_m(abs(lat_max - lat_min)) / 1000.0
+        lng_span_km = deg_lng_to_m(abs(lng_max - lng_min), center_lat) / 1000.0
+        auto_span_km = max(lat_span_km, lng_span_km)
+    else:
+        # City-level job (use center if defined, otherwise fallback)
+        center_lat = float(city_def.get("center_lat", 51.9244))
+        center_lng = float(city_def.get("center_lng", 4.4777))
+        auto_span_km = 12.0  # Default fallback
+    
+    cfg = DiscoveryConfig(
+        city=city_key,
+        categories=[category],
+        center_lat=center_lat,
+        center_lng=center_lng,
+        nearby_radius_m=int(disc_def.get("nearby_radius_m", 1000)),
+        grid_span_km=float(disc_def.get("grid_span_km", auto_span_km)),
+        max_per_cell_per_category=int(disc_def.get("max_per_cell_per_category", 20)),
+        inter_call_sleep_s=float(disc_def.get("inter_call_sleep_s", 0.15)),
+        max_total_inserts=0,  # No limit for job-based runs
+        max_cells_per_category=0,  # No limit
+        chunks=1,
+        chunk_index=0,
+        language=yaml_lang,
+        district=district_key,
+    )
+    
+    # Create discovery_run record
+    discovery_run_id = None
+    try:
+        sql_insert = """
+            INSERT INTO discovery_runs (started_at, notes)
+            VALUES (NOW(), $1)
+            RETURNING id
+        """
+        notes = f"Discovery job: city={city_key}, district={district_key or 'none'}, category={category}"
+        rows = await fetch(sql_insert, notes)
+        if rows:
+            discovery_run_id = dict(rows[0]).get("id")
+            logger.info("discovery_run_created", run_id=str(discovery_run_id), job_params={"city": city_key, "district": district_key, "category": category})
+    except Exception as e:
+        logger.warning("failed_to_create_discovery_run", exc_info=e)
+    
+    # Run discovery
+    bot = DiscoveryBot(cfg, yml)
+    bot.worker_run_id = worker_run_id
+    counters: Dict[str, int] = {}
+    try:
+        counters = await bot.run()
+    except Exception as e:
+        if worker_run_id:
+            progress_snapshot = bot._worker_last_progress if bot._worker_last_progress >= 0 else 0
+            await finish_worker_run(
+                worker_run_id,
+                "failed",
+                progress_snapshot,
+                None,
+                str(e),
+            )
+        raise
+    
+    # Update discovery_run
+    if discovery_run_id:
+        try:
+            notes_parts = [f"Discovery job: city={city_key}, district={district_key or 'none'}, category={category}"]
+            if counters.get("degraded"):
+                error_ratio = counters.get("overpass_failures", 0) / max(counters.get("overpass_total_calls", 1), 1)
+                notes_parts.append(f"degraded: overpass error storm ({counters.get('overpass_failures', 0)} failures)")
+            
+            sql_update = """
+                UPDATE discovery_runs
+                SET finished_at = NOW(), counters = $1::jsonb, notes = $3
+                WHERE id = $2
+            """
+            counters_json = json.dumps(counters, ensure_ascii=False)
+            notes_str = " | ".join(notes_parts)
+            await execute(sql_update, counters_json, discovery_run_id, notes_str)
+            logger.info("discovery_run_completed", run_id=str(discovery_run_id), counters=counters)
+        except Exception as e:
+            logger.warning("failed_to_update_discovery_run", exc_info=e, run_id=str(discovery_run_id))
+    
+    if worker_run_id:
+        await finish_worker_run(worker_run_id, "finished", 100, counters, None)
+    
+    return counters
+
+
 async def main_async():
     t0 = time.perf_counter()
     discovery_run_id = None
@@ -752,99 +886,136 @@ async def main_async():
         logger.info("worker_started")
         ns = parse_args()
         worker_run_id: Optional[UUID] = getattr(ns, "worker_run_id", None)
-        yml = load_categories_config()
-        cfg = build_config(ns, yml)
-
-        print("\n[DiscoveryBot] Configuratie:")
-        print(f"  Stad: {cfg.city}")
-        if cfg.district:
-            print(f"  District: {cfg.district}")
-        print(f"  Center: ({cfg.center_lat:.4f}, {cfg.center_lng:.4f})")
-        print(f"  Categorieën: {cfg.categories}")
-        print(f"  Grid span: {cfg.grid_span_km:.2f} km")
-        print(f"  Nearby radius: {cfg.nearby_radius_m} m")
-        print(f"  Max per cel: {cfg.max_per_cell_per_category}")
-        print(f"  Sleep tijd: {cfg.inter_call_sleep_s} s")
-        if cfg.language:
-            print(f"  Language: {cfg.language}")
-        if cfg.max_total_inserts > 0:
-            print(f"  Max totaal inserts: {cfg.max_total_inserts}")
-        if cfg.max_cells_per_category > 0:
-            print(f"  Max cellen/categorie: {cfg.max_cells_per_category}")
-        print(f"  Chunks: {cfg.chunks} (index={cfg.chunk_index})\n")
-
-        # Ensure DB pool ready before inserts
-        await init_db_pool()
         
-        # Auto-create worker_run if not provided
-        if not worker_run_id:
-            # Use first category if multiple, or None
-            category = cfg.categories[0] if cfg.categories else None
-            worker_run_id = await start_worker_run(bot="discovery_bot", city=cfg.city, category=category)
-        
-        if worker_run_id:
-            await mark_worker_run_running(worker_run_id)
-        
-        # Create discovery_run record at start
-        try:
-            sql_insert = """
-                INSERT INTO discovery_runs (started_at, notes)
-                VALUES (NOW(), $1)
-                RETURNING id
-            """
-            notes = f"Discovery run: city={cfg.city}, categories={','.join(cfg.categories)}, chunk={cfg.chunk_index}/{cfg.chunks-1}"
-            rows = await fetch(sql_insert, notes)
-            if rows:
-                discovery_run_id = dict(rows[0]).get("id")
-                logger.info("discovery_run_created", run_id=str(discovery_run_id))
-        except Exception as e:
-            logger.warning("failed_to_create_discovery_run", exc_info=e)
-        
-        # Run discovery bot and collect counters
-        bot = DiscoveryBot(cfg, yml)
-        bot.worker_run_id = worker_run_id
-        counters: Dict[str, int] = {}
-        try:
-            counters = await bot.run()
-        except Exception as e:
-            if worker_run_id:
-                progress_snapshot = bot._worker_last_progress if bot._worker_last_progress >= 0 else 0
-                await finish_worker_run(
-                    worker_run_id,
-                    "failed",
-                    progress_snapshot,
-                    None,
-                    str(e),
-                )
-            raise
-        
-        # Update discovery_run with finished_at and counters
-        if discovery_run_id:
+        # Check if --job-id is provided (job-based execution)
+        if hasattr(ns, "job_id") and ns.job_id:
+            from services.discovery_jobs_service import get_job_status, mark_job_running, mark_job_finished, mark_job_failed
+            await init_db_pool()
+            
+            job_id = UUID(str(ns.job_id))
+            job = await get_job_status(job_id)
+            if not job:
+                raise ValueError(f"Discovery job {job_id} not found")
+            
+            if job.status != "pending":
+                raise ValueError(f"Discovery job {job_id} is not pending (current status: {job.status})")
+            
+            # Mark job as running
+            await mark_job_running(job_id)
+            
             try:
-                # Build notes string (include degraded info if applicable)
-                notes_parts = [f"Discovery run: city={cfg.city}, categories={','.join(cfg.categories)}, chunk={cfg.chunk_index}/{cfg.chunks-1}"]
-                if counters.get("degraded"):
-                    error_ratio = counters.get("overpass_failures", 0) / max(counters.get("overpass_total_calls", 1), 1)
-                    notes_parts.append(f"degraded: overpass error storm ({counters.get('overpass_failures', 0)} failures out of {counters.get('overpass_total_calls', 0)} calls)")
-                
-                sql_update = """
-                    UPDATE discovery_runs
-                    SET finished_at = NOW(), counters = $1::jsonb, notes = $3
-                    WHERE id = $2
-                """
-                counters_json = json.dumps(counters, ensure_ascii=False)
-                notes_str = " | ".join(notes_parts)
-                await execute(sql_update, counters_json, discovery_run_id, notes_str)
-                logger.info("discovery_run_completed", run_id=str(discovery_run_id), counters=counters)
-                print(f"\n[DiscoveryBot] Counters: {counters}")
+                # Run the job
+                counters = await run_discovery_job(
+                    city_key=job.city_key,
+                    district_key=job.district_key,
+                    category=job.category,
+                    worker_run_id=worker_run_id,
+                )
+                # Mark job as finished
+                await mark_job_finished(job_id, counters)
+                print(f"\n[DiscoveryBot] Job {job_id} completed. Counters: {counters}")
             except Exception as e:
-                logger.warning("failed_to_update_discovery_run", exc_info=e, run_id=str(discovery_run_id))
-        if worker_run_id:
-            await finish_worker_run(worker_run_id, "finished", 100, counters, None)
+                # Mark job as failed
+                error_msg = str(e)
+                await mark_job_failed(job_id, error_msg)
+                logger.error("discovery_job_execution_failed", job_id=str(job_id), error=error_msg, exc_info=e)
+                raise
+        
+        # Normal parameterized execution (backward compatible)
         else:
-            # Log counters even if discovery_run wasn't created
-            logger.info("discovery_counters", counters=counters)
-            print(f"\n[DiscoveryBot] Counters: {counters}")
+            yml = load_categories_config()
+            cfg = build_config(ns, yml)
+
+            print("\n[DiscoveryBot] Configuratie:")
+            print(f"  Stad: {cfg.city}")
+            if cfg.district:
+                print(f"  District: {cfg.district}")
+            print(f"  Center: ({cfg.center_lat:.4f}, {cfg.center_lng:.4f})")
+            print(f"  Categorieën: {cfg.categories}")
+            print(f"  Grid span: {cfg.grid_span_km:.2f} km")
+            print(f"  Nearby radius: {cfg.nearby_radius_m} m")
+            print(f"  Max per cel: {cfg.max_per_cell_per_category}")
+            print(f"  Sleep tijd: {cfg.inter_call_sleep_s} s")
+            if cfg.language:
+                print(f"  Language: {cfg.language}")
+            if cfg.max_total_inserts > 0:
+                print(f"  Max totaal inserts: {cfg.max_total_inserts}")
+            if cfg.max_cells_per_category > 0:
+                print(f"  Max cellen/categorie: {cfg.max_cells_per_category}")
+            print(f"  Chunks: {cfg.chunks} (index={cfg.chunk_index})\n")
+
+            # Ensure DB pool ready before inserts
+            await init_db_pool()
+            
+            # Auto-create worker_run if not provided
+            if not worker_run_id:
+                # Use first category if multiple, or None
+                category = cfg.categories[0] if cfg.categories else None
+                worker_run_id = await start_worker_run(bot="discovery_bot", city=cfg.city, category=category)
+            
+            if worker_run_id:
+                await mark_worker_run_running(worker_run_id)
+            
+            # Create discovery_run record at start
+            try:
+                sql_insert = """
+                    INSERT INTO discovery_runs (started_at, notes)
+                    VALUES (NOW(), $1)
+                    RETURNING id
+                """
+                notes = f"Discovery run: city={cfg.city}, categories={','.join(cfg.categories)}, chunk={cfg.chunk_index}/{cfg.chunks-1}"
+                rows = await fetch(sql_insert, notes)
+                if rows:
+                    discovery_run_id = dict(rows[0]).get("id")
+                    logger.info("discovery_run_created", run_id=str(discovery_run_id))
+            except Exception as e:
+                logger.warning("failed_to_create_discovery_run", exc_info=e)
+            
+            # Run discovery bot and collect counters
+            bot = DiscoveryBot(cfg, yml)
+            bot.worker_run_id = worker_run_id
+            counters: Dict[str, int] = {}
+            try:
+                counters = await bot.run()
+            except Exception as e:
+                if worker_run_id:
+                    progress_snapshot = bot._worker_last_progress if bot._worker_last_progress >= 0 else 0
+                    await finish_worker_run(
+                        worker_run_id,
+                        "failed",
+                        progress_snapshot,
+                        None,
+                        str(e),
+                    )
+                raise
+            
+            # Update discovery_run with finished_at and counters
+            if discovery_run_id:
+                try:
+                    # Build notes string (include degraded info if applicable)
+                    notes_parts = [f"Discovery run: city={cfg.city}, categories={','.join(cfg.categories)}, chunk={cfg.chunk_index}/{cfg.chunks-1}"]
+                    if counters.get("degraded"):
+                        error_ratio = counters.get("overpass_failures", 0) / max(counters.get("overpass_total_calls", 1), 1)
+                        notes_parts.append(f"degraded: overpass error storm ({counters.get('overpass_failures', 0)} failures out of {counters.get('overpass_total_calls', 0)} calls)")
+                    
+                    sql_update = """
+                        UPDATE discovery_runs
+                        SET finished_at = NOW(), counters = $1::jsonb, notes = $3
+                        WHERE id = $2
+                    """
+                    counters_json = json.dumps(counters, ensure_ascii=False)
+                    notes_str = " | ".join(notes_parts)
+                    await execute(sql_update, counters_json, discovery_run_id, notes_str)
+                    logger.info("discovery_run_completed", run_id=str(discovery_run_id), counters=counters)
+                    print(f"\n[DiscoveryBot] Counters: {counters}")
+                except Exception as e:
+                    logger.warning("failed_to_update_discovery_run", exc_info=e, run_id=str(discovery_run_id))
+            if worker_run_id:
+                await finish_worker_run(worker_run_id, "finished", 100, counters, None)
+            else:
+                # Log counters even if discovery_run wasn't created
+                logger.info("discovery_counters", counters=counters)
+                print(f"\n[DiscoveryBot] Counters: {counters}")
 
         duration_ms = int((time.perf_counter() - t0) * 1000)
         logger.info("worker_finished", duration_ms=duration_ms)

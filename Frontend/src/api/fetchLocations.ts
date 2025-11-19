@@ -133,7 +133,8 @@ export async function fetchCategories(signal?: AbortSignal): Promise<CategoryOpt
     const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
     const API_BASE = (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase;
 
-    const url = `${API_BASE}/api/v1/locations/categories`;
+    // Use new categories endpoint
+    const url = `${API_BASE}/api/v1/categories`;
 
     const resp = await fetch(url, {
         method: "GET",

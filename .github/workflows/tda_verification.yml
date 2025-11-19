@@ -1,5 +1,16 @@
 name: TDA Verification (every 30m)
 
+# Primary verification pipeline - promotes CANDIDATE/PENDING_VERIFICATION to VERIFIED
+#
+# This is the main verification workflow that processes locations through the
+# verify_locations worker (PRIMARY verification flow, see Docs/state-pipeline.md).
+#
+# Frequency: Every 30 minutes
+# Limit: 1500 records per run (adjust if needed based on performance)
+# 
+# This workflow is separate from Discovery Train and runs independently to keep
+# the verification pipeline active even when discovery is paused.
+
 on:
   schedule:
     - cron: "*/30 * * * *"

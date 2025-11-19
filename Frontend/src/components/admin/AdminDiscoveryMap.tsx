@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import mapboxgl, { Map as MapboxMap, Popup } from "mapbox-gl";
 import type { FeatureCollection, Polygon, Point } from "geojson";
 import { initMap } from "@/lib/map/mapbox";
-import { getDiscoveryCoverage, getCityDistricts, type DiscoveryCoverageCell } from "@/lib/api";
+import { getDiscoveryCoverage, getCityDistricts, type DiscoveryCoverageCell, type CityReadiness } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { CONFIG } from "@/lib/config";
 
@@ -102,7 +102,21 @@ function getCellColor(cell: { calls: number; inserts: number; error429: number; 
   return COLOR_NO_INSERTS;
 }
 
-export default function AdminDiscoveryMap() {
+interface AdminDiscoveryMapProps {
+  selectedCity: string;
+  onCityChange: (city: string) => void;
+  cities: CityReadiness[];
+  citiesLoading: boolean;
+  citiesError: string | null;
+}
+
+export default function AdminDiscoveryMap({
+  selectedCity,
+  onCityChange,
+  cities,
+  citiesLoading,
+  citiesError,
+}: AdminDiscoveryMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapboxMap | null>(null);
   const popupRef = useRef<Popup | null>(null);
@@ -110,7 +124,6 @@ export default function AdminDiscoveryMap() {
   const [gridData, setGridData] = useState<DiscoveryCoverageCell[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCity, setSelectedCity] = useState("rotterdam");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
@@ -125,8 +138,8 @@ export default function AdminDiscoveryMap() {
     const map = initMap(mapContainerRef.current);
     mapRef.current = map;
 
-    // Default center: Rotterdam (fallback if no data)
-    const defaultCenter: [number, number] = [4.4777, 51.9225]; // Rotterdam center
+    // Default center (fallback if no data)
+    const defaultCenter: [number, number] = [4.4777, 51.9225];
     const mapCenter: [number, number] =
       gridData.length > 0
         ? [
@@ -135,7 +148,7 @@ export default function AdminDiscoveryMap() {
           ]
         : defaultCenter;
 
-    // Center on Rotterdam or data center
+    // Center on data center or default location
     map.setCenter(mapCenter);
     map.setZoom(11);
 
@@ -503,14 +516,26 @@ export default function AdminDiscoveryMap() {
         {/* City selector */}
         <div>
           <label className="block text-xs font-medium mb-1">City</label>
-          <select
-            value={selectedCity}
-            onChange={(e) => setSelectedCity(e.target.value)}
-            className="border rounded px-2 py-1 text-sm w-full"
-            disabled={loading}
-          >
-            <option value="rotterdam">Rotterdam</option>
-          </select>
+          {citiesLoading ? (
+            <div className="text-xs text-muted-foreground py-1">Loading cities...</div>
+          ) : citiesError ? (
+            <div className="text-xs text-red-600 py-1">{citiesError}</div>
+          ) : (
+            <select
+              value={selectedCity}
+              onChange={(e) => onCityChange(e.target.value)}
+              className="border rounded px-2 py-1 text-sm w-full"
+              disabled={loading}
+            >
+              {cities
+                .filter((city) => city.has_districts)
+                .map((city) => (
+                  <option key={city.city_key} value={city.city_key}>
+                    {city.city_name}
+                  </option>
+                ))}
+            </select>
+          )}
         </div>
         
         {/* District selector */}

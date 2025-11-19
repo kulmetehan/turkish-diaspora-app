@@ -2,8 +2,9 @@ import AdminLocationsTable from "@/components/admin/AdminLocationsTable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { getCitiesOverview, type CityReadiness } from "@/lib/api";
 const MetricsDashboard = lazy(() => import("@/components/admin/MetricsDashboard"));
 const AdminDiscoveryMap = lazy(() => import("@/components/admin/AdminDiscoveryMap"));
 const DiscoveryCoverageSummary = lazy(() => import("@/components/admin/DiscoveryCoverageSummary"));
@@ -11,6 +12,44 @@ const AdminAIPolicyPage = lazy(() => import("@/pages/AdminAIPolicyPage"));
 const TasksPanel = lazy(() => import("@/components/admin/TasksPanel"));
 
 export default function AdminHomePage() {
+    // City state for Discovery Coverage tab
+    const [selectedCity, setSelectedCity] = useState<string>("rotterdam");
+    const [cities, setCities] = useState<CityReadiness[]>([]);
+    const [citiesLoading, setCitiesLoading] = useState<boolean>(true);
+    const [citiesError, setCitiesError] = useState<string | null>(null);
+
+    // Load cities on mount
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                setCitiesLoading(true);
+                setCitiesError(null);
+                const overview = await getCitiesOverview();
+                if (!cancelled) {
+                    setCities(overview.cities);
+                    // Auto-select first city with districts if available, otherwise keep "rotterdam"
+                    if (overview.cities.length > 0) {
+                        const firstCityWithDistricts = overview.cities.find(c => c.has_districts);
+                        if (firstCityWithDistricts && selectedCity === "rotterdam") {
+                            setSelectedCity(firstCityWithDistricts.city_key);
+                        }
+                    }
+                }
+            } catch (e: any) {
+                if (!cancelled) {
+                    console.warn("Failed to load cities overview:", e);
+                    setCitiesError(e?.message || "Failed to load cities");
+                }
+            } finally {
+                if (!cancelled) {
+                    setCitiesLoading(false);
+                }
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
+
     return (
         <div className="p-6 space-y-4">
             <header className="flex items-center justify-between">
@@ -67,14 +106,20 @@ export default function AdminHomePage() {
                             <TabsContent value="coverage">
                                 <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading coverage visualization…</div>}>
                                     <div className="space-y-4">
-                                        <DiscoveryCoverageSummary />
+                                        <DiscoveryCoverageSummary city={selectedCity} cities={cities} />
                                         <Card className="rounded-2xl shadow-sm">
                                             <CardHeader>
                                                 <CardTitle>Discovery Grid Coverage Map</CardTitle>
                                             </CardHeader>
                                             <CardContent className="p-0">
                                                 <div className="relative w-full h-[600px] min-h-[400px]">
-                                                    <AdminDiscoveryMap />
+                                                    <AdminDiscoveryMap 
+                                                        selectedCity={selectedCity}
+                                                        onCityChange={setSelectedCity}
+                                                        cities={cities}
+                                                        citiesLoading={citiesLoading}
+                                                        citiesError={citiesError}
+                                                    />
                                                 </div>
                                             </CardContent>
                                         </Card>

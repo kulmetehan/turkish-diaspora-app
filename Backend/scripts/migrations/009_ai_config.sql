@@ -54,3 +54,4 @@ COMMENT ON COLUMN ai_config.monitor_verified_many_reviews_days IS 'Freshness int
 
 
 
+

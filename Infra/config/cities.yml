@@ -109,6 +109,25 @@ cities:
     apply: *rotterdam_defaults
     center_lat: 51.912
     center_lng: 4.341
+    districts:
+      centrum:
+        lat_min: 51.9000
+        lat_max: 51.9250
+        lng_min: 4.3200
+        lng_max: 4.3600
+        apply: *rotterdam_defaults
+      westwijk:
+        lat_min: 51.9000
+        lat_max: 51.9250
+        lng_min: 4.2800
+        lng_max: 4.3200
+        apply: *rotterdam_defaults
+      oostwijk:
+        lat_min: 51.9000
+        lat_max: 51.9250
+        lng_min: 4.3600
+        lng_max: 4.4000
+        apply: *rotterdam_defaults
 
   schiedam:
     city_name: "Schiedam"
@@ -116,3 +135,31 @@ cities:
     apply: *rotterdam_defaults
     center_lat: 51.918
     center_lng: 4.395
+    districts:
+      centrum:
+        lat_min: 51.9050
+        lat_max: 51.9350
+        lng_min: 4.3800
+        lng_max: 4.4100
+        apply: *rotterdam_defaults
+      noord:
+        lat_min: 51.9350
+        lat_max: 51.9600
+        lng_min: 4.3800
+        lng_max: 4.4100
+        apply: *rotterdam_defaults
+      zuid:
+        lat_min: 51.8800
+        lat_max: 51.9050
+        lng_min: 4.3800
+        lng_max: 4.4100
+        apply: *rotterdam_defaults
+
+  den_haag:
+    city_name: "Den Haag"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 52.0705
+    center_lng: 4.3007
+    # TODO: Add district definitions for Den Haag
+    # Districts to be defined based on Turkish diaspora concentration areas

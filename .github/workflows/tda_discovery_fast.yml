@@ -1,4 +1,10 @@
 name: TDA Discovery Fast (daily, high-value categories)
+# DEPRECATED: This workflow has been replaced by Discovery Train (discovery-train.yml)
+# Discovery Train processes jobs sequentially from the discovery_jobs queue,
+# avoiding parallel execution that can hammer the OSM Overpass API.
+# 
+# This workflow is kept for reference but the discovery job is disabled.
+# To re-enable: uncomment the discovery job below and remove this deprecation notice.
 
 on:
   schedule:
@@ -13,71 +19,65 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  discovery:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        # Fast/high-frequency sweep for core food & daily life categories
-        # Includes high-value categories that change frequently or are most relevant to users
-        # Note: mosque and travel_agency are excluded here (covered by weekly tda_discovery.yml)
-        # The full extended set (all 9 categories) is covered by the weekly tda_discovery.yml workflow
-        category: [restaurant, supermarket, bakery, fast_food, cafe, butcher]
-        chunk_index: [0, 1, 2]   # 3 chunks for faster execution
-    defaults:
-      run:
-        working-directory: Backend
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.11.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.9"
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-py3.11.9-
-
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Fast Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Force free, open-source provider
-          DATA_PROVIDER: osm
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          PYTHONUNBUFFERED: "1"
-          PYTHONPATH: .
-          # Optimized fast discovery settings
-          DISCOVERY_RATE_LIMIT_QPS: "0.20"
-          DISCOVERY_SLEEP_BASE_S: "2.0"
-          DISCOVERY_SLEEP_JITTER_PCT: "0.15"
-          OVERPASS_TIMEOUT_S: "25"
-          DISCOVERY_MAX_RESULTS: "20"
-        run: >
-          python -m app.workers.discovery_bot
-          --city rotterdam
-          --categories ${{ matrix.category }}
-          --nearby-radius-m 1000
-          --grid-span-km 4
-          --max-per-cell-per-category 20
-          --inter-call-sleep-s 0.03
-          --max-cells-per-category 30
-          --max-total-inserts 200
-          --chunks 3
-          --chunk-index ${{ matrix.chunk_index }}
+  # DISABLED: Replaced by Discovery Train (discovery-train.yml)
+  # This job would run 18 parallel discovery_bot instances (6 categories × 3 chunks),
+  # which can overload the OSM Overpass API. Discovery Train processes jobs sequentially
+  # from the discovery_jobs queue instead.
+  #
+  # discovery:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 20
+  #   strategy:
+  #     fail-fast: false
+  #     max-parallel: 1
+  #     matrix:
+  #       category: [restaurant, supermarket, bakery, fast_food, cafe, butcher]
+  #       chunk_index: [0, 1, 2]
+  #   defaults:
+  #     run:
+  #       working-directory: Backend
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #     - name: Setup Python 3.11.9
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.11.9"
+  #     - name: Cache pip
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.cache/pip
+  #         key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+  #         restore-keys: |
+  #           pip-${{ runner.os }}-py3.11.9-
+  #     - name: Install deps
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r requirements.txt
+  #     - name: Run Fast Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
+  #       env:
+  #         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  #         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+  #         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  #         DATA_PROVIDER: osm
+  #         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  #         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  #         PYTHONUNBUFFERED: "1"
+  #         PYTHONPATH: .
+  #         DISCOVERY_RATE_LIMIT_QPS: "0.20"
+  #         DISCOVERY_SLEEP_BASE_S: "2.0"
+  #         DISCOVERY_SLEEP_JITTER_PCT: "0.15"
+  #         OVERPASS_TIMEOUT_S: "25"
+  #         DISCOVERY_MAX_RESULTS: "20"
+  #       run: >
+  #         python -m app.workers.discovery_bot
+  #         --city rotterdam
+  #         --categories ${{ matrix.category }}
+  #         --nearby-radius-m 1000
+  #         --grid-span-km 4
+  #         --max-per-cell-per-category 20
+  #         --inter-call-sleep-s 0.03
+  #         --max-cells-per-category 30
+  #         --max-total-inserts 200
+  #         --chunks 3
+  #         --chunk-index ${{ matrix.chunk_index }}
