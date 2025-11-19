@@ -29,6 +29,34 @@ Defined primarily in `Frontend/src/index.css` and `Frontend/src/lib/theme/darkMo
 | Shadow | `--shadow-soft`, `--shadow-card`. |
 | Spacing | `--space-grid-gutter`, contextual Tailwind spacing utilities. |
 
+### Brand Colors
+
+Turkspot brand colors are integrated into the design system via CSS variables and Tailwind tokens.
+
+| Variable | Tailwind Token | Usage |
+| --- | --- | --- |
+| `--brand-red` | `bg-brand-red`, `text-brand-red`, etc. | Primary brand red for main actions, buttons, and key surfaces. Maps to `--primary`. |
+| `--brand-red-soft` | `bg-brand-redSoft` | Softer red variant for gradients, backgrounds, and active chip states. |
+| `--brand-white` | `bg-brand-white` | White for text on brand red backgrounds. Maps to `--primary-foreground`. |
+
+**Light mode values:**
+- `--brand-red`: `0 72% 50%` (WCAG AA compliant with white text)
+- `--brand-red-soft`: `0 84% 60%`
+- `--brand-white`: `0 0% 100%`
+
+**Dark mode values:**
+- `--brand-red`: `0 80% 65%` (brighter for dark backgrounds)
+- `--brand-red-soft`: `0 90% 70%`
+- `--brand-white`: `0 0% 100%`
+
+**Usage guidelines:**
+- **Primary actions** → Use `bg-primary` or `bg-brand-red` (buttons, CTAs)
+- **Header/key surfaces** → Use `bg-primary` or gradient `bg-gradient-to-b from-brand-redSoft to-brand-red`
+- **Active chips/filters** → Use `bg-brand-redSoft` with `text-primary-foreground`
+- **Error/destructive** → Use `--destructive` (distinct from brand red to avoid confusion)
+
+The `--primary` and `--primary-foreground` variables are mapped to brand colors, so components using semantic tokens automatically inherit the brand identity.
+
 ### Dark mode
 
 - Controlled via `class` strategy (toggle `.dark` on `<html>`).

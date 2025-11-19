@@ -28,3 +28,9 @@ export const tokens = {
     card: "var(--shadow-card)",
   },
 } as const;
+
+export const brandColors = {
+  red: "hsl(var(--brand-red))" as ColorToken,
+  redSoft: "hsl(var(--brand-red-soft))" as ColorToken,
+  white: "hsl(var(--brand-white))" as ColorToken,
+} as const;

@@ -18,7 +18,7 @@
   transition: box-shadow .15s ease, border-color .15s ease;
 }
 .loc-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.06); }
-.loc-card--selected { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+.loc-card--selected { border-color: hsl(var(--brand-red)); box-shadow: 0 0 0 3px hsl(var(--brand-red-soft) / 0.15); }
 
 .loc-card__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .loc-card__title { font-size: 16px; line-height: 1.2; margin: 0; font-weight: 600; }
@@ -51,7 +51,7 @@
 .filters__list { display:flex; flex-wrap:wrap; gap:6px; }
 .chip { display:inline-flex; align-items:center; gap:6px; border:1px solid #e5e7eb; border-radius:999px; padding:4px 10px; cursor:pointer; user-select:none; }
 .chip input { display:none; }
-.chip--active { background:#eff6ff; border-color:#bfdbfe; }
+.chip--active { background: hsl(var(--brand-red-soft)); border-color: hsl(var(--brand-red)); color: hsl(var(--brand-white)); }
 .filters__empty { color:#6b7280; font-size:13px; }
 
 .sort-bar { display:flex; align-items:center; gap:8px; margin:8px 0; }
@@ -99,5 +99,5 @@
 
 /* Geselecteerde marker */
 .leaflet-marker-selected {
-  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.55));
+  filter: drop-shadow(0 0 6px hsl(var(--brand-red) / 0.55));
 }

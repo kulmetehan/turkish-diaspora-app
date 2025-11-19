@@ -36,6 +36,29 @@ export default function UiKit() {
       </header>
 
       <Card>
+        <CardHeader><CardTitle>Brand Colors</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-6">
+            <div className="flex flex-col items-center">
+              <div className="h-16 w-16 rounded-full bg-brand-red shadow-card border border-border" />
+              <span className="mt-2 text-sm font-medium">Brand Red</span>
+              <span className="text-xs text-muted-foreground">Primary actions</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="h-16 w-16 rounded-full bg-brand-redSoft shadow-card border border-border" />
+              <span className="mt-2 text-sm font-medium">Brand Red Soft</span>
+              <span className="text-xs text-muted-foreground">Gradients & backgrounds</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <div className="h-16 w-16 rounded-full bg-brand-white border-2 border-border shadow-card" />
+              <span className="mt-2 text-sm font-medium">Brand White</span>
+              <span className="text-xs text-muted-foreground">Text on brand red</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader><CardTitle>Buttons & Badges</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <div className="flex flex-wrap gap-2">
@@ -47,9 +70,15 @@ export default function UiKit() {
             <Button variant="link">Link</Button>
           </div>
           <div className="flex items-center gap-2">
-            <Badge>Default</Badge>
+            <Badge>Default (Brand Red)</Badge>
             <Badge variant="secondary">Secondary</Badge>
             <Badge variant="outline">Outline</Badge>
+          </div>
+          <div className="pt-2 border-t">
+            <p className="text-sm text-muted-foreground mb-2">Active chip example:</p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-brand-red bg-brand-redSoft px-3 py-1.5 text-sm text-primary-foreground">
+              <span>Active Category</span>
+            </div>
           </div>
         </CardContent>
       </Card>

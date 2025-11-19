@@ -113,7 +113,7 @@ export function CategoryChips({ categories, activeCategory, onSelect }: Category
                 "snap-start",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 active
-                  ? "border-primary/80 bg-primary/10 text-primary"
+                  ? "border-brand-red bg-brand-redSoft text-primary-foreground"
                   : "border-border bg-background text-foreground hover:bg-muted",
               )}
             >

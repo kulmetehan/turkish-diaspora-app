@@ -10,8 +10,9 @@ export const DEFAULT_ICON_ID = `${ICON_BASE_ID}-${FALLBACK_KEY}`;
 
 // F4-S2: Snap-style marker design tokens
 // Compact 32px markers with red base and white Lucide icons
+// F4-S6: Marker colors align with brand red (--brand-red-soft ≈ #EF4444)
 export const MARKER_BASE_SIZE = 32; // Compact size, down from 48px
-export const MARKER_FILL_DEFAULT = "#EF4444"; // red-500, Snap-style red
+export const MARKER_FILL_DEFAULT = "#EF4444"; // red-500, aligns with brand-red-soft
 export const MARKER_FILL_SELECTED = "#DC2626"; // red-600, optional for future use
 export const MARKER_ICON_COLOR = "#FFFFFF"; // white
 export const MARKER_STROKE_COLOR = "rgba(0, 0, 0, 0.1)"; // subtle shadow
