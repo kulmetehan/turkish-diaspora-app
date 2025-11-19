@@ -179,4 +179,64 @@ categories:
       enabled: true
       priority: 6
 
+  car_dealer:
+    label: "autodealer"
+    description: "Autodealers en garages met Turkse eigenaren."
+    google_types:
+      - "car_dealer"
+      - "car_repair"
+    osm_tags:
+      any:
+        - { shop: "car" }
+        - { shop: "car_repair" }
+        - { amenity: "garage" }
+    aliases:
+      - "autodealer"
+      - "garage"
+      - "auto dealer"
+      - "oto galeri"      # TR
+      - "oto galerisi"     # TR
+      - "galeri"           # TR
+      - "otomobil"         # TR
+    discovery:
+      enabled: true
+      priority: 5
+
+  insurance:
+    label: "verzekering"
+    description: "Verzekeringskantoren en verzekeringsadviseurs."
+    google_types:
+      - "insurance_agency"
+    osm_tags:
+      any:
+        - { office: "insurance" }
+    aliases:
+      - "verzekering"
+      - "verzekeringskantoor"
+      - "sigorta"          # TR
+      - "sigorta acentası" # TR
+      - "sigorta acentasi" # TR
+    discovery:
+      enabled: true
+      priority: 4
+
+  tailor:
+    label: "kleermaker"
+    description: "Kleermakers, naaiateliers en kledingreparatie."
+    google_types:
+      - "clothing_store"
+    osm_tags:
+      any:
+        - { craft: "tailor" }
+        - { shop: "tailor" }
+    aliases:
+      - "kleermaker"
+      - "naaister"
+      - "terzi"            # TR
+      - "terzilik"         # TR
+      - "dikim"            # TR
+    discovery:
+      enabled: true
+      priority: 5
+
 # Einde van bestand

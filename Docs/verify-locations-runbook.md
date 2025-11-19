@@ -8,14 +8,23 @@ owners: [tda-core]
 
 # Verify & Surface Locations — Runbook
 
+**PRIMARY VERIFICATION WORKER** - This is the main verification flow for the Turkish Diaspora App.
+
 Runbook for the `verify_locations.py` worker responsible for promoting high-confidence locations from `CANDIDATE/PENDING_VERIFICATION` to `VERIFIED` and ensuring they surface in the frontend.
 
 ## Overview
 
 - Worker module: `Backend/app/workers/verify_locations.py`
+- **Role**: PRIMARY verification worker (prefer this over `classify_bot` for normal operations)
 - Inputs: `locations` table rows with `state IN ('CANDIDATE','PENDING_VERIFICATION')`
 - Services used: `ClassifyService`, `validate_classification_payload`, `update_location_classification`, `audit_service`
 - Output: Updated `locations` row (`state`, `category`, `confidence_score`, `last_verified_at`) plus audit log entry in `ai_logs`
+
+## Relationship to Other Workers
+
+- **vs classify_bot**: `classify_bot` is a legacy tool for bulk re-classification. `verify_locations` is the primary flow.
+- **vs task_verifier**: `task_verifier` uses heuristics (no AI). `verify_locations` uses AI classification.
+- **See**: `Docs/state-pipeline.md` for the complete state machine and worker responsibilities.
 
 ## Requirements
 

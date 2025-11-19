@@ -22,8 +22,9 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/ui/cn";
-import { getDiscoveryKPIs, getMetricsSnapshot, type DiscoveryKPIs, type MetricsSnapshot, type WorkerRun, type WorkerStatus } from "@/lib/api";
-import { listAdminLocationCategories, runWorker } from "@/lib/apiAdmin";
+import { getDiscoveryKPIs, getMetricsSnapshot, getCitiesOverview, type DiscoveryKPIs, type MetricsSnapshot, type WorkerRun, type WorkerStatus, type CitiesOverview } from "@/lib/api";
+import { runWorker } from "@/lib/apiAdmin";
+import { fetchCategories, type CategoryOption } from "@/api/fetchLocations";
 import WorkerDiagnosisDialog from "@/components/admin/WorkerDiagnosisDialog";
 import { Activity, AlertTriangle, Database, Gauge, Info, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -131,7 +132,8 @@ export default function MetricsDashboard() {
     const [loadingKPIs, setLoadingKPIs] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [pollIntervalMs, setPollIntervalMs] = useState<number>(60000);
-    const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
+    const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
+    const [categoriesLoading, setCategoriesLoading] = useState<boolean>(true);
     const [selectedBot, setSelectedBot] = useState<string | undefined>("discovery");
     const [selectedCity, setSelectedCity] = useState<string | undefined>(undefined);
     const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
@@ -153,10 +155,19 @@ export default function MetricsDashboard() {
         ],
         []
     );
-    const cityOptions = useMemo(
-        () => [{ value: "rotterdam", label: "Rotterdam" }],
-        []
-    );
+    const [citiesOverview, setCitiesOverview] = useState<CitiesOverview | null>(null);
+    const cityOptions = useMemo(() => {
+        if (citiesOverview?.cities && citiesOverview.cities.length > 0) {
+            return citiesOverview.cities
+                .filter(city => city.has_districts) // Only show cities with districts configured
+                .map(city => ({
+                    value: city.city_key,
+                    label: city.city_name,
+                }));
+        }
+        // Fallback to Rotterdam if cities not loaded yet
+        return [{ value: "rotterdam", label: "Rotterdam" }];
+    }, [citiesOverview]);
     const categoryDisabled = selectedBot === "monitor";
 
     useEffect(() => {
@@ -205,13 +216,27 @@ export default function MetricsDashboard() {
         };
     }, []);
 
+    // Load categories from dynamic registry
     useEffect(() => {
         let cancelled = false;
-        listAdminLocationCategories().then((cats) => {
-            if (!cancelled) {
-                setCategoryOptions(cats);
-            }
-        });
+        setCategoriesLoading(true);
+        fetchCategories()
+            .then((cats) => {
+                if (!cancelled) {
+                    setCategoryOptions(cats);
+                }
+            })
+            .catch((e) => {
+                if (!cancelled) {
+                    console.warn("Failed to load categories:", e);
+                    setCategoryOptions([]);
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setCategoriesLoading(false);
+                }
+            });
         return () => {
             cancelled = true;
         };
@@ -233,6 +258,29 @@ export default function MetricsDashboard() {
         return () => { isMounted = false; };
     }, []);
 
+    // Load cities overview for city selector
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                const overview = await getCitiesOverview();
+                if (!cancelled) {
+                    setCitiesOverview(overview);
+                    // Auto-select first city with districts if none selected
+                    if (!selectedCity && overview.cities.length > 0) {
+                        const firstCityWithDistricts = overview.cities.find(c => c.has_districts);
+                        if (firstCityWithDistricts) {
+                            setSelectedCity(firstCityWithDistricts.city_key);
+                        }
+                    }
+                }
+            } catch (e: any) {
+                console.warn("Failed to load cities overview:", e);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [selectedCity]);
+
     const chartData = useMemo(() => {
         const arr = data?.weeklyCandidates || [];
         const mapped = arr.map((d) => ({
@@ -242,12 +290,18 @@ export default function MetricsDashboard() {
         return mapped.sort((a, b) => a.week_start.localeCompare(b.week_start));
     }, [data]);
     const categorySelectOptions = useMemo(() => {
-        return Array.from(new Set(categoryOptions.filter((cat) => cat && cat.trim().length > 0)));
+        // Filter out empty/invalid categories and return unique options
+        return categoryOptions.filter((cat) => cat && cat.key && cat.key.trim().length > 0);
     }, [categoryOptions]);
     const activeRuns: WorkerRun[] = data?.currentRuns ?? [];
     const workerStatuses = data?.workers ?? [];
     const hasActiveRuns = activeRuns.length > 0;
-    const cityProgress = data?.cityProgress?.rotterdam ?? null;
+    
+    // Get city progress for selected city (fallback to rotterdam for backward compatibility)
+    const selectedCityKey = selectedCity || "rotterdam";
+    const cityProgress = data?.cityProgress?.cities?.[selectedCityKey] 
+        ?? data?.cityProgress?.rotterdam 
+        ?? null;
     const qualityMetrics = data?.quality ?? null;
     const discoverySummary = data?.discovery ?? null;
     const latencyMetrics = data?.latency ?? null;
@@ -309,12 +363,49 @@ export default function MetricsDashboard() {
 
     return (
         <div className="space-y-4">
+            {/* City Selector */}
+            <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                    <CardTitle>City Selection</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-2">
+                        <Label htmlFor="metrics-city-selector">Select City</Label>
+                        <Select
+                            value={selectedCity ?? ALL_CITIES}
+                            onValueChange={(next) =>
+                                setSelectedCity(next === ALL_CITIES ? undefined : next)
+                            }
+                        >
+                            <SelectTrigger id="metrics-city-selector">
+                                <SelectValue placeholder="Select a city" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ALL_CITIES}>All cities</SelectItem>
+                                {cityOptions.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {selectedCity && cityProgress && (
+                            <div className="text-sm text-muted-foreground mt-2">
+                                Showing metrics for {cityOptions.find(c => c.value === selectedCity)?.label || selectedCity}
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Verified locations (Rotterdam) */}
+                {/* Verified locations (Selected City) */}
                 <Card className="rounded-2xl shadow-sm">
                     <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
-                        <CardTitle className="text-sm font-medium">Verified (Rotterdam)</CardTitle>
+                        <CardTitle className="text-sm font-medium">
+                            Verified {selectedCity ? `(${cityOptions.find(c => c.value === selectedCity)?.label || selectedCity})` : "(Rotterdam)"}
+                        </CardTitle>
                         <MapPin className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -460,6 +551,43 @@ export default function MetricsDashboard() {
                         )}
                     </CardContent>
                 </Card>
+
+                {/* Stale Candidates */}
+                <Card className="rounded-2xl shadow-sm">
+                    <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+                        <CardTitle className="text-sm font-medium">Stale Candidates ({data?.staleCandidates?.daysThreshold || 7}d)</CardTitle>
+                        <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        {loading ? (
+                            <Skeleton className="h-8 w-16" />
+                        ) : (
+                            <>
+                                <div className="text-2xl font-semibold">
+                                    {data?.staleCandidates?.totalStale ?? 0}
+                                </div>
+                                {data?.staleCandidates && data.staleCandidates.totalStale > 0 && (
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                        {Object.entries(data.staleCandidates.bySource).length > 0 && (
+                                            <div>By source: {Object.entries(data.staleCandidates.bySource).map(([src, cnt]) => `${src}: ${cnt}`).join(", ")}</div>
+                                        )}
+                                        {Object.entries(data.staleCandidates.byCity).length > 0 && (
+                                            <div className="mt-1">By city: {Object.entries(data.staleCandidates.byCity).map(([city, cnt]) => `${city}: ${cnt}`).join(", ")}</div>
+                                        )}
+                                    </div>
+                                )}
+                                {data?.staleCandidates && data.staleCandidates.totalStale > 100 && (
+                                    <div className="mt-2">
+                                        <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200 text-xs">
+                                            <AlertTriangle className="h-3 w-3 mr-1" />
+                                            High stale count - check verify_locations worker
+                                        </Badge>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </CardContent>
+                </Card>
             </div>
 
             {/* Time series chart */}
@@ -557,22 +685,32 @@ export default function MetricsDashboard() {
                                         next === ALL_CATEGORIES ? undefined : next
                                     )
                                 }
-                                disabled={categoryDisabled}
+                                disabled={categoriesLoading || categoryDisabled}
                             >
                                 <SelectTrigger id="worker-category">
                                     <SelectValue
                                         placeholder={
-                                            categoryDisabled ? "N/A for monitor" : "All categories"
+                                            categoriesLoading
+                                                ? "Loading..."
+                                                : categoryDisabled
+                                                ? "N/A for monitor"
+                                                : "All categories"
                                         }
                                     />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value={ALL_CATEGORIES}>All categories</SelectItem>
-                                    {categorySelectOptions.map((option) => (
-                                        <SelectItem key={option} value={option}>
-                                            {option}
-                                        </SelectItem>
-                                    ))}
+                                    {categoriesLoading ? (
+                                        <SelectItem value="loading" disabled>Loading categories...</SelectItem>
+                                    ) : categorySelectOptions.length === 0 ? (
+                                        <SelectItem value="none" disabled>No categories available</SelectItem>
+                                    ) : (
+                                        categorySelectOptions.map((option) => (
+                                            <SelectItem key={option.key} value={option.key}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>

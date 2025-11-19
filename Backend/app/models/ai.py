@@ -20,17 +20,8 @@ class Action(str, Enum):
     IGNORE = "ignore"
 
 
-class Category(str, Enum):
-    bakery = "bakery"
-    restaurant = "restaurant"
-    supermarket = "supermarket"
-    barber = "barber"
-    mosque = "mosque"
-    travel_agency = "travel_agency"
-    butcher = "butcher"
-    fast_food = "fast_food"
-    cafe = "cafe"
-    other = "other"
+# Import Category enum from central registry
+from app.models.categories import Category
 
 
 class VerificationStatus(str, Enum):

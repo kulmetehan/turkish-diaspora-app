@@ -301,12 +301,42 @@ async def update_location_classification(
     allow_resurrection: bool = False,
 ) -> None:
     """
-    Persist AI/manual classification while enforcing:
-      - State thresholds (keep=VERIFIED/PENDING_VERIFICATION/CANDIDATE by confidence; ignore=RETIRED)
-      - No downgrade of VERIFIED
-      - No resurrection of RETIRED unless allow_resurrection=True
-      - Always stamps last_verified_at = NOW()
-      - Appends reason into notes (newline-separated)
+    Canonical function for updating location classification and state.
+    
+    This is the single source of truth for state transitions. All workers and
+    admin actions should use this function to ensure consistent state management.
+    
+    **Input Expectations:**
+    - `action`: "keep" or "ignore" (case-insensitive)
+    - `confidence_score`: Float in range [0.0, 1.0]
+    - `category`: Optional string (None for action="ignore" preserves existing category)
+    - `reason`: Optional string appended to notes
+    
+    **State Derivation Rules:**
+    - `action="ignore"` → `state="RETIRED"`
+    - `action="keep"` + `confidence >= 0.90` → `state="VERIFIED"`
+    - `action="keep"` + `0.80 <= confidence < 0.90` → `state="PENDING_VERIFICATION"`
+    - `action="keep"` + `confidence < 0.80` → `state="CANDIDATE"`
+    
+    **No-Downgrade Behavior:**
+    - Locations in `VERIFIED` state are never demoted (always stay `VERIFIED`)
+    - Locations in `RETIRED` state are never resurrected unless `allow_resurrection=True`
+    - This prevents accidental loss of verified data or resurrection of rejected locations
+    
+    **Side Effects:**
+    - Always sets `last_verified_at = NOW()` (even for no-op updates)
+    - Appends `reason` to `notes` field (newline-separated)
+    - Updates `category` and `confidence_score` fields
+    - Clears `is_retired` flag if `allow_resurrection=True` and new state is not RETIRED
+    
+    **Performance Optimizations:**
+    - Uses lightweight UPDATE for VERIFIED→VERIFIED no-op cases (only updates timestamp)
+    - Full UPDATE for all state transitions or category/confidence changes
+    
+    **Usage:**
+    - Primary: `verify_locations` worker (promotes CANDIDATE/PENDING_VERIFICATION to VERIFIED)
+    - Secondary: `classify_bot` worker (legacy, sets PENDING_VERIFICATION)
+    - Admin: Manual classification overrides
     """
 
     # Fetch current state to enforce no-downgrade/no-resurrection

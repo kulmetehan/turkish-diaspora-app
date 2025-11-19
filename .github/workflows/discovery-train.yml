@@ -1,0 +1,82 @@
+name: Discovery Train
+
+# Discovery Train - Sequential discovery orchestration
+# 
+# This workflow replaces the old parallel discovery workflows (tda_discovery.yml, etc.)
+# by processing discovery jobs sequentially from the discovery_jobs queue.
+# 
+# Why Discovery Train instead of parallel runs?
+# - Respects OSM Overpass API rate limits (no hammering)
+# - Processes jobs in FIFO order (oldest first)
+# - Single instance prevents concurrent execution conflicts
+# - Gracefully handles empty queue (exits successfully if no pending jobs)
+#
+# Frequency: Every 30 minutes (processes 1 job per run by default)
+# To adjust: Change cron schedule or add --max-jobs N parameter
+#
+# See Docs/discovery-train.md for full documentation.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"    # every 30 minutes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "discovery-train"
+  cancel-in-progress: false
+
+jobs:
+  discovery-train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Discovery Train
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Force free, open-source provider
+          DATA_PROVIDER: osm
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PYTHONUNBUFFERED: "1"
+          PYTHONPATH: .
+          # Discovery settings (same as previous workflows for consistency)
+          DISCOVERY_RATE_LIMIT_QPS: "0.15"
+          DISCOVERY_SLEEP_BASE_S: "3.0"
+          DISCOVERY_SLEEP_JITTER_PCT: "0.20"
+          OVERPASS_TIMEOUT_S: "30"
+          DISCOVERY_MAX_RESULTS: "25"
+        run: |
+          # Run Discovery Train (processes 1 job per invocation by default)
+          # If no pending jobs exist, exits gracefully (not an error)
+          python -m app.workers.discovery_train_bot --max-jobs 1
+

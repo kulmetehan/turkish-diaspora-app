@@ -1,21 +1,36 @@
 ---
 title: Automated Discovery Runs
 status: active
-last_updated: 2025-11-04
+last_updated: 2025-01-XX
 scope: automation
 owners: [tda-core]
 ---
 
 # Automated Discovery Runs
 
-Documentation for the GitHub Actions workflows that replace the legacy Render cronjobs. These jobs execute `discovery_bot` across categories and grid chunks to keep the database stocked with fresh candidates.
+Documentation for the GitHub Actions workflows that automate discovery and verification workers.
 
-## Workflows
+## Active Workflows
 
-| Workflow | Trigger | Matrix | Command |
+| Workflow | Trigger | Purpose | Command |
 | --- | --- | --- | --- |
-| `tda_discovery.yml` | Scheduled (`0 */2 * * *`) + manual | `category` × `chunk_index` (6 chunks) | `python -m app.workers.discovery_bot --city rotterdam --categories ${{ matrix.category }} --chunks 6 --chunk-index ${{ matrix.chunk_index }}` |
-| `tda_discovery_fast.yml` | Manual dispatch | Same as above but limited grids | Debug / smoke tests for discovery settings |
+| `discovery-train.yml` | Scheduled (`*/30 * * * *`) + manual | Sequential discovery orchestration | `python -m app.workers.discovery_train_bot --max-jobs 1` |
+| `tda_verification.yml` | Scheduled (`*/30 * * * *`) + manual | Primary verification pipeline | `python -m app.workers.verify_locations --limit 1500` |
+
+## Deprecated Workflows
+
+The following workflows have been **disabled** and replaced by Discovery Train:
+
+| Workflow | Status | Reason |
+| --- | --- | --- |
+| `tda_discovery.yml` | **DEPRECATED** | Replaced by `discovery-train.yml` - parallel runs overload OSM API |
+| `tda_discovery_fast.yml` | **DEPRECATED** | Replaced by `discovery-train.yml` - parallel runs overload OSM API |
+| `tda_discovery_vlaardingen.yml` | **DEPRECATED** | Replaced by `discovery-train.yml` - parallel runs overload OSM API |
+| `tda_discovery_schiedam.yml` | **DEPRECATED** | Replaced by `discovery-train.yml` - parallel runs overload OSM API |
+
+**Migration Rationale**: The old workflows ran many `discovery_bot` instances in parallel (e.g., 54 jobs for Rotterdam: 9 categories × 6 chunks), which could overload the OSM Overpass API. Discovery Train processes jobs sequentially from the `discovery_jobs` queue, respecting rate limits and ensuring orderly execution.
+
+See `Docs/discovery-train.md` for full documentation on the Discovery Train system.
 
 ### Secrets required
 
@@ -64,8 +79,47 @@ python -m app.workers.discovery_bot \
 
 Confirm expected behavior before merging changes that affect discovery parameters.
 
+## Discovery Train
+
+Discovery Train (`discovery-train.yml`) is the primary automated discovery mechanism:
+
+- **Frequency**: Every 30 minutes (processes 1 job per run)
+- **Queue-based**: Jobs are enqueued via `scripts/enqueue_discovery_jobs.py`
+- **Sequential**: Processes jobs one at a time to respect OSM rate limits
+- **Multi-city**: Supports all cities defined in `cities.yml`
+
+To enqueue jobs for a city:
+```bash
+python -m scripts.enqueue_discovery_jobs --city rotterdam
+```
+
+See `Docs/discovery-train.md` for full documentation.
+
+## Verification Pipeline
+
+The verification workflow (`tda_verification.yml`) runs independently:
+
+- **Frequency**: Every 30 minutes
+- **Worker**: `verify_locations` (PRIMARY verification flow)
+- **Limit**: 1500 records per run
+- **Purpose**: Promotes CANDIDATE/PENDING_VERIFICATION to VERIFIED
+
+This is the primary verification pipeline. The legacy `classify_bot` is now a manual tool only.
+
+See `Docs/state-pipeline.md` and `Docs/verify-locations-runbook.md` for details.
+
+## Adjusting Workflow Frequency
+
+To change Discovery Train frequency, edit `.github/workflows/discovery-train.yml`:
+- Cron schedule: `*/30 * * * *` (every 30 minutes)
+- `--max-jobs` parameter: Increase to process multiple jobs per run
+
+To change verification frequency, edit `.github/workflows/tda_verification.yml`:
+- Cron schedule: `*/30 * * * *` (every 30 minutes)
+- `--limit` parameter: Adjust based on processing capacity
+
 ## Next steps
 
-- Add matrices for additional cities once `Infra/config/cities.yml` contains validated grids.
-- Consider reducing chunk count when targeting smaller cities to avoid idle actions.
-- Keep OSM contact email up to date in `OVERPASS_USER_AGENT` and workflow env settings.
+- Monitor Discovery Train job queue size (check `discovery_jobs` table)
+- Adjust `--max-jobs` if queue backlog grows
+- Keep OSM contact email up to date in `OVERPASS_USER_AGENT` and workflow env settings

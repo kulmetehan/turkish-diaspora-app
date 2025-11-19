@@ -108,13 +108,19 @@ export async function listLocationStates(): Promise<LocationStatesResponse> {
     }
 }
 
-type LocationCategoriesResponse = { categories: string[] };
+// Import CategoryOption type from fetchLocations
+import type { CategoryOption } from "@/api/fetchLocations";
 
-export async function listAdminLocationCategories(): Promise<string[]> {
+type LocationCategoriesResponse = { categories: Array<{ key: string; label: string }> };
+
+export async function listAdminLocationCategories(): Promise<CategoryOption[]> {
     try {
         const res = await authFetch<LocationCategoriesResponse>("/api/v1/admin/location-categories");
         if (Array.isArray(res?.categories)) {
-            return res.categories;
+            return res.categories.map((cat) => ({
+                key: cat.key.toLowerCase().trim(),
+                label: cat.label || cat.key,
+            })).filter((cat) => cat.key && cat.key !== "other");
         }
         return [];
     } catch (err: any) {

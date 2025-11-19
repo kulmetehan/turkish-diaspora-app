@@ -1,4 +1,15 @@
 # app/workers/classify_bot.py
+"""
+LEGACY WORKER - Bulk Re-classification Tool
+
+This worker is maintained for backward compatibility and bulk re-classification tasks.
+For normal verification operations, prefer verify_locations.py (VerifyLocationsBot).
+
+**Role**: Bulk re-classification of existing CANDIDATE/PENDING_VERIFICATION records.
+**Primary Flow**: Use verify_locations.py instead.
+
+See Docs/state-pipeline.md for the current state machine and worker responsibilities.
+"""
 from __future__ import annotations
 
 import argparse
@@ -26,6 +37,9 @@ STATE MACHINE (canonical):
 - VERIFIED: approved and visible in the app.
 - RETIRED: explicitly considered not relevant / no longer valid.
 Only VERIFIED locations are sent to the frontend.
+
+NOTE: This worker sets PENDING_VERIFICATION but does not promote to VERIFIED.
+Use verify_locations.py for the complete verification flow.
 """
 
 # jouw bestaande services (toplevel 'services' package)
@@ -184,6 +198,46 @@ CATEGORY_NORMALIZATION_MAP = {
     "bilet acentasi": "travel_agency",
     "acente": "travel_agency",
     "acenta": "travel_agency",
+
+    # --- CAR DEALER / GARAGE ---
+    "car dealer": "car_dealer",
+    "car dealer": "car_dealer",
+    "autodealer": "car_dealer",
+    "auto dealer": "car_dealer",
+    "garage": "car_dealer",
+    "car repair": "car_dealer",
+    "auto reparatie": "car_dealer",
+    # Turkish
+    "oto galeri": "car_dealer",
+    "oto galerisi": "car_dealer",
+    "galeri": "car_dealer",
+    "otomobil": "car_dealer",
+    "otomobil galerisi": "car_dealer",
+
+    # --- INSURANCE ---
+    "insurance": "insurance",
+    "insurance agency": "insurance",
+    "verzekering": "insurance",
+    "verzekeringskantoor": "insurance",
+    "verzekeringsadviseur": "insurance",
+    # Turkish
+    "sigorta": "insurance",
+    "sigorta acentası": "insurance",
+    "sigorta acentasi": "insurance",
+    "sigorta ofisi": "insurance",
+
+    # --- TAILOR / CLOTHING REPAIR ---
+    "tailor": "tailor",
+    "kleermaker": "tailor",
+    "naaister": "tailor",
+    "clothing repair": "tailor",
+    "kledingreparatie": "tailor",
+    # Turkish
+    "terzi": "tailor",
+    "terzilik": "tailor",
+    "dikim": "tailor",
+    "dikim atölyesi": "tailor",
+    "dikim atolyesi": "tailor",
 
     # fallback
     "other": "other",

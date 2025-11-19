@@ -17,6 +17,7 @@ from app.models.metrics import (
     Latency,
     MetricsSnapshot,
     Quality,
+    StaleCandidates,
     WeeklyCandidatesItem,
     WorkerStatus,
     WorkerRunStatus,
@@ -212,6 +213,89 @@ async def _conversion_rate_14d() -> float:
     if total == 0:
         return 0.0
     return float(ver) / float(total)
+
+
+async def _stale_candidates_metrics(days: int = 7) -> Dict[str, Any]:
+    """
+    Count stale CANDIDATE records (older than N days), grouped by source.
+    
+    Returns dict with:
+    - total_stale: Total count of stale CANDIDATE records
+    - by_source: Dict mapping source -> count
+    - by_city: Dict mapping city_key -> count (computed via bbox)
+    """
+    sql_total = (
+        """
+        SELECT COUNT(*)::int AS total_stale
+        FROM locations
+        WHERE state = 'CANDIDATE'
+          AND first_seen_at < NOW() - (($1::int || ' days')::interval)
+        """
+    )
+    rows_total = await fetch(sql_total, int(days))
+    total_stale = int(rows_total[0]["total_stale"]) if rows_total else 0
+    
+    sql_by_source = (
+        """
+        SELECT source, COUNT(*)::int AS count
+        FROM locations
+        WHERE state = 'CANDIDATE'
+          AND first_seen_at < NOW() - (($1::int || ' days')::interval)
+        GROUP BY source
+        ORDER BY count DESC
+        """
+    )
+    rows_by_source = await fetch(sql_by_source, int(days))
+    by_source: Dict[str, int] = {}
+    for row in rows_by_source or []:
+        rec = dict(row)
+        source = str(rec.get("source") or "unknown")
+        count = int(rec.get("count") or 0)
+        by_source[source] = count
+    
+    # Compute by city (using bbox from cities.yml)
+    by_city: Dict[str, int] = {}
+    try:
+        cities_config = load_cities_config()
+        cities = cities_config.get("cities", {})
+        
+        for city_key, city_def in cities.items():
+            if not isinstance(city_def, dict):
+                continue
+            
+            districts = city_def.get("districts", {})
+            if not districts:
+                continue
+            
+            bbox = _compute_city_bbox(city_key)
+            if not bbox:
+                continue
+            
+            lat_min, lat_max, lng_min, lng_max = bbox
+            sql_city = (
+                """
+                SELECT COUNT(*)::int AS count
+                FROM locations
+                WHERE state = 'CANDIDATE'
+                  AND first_seen_at < NOW() - (($1::int || ' days')::interval)
+                  AND lat BETWEEN $2 AND $3
+                  AND lng BETWEEN $4 AND $5
+                """
+            )
+            rows_city = await fetch(sql_city, int(days), float(lat_min), float(lat_max), float(lng_min), float(lng_max))
+            if rows_city:
+                count = int(dict(rows_city[0]).get("count") or 0)
+                if count > 0:
+                    by_city[city_key] = count
+    except Exception as e:
+        logger.warning("failed_to_compute_stale_by_city", error=str(e), exc_info=e)
+    
+    return {
+        "total_stale": total_stale,
+        "by_source": by_source,
+        "by_city": by_city,
+        "days_threshold": days,
+    }
 
 
 async def _weekly_candidates_series(weeks: int = 8) -> List[WeeklyCandidatesItem]:
@@ -1110,14 +1194,51 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
     weekly = await _weekly_candidates_series(8)
     latest_count = weekly[-1].count if weekly else 0
 
-    # City progress
-    rot = await _rotterdam_progress()
+    # City progress - load all cities from cities.yml
+    city_progress_dict: Dict[str, CityProgressData] = {}
+    try:
+        cities_config = load_cities_config()
+        cities = cities_config.get("cities", {})
+        
+        for city_key, city_def in cities.items():
+            if not isinstance(city_def, dict):
+                continue
+            
+            # Only compute progress for cities with districts (bbox can be computed)
+            districts = city_def.get("districts", {})
+            if not districts:
+                # Skip cities without districts (can't compute bbox)
+                continue
+            
+            progress = await _city_progress(city_key)
+            if progress:
+                city_progress_dict[city_key] = progress
+    except Exception as e:
+        logger.warning("failed_to_load_cities_for_metrics", error=str(e), exc_info=e)
+        # Fallback: at least include Rotterdam
+        rot = await _rotterdam_progress()
+        if rot:
+            city_progress_dict["rotterdam"] = CityProgressData(
+                verified_count=rot.verified_count,
+                candidate_count=rot.candidate_count,
+                coverage_ratio=rot.coverage_ratio,
+                growth_weekly=rot.growth_weekly,
+            )
 
     workers = await _worker_statuses(err_rate, g429)
     current_runs = await _active_worker_runs()
+    
+    # Stale candidates metrics
+    stale_metrics = await _stale_candidates_metrics(days=7)
+    stale_candidates = StaleCandidates(
+        total_stale=stale_metrics["total_stale"],
+        by_source=stale_metrics["by_source"],
+        by_city=stale_metrics["by_city"],
+        days_threshold=stale_metrics["days_threshold"],
+    )
 
     return MetricsSnapshot(
-        city_progress=CityProgress(rotterdam=rot),
+        city_progress=CityProgress(cities=city_progress_dict),
         quality=Quality(
             conversion_rate_verified_14d=conv_14d,
             task_error_rate_60m=err_rate,
@@ -1128,6 +1249,7 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
         weekly_candidates=weekly,
         workers=workers,
         current_runs=current_runs,
+        stale_candidates=stale_candidates,
     )
 
 

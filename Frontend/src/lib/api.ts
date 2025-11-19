@@ -279,7 +279,7 @@ export interface WorkerRun {
   startedAt?: string | null;
 }
 
-export interface CityProgressRotterdam {
+export interface CityProgressData {
   verifiedCount: number;
   candidateCount: number;
   coverageRatio: number;
@@ -287,7 +287,10 @@ export interface CityProgressRotterdam {
 }
 
 export interface CityProgress {
-  rotterdam: CityProgressRotterdam;
+  // Multi-city support: cities dict with city keys
+  cities: Record<string, CityProgressData>;
+  // Backward compatibility: direct rotterdam accessor
+  rotterdam?: CityProgressData;
 }
 
 export interface QualityMetrics {
@@ -441,6 +444,13 @@ export interface WeeklyCandidatesItem {
   count: number;
 }
 
+export interface StaleCandidatesMetrics {
+  totalStale: number;
+  bySource: Record<string, number>;
+  byCity: Record<string, number>;
+  daysThreshold: number;
+}
+
 export interface MetricsSnapshot {
   cityProgress: CityProgress;
   quality: QualityMetrics | null;
@@ -449,6 +459,7 @@ export interface MetricsSnapshot {
   weeklyCandidates?: WeeklyCandidatesItem[] | null;
   workers: WorkerStatus[];
   currentRuns: WorkerRun[];
+  staleCandidates?: StaleCandidatesMetrics | null;
 }
 
 type RawWorkerStatus = {
@@ -475,7 +486,7 @@ type RawWorkerRun = {
   started_at?: string | null;
 };
 
-type RawCityProgressRotterdam = {
+type RawCityProgressData = {
   verified_count: number;
   candidate_count: number;
   coverage_ratio: number;
@@ -484,7 +495,8 @@ type RawCityProgressRotterdam = {
 
 type RawMetricsSnapshot = {
   city_progress: {
-    rotterdam: RawCityProgressRotterdam;
+    cities?: Record<string, RawCityProgressData>;
+    rotterdam?: RawCityProgressData; // Backward compatibility
   };
   quality: {
     conversion_rate_verified_14d: number;
@@ -502,6 +514,12 @@ type RawMetricsSnapshot = {
   weekly_candidates?: { week_start: string; count: number }[] | null;
   workers: RawWorkerStatus[];
   current_runs: RawWorkerRun[];
+  stale_candidates?: {
+    total_stale: number;
+    by_source: Record<string, number>;
+    by_city: Record<string, number>;
+    days_threshold: number;
+  } | null;
 };
 
 function normalizeWorkerStatus(raw: RawWorkerStatus): WorkerStatus {
@@ -532,20 +550,43 @@ function normalizeWorkerRun(raw: RawWorkerRun): WorkerRun {
   };
 }
 
-function normalizeCityProgress(rotterdam: RawCityProgressRotterdam): CityProgress {
+function normalizeCityProgress(raw: {
+  cities?: Record<string, RawCityProgressData>;
+  rotterdam?: RawCityProgressData;
+}): CityProgress {
+  const cities: Record<string, CityProgressData> = {};
+  
+  // Handle new multi-city structure
+  if (raw.cities) {
+    for (const [cityKey, cityData] of Object.entries(raw.cities)) {
+      cities[cityKey] = {
+        verifiedCount: cityData.verified_count,
+        candidateCount: cityData.candidate_count,
+        coverageRatio: cityData.coverage_ratio,
+        growthWeekly: cityData.growth_weekly,
+      };
+    }
+  }
+  
+  // Handle backward compatibility: rotterdam as direct field
+  if (raw.rotterdam && !cities.rotterdam) {
+    cities.rotterdam = {
+      verifiedCount: raw.rotterdam.verified_count,
+      candidateCount: raw.rotterdam.candidate_count,
+      coverageRatio: raw.rotterdam.coverage_ratio,
+      growthWeekly: raw.rotterdam.growth_weekly,
+    };
+  }
+  
   return {
-    rotterdam: {
-      verifiedCount: rotterdam.verified_count,
-      candidateCount: rotterdam.candidate_count,
-      coverageRatio: rotterdam.coverage_ratio,
-      growthWeekly: rotterdam.growth_weekly,
-    },
+    cities,
+    rotterdam: cities.rotterdam, // Backward compatibility accessor
   };
 }
 
 function normalizeMetricsSnapshot(raw: RawMetricsSnapshot): MetricsSnapshot {
   return {
-    cityProgress: normalizeCityProgress(raw.city_progress.rotterdam),
+    cityProgress: normalizeCityProgress(raw.city_progress),
     quality: raw.quality
       ? {
           conversionRateVerified14d: raw.quality.conversion_rate_verified_14d,
@@ -571,6 +612,14 @@ function normalizeMetricsSnapshot(raw: RawMetricsSnapshot): MetricsSnapshot {
       : [],
     workers: (raw.workers ?? []).map(normalizeWorkerStatus),
     currentRuns: (raw.current_runs ?? []).map(normalizeWorkerRun),
+    staleCandidates: raw.stale_candidates
+      ? {
+          totalStale: raw.stale_candidates.total_stale,
+          bySource: raw.stale_candidates.by_source ?? {},
+          byCity: raw.stale_candidates.by_city ?? {},
+          daysThreshold: raw.stale_candidates.days_threshold,
+        }
+      : null,
   };
 }
 

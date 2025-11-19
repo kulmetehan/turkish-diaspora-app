@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDiscoveryCoverageSummary, getMetricsSnapshot, type MetricsSnapshot, type DiscoveryCoverageSummary } from "@/lib/api";
+import { getDiscoveryCoverageSummary, getMetricsSnapshot, type MetricsSnapshot, type DiscoveryCoverageSummary, type CityReadiness } from "@/lib/api";
 
-export default function DiscoveryCoverageSummary() {
+interface DiscoveryCoverageSummaryProps {
+  city: string;
+  cities: CityReadiness[];
+}
+
+export default function DiscoveryCoverageSummary({ city, cities }: DiscoveryCoverageSummaryProps) {
   const [metrics, setMetrics] = useState<MetricsSnapshot | null>(null);
   const [summary, setSummary] = useState<DiscoveryCoverageSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Get city name from cities list
+  const cityName = cities.find(c => c.city_key === city)?.city_name || city;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -15,7 +23,7 @@ export default function DiscoveryCoverageSummary() {
       try {
         const [metricsData, coverageSummary] = await Promise.all([
           getMetricsSnapshot(),
-          getDiscoveryCoverageSummary("rotterdam"),
+          getDiscoveryCoverageSummary(city),
         ]);
         setMetrics(metricsData);
         setSummary(coverageSummary);
@@ -33,7 +41,7 @@ export default function DiscoveryCoverageSummary() {
     };
 
     fetchData();
-  }, []);
+  }, [city]);
 
   if (loading) {
     return (
@@ -117,17 +125,17 @@ export default function DiscoveryCoverageSummary() {
           <div className="text-sm text-muted-foreground">
             {coverageRatio > 80 ? (
               <>
-                Most grid cells in Rotterdam have already been explored, so recent discovery runs
+                Most grid cells in {cityName} have already been explored, so recent discovery runs
                 mainly update existing locations instead of finding new ones.
               </>
             ) : coverageRatio > 50 ? (
               <>
-                A significant portion of Rotterdam has been covered. Discovery runs are finding
+                A significant portion of {cityName} has been covered. Discovery runs are finding
                 both new locations and updating existing ones.
               </>
             ) : (
               <>
-                Discovery coverage is still expanding across Rotterdam. Recent runs are actively
+                Discovery coverage is still expanding across {cityName}. Recent runs are actively
                 finding new locations in unexplored areas.
               </>
             )}

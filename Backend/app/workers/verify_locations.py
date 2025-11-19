@@ -76,7 +76,12 @@ async def fetch_candidates(
     limit: int,
     min_confidence: float,
 ) -> List[Dict[str, Any]]:
-    """Fetch locations that are worth sending to OpenAI per cost-aware rules."""
+    """
+    Fetch locations that are worth sending to OpenAI per cost-aware rules.
+    
+    Selects both CANDIDATE and PENDING_VERIFICATION records regardless of source.
+    This ensures OSM-discovered locations are processed alongside Google-discovered ones.
+    """
     sql = (
         """
         SELECT id,
@@ -254,6 +259,23 @@ async def run_verification(
     # Fetch candidates
     candidates = await fetch_candidates(limit=limit, min_confidence=min_confidence)
     
+    # Log breakdown by state and source for observability
+    if candidates:
+        state_breakdown = {}
+        source_breakdown = {}
+        for c in candidates:
+            state = c.get("state", "UNKNOWN")
+            source = c.get("source", "UNKNOWN")
+            state_breakdown[state] = state_breakdown.get(state, 0) + 1
+            source_breakdown[source] = source_breakdown.get(source, 0) + 1
+        logger.info(
+            "verify_locations_candidates_breakdown",
+            total=len(candidates),
+            by_state=state_breakdown,
+            by_source=source_breakdown,
+        )
+        print(f"[VerifyLocationsBot] Processing {len(candidates)} candidates: states={state_breakdown}, sources={source_breakdown}")
+    
     if not candidates:
         counters: Dict[str, Any] = {
             "total_processed": 0,
@@ -332,7 +354,10 @@ async def run_verification(
 # CLI
 # ---------------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="VerifyLocationsBot — promote PENDING_VERIFICATION to VERIFIED or RETIRED")
+    ap = argparse.ArgumentParser(
+        description="VerifyLocationsBot — PRIMARY verification worker that promotes CANDIDATE and PENDING_VERIFICATION to VERIFIED or RETIRED. "
+        "This is the main verification flow; prefer this over classify_bot for normal operations."
+    )
     ap.add_argument("--city", help="Filter by city (if supported by schema)")
     ap.add_argument("--source", help="Filter by source (e.g., OSM_OVERPASS, GOOGLE_PLACES)")
     ap.add_argument("--limit", type=int, default=200, help="Max items to process")

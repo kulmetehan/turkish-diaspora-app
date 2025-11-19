@@ -1,5 +1,12 @@
 name: TDA Discovery (weekly, chunked)
-# This workflow is for Rotterdam discovery only.
+# DEPRECATED: This workflow has been replaced by Discovery Train (discovery-train.yml)
+# Discovery Train processes jobs sequentially from the discovery_jobs queue,
+# avoiding parallel execution that can hammer the OSM Overpass API.
+# 
+# This workflow is kept for reference but the discovery job is disabled.
+# To re-enable: uncomment the discovery job below and remove this deprecation notice.
+# 
+# Original purpose: Rotterdam discovery only.
 # For other cities, see: tda_discovery_vlaardingen.yml and tda_discovery_schiedam.yml
 
 on:
@@ -49,85 +56,77 @@ jobs:
           echo "Another discovery run is in progress. Exiting guard successfully."
           exit 0
 
-  discovery:
-    needs: check-active
-    if: needs.check-active.outputs.has_active == 'false'
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      max-parallel: 1
-      matrix:
-        # Canonical discovery categories: all Category enum values except 'other'
-        # This list must stay in sync with:
-        #   - Backend/app/models/ai.py (Category enum)
-        #   - Infra/config/categories.yml (discovery.enabled: true)
-        # Note: 'other' is intentionally excluded as it's a fallback category, not a discovery target
-        category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food, cafe]
-        chunk_index: [0, 1, 2, 3, 4, 5]   # 6 chunks -> pas aan indien nodig
-    defaults:
-      run:
-        working-directory: Backend
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python 3.11.9
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11.9"
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
-          restore-keys: |
-            pip-${{ runner.os }}-py3.11.9-
-
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          # Force free, open-source provider
-          DATA_PROVIDER: osm
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          PYTHONUNBUFFERED: "1"
-          PYTHONPATH: .
-          # Optimized discovery settings
-          DISCOVERY_RATE_LIMIT_QPS: "0.15"
-          DISCOVERY_SLEEP_BASE_S: "3.0"
-          DISCOVERY_SLEEP_JITTER_PCT: "0.20"
-          OVERPASS_TIMEOUT_S: "30"
-          DISCOVERY_MAX_RESULTS: "25"
-        run: >
-          python -m app.workers.discovery_bot
-          --city rotterdam
-          --categories ${{ matrix.category }}
-          --nearby-radius-m 1200
-          --grid-span-km 6
-          --max-per-cell-per-category 25
-          --inter-call-sleep-s 0.05
-          --max-cells-per-category 50
-          --max-total-inserts 500
-          --chunks 6
-          --chunk-index ${{ matrix.chunk_index }}
-      
-      - name: Run summary
-        if: always()
-        run: |
-          echo "=== Discovery Run Summary ==="
-          echo "Category: ${{ matrix.category }}"
-          echo "Chunk: ${{ matrix.chunk_index }} / 5 (0-indexed)"
-          echo "Total chunks: 54 (9 categories × 6 chunks)"
-          echo "Job status: ${{ job.status }}"
-          echo "Elapsed time: ${{ job.duration }} seconds"
-          echo "============================"
+  # DISABLED: Replaced by Discovery Train (discovery-train.yml)
+  # This job would run 54 parallel discovery_bot instances (9 categories × 6 chunks),
+  # which can overload the OSM Overpass API. Discovery Train processes jobs sequentially
+  # from the discovery_jobs queue instead.
+  #
+  # discovery:
+  #   needs: check-active
+  #   if: needs.check-active.outputs.has_active == 'false'
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 45
+  #   strategy:
+  #     fail-fast: false
+  #     max-parallel: 1
+  #     matrix:
+  #       category: [bakery, restaurant, supermarket, barber, mosque, travel_agency, butcher, fast_food, cafe]
+  #       chunk_index: [0, 1, 2, 3, 4, 5]
+  #   defaults:
+  #     run:
+  #       working-directory: Backend
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #     - name: Setup Python 3.11.9
+  #       uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.11.9"
+  #     - name: Cache pip
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.cache/pip
+  #         key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+  #         restore-keys: |
+  #           pip-${{ runner.os }}-py3.11.9-
+  #     - name: Install deps
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r requirements.txt
+  #     - name: Run Discovery (${{ matrix.category }}, chunk ${{ matrix.chunk_index }})
+  #       env:
+  #         DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  #         GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+  #         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  #         DATA_PROVIDER: osm
+  #         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  #         SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+  #         PYTHONUNBUFFERED: "1"
+  #         PYTHONPATH: .
+  #         DISCOVERY_RATE_LIMIT_QPS: "0.15"
+  #         DISCOVERY_SLEEP_BASE_S: "3.0"
+  #         DISCOVERY_SLEEP_JITTER_PCT: "0.20"
+  #         OVERPASS_TIMEOUT_S: "30"
+  #         DISCOVERY_MAX_RESULTS: "25"
+  #       run: >
+  #         python -m app.workers.discovery_bot
+  #         --city rotterdam
+  #         --categories ${{ matrix.category }}
+  #         --nearby-radius-m 1200
+  #         --grid-span-km 6
+  #         --max-per-cell-per-category 25
+  #         --inter-call-sleep-s 0.05
+  #         --max-cells-per-category 50
+  #         --max-total-inserts 500
+  #         --chunks 6
+  #         --chunk-index ${{ matrix.chunk_index }}
+  #     - name: Run summary
+  #       if: always()
+  #       run: |
+  #         echo "=== Discovery Run Summary ==="
+  #         echo "Category: ${{ matrix.category }}"
+  #         echo "Chunk: ${{ matrix.chunk_index }} / 5 (0-indexed)"
+  #         echo "Total chunks: 54 (9 categories × 6 chunks)"
+  #         echo "Job status: ${{ job.status }}"
+  #         echo "Elapsed time: ${{ job.duration }} seconds"
+  #         echo "============================"
