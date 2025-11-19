@@ -67,10 +67,17 @@ body {
   /* bijna-zwart tekst */
   --tda-muted: #64748b;
   /* secundaire tekst */
-  --tda-accent: #2563eb;
-  /* blauw accent (links/hover) */
-  --tda-accent-weak: #dbeafe;
-  /* lichtblauw achtergrond (hover/select) */
+  --tda-accent: var(--brand-red);
+  /* Turkspot brand red accent */
+  --tda-accent-weak: var(--brand-red-soft);
+  /* Soft brand red achtergrond (hover/select) */
+
+  /* Brand core (light mode) */
+  --brand-red: 0 72% 50%;
+  /* Turkspot brand red - WCAG AA compliant with white text */
+  --brand-red-soft: 0 84% 60%;
+  /* Softer red for gradients and backgrounds */
+  --brand-white: 0 0% 100%;
 
   /* Tailwind CSS variables (light mode) */
   --background: 0 0% 100%;
@@ -79,8 +86,8 @@ body {
   --card-foreground: 222.2 84% 4.9%;
   --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
+  --primary: var(--brand-red);
+  --primary-foreground: var(--brand-white);
   --secondary: 210 40% 96%;
   --secondary-foreground: 222.2 84% 4.9%;
   --muted: 210 40% 96%;
@@ -91,7 +98,7 @@ body {
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
+  --ring: var(--brand-red);
   --radius: 0.5rem;
 
   /* Kleur-tokens (donker) */
@@ -105,8 +112,15 @@ body {
     --tda-border: #1f2a44;
     --tda-text: #e5e7eb;
     --tda-muted: #94a3b8;
-    --tda-accent: #60a5fa;
-    --tda-accent-weak: #0b315f;
+    --tda-accent: var(--brand-red);
+    --tda-accent-weak: var(--brand-red-soft);
+
+    /* Brand core (dark mode) */
+    --brand-red: 0 80% 65%;
+    /* Brighter red for dark backgrounds */
+    --brand-red-soft: 0 90% 70%;
+    /* Softer red for gradients */
+    --brand-white: 0 0% 100%;
 
     /* Tailwind CSS variables (dark mode) */
     --background: 222.2 84% 4.9%;
@@ -115,8 +129,8 @@ body {
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
+    --primary: var(--brand-red);
+    --primary-foreground: var(--brand-white);
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -127,7 +141,7 @@ body {
     --destructive-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --ring: var(--brand-red);
   }
 }
 
@@ -138,8 +152,15 @@ body {
   --tda-border: #1f2a44;
   --tda-text: #e5e7eb;
   --tda-muted: #94a3b8;
-  --tda-accent: #60a5fa;
-  --tda-accent-weak: #0b315f;
+  --tda-accent: var(--brand-red);
+  --tda-accent-weak: var(--brand-red-soft);
+
+  /* Brand core (dark mode) */
+  --brand-red: 0 80% 65%;
+  /* Brighter red for dark backgrounds */
+  --brand-red-soft: 0 90% 70%;
+  /* Softer red for gradients */
+  --brand-white: 0 0% 100%;
 
   /* Tailwind CSS variables (dark mode) */
   --background: 222.2 84% 4.9%;
@@ -148,8 +169,8 @@ body {
   --card-foreground: 210 40% 98%;
   --popover: 222.2 84% 4.9%;
   --popover-foreground: 210 40% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 84% 4.9%;
+  --primary: var(--brand-red);
+  --primary-foreground: var(--brand-white);
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
   --muted: 217.2 32.6% 17.5%;
@@ -160,7 +181,7 @@ body {
   --destructive-foreground: 210 40% 98%;
   --border: 217.2 32.6% 17.5%;
   --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 94.1%;
+  --ring: var(--brand-red);
 }
 
 /* ==========================================================================
