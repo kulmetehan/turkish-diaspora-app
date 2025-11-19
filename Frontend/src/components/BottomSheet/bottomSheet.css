@@ -14,6 +14,20 @@
     /* sheet uses translateY, not height anim */
     padding-bottom: env(safe-area-inset-bottom);
     pointer-events: none;
+    position: relative;
+}
+
+.tda-bs-root::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: hsl(var(--brand-red-soft));
+    border-top-left-radius: var(--bs-radius, 16px);
+    border-top-right-radius: var(--bs-radius, 16px);
+    z-index: 1;
 }
 
 .tda-bs-handle {
@@ -32,7 +46,7 @@
     width: 32px;
     height: 4px;
     border-radius: 9999px;
-    background: color-mix(in srgb, currentColor 24%, transparent);
+    background: color-mix(in srgb, hsl(var(--brand-red)) 18%, transparent);
 }
 
 .tda-bs-content {

@@ -49,7 +49,7 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
               end={tab.end}
               className={({ isActive }) =>
                 cn(
-                  "group flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-medium text-muted-foreground transition",
+                  "group flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-medium text-muted-foreground transition-all duration-150 ease-out",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                   "min-h-[56px]",
                   isActive && "text-primary",
@@ -62,8 +62,8 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
                   <span
                     data-active={isActive ? "true" : "false"}
                     className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full transition",
-                      isActive ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground",
+                      "flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 ease-out",
+                      isActive ? "bg-gradient-to-t from-brand-redSoft/40 to-transparent text-primary border-t-2 border-brand-red shadow-[0_-1px_4px_rgba(0,0,0,0.35)]" : "bg-transparent text-muted-foreground",
                     )}
                   >
                     <Icon name={tab.icon} sizeRem={1.35} aria-hidden />

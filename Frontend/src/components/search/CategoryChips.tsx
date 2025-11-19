@@ -109,12 +109,12 @@ export function CategoryChips({ categories, activeCategory, onSelect }: Category
               aria-pressed={active}
               onClick={() => onSelect(key)}
               className={cn(
-                "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition",
+                "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all duration-150 ease-out",
                 "snap-start",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 active
-                  ? "border-brand-red bg-brand-redSoft text-primary-foreground"
-                  : "border-border bg-background text-foreground hover:bg-muted",
+                  ? "border-brand-red bg-gradient-to-b from-brand-redSoft to-brand-red text-primary-foreground shadow-sm shadow-[0_1px_2px_rgba(0,0,0,0.15)]"
+                  : "border-border bg-background text-foreground hover:bg-muted hover:border-border/80",
               )}
             >
               <Icon name={resolveIconName(key)} className="h-4 w-4" aria-hidden />

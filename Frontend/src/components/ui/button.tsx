@@ -4,13 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/ui/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors " +
+  "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-all duration-150 ease-out " +
     "focus-visible:outline-none focus-visible:ring-2 ring-offset-2 ring-offset-background focus-visible:ring-ring " +
-    "disabled:opacity-50 disabled:pointer-events-none",
+    "disabled:opacity-50 disabled:pointer-events-none active:scale-95",
   {
     variants: {
       variant: {
-        default: "bg-gradient-to-b from-brand-redSoft to-brand-red text-primary-foreground hover:from-brand-red hover:to-brand-red",
+        default: "relative overflow-hidden bg-gradient-to-b from-brand-redSoft to-brand-red text-primary-foreground hover:from-brand-red hover:to-brand-red " +
+          "before:absolute before:inset-x-0 before:top-0 before:h-1/2 before:bg-[linear-gradient(to_bottom,rgba(255,255,255,0.45),transparent)] before:pointer-events-none",
         secondary: "bg-secondary text-secondary-foreground hover:opacity-95",
         outline: "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",
