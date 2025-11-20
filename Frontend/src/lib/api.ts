@@ -267,6 +267,7 @@ export interface WorkerStatus {
   quotaInfo?: Record<string, number | null> | null;
   notes?: string | null;
   diagnosisCode?: string | null;
+  workerType?: "queue_based" | "direct" | "legacy" | null;
 }
 
 export interface WorkerRun {
@@ -509,6 +510,7 @@ type RawWorkerStatus = {
   quota_info?: Record<string, number | null> | null;
   notes?: string | null;
   diagnosis_code?: string | null;
+  worker_type?: "queue_based" | "direct" | "legacy" | null;
 };
 
 type RawWorkerRun = {
@@ -570,6 +572,7 @@ function normalizeWorkerStatus(raw: RawWorkerStatus): WorkerStatus {
     quotaInfo: raw.quota_info ?? null,
     notes: raw.notes ?? null,
     diagnosisCode: raw.diagnosis_code ?? null,
+    workerType: raw.worker_type ?? null,
   };
 }
 

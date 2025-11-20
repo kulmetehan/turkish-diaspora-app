@@ -188,6 +188,7 @@ categories:
     osm_tags:
       any:
         - { shop: "car" }
+        - { shop: "car_dealer" }
         - { shop: "car_repair" }
         - { amenity: "garage" }
     aliases:

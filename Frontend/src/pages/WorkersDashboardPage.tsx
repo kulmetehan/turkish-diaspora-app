@@ -1,12 +1,14 @@
 import WorkerCard from "@/components/admin/WorkerCard";
 import RunWorkerDialog from "@/components/admin/RunWorkerDialog";
 import WorkerDiagnosisDialog from "@/components/admin/WorkerDiagnosisDialog";
+import EnqueueDiscoveryJobsDialog from "@/components/admin/EnqueueDiscoveryJobsDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMetricsSnapshot, type MetricsSnapshot, type WorkerStatus } from "@/lib/api";
 import { listWorkerRuns, runWorker, type RunWorkerResponse, type WorkerRunListItem } from "@/lib/apiAdmin";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 function formatRunStatus(value: string | undefined | null): string {
     if (!value) return "Unknown";
@@ -31,6 +33,7 @@ export default function WorkersDashboardPage() {
     const [selectedBotForRun, setSelectedBotForRun] = useState<string | null>(null);
     const [selectedWorker, setSelectedWorker] = useState<WorkerStatus | null>(null);
     const [diagnosisOpen, setDiagnosisOpen] = useState(false);
+    const [enqueueDialogOpen, setEnqueueDialogOpen] = useState(false);
     const [pollIntervalMs, setPollIntervalMs] = useState<number>(60000);
     const isMountedRef = useRef(false);
 
@@ -94,6 +97,18 @@ export default function WorkersDashboardPage() {
 
     const handleRunClick = (botId: string) => {
         setSelectedBotForRun(botId);
+    };
+
+    const handleEnqueueClick = (botId: string) => {
+        if (botId === "discovery_train_bot") {
+            setEnqueueDialogOpen(true);
+        }
+    };
+
+    const handleEnqueueSuccess = async (jobsCreated: number) => {
+        // Refresh metrics after successful enqueue
+        await loadMetrics();
+        toast.success(`Successfully enqueued ${jobsCreated} job(s)`);
     };
 
     const handleRunSuccess = async (response: RunWorkerResponse) => {
@@ -217,6 +232,7 @@ export default function WorkersDashboardPage() {
                                 worker={worker}
                                 onRunClick={handleRunClick}
                                 onStatusClick={handleWorkerStatusClick}
+                                onEnqueueClick={handleEnqueueClick}
                             />
                         ))}
                     </div>
@@ -291,6 +307,13 @@ export default function WorkersDashboardPage() {
                         setSelectedWorker(null);
                     }
                 }}
+            />
+
+            {/* Enqueue Discovery Jobs Dialog */}
+            <EnqueueDiscoveryJobsDialog
+                open={enqueueDialogOpen}
+                onOpenChange={setEnqueueDialogOpen}
+                onSuccess={handleEnqueueSuccess}
             />
         </div>
     );

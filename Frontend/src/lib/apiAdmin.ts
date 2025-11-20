@@ -157,13 +157,59 @@ export interface RunWorkerResponse {
     detail?: string;
 }
 
-export async function runWorker(params: { bot: string; city?: string; category?: string }): Promise<RunWorkerResponse> {
+export async function runWorker(params: { bot: string; city?: string; category?: string; max_jobs?: number }): Promise<RunWorkerResponse> {
     return authFetch<RunWorkerResponse>("/api/v1/admin/workers/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(params),
     });
 }
+
+// --- Discovery Jobs Enqueuing ---
+
+export interface EnqueueJobsRequest {
+    city_key: string;
+    categories?: string[];
+    districts?: string[];
+}
+
+export interface EnqueueJobsResponse {
+    jobs_created: number;
+    job_ids: string[];
+    preview: {
+        city: string;
+        districts: string[];
+        categories: string[];
+        estimated_jobs: number;
+    };
+}
+
+export async function enqueueDiscoveryJobs(
+    params: EnqueueJobsRequest
+): Promise<EnqueueJobsResponse> {
+    return authFetch<EnqueueJobsResponse>("/api/v1/admin/discovery/enqueue_jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(params),
+    });
+}
+
+export interface CityInfo {
+    name: string;
+    key: string;
+    has_districts: boolean;
+}
+
+export interface CitiesResponse {
+    cities: CityInfo[];
+}
+
+export async function getCities(): Promise<CityInfo[]> {
+    const response = await authFetch<CitiesResponse>("/api/v1/admin/discovery/cities");
+    return response.cities;
+}
+
+// Note: getCityDistricts() is already defined in ../lib/api.ts - import from there if needed
 
 // --- Worker Runs ---
 

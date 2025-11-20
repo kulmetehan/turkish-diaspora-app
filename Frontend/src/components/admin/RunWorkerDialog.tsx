@@ -44,6 +44,7 @@ export default function RunWorkerDialog({
     const [limit, setLimit] = useState<string>("200");
     const [minConfidence, setMinConfidence] = useState<string>("0.8");
     const [dryRun, setDryRun] = useState<boolean>(false);
+    const [maxJobs, setMaxJobs] = useState<string>("1");
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     // Load categories on mount
@@ -70,6 +71,7 @@ export default function RunWorkerDialog({
             setLimit("200");
             setMinConfidence("0.8");
             setDryRun(false);
+            setMaxJobs("1");
             setErrors({});
         }
     }, [open, botId]);
@@ -89,6 +91,13 @@ export default function RunWorkerDialog({
                 if (invalid.length > 0) {
                     newErrors.categories = `Invalid categories: ${invalid.join(", ")}`;
                 }
+            }
+        }
+
+        if (botId === "discovery_train") {
+            const maxJobsNum = parseInt(maxJobs, 10);
+            if (Number.isNaN(maxJobsNum) || maxJobsNum < 1 || maxJobsNum > 50) {
+                newErrors.maxJobs = "Max jobs must be between 1 and 50";
             }
         }
 
@@ -117,7 +126,7 @@ export default function RunWorkerDialog({
 
         setLoading(true);
         try {
-            const payload: { bot: string; city?: string; category?: string } = {
+            const payload: { bot: string; city?: string; category?: string; max_jobs?: number } = {
                 bot: botId,
             };
 
@@ -129,6 +138,11 @@ export default function RunWorkerDialog({
                     if (firstCategory) {
                         payload.category = firstCategory;
                     }
+                }
+            } else if (botId === "discovery_train") {
+                const maxJobsNum = parseInt(maxJobs, 10);
+                if (!Number.isNaN(maxJobsNum)) {
+                    payload.max_jobs = maxJobsNum;
                 }
             } else if (botId === "verify" || botId === "classify") {
                 // Note: Backend API currently only accepts city/category, not limit/min_confidence
@@ -161,6 +175,14 @@ export default function RunWorkerDialog({
 
     const renderDiscoveryForm = () => (
         <div className="space-y-4">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <div className="text-sm font-semibold text-amber-900 mb-1">
+                    ⚠️ Legacy Mode
+                </div>
+                <div className="text-xs text-amber-800">
+                    This runs discovery directly without a queue. Consider using Discovery Train for better rate limiting and job management.
+                </div>
+            </div>
             <div className="space-y-2">
                 <Label htmlFor="city">City *</Label>
                 <Select value={city} onValueChange={setCity}>
@@ -350,10 +372,34 @@ export default function RunWorkerDialog({
         </div>
     );
 
+    const renderDiscoveryTrainForm = () => (
+        <div className="space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="max-jobs-train">Max jobs to process *</Label>
+                <Input
+                    id="max-jobs-train"
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={maxJobs}
+                    onChange={(e) => setMaxJobs(e.target.value)}
+                />
+                {errors.maxJobs && (
+                    <div className="text-sm text-red-600">{errors.maxJobs}</div>
+                )}
+                <div className="text-xs text-muted-foreground">
+                    Number of jobs to process from the queue (1-50). Default: 1 (cron-friendly).
+                </div>
+            </div>
+        </div>
+    );
+
     const renderForm = () => {
         switch (botId) {
             case "discovery":
                 return renderDiscoveryForm();
+            case "discovery_train":
+                return renderDiscoveryTrainForm();
             case "verify":
                 return renderVerifyForm();
             case "classify":
@@ -369,6 +415,7 @@ export default function RunWorkerDialog({
 
     const botLabels: Record<string, string> = {
         discovery: "Discovery Bot",
+        discovery_train: "Discovery Train",
         verify: "Verify Locations Bot",
         classify: "Classify Bot",
         monitor: "Monitor Bot",
@@ -381,8 +428,11 @@ export default function RunWorkerDialog({
                 <DialogHeader>
                     <DialogTitle>Run {botLabels[botId] || botId}</DialogTitle>
                     <DialogDescription>
-                        Configure parameters for running the worker. Note: Some advanced parameters may
-                        not be supported by the current API.
+                        {botId === "discovery" ? (
+                            <>Legacy direct discovery mode. For production use, enqueue jobs via Discovery Train instead.</>
+                        ) : (
+                            <>Configure parameters for running the worker. Note: Some advanced parameters may not be supported by the current API.</>
+                        )}
                     </DialogDescription>
                 </DialogHeader>
                 {renderForm()}
