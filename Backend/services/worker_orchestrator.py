@@ -40,6 +40,7 @@ async def start_worker_run(
     bot: str,
     city: Optional[str] = None,
     category: Optional[str] = None,
+    max_jobs: Optional[int] = None,
 ) -> None:
     """
     Start a worker run in the background.
@@ -49,9 +50,10 @@ async def start_worker_run(
     
     Args:
         run_id: UUID of the worker_runs record
-        bot: Bot name (discovery, classify, verify, monitor)
+        bot: Bot name (discovery, discovery_train, classify, verify, monitor)
         city: Optional city filter
         category: Optional category filter
+        max_jobs: Optional max jobs parameter (for discovery_train)
     """
     try:
         # Mark as running (workers will also call this, but this ensures it happens)
@@ -60,6 +62,8 @@ async def start_worker_run(
         # Dispatch to appropriate worker
         if bot == "discovery":
             await _run_discovery_bot(run_id, city, category)
+        elif bot == "discovery_train":
+            await _run_discovery_train(run_id, max_jobs)
         elif bot == "classify":
             await _run_classify_bot(run_id, city, category)
         elif bot == "verify":
@@ -123,6 +127,31 @@ async def _run_discovery_bot(
         run_id=str(run_id),
         city=city or "rotterdam",
         category=category,
+    )
+    
+    with mock_sys_argv(argv):
+        await main_async()
+
+
+async def _run_discovery_train(
+    run_id: UUID,
+    max_jobs: Optional[int] = None,
+) -> None:
+    """Run discovery_train_bot with constructed arguments."""
+    from app.workers.discovery_train_bot import main_async
+    
+    # Build sys.argv mock
+    argv = ["discovery_train_bot"]
+    argv.extend(["--worker-run-id", str(run_id)])
+    
+    # Default to 1 job if not specified (cron-friendly)
+    max_jobs_value = max_jobs if max_jobs is not None else 1
+    argv.extend(["--max-jobs", str(max_jobs_value)])
+    
+    logger.info(
+        "starting_discovery_train",
+        run_id=str(run_id),
+        max_jobs=max_jobs_value,
     )
     
     with mock_sys_argv(argv):

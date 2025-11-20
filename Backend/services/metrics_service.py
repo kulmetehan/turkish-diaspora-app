@@ -715,6 +715,7 @@ async def _discovery_worker_status() -> WorkerStatus:
             quota_info=quota_info or None,
             notes=_build_notes(notes),
             diagnosis_code=diagnosis_code,
+            worker_type="legacy",
         )
     except asyncpg.exceptions.UndefinedTableError as exc:
         logger.warning(
@@ -737,6 +738,173 @@ async def _discovery_worker_status() -> WorkerStatus:
             quota_info=None,
             notes="discovery_runs table is missing; run migrations to enable DiscoveryBot metrics.",
             diagnosis_code=diagnosis_code,
+            worker_type="legacy",
+        )
+
+
+async def _discovery_train_bot_status() -> WorkerStatus:
+    """Get status for Discovery Train bot based on worker_runs and discovery_jobs."""
+    now = datetime.now(timezone.utc)
+    
+    # Query last worker run for discovery_train_bot
+    sql_last_run = """
+        SELECT
+            id,
+            started_at,
+            finished_at,
+            status,
+            counters,
+            error_message
+        FROM worker_runs
+        WHERE bot = 'discovery_train_bot'
+          AND status IN ('finished', 'failed')
+        ORDER BY finished_at DESC NULLS LAST, started_at DESC
+        LIMIT 1
+    """
+    
+    # Query pending jobs count
+    sql_pending_jobs = """
+        SELECT COUNT(*)::int AS pending_count
+        FROM discovery_jobs
+        WHERE status = 'pending'
+    """
+    
+    # Query recently processed jobs (last 60 minutes)
+    sql_recent_processed = """
+        SELECT 
+            COUNT(*)::int AS processed_count,
+            COUNT(*) FILTER (WHERE status = 'failed')::int AS failed_count
+        FROM discovery_jobs
+        WHERE finished_at >= NOW() - (($1::int || ' minutes')::interval)
+          AND status IN ('finished', 'failed')
+    """
+    
+    try:
+        last_run_rows = await fetch(sql_last_run)
+        pending_rows = await fetch(sql_pending_jobs)
+        recent_rows = await fetch(sql_recent_processed, int(WORKER_WINDOW_MINUTES))
+        
+        last_run = None
+        duration_seconds: Optional[float] = None
+        processed_recent = 0
+        failed_recent = 0
+        
+        if last_run_rows:
+            record = dict(last_run_rows[0])
+            started_at = record.get("started_at")
+            finished_at = record.get("finished_at")
+            last_run = finished_at or started_at
+            
+            if isinstance(started_at, datetime) and isinstance(finished_at, datetime):
+                duration_seconds = max((finished_at - started_at).total_seconds(), 0.0)
+        
+        pending_count = 0
+        if pending_rows:
+            pending_count = int(pending_rows[0].get("pending_count") or 0)
+        
+        if recent_rows:
+            recent_data = dict(recent_rows[0])
+            processed_recent = int(recent_data.get("processed_count") or 0)
+            failed_recent = int(recent_data.get("failed_count") or 0)
+        
+        # Determine status
+        status = "ok"
+        notes: List[str] = ["Discovery Train processes jobs from discovery_jobs queue sequentially."]
+        
+        if last_run is None:
+            status = "unknown"
+            notes.append("No Discovery Train runs recorded yet.")
+        else:
+            if (now - last_run) > timedelta(hours=DISCOVERY_STALE_HOURS):
+                status = "warning"
+                notes.append(f"Last run more than {DISCOVERY_STALE_HOURS}h ago.")
+            
+            if pending_count > 1000:
+                status = "error"
+                notes.append(f"Very high pending jobs queue ({pending_count}).")
+            elif pending_count > 100:
+                if status == "ok":
+                    status = "warning"
+                notes.append(f"High pending jobs queue ({pending_count}).")
+            
+            if processed_recent == 0 and pending_count > 0:
+                notes.append("No jobs processed recently but queue has pending jobs.")
+                if status == "ok":
+                    status = "warning"
+            
+            if failed_recent > 0:
+                notes.append(f"{failed_recent} job(s) failed in the last 60 minutes.")
+                if failed_recent >= 3:
+                    status = "error"
+                elif status == "ok":
+                    status = "warning"
+        
+        # Build quota_info with pending jobs
+        quota_info: Dict[str, Optional[int]] = {
+            "pending_jobs": pending_count,
+        }
+        
+        # Compute diagnosis code
+        metrics = {
+            "pending_jobs": pending_count,
+            "processed_count": processed_recent,
+            "error_count": failed_recent,
+        }
+        diagnosis_code = _compute_diagnosis_code("discovery_train_bot", status, last_run, metrics)
+        
+        return WorkerStatus(
+            id="discovery_train_bot",
+            label="Discovery Train",
+            last_run=last_run,
+            duration_seconds=duration_seconds,
+            processed_count=processed_recent,
+            error_count=failed_recent,
+            status=status,  # type: ignore[arg-type]
+            window_label=f"last {WORKER_WINDOW_MINUTES} min",
+            quota_info=quota_info,
+            notes=_build_notes(notes),
+            diagnosis_code=diagnosis_code,
+            worker_type="queue_based",
+        )
+    except asyncpg.exceptions.UndefinedTableError as exc:
+        logger.warning(
+            "worker_status_table_missing",
+            worker_id="discovery_train_bot",
+            error=str(exc),
+        )
+        metrics = {"notes": "METRICS_DATA_MISSING"}
+        diagnosis_code = _compute_diagnosis_code("discovery_train_bot", "unknown", None, metrics)
+        return WorkerStatus(
+            id="discovery_train_bot",
+            label="Discovery Train",
+            last_run=None,
+            duration_seconds=None,
+            processed_count=None,
+            error_count=None,
+            status="unknown",
+            window_label=None,
+            quota_info=None,
+            notes="worker_runs or discovery_jobs table is missing; run migrations to enable Discovery Train metrics.",
+            diagnosis_code=diagnosis_code,
+            worker_type="queue_based",
+        )
+    except Exception as exc:
+        logger.exception("discovery_train_bot_status_failed", error=str(exc))
+        metrics = {}
+        diagnosis_code = _compute_diagnosis_code("discovery_train_bot", "error", None, metrics)
+        return WorkerStatus(
+            id="discovery_train_bot",
+            label="Discovery Train",
+            last_run=None,
+            duration_seconds=None,
+            processed_count=None,
+            error_count=None,
+            status="error",
+            window_label=None,
+            quota_info=None,
+            notes=f"Failed to compute status: {str(exc)}",
+            diagnosis_code=diagnosis_code,
+            worker_type="queue_based",
         )
 
 
@@ -1154,6 +1322,7 @@ async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
         statuses.append(ws)
 
     await safe_call("discovery_bot", "DiscoveryBot", _discovery_worker_status)
+    await safe_call("discovery_train_bot", "Discovery Train", _discovery_train_bot_status)
     await safe_call("verify_locations_bot", "VerifyLocationsBot", _verify_locations_status)
     await safe_call("task_verifier_bot", "Self-Verify Bot", _task_verifier_status)
     await safe_call("monitor_bot", "MonitorBot", _monitor_bot_status)

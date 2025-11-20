@@ -25,7 +25,7 @@ router = APIRouter(
     tags=["admin-workers"],
 )
 
-BOT_CHOICES = {"discovery", "classify", "verify", "monitor", "verification_consumer"}
+BOT_CHOICES = {"discovery", "discovery_train", "classify", "verify", "monitor", "verification_consumer"}
 
 THIS_FILE = Path(__file__).resolve()
 REPO_ROOT = THIS_FILE.parents[3]
@@ -83,6 +83,7 @@ class WorkerRunRequest(BaseModel):
     bot: str
     city: Optional[str] = None
     category: Optional[str] = None
+    max_jobs: Optional[int] = None
 
     @field_validator("bot")
     @classmethod
@@ -226,6 +227,7 @@ async def create_worker_run(
         bot=body.bot,
         city=body.city,
         category=body.category,
+        max_jobs=body.max_jobs,
     )
     
     logger.info(

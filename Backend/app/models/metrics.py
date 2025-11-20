@@ -113,6 +113,7 @@ class WorkerStatus(BaseModel):
     quota_info: Optional[Dict[str, Optional[int]]] = None
     notes: Optional[str] = None
     diagnosis_code: Optional[str] = None
+    worker_type: Optional[Literal["queue_based", "direct", "legacy"]] = None
 
 
 class WorkerRunStatus(BaseModel):

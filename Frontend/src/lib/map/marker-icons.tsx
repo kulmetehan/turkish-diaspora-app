@@ -23,6 +23,8 @@ import {
   CarFront,
   ShieldCheck,
   Needle,
+  Plane,
+  Sandwich,
   type LucideIcon,
 } from "lucide-react";
 
@@ -56,6 +58,10 @@ function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
       return ShieldCheck;
     case "tailor":
       return Needle;
+    case "travel_agency":
+      return Plane;
+    case "fast_food":
+      return Sandwich;
     default:
       return MapPin; // fallback
   }

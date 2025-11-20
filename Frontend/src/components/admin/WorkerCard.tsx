@@ -14,6 +14,7 @@ const WORKER_STATUS_BADGE_CLASSES: Record<WorkerStatus["status"], string> = {
 // Map worker IDs from metrics snapshot to backend bot values for run endpoint
 const BOT_ID_TO_RUN_VALUE: Record<string, string> = {
     discovery_bot: "discovery",
+    discovery_train_bot: "discovery_train",
     verify_locations_bot: "verify",
     monitor_bot: "monitor",
     classify_bot: "classify",
@@ -21,7 +22,7 @@ const BOT_ID_TO_RUN_VALUE: Record<string, string> = {
 };
 
 // Bots that can be manually triggered
-const SUPPORTED_BOTS = new Set(["discovery_bot", "verify_locations_bot", "monitor_bot", "classify_bot", "verification_consumer"]);
+const SUPPORTED_BOTS = new Set(["discovery_bot", "discovery_train_bot", "verify_locations_bot", "monitor_bot", "classify_bot", "verification_consumer"]);
 
 function formatLastRun(value: string | null | undefined): string {
     if (!value) return "Not yet run";
@@ -70,12 +71,14 @@ interface WorkerCardProps {
     worker: WorkerStatus;
     onRunClick?: (botId: string) => void;
     onStatusClick?: (worker: WorkerStatus) => void;
+    onEnqueueClick?: (botId: string) => void;
 }
 
-export default function WorkerCard({ worker, onRunClick, onStatusClick }: WorkerCardProps) {
+export default function WorkerCard({ worker, onRunClick, onStatusClick, onEnqueueClick }: WorkerCardProps) {
     const canRun = SUPPORTED_BOTS.has(worker.id);
     const runBotValue = BOT_ID_TO_RUN_VALUE[worker.id];
     const isInteractiveStatus = worker.status === "warning" || worker.status === "error";
+    const canEnqueue = worker.id === "discovery_train_bot";
 
     const handleRunClick = () => {
         if (canRun && onRunClick && runBotValue) {
@@ -89,6 +92,12 @@ export default function WorkerCard({ worker, onRunClick, onStatusClick }: Worker
         }
     };
 
+    const handleEnqueueClick = () => {
+        if (canEnqueue && onEnqueueClick) {
+            onEnqueueClick(worker.id);
+        }
+    };
+
     const notePreview = worker.notes && worker.notes.trim().length > 0
         ? worker.notes.split("\n")[0]
         : "–";
@@ -96,8 +105,30 @@ export default function WorkerCard({ worker, onRunClick, onStatusClick }: Worker
     return (
         <Card className="rounded-2xl shadow-sm">
             <CardHeader>
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{worker.label}</CardTitle>
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{worker.label}</CardTitle>
+                            {worker.workerType === "legacy" && (
+                                <Badge
+                                    variant="outline"
+                                    className="text-xs font-medium px-2 py-0.5 bg-amber-50 text-amber-800 border-amber-200"
+                                    title="This worker uses direct execution mode. Discovery Train is recommended for production."
+                                >
+                                    Legacy
+                                </Badge>
+                            )}
+                            {worker.workerType === "queue_based" && (
+                                <Badge
+                                    variant="outline"
+                                    className="text-xs font-medium px-2 py-0.5 bg-blue-50 text-blue-800 border-blue-200"
+                                    title="This worker uses queue-based processing."
+                                >
+                                    Queue
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
                     <Badge
                         variant="outline"
                         className={cn(
@@ -113,6 +144,16 @@ export default function WorkerCard({ worker, onRunClick, onStatusClick }: Worker
                     </Badge>
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">{worker.id}</div>
+                {worker.workerType === "legacy" && (
+                    <div className="text-xs text-amber-700 mt-1 italic">
+                        Direct mode • Use Discovery Train for production
+                    </div>
+                )}
+                {worker.workerType === "queue_based" && (
+                    <div className="text-xs text-blue-700 mt-1 italic">
+                        Queue-based processing
+                    </div>
+                )}
             </CardHeader>
             <CardContent className="space-y-2">
                 <div className="text-sm">
@@ -135,7 +176,21 @@ export default function WorkerCard({ worker, onRunClick, onStatusClick }: Worker
                         <div className="text-red-600">{formatCountWithContext(worker.errorCount, worker.windowLabel)}</div>
                     </div>
                 )}
-                {worker.quotaInfo && Object.keys(worker.quotaInfo).length > 0 && (
+                {worker.quotaInfo?.pending_jobs !== undefined && worker.quotaInfo.pending_jobs !== null && (
+                    <div className="text-sm">
+                        <div className="font-medium text-muted-foreground">Pending jobs</div>
+                        <div className={
+                            worker.quotaInfo.pending_jobs < 100 
+                                ? "text-green-600" 
+                                : worker.quotaInfo.pending_jobs < 1000 
+                                ? "text-yellow-600" 
+                                : "text-red-600"
+                        }>
+                            {worker.quotaInfo.pending_jobs}
+                        </div>
+                    </div>
+                )}
+                {worker.quotaInfo && Object.keys(worker.quotaInfo).filter(k => k !== "pending_jobs").length > 0 && (
                     <div className="text-sm">
                         <div className="font-medium text-muted-foreground">Quota</div>
                         <div className="text-xs">{formatQuotaInfo(worker.quotaInfo)}</div>
@@ -148,11 +203,18 @@ export default function WorkerCard({ worker, onRunClick, onStatusClick }: Worker
                     </div>
                 )}
             </CardContent>
-            {canRun && onRunClick && (
-                <CardFooter>
-                    <Button onClick={handleRunClick} className="w-full" variant="outline">
-                        Run worker
-                    </Button>
+            {(canRun || canEnqueue) && (onRunClick || onEnqueueClick) && (
+                <CardFooter className="flex flex-col gap-2">
+                    {canEnqueue && onEnqueueClick && (
+                        <Button onClick={handleEnqueueClick} className="w-full" variant="default">
+                            Enqueue Jobs
+                        </Button>
+                    )}
+                    {canRun && onRunClick && (
+                        <Button onClick={handleRunClick} className="w-full" variant="outline">
+                            Run worker
+                        </Button>
+                    )}
                 </CardFooter>
             )}
         </Card>

@@ -5,7 +5,7 @@ import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.logging import get_logger
@@ -760,6 +760,59 @@ async def get_city_districts(
     districts = list(city_def.get("districts", {}).keys())
     return {"districts": districts}
 
+
+class CityInfo(BaseModel):
+    """City information for API responses."""
+    name: str
+    key: str
+    has_districts: bool
+
+
+class CitiesResponse(BaseModel):
+    """Response model for cities list."""
+    cities: List[CityInfo]
+
+
+@router.get("/cities", response_model=CitiesResponse)
+async def get_cities(
+    admin: AdminUser = Depends(verify_admin_user),
+) -> CitiesResponse:
+    """
+    Get list of all cities from cities.yml.
+    
+    Returns list of cities with their names, keys, and whether they have districts.
+    """
+    try:
+        cities_cfg = load_cities_config()
+        cities = cities_cfg.get("cities", {})
+        
+        city_list: List[CityInfo] = []
+        for city_key, city_def in cities.items():
+            if not isinstance(city_def, dict):
+                continue
+            
+            city_name = city_def.get("city_name", city_key.title())
+            has_districts = bool(city_def.get("districts"))
+            
+            city_list.append(
+                CityInfo(
+                    name=city_name,
+                    key=city_key,
+                    has_districts=has_districts,
+                )
+            )
+        
+        # Sort by key alphabetically
+        city_list.sort(key=lambda c: c.key)
+        
+        return CitiesResponse(cities=city_list)
+    except Exception as e:
+        logger.error("failed_to_load_cities_config", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load cities configuration"
+        )
+
 @router.get("/kpis", response_model=DiscoveryKPIs)
 async def get_discovery_kpis(
     days: int = Query(30, ge=1, le=365),
@@ -824,3 +877,151 @@ async def get_discovery_kpis(
     }
 
     return DiscoveryKPIs(days=int(days), daily=daily, totals=totals)
+
+
+class EnqueueJobsRequest(BaseModel):
+    """Request model for enqueuing discovery jobs."""
+    city_key: str
+    categories: Optional[List[str]] = None
+    districts: Optional[List[str]] = None
+
+
+class EnqueueJobsResponse(BaseModel):
+    """Response model for enqueuing discovery jobs."""
+    jobs_created: int
+    job_ids: List[str]
+    preview: Dict[str, Any]
+
+
+@router.post("/enqueue_jobs", response_model=EnqueueJobsResponse, status_code=status.HTTP_201_CREATED)
+async def enqueue_discovery_jobs(
+    body: EnqueueJobsRequest,
+    admin: AdminUser = Depends(verify_admin_user),
+) -> EnqueueJobsResponse:
+    """
+    Enqueue discovery jobs for (city, district?, category) combinations.
+    
+    Validates inputs, calculates preview, and creates jobs in discovery_jobs table.
+    Hard limit: 200 jobs per request.
+    """
+    from services.discovery_jobs_service import enqueue_jobs
+    from app.models.categories import get_discoverable_categories, get_all_categories
+    from app.workers.discovery_bot import load_cities_config
+    
+    # Load cities config
+    try:
+        cities_config = load_cities_config()
+        cities = cities_config.get("cities", {})
+        
+        if body.city_key not in cities:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"City '{body.city_key}' not found in cities.yml"
+            )
+        
+        city_def = cities[body.city_key]
+        city_districts = city_def.get("districts", {})
+    except Exception as e:
+        logger.error("failed_to_load_cities_for_enqueue", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load cities configuration: {e}"
+        )
+    
+    # Determine districts
+    districts_to_use: Optional[List[str]] = None
+    if body.districts is not None:
+        if len(body.districts) == 0:
+            # Empty list means "all districts"
+            districts_to_use = list(city_districts.keys()) if city_districts else None
+        else:
+            # Specific districts requested - validate
+            invalid_districts = [d for d in body.districts if d not in city_districts]
+            if invalid_districts:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid districts for city '{body.city_key}': {', '.join(invalid_districts)}"
+                )
+            districts_to_use = body.districts
+    
+    # Determine categories
+    discoverable_categories = get_discoverable_categories()
+    discoverable_keys = [c.key for c in discoverable_categories]
+    
+    if body.categories is None or len(body.categories) == 0:
+        # Use all discoverable categories
+        categories_to_use = discoverable_keys
+    else:
+        # Specific categories requested - validate
+        all_category_metadata = {c.key: c for c in get_all_categories()}
+        invalid_categories = [c for c in body.categories if c not in all_category_metadata]
+        if invalid_categories:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid categories: {', '.join(invalid_categories)}"
+            )
+        
+        # Check if requested categories are discoverable
+        non_discoverable = [c for c in body.categories if c not in discoverable_keys]
+        if non_discoverable:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Categories with discovery.enabled=false: {', '.join(non_discoverable)}"
+            )
+        
+        categories_to_use = body.categories
+    
+    # Calculate preview: number of jobs that will be created
+    if districts_to_use is None:
+        job_count = len(categories_to_use)
+    else:
+        job_count = len(districts_to_use) * len(categories_to_use)
+    
+    preview = {
+        "city": body.city_key,
+        "districts": districts_to_use if districts_to_use else ["city-level"],
+        "categories": categories_to_use,
+        "estimated_jobs": job_count,
+    }
+    
+    # Hard limit check
+    MAX_JOBS_PER_REQUEST = 200
+    if job_count > MAX_JOBS_PER_REQUEST:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Too many jobs ({job_count}). Maximum allowed per request: {MAX_JOBS_PER_REQUEST}"
+        )
+    
+    # Enqueue jobs
+    try:
+        job_ids = await enqueue_jobs(
+            city_key=body.city_key,
+            categories=categories_to_use,
+            districts=districts_to_use,
+        )
+        
+        logger.info(
+            "discovery_jobs_enqueued_via_api",
+            city_key=body.city_key,
+            categories=categories_to_use,
+            districts=districts_to_use,
+            job_count=len(job_ids),
+            admin_email=admin.email,
+        )
+        
+        return EnqueueJobsResponse(
+            jobs_created=len(job_ids),
+            job_ids=[str(jid) for jid in job_ids],
+            preview=preview,
+        )
+    except Exception as e:
+        logger.error(
+            "enqueue_jobs_api_failed",
+            city_key=body.city_key,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to enqueue jobs: {e}"
+        )
