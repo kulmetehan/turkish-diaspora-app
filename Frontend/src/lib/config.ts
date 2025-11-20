@@ -15,7 +15,7 @@ export const CONFIG = {
   MAPBOX_TOKEN: (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ?? "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw",
   MAPBOX_STYLE:
     (import.meta.env.VITE_MAPBOX_STYLE as string | undefined) ??
-    "mapbox://styles/mapbox/streets-v12",
+    "mapbox://styles/mapbox/standard",
 
   MAP_MIN_ZOOM: 3,
   MAP_MAX_ZOOM: 19,
