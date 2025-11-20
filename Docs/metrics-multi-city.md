@@ -214,3 +214,4 @@ den_haag:
 - **District-level metrics**: Show metrics per district, not just per city
 - **Historical trends**: Track city metrics over time (daily/weekly snapshots)
 
+

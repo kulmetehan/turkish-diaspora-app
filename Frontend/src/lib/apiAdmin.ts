@@ -108,6 +108,22 @@ export async function listLocationStates(): Promise<LocationStatesResponse> {
     }
 }
 
+// --- Location State Metrics ---
+
+export type LocationStateBucket = {
+    state: string;
+    count: number;
+};
+
+export type LocationStateMetrics = {
+    total: number;
+    by_state: LocationStateBucket[];
+};
+
+export async function getLocationStateMetrics(): Promise<LocationStateMetrics> {
+    return authFetch<LocationStateMetrics>("/api/v1/admin/metrics/location_states");
+}
+
 // Import CategoryOption type from fetchLocations
 import type { CategoryOption } from "@/api/fetchLocations";
 

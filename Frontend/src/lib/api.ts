@@ -303,6 +303,37 @@ export interface DiscoveryMetrics {
   newCandidatesPerWeek: number;
 }
 
+// --- Category Health Metrics ---
+export interface CategoryHealth {
+  overpassCalls: number;
+  overpassSuccessfulCalls: number;
+  overpassZeroResults: number;
+  overpassZeroResultRatioPct: number;
+  insertedLocationsLast7d: number;
+  stateCounts: Record<string, number>;
+  avgConfidenceLast7d: number | null;
+  aiClassificationsLast7d: number;
+  aiActionKeep: number;
+  aiActionIgnore: number;
+  aiAvgConfidence: number | null;
+  promotedVerifiedLast7d: number;
+  // New fields for Turkish-first strategy metrics
+  overpassFound: number;
+  turkishCoverageRatioPct: number;
+  aiPrecisionPct: number;
+  status: "healthy" | "warning" | "degraded" | "critical" | "no_data";
+}
+
+export interface CategoryHealthResponse {
+  categories: Record<string, CategoryHealth>;
+  timeWindows: {
+    overpassWindowHours: number;
+    insertsWindowDays: number;
+    classificationsWindowDays: number;
+    promotionsWindowDays: number;
+  };
+}
+
 // --- Discovery Grid ---
 export interface DiscoveryGridCell {
   latCenter: number;
@@ -329,11 +360,13 @@ export interface DiscoveryCoverageCell {
 
 export async function getDiscoveryGrid(
   city?: string,
-  district?: string
+  district?: string,
+  category?: string
 ): Promise<DiscoveryGridCell[]> {
   const params = new URLSearchParams();
   if (city) params.set("city", city);
   if (district) params.set("district", district);
+  if (category) params.set("category", category);
   const query = params.toString();
   const raw = await authFetch<
     Array<{
@@ -361,13 +394,15 @@ export async function getDiscoveryCoverage(
   city: string,
   district?: string,
   from?: string,
-  to?: string
+  to?: string,
+  category?: string
 ): Promise<DiscoveryCoverageCell[]> {
   const params = new URLSearchParams();
   params.set("city", city);
   if (district) params.set("district", district);
   if (from) params.set("from", from);
   if (to) params.set("to", to);
+  if (category) params.set("category", category);
   
   const raw = await authFetch<
     Array<{
@@ -620,6 +655,71 @@ function normalizeMetricsSnapshot(raw: RawMetricsSnapshot): MetricsSnapshot {
           daysThreshold: raw.stale_candidates.days_threshold,
         }
       : null,
+  };
+}
+
+export async function getCategoryHealthMetrics(): Promise<CategoryHealthResponse> {
+  const raw = await authFetch<{
+    categories: Record<
+      string,
+      {
+        overpass_calls: number;
+        overpass_successful_calls: number;
+        overpass_zero_results: number;
+        overpass_zero_result_ratio_pct: number;
+        inserted_locations_last_7d: number;
+        state_counts: Record<string, number>;
+        avg_confidence_last_7d: number | null;
+        ai_classifications_last_7d: number;
+        ai_action_keep: number;
+        ai_action_ignore: number;
+        ai_avg_confidence: number | null;
+        promoted_verified_last_7d: number;
+        overpass_found: number;
+        turkish_coverage_ratio_pct: number;
+        ai_precision_pct: number;
+        status: "healthy" | "warning" | "degraded" | "critical" | "no_data";
+      }
+    >;
+    time_windows: {
+      overpass_window_hours: number;
+      inserts_window_days: number;
+      classifications_window_days: number;
+      promotions_window_days: number;
+    };
+  }>("/api/v1/admin/metrics/categories");
+
+  // Transform snake_case to camelCase
+  const categories: Record<string, CategoryHealth> = {};
+  for (const [key, value] of Object.entries(raw.categories)) {
+    categories[key] = {
+      overpassCalls: value.overpass_calls,
+      overpassSuccessfulCalls: value.overpass_successful_calls,
+      overpassZeroResults: value.overpass_zero_results,
+      overpassZeroResultRatioPct: value.overpass_zero_result_ratio_pct,
+      insertedLocationsLast7d: value.inserted_locations_last_7d,
+      stateCounts: value.state_counts,
+      avgConfidenceLast7d: value.avg_confidence_last_7d,
+      aiClassificationsLast7d: value.ai_classifications_last_7d,
+      aiActionKeep: value.ai_action_keep,
+      aiActionIgnore: value.ai_action_ignore,
+      aiAvgConfidence: value.ai_avg_confidence,
+      promotedVerifiedLast7d: value.promoted_verified_last_7d,
+      overpassFound: value.overpass_found,
+      turkishCoverageRatioPct: value.turkish_coverage_ratio_pct,
+      aiPrecisionPct: value.ai_precision_pct,
+      status: value.status,
+    };
+  }
+
+  return {
+    categories,
+    timeWindows: {
+      overpassWindowHours: raw.time_windows.overpass_window_hours,
+      insertsWindowDays: raw.time_windows.inserts_window_days,
+      classificationsWindowDays: raw.time_windows.classifications_window_days,
+      promotionsWindowDays: raw.time_windows.promotions_window_days,
+    },
   };
 }
 

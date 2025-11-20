@@ -10,11 +10,15 @@ import yaml
 
 from services.db_service import fetch
 from app.models.metrics import (
+    CategoryHealth,
+    CategoryHealthResponse,
     CityProgress,
     CityProgressData,
     CityProgressRotterdam,
     Discovery,
     Latency,
+    LocationStateBucket,
+    LocationStateMetrics,
     MetricsSnapshot,
     Quality,
     StaleCandidates,
@@ -25,6 +29,7 @@ from app.models.metrics import (
 # Import shared filter definition (single source of truth for Admin metrics and public API)
 from app.core.location_filters import get_verified_filter_sql
 from app.core.logging import get_logger
+from app.models.categories import get_discoverable_categories
 
 # Import load_cities_config from discovery_bot
 try:
@@ -48,6 +53,13 @@ VERIFICATION_CONSUMER_STALE_HOURS = 2
 MONITOR_STALE_HOURS = 6
 ALERT_ERR_RATE_THRESHOLD = 0.10
 ALERT_GOOGLE_THRESHOLD = 5
+
+# Category Health thresholds for Turkish-first strategy
+CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD = 5.0
+CATEGORY_HEALTH_DEGRADED_COVERAGE_THRESHOLD = 10.0
+CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD = 20.0
+CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD = 15.0
+CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD = 25.0
 
 logger = get_logger()
 
@@ -1250,6 +1262,319 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
         workers=workers,
         current_runs=current_runs,
         stale_candidates=stale_candidates,
+    )
+
+
+def _compute_category_health_status(cat: CategoryHealth) -> str:
+    """
+    Compute category health status based on Turkish-first strategy metrics.
+    
+    Returns: "healthy", "warning", "degraded", "critical", or "no_data"
+    """
+    # no_data: no Overpass data in window
+    if cat.overpass_found == 0:
+        return "no_data"
+    
+    # critical: very low Turkish coverage AND no inserts AND (no classifications OR all ignored)
+    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD and
+        cat.inserted_locations_last_7d == 0 and
+        (cat.ai_classifications_last_7d == 0 or cat.ai_action_keep == 0)):
+        return "critical"
+    
+    # degraded: low Turkish coverage OR no inserts OR very low AI precision
+    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_DEGRADED_COVERAGE_THRESHOLD or
+        cat.inserted_locations_last_7d == 0 or
+        cat.ai_precision_pct < CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD):
+        return "degraded"
+    
+    # warning: moderate Turkish coverage OR moderate AI precision (but not degraded)
+    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD or
+        cat.ai_precision_pct < CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD):
+        return "warning"
+    
+    # healthy: good Turkish coverage and good AI precision
+    if (cat.turkish_coverage_ratio_pct >= CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD and
+        cat.ai_precision_pct >= CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD and
+        cat.inserted_locations_last_7d > 0):
+        return "healthy"
+    
+    # Default fallback
+    return "warning"
+
+
+async def category_health_metrics() -> CategoryHealthResponse:
+    """
+    Returns category-level health metrics over recent time windows:
+    - Overpass calls & zero-result ratio per category (last 72h)
+    - Insert counts in last 7 days per category
+    - Classification stats per category (keep/ignore)
+    - Promotions to VERIFIED per category (last 7d)
+    
+    Returns CategoryHealthResponse with all discovery-enabled categories included.
+    """
+    # Get all discovery-enabled categories
+    discoverable_cats = get_discoverable_categories()
+    category_keys = [cat.key for cat in discoverable_cats]
+    
+    if not category_keys:
+        return CategoryHealthResponse(
+            categories={},
+            time_windows={
+                "overpass_window_hours": 72,
+                "inserts_window_days": 7,
+                "classifications_window_days": 7,
+                "promotions_window_days": 7,
+            }
+        )
+    
+    # Initialize result dict with all categories (ensures all appear even with 0 counts)
+    result: Dict[str, CategoryHealth] = {}
+    for cat_key in category_keys:
+        result[cat_key] = CategoryHealth(
+            overpass_calls=0,
+            overpass_successful_calls=0,
+            overpass_zero_results=0,
+            overpass_zero_result_ratio_pct=0.0,
+            inserted_locations_last_7d=0,
+            state_counts={
+                "CANDIDATE": 0,
+                "PENDING_VERIFICATION": 0,
+                "VERIFIED": 0,
+                "SUSPENDED": 0,
+                "RETIRED": 0,
+            },
+            avg_confidence_last_7d=None,
+            ai_classifications_last_7d=0,
+            ai_action_keep=0,
+            ai_action_ignore=0,
+            ai_avg_confidence=None,
+            promoted_verified_last_7d=0,
+            overpass_found=0,
+            turkish_coverage_ratio_pct=0.0,
+            ai_precision_pct=0.0,
+            status="no_data",
+        )
+    
+    # Query 1: Overpass calls (last 72 hours)
+    # Use LATERAL join to expand category_set, then filter by category_keys
+    # This avoids "set-returning functions are not allowed in WHERE" error
+    try:
+        sql_overpass = """
+            SELECT 
+                cat AS category,
+                COUNT(*)::int AS total_calls,
+                COUNT(*) FILTER (WHERE oc.status_code = 200)::int AS successful_calls,
+                COUNT(*) FILTER (WHERE oc.found = 0 AND oc.status_code = 200)::int AS zero_results,
+                SUM(oc.found)::int AS total_found
+            FROM overpass_calls oc
+            CROSS JOIN LATERAL unnest(oc.category_set) AS cat
+            WHERE oc.ts >= now() - interval '72 hours'
+                AND cat = ANY($1::text[])
+            GROUP BY cat
+        """
+        overpass_rows = await fetch(sql_overpass, category_keys)
+    except Exception as e:
+        logger.warning("category_health_overpass_query_failed", error=str(e), error_type=type(e).__name__)
+        overpass_rows = []
+    
+    for row in overpass_rows or []:
+        row_dict = dict(row)
+        cat_key = str(row_dict.get("category", ""))
+        if cat_key not in result:
+            continue
+        
+        total_calls = int(row_dict.get("total_calls", 0))
+        successful_calls = int(row_dict.get("successful_calls", 0))
+        zero_results = int(row_dict.get("zero_results", 0))
+        total_found = int(row_dict.get("total_found", 0))
+        
+        result[cat_key].overpass_calls = total_calls
+        result[cat_key].overpass_successful_calls = successful_calls
+        result[cat_key].overpass_zero_results = zero_results
+        result[cat_key].overpass_found = total_found
+        
+        if successful_calls > 0:
+            zero_ratio = (zero_results / successful_calls) * 100.0
+            result[cat_key].overpass_zero_result_ratio_pct = round(zero_ratio, 2)
+    
+    # Query 2: Locations inserted (last 7 days)
+    try:
+        sql_locations = """
+            SELECT 
+                category,
+                COUNT(*)::int AS total_inserted,
+                COUNT(*) FILTER (WHERE state = 'CANDIDATE')::int AS candidate,
+                COUNT(*) FILTER (WHERE state = 'PENDING_VERIFICATION')::int AS pending,
+                COUNT(*) FILTER (WHERE state = 'VERIFIED')::int AS verified,
+                COUNT(*) FILTER (WHERE state = 'SUSPENDED')::int AS suspended,
+                COUNT(*) FILTER (WHERE state = 'RETIRED')::int AS retired,
+                ROUND(AVG(confidence_score), 3) AS avg_confidence
+            FROM locations
+            WHERE category = ANY($1::text[])
+                AND first_seen_at >= now() - interval '7 days'
+            GROUP BY category
+        """
+        location_rows = await fetch(sql_locations, category_keys)
+    except Exception as e:
+        logger.warning("category_health_locations_query_failed", error=str(e), error_type=type(e).__name__)
+        location_rows = []
+    
+    for row in location_rows or []:
+        row_dict = dict(row)
+        cat_key = str(row_dict.get("category", ""))
+        if cat_key not in result:
+            continue
+        
+        result[cat_key].inserted_locations_last_7d = int(row_dict.get("total_inserted", 0))
+        result[cat_key].state_counts["CANDIDATE"] = int(row_dict.get("candidate", 0))
+        result[cat_key].state_counts["PENDING_VERIFICATION"] = int(row_dict.get("pending", 0))
+        result[cat_key].state_counts["VERIFIED"] = int(row_dict.get("verified", 0))
+        result[cat_key].state_counts["SUSPENDED"] = int(row_dict.get("suspended", 0))
+        result[cat_key].state_counts["RETIRED"] = int(row_dict.get("retired", 0))
+        
+        avg_conf = row_dict.get("avg_confidence")
+        if avg_conf is not None:
+            result[cat_key].avg_confidence_last_7d = float(avg_conf)
+    
+    # Query 3: Promotions to VERIFIED (last 7 days)
+    # Count locations that became VERIFIED in the last 7 days
+    try:
+        sql_promotions = """
+            SELECT 
+                category,
+                COUNT(*)::int AS promoted_count
+            FROM locations
+            WHERE category = ANY($1::text[])
+                AND state = 'VERIFIED'
+                AND last_verified_at >= now() - interval '7 days'
+            GROUP BY category
+        """
+        promotion_rows = await fetch(sql_promotions, category_keys)
+    except Exception as e:
+        logger.warning("category_health_promotions_query_failed", error=str(e), error_type=type(e).__name__)
+        promotion_rows = []
+    
+    for row in promotion_rows or []:
+        row_dict = dict(row)
+        cat_key = str(row_dict.get("category", ""))
+        if cat_key not in result:
+            continue
+        
+        result[cat_key].promoted_verified_last_7d = int(row_dict.get("promoted_count", 0))
+    
+    # Query 4: AI classifications (last 7 days)
+    try:
+        sql_ai = """
+            SELECT 
+                l.category,
+                COUNT(*)::int AS classification_count,
+                COUNT(*) FILTER (WHERE al.validated_output->>'action' = 'keep')::int AS action_keep,
+                COUNT(*) FILTER (WHERE al.validated_output->>'action' = 'ignore')::int AS action_ignore,
+                ROUND(AVG((al.validated_output->>'confidence_score')::numeric), 3) AS avg_confidence
+            FROM ai_logs al
+            JOIN locations l ON al.location_id = l.id
+            WHERE l.category = ANY($1::text[])
+                AND al.created_at >= now() - interval '7 days'
+                AND al.action_type IN ('classification', 'verify_locations.classified', 'verification_consumer.classified')
+            GROUP BY l.category
+        """
+        ai_rows = await fetch(sql_ai, category_keys)
+    except Exception as e:
+        logger.warning("category_health_ai_query_failed", error=str(e), error_type=type(e).__name__)
+        ai_rows = []
+    
+    for row in ai_rows or []:
+        row_dict = dict(row)
+        cat_key = str(row_dict.get("category", ""))
+        if cat_key not in result:
+            continue
+        
+        result[cat_key].ai_classifications_last_7d = int(row_dict.get("classification_count", 0))
+        result[cat_key].ai_action_keep = int(row_dict.get("action_keep", 0))
+        result[cat_key].ai_action_ignore = int(row_dict.get("action_ignore", 0))
+        
+        avg_conf = row_dict.get("avg_confidence")
+        if avg_conf is not None:
+            result[cat_key].ai_avg_confidence = float(avg_conf)
+    
+    # Compute new metrics: Turkish coverage ratio and AI precision
+    for cat_key, cat in result.items():
+        # Turkish coverage ratio: (inserted / overpass_found) * 100
+        if cat.overpass_found > 0:
+            cat.turkish_coverage_ratio_pct = round((cat.inserted_locations_last_7d / cat.overpass_found) * 100.0, 2)
+        else:
+            cat.turkish_coverage_ratio_pct = 0.0
+        
+        # AI precision: (keep / total_classifications) * 100
+        if cat.ai_classifications_last_7d > 0:
+            cat.ai_precision_pct = round((cat.ai_action_keep / cat.ai_classifications_last_7d) * 100.0, 2)
+        else:
+            cat.ai_precision_pct = 0.0
+        
+        # Compute status
+        cat.status = _compute_category_health_status(cat)
+        
+        # Debug logging per category
+        logger.debug(
+            "category_health_metrics_computed",
+            category_key=cat_key,
+            overpass_found=cat.overpass_found,
+            inserted_locations_last_7d=cat.inserted_locations_last_7d,
+            turkish_coverage_ratio_pct=cat.turkish_coverage_ratio_pct,
+            ai_classifications_last_7d=cat.ai_classifications_last_7d,
+            ai_action_keep=cat.ai_action_keep,
+            ai_action_ignore=cat.ai_action_ignore,
+            ai_precision_pct=cat.ai_precision_pct,
+            status=cat.status,
+        )
+    
+    return CategoryHealthResponse(
+        categories=result,
+        time_windows={
+            "overpass_window_hours": 72,
+            "inserts_window_days": 7,
+            "classifications_window_days": 7,
+            "promotions_window_days": 7,
+        }
+    )
+
+
+async def location_state_metrics() -> LocationStateMetrics:
+    """
+    Compute location state breakdown metrics.
+    
+    Returns counts for each state: CANDIDATE, PENDING_VERIFICATION, VERIFIED, RETIRED, SUSPENDED.
+    """
+    sql = """
+        SELECT 
+            state::text,
+            COUNT(*)::int AS count
+        FROM locations
+        GROUP BY state
+        ORDER BY state
+    """
+    
+    rows = await fetch(sql)
+    
+    by_state: List[LocationStateBucket] = []
+    total = 0
+    
+    for row in rows or []:
+        rec = dict(row)
+        state = str(rec.get("state", ""))
+        count = int(rec.get("count", 0))
+        by_state.append(LocationStateBucket(state=state, count=count))
+        total += count
+    
+    logger.info(
+        "location_state_metrics_computed",
+        total=total,
+        states_count=len(by_state),
+    )
+    
+    return LocationStateMetrics(
+        total=total,
+        by_state=by_state,
     )
 
 

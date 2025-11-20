@@ -148,7 +148,15 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     origin = request.headers.get("origin") or request.headers.get("Origin")
     headers = _cors_headers(origin)
-    logger.exception("unhandled_exception", exc_info=True)
+    # Log exception with safe serialization to avoid recursion errors
+    try:
+        logger.exception("unhandled_exception", exc_info=True, error_type=exc.__class__.__name__, error_msg=str(exc))
+    except RecursionError:
+        # Fallback if logging itself causes recursion
+        logger.error("unhandled_exception_recursion", error_type=exc.__class__.__name__, error_msg=str(exc)[:500])
+    except Exception as log_err:
+        # Catch any other logging errors
+        logger.error("logging_failed", log_error=str(log_err)[:200], original_error_type=exc.__class__.__name__)
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"}, headers=headers)
 
 # --- Health endpoints ---

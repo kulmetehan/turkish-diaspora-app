@@ -39,3 +39,4 @@ COMMENT ON COLUMN public.discovery_jobs.status IS 'Job status: pending, running,
 COMMENT ON COLUMN public.discovery_jobs.attempts IS 'Number of execution attempts (for retry logic)';
 COMMENT ON COLUMN public.discovery_jobs.last_error IS 'Last error message if job failed';
 
+

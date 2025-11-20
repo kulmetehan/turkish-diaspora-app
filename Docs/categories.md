@@ -168,3 +168,4 @@ After adding a new category:
 - Check that `discovery.enabled: true` is set
 - Test OSM query manually using Overpass API
 
+

@@ -29,6 +29,9 @@ const CATEGORY_ICON_MAP: Record<string, IconProps["name"]> = {
   grocery: "ShoppingCart",
   sweets: "Candy",
   deli: "Sandwich",
+  car_dealer: "CarFront",
+  insurance: "ShieldCheck",
+  tailor: "Needle",
   other: "Store",
 };
 

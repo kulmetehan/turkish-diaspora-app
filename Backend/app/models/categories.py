@@ -148,3 +148,4 @@ def clear_cache() -> None:
     global _CATEGORY_METADATA
     _CATEGORY_METADATA = None
 
+
