@@ -362,6 +362,9 @@ export default function AdminDiscoveryMap({
             "heatmap-opacity": 0.8,
           },
         };
+        // NOTE: This was originally tuned for the "streets" style. Under Mapbox
+        // Standard, "waterway-label" may not exist, but safeHasLayer() + fallback
+        // to undefined keeps the heatmap insertion safe.
         const heatmapBeforeId = safeHasLayer(map, "waterway-label")
           ? "waterway-label"
           : undefined;

@@ -21,7 +21,7 @@ Summary of the Mapbox migration (Fase 3) and guidelines for maintaining the map 
 - Map entry: `Frontend/src/components/map/MapView.tsx` (wraps Mapbox GL and syncs with `mapStore`).
 - Marker rendering: derived from verified locations returned by `/api/v1/locations`.
 - Clustering: currently disabled; consider enabling once we expand to more cities.
-- Styling: controlled via Mapbox style (default `mapbox://styles/mapbox/light-v11`), configurable via `VITE_MAPBOX_STYLE` if needed.
+- Styling: controlled via Mapbox style (default `mapbox://styles/mapbox/standard`), configurable via `VITE_MAPBOX_STYLE` if needed.
 - Performance: reuse a single Mapbox instance, throttle updates via store selectors to avoid excessive re-renders.
 
 ## Token & environment
