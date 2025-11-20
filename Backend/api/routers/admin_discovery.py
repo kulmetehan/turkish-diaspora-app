@@ -604,6 +604,7 @@ async def _fetch_locations_coverage(
 async def get_discovery_grid(
     city: str = Query(default="rotterdam", description="City key from cities.yml"),
     district: Optional[str] = Query(default=None, description="Optional district key"),
+    category: Optional[str] = Query(default=None, description="Optional category filter"),
     admin: AdminUser = Depends(verify_admin_user),
 ) -> List[GridCell]:
     """
@@ -612,7 +613,7 @@ async def get_discovery_grid(
     try:
         # Use unified coverage service (no date filters)
         data = await asyncio.wait_for(
-            get_city_coverage_summary(city, district, None, None),
+            get_city_coverage_summary(city, district, None, None, category),
             timeout=55.0,
         )
         cells = data.get("cells", [])
@@ -656,6 +657,7 @@ async def get_discovery_coverage(
     district: Optional[str] = Query(None, description="Optional district key"),
     from_: Optional[datetime] = Query(None, alias="from", description="Start date (ISO format)"),
     to: Optional[datetime] = Query(None, description="End date (ISO format)"),
+    category: Optional[str] = Query(None, description="Optional category filter"),
     admin: AdminUser = Depends(verify_admin_user),
 ) -> List[DiscoveryCoverageCell]:
     """
@@ -663,7 +665,7 @@ async def get_discovery_coverage(
     """
     try:
         data = await asyncio.wait_for(
-            get_city_coverage_summary(city, district, from_, to),
+            get_city_coverage_summary(city, district, from_, to, category),
             timeout=55.0,
         )
         cells = data.get("cells", [])
@@ -707,6 +709,7 @@ async def get_discovery_summary(
     district: Optional[str] = Query(None, description="Optional district key"),
     from_: Optional[datetime] = Query(None, alias="from", description="Start date (ISO format)"),
     to: Optional[datetime] = Query(None, description="End date (ISO format)"),
+    category: Optional[str] = Query(None, description="Optional category filter"),
     admin: AdminUser = Depends(verify_admin_user),
 ) -> Dict[str, Any]:
     """
@@ -714,7 +717,7 @@ async def get_discovery_summary(
     """
     try:
         data = await asyncio.wait_for(
-            get_city_coverage_summary(city, district, from_, to),
+            get_city_coverage_summary(city, district, from_, to, category),
             timeout=55.0,
         )
         return data.get("summary", {})

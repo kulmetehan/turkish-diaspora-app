@@ -70,6 +70,9 @@ const RAW_CATEGORY_CONFIG = [
   { key: "barber", lucide: "scissors" },
   { key: "cafe", lucide: "coffee" },
   { key: "mosque", lucide: "building-2" },
+  { key: "car_dealer", lucide: "car-front" },
+  { key: "insurance", lucide: "shield-check" },
+  { key: "tailor", lucide: "needle" },
   { key: FALLBACK_KEY, lucide: "map-pin" },
 ] as const;
 

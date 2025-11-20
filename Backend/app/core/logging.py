@@ -84,6 +84,21 @@ def configure_logging(service_name: str = "api", *, level: int = logging.INFO) -
         force=True,  # overschrijd eerdere configs
     )
 
+    # Safe traceback processor that avoids recursion with Pydantic models
+    def _safe_dict_tracebacks(logger: Any, method: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Wrapper around dict_tracebacks that catches RecursionError."""
+        try:
+            return structlog.processors.dict_tracebacks(logger, method, event_dict)
+        except RecursionError:
+            # Fallback to simple string representation if recursion occurs
+            exc_info = event_dict.get("exc_info")
+            if exc_info:
+                try:
+                    event_dict["exception"] = str(exc_info)
+                except Exception:
+                    event_dict["exception"] = "Failed to serialize exception"
+            return event_dict
+    
     processors = [
         _add_ts,
         _add_level,
@@ -91,7 +106,7 @@ def configure_logging(service_name: str = "api", *, level: int = logging.INFO) -
         _add_request_or_run_ids,
         _pii_guard,
         structlog.processors.EventRenamer("event"),
-        structlog.processors.dict_tracebacks,
+        _safe_dict_tracebacks,
         structlog.processors.JSONRenderer(),
     ]
 

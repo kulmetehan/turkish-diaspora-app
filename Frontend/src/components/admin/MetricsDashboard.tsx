@@ -14,6 +14,8 @@
  *
  * DO NOT touch routing, auth, or other admin tabs from here.
  */
+import { fetchCategories, type CategoryOption } from "@/api/fetchLocations";
+import WorkerDiagnosisDialog from "@/components/admin/WorkerDiagnosisDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,12 +23,10 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCategoryHealthMetrics, getCitiesOverview, getDiscoveryKPIs, getMetricsSnapshot, type CategoryHealth, type CategoryHealthResponse, type CitiesOverview, type DiscoveryKPIs, type MetricsSnapshot, type WorkerRun, type WorkerStatus } from "@/lib/api";
+import { getLocationStateMetrics, runWorker, type LocationStateMetrics } from "@/lib/apiAdmin";
 import { cn } from "@/lib/ui/cn";
-import { getDiscoveryKPIs, getMetricsSnapshot, getCitiesOverview, type DiscoveryKPIs, type MetricsSnapshot, type WorkerRun, type WorkerStatus, type CitiesOverview } from "@/lib/api";
-import { runWorker } from "@/lib/apiAdmin";
-import { fetchCategories, type CategoryOption } from "@/api/fetchLocations";
-import WorkerDiagnosisDialog from "@/components/admin/WorkerDiagnosisDialog";
-import { Activity, AlertTriangle, Database, Gauge, Info, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, ArrowUpDown, Database, Gauge, Info, LineChart as LineChartIcon, MapPin, TrendingUp } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     CartesianGrid,
@@ -125,11 +125,207 @@ function formatStartedAt(value: string | null | undefined): string {
     return date.toLocaleString();
 }
 
+// Helper function to determine category health status
+// Uses backend-computed status if available, otherwise falls back to frontend computation
+function getCategoryHealthStatus(category: CategoryHealth): 'healthy' | 'warning' | 'degraded' | 'critical' | 'no_data' {
+    // Use backend-computed status if available
+    if (category.status) {
+        return category.status;
+    }
+
+    // Fallback computation for backward compatibility (using new metrics)
+    const { overpassFound, turkishCoverageRatioPct, aiPrecisionPct, insertedLocationsLast7d, aiActionKeep, aiClassificationsLast7d } = category;
+
+    // no_data: no Overpass data in window
+    if (overpassFound === 0) {
+        return 'no_data';
+    }
+
+    // critical: very low Turkish coverage AND no inserts AND (no classifications OR all ignored)
+    if (turkishCoverageRatioPct < 5 && insertedLocationsLast7d === 0 && (aiClassificationsLast7d === 0 || aiActionKeep === 0)) {
+        return 'critical';
+    }
+
+    // degraded: low Turkish coverage OR no inserts OR very low AI precision
+    if (turkishCoverageRatioPct < 10 || insertedLocationsLast7d === 0 || aiPrecisionPct < 15) {
+        return 'degraded';
+    }
+
+    // warning: moderate Turkish coverage OR moderate AI precision
+    if (turkishCoverageRatioPct < 20 || aiPrecisionPct < 25) {
+        return 'warning';
+    }
+
+    // healthy: good Turkish coverage and good AI precision
+    if (turkishCoverageRatioPct >= 20 && aiPrecisionPct >= 25 && insertedLocationsLast7d > 0) {
+        return 'healthy';
+    }
+
+    return 'warning'; // Default fallback
+}
+
+// Category Health Table Component
+function CategoryHealthTable({ categoryHealth, categoryOptions }: { categoryHealth: CategoryHealthResponse; categoryOptions: CategoryOption[] }) {
+    const [sortField, setSortField] = useState<'category' | 'zeroResultRatio' | 'turkishCoverage' | 'aiPrecision' | 'inserted' | 'promoted'>('category');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    const categoryMap = useMemo(() => {
+        const map = new Map<string, string>();
+        categoryOptions.forEach(opt => {
+            map.set(opt.key, opt.label);
+        });
+        return map;
+    }, [categoryOptions]);
+
+    const sortedCategories = useMemo(() => {
+        const entries = Object.entries(categoryHealth.categories);
+        return entries.sort(([keyA, catA], [keyB, catB]) => {
+            let aVal: number | string;
+            let bVal: number | string;
+
+            switch (sortField) {
+                case 'category':
+                    aVal = categoryMap.get(keyA) || keyA;
+                    bVal = categoryMap.get(keyB) || keyB;
+                    break;
+                case 'zeroResultRatio':
+                    aVal = catA.overpassZeroResultRatioPct;
+                    bVal = catB.overpassZeroResultRatioPct;
+                    break;
+                case 'turkishCoverage':
+                    aVal = catA.turkishCoverageRatioPct;
+                    bVal = catB.turkishCoverageRatioPct;
+                    break;
+                case 'aiPrecision':
+                    aVal = catA.aiPrecisionPct;
+                    bVal = catB.aiPrecisionPct;
+                    break;
+                case 'inserted':
+                    aVal = catA.insertedLocationsLast7d;
+                    bVal = catB.insertedLocationsLast7d;
+                    break;
+                case 'promoted':
+                    aVal = catA.promotedVerifiedLast7d;
+                    bVal = catB.promotedVerifiedLast7d;
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (typeof aVal === 'string' && typeof bVal === 'string') {
+                return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+            } else {
+                return sortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+            }
+        });
+    }, [categoryHealth.categories, sortField, sortDirection, categoryMap]);
+
+    const handleSort = (field: typeof sortField) => {
+        if (sortField === field) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+
+    const SortButton = ({ field, children }: { field: typeof sortField; children: React.ReactNode }) => (
+        <button
+            onClick={() => handleSort(field)}
+            className="flex items-center gap-1 hover:text-foreground transition-colors"
+        >
+            {children}
+            <ArrowUpDown className="h-3 w-3" />
+        </button>
+    );
+
+    return (
+        <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+                Time windows: Overpass {categoryHealth.timeWindows.overpassWindowHours}h,
+                Inserts/Classifications/Promotions {categoryHealth.timeWindows.insertsWindowDays}d
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="border-b">
+                            <th className="text-left p-2">
+                                <SortButton field="category">Category</SortButton>
+                            </th>
+                            <th className="text-right p-2">
+                                <SortButton field="turkishCoverage">Turkish Coverage %</SortButton>
+                            </th>
+                            <th className="text-right p-2">Overpass Calls (72h)</th>
+                            <th className="text-right p-2">
+                                <SortButton field="inserted">Inserted (7d)</SortButton>
+                            </th>
+                            <th className="text-right p-2">AI Classifications (7d)</th>
+                            <th className="text-right p-2">
+                                <SortButton field="aiPrecision">AI Precision %</SortButton>
+                            </th>
+                            <th className="text-right p-2">Keep / Ignore</th>
+                            <th className="text-right p-2">
+                                <SortButton field="promoted">Verified (7d)</SortButton>
+                            </th>
+                            <th className="text-center p-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedCategories.map(([key, cat]) => {
+                            const status = getCategoryHealthStatus(cat);
+                            const categoryLabel = categoryMap.get(key) || key;
+                            const statusBadgeClass =
+                                status === 'healthy' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                    status === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                        status === 'degraded' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                                            status === 'critical' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                                'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
+
+                            return (
+                                <tr key={key} className="border-b hover:bg-muted/50">
+                                    <td className="p-2 font-medium">{categoryLabel}</td>
+                                    <td className="text-right p-2">
+                                        {cat.overpassFound > 0 ? `${cat.turkishCoverageRatioPct.toFixed(1)}%` : '-'}
+                                    </td>
+                                    <td className="text-right p-2">{cat.overpassCalls}</td>
+                                    <td className="text-right p-2">{cat.insertedLocationsLast7d}</td>
+                                    <td className="text-right p-2">{cat.aiClassificationsLast7d}</td>
+                                    <td className="text-right p-2">
+                                        {cat.aiClassificationsLast7d > 0 ? `${cat.aiPrecisionPct.toFixed(1)}%` : '-'}
+                                    </td>
+                                    <td className="text-right p-2">
+                                        {cat.aiActionKeep > 0 || cat.aiActionIgnore > 0
+                                            ? `${cat.aiActionKeep} / ${cat.aiActionIgnore}`
+                                            : '-'
+                                        }
+                                    </td>
+                                    <td className="text-right p-2">{cat.promotedVerifiedLast7d}</td>
+                                    <td className="text-center p-2">
+                                        <Badge className={statusBadgeClass}>
+                                            {status === 'healthy' ? 'Healthy' :
+                                                status === 'warning' ? 'Warning' :
+                                                    status === 'degraded' ? 'Degraded' :
+                                                        status === 'critical' ? 'Critical' :
+                                                            'No Data'}
+                                        </Badge>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
 export default function MetricsDashboard() {
     const [data, setData] = useState<MetricsSnapshot | null>(null);
     const [discoveryKPIs, setDiscoveryKPIs] = useState<DiscoveryKPIs | null>(null);
+    const [categoryHealth, setCategoryHealth] = useState<CategoryHealthResponse | null>(null);
     const [loading, setLoading] = useState<boolean>(true);
     const [loadingKPIs, setLoadingKPIs] = useState<boolean>(true);
+    const [loadingCategoryHealth, setLoadingCategoryHealth] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [pollIntervalMs, setPollIntervalMs] = useState<number>(60000);
     const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
@@ -141,6 +337,8 @@ export default function MetricsDashboard() {
     const [selectedWorker, setSelectedWorker] = useState<WorkerStatus | null>(null);
     const [selectedRun, setSelectedRun] = useState<WorkerRun | null>(null);
     const isMountedRef = useRef(false);
+    const pollIntervalRef = useRef<number | null>(null);
+    const pollIntervalMsRef = useRef<number>(60000);
 
     const ALL_BOTS = "ALL_BOTS";
     const ALL_CITIES = "ALL_CITIES";
@@ -156,6 +354,7 @@ export default function MetricsDashboard() {
         []
     );
     const [citiesOverview, setCitiesOverview] = useState<CitiesOverview | null>(null);
+    const [locationStateMetrics, setLocationStateMetrics] = useState<LocationStateMetrics | null>(null);
     const cityOptions = useMemo(() => {
         if (citiesOverview?.cities && citiesOverview.cities.length > 0) {
             return citiesOverview.cities
@@ -176,6 +375,29 @@ export default function MetricsDashboard() {
         }
     }, [categoryDisabled]);
 
+    const loadCategoryHealth = useCallback(async () => {
+        try {
+            setLoadingCategoryHealth(true);
+            const healthData = await getCategoryHealthMetrics();
+            setCategoryHealth(healthData);
+        } catch (e: any) {
+            console.error("Failed to load category health metrics:", e);
+            // Don't set error state for category health, just log it
+        } finally {
+            setLoadingCategoryHealth(false);
+        }
+    }, []);
+
+    const loadLocationStateMetrics = useCallback(async () => {
+        try {
+            const metrics = await getLocationStateMetrics();
+            setLocationStateMetrics(metrics);
+        } catch (e: any) {
+            console.error("Failed to load location state metrics:", e);
+            // Don't set error state, just log it
+        }
+    }, []);
+
     const loadMetrics = useCallback(async () => {
         try {
             const res = await getMetricsSnapshot();
@@ -185,10 +407,30 @@ export default function MetricsDashboard() {
             const hasActive = Array.isArray(res.currentRuns) && res.currentRuns.some((run) =>
                 ["pending", "running"].includes(run.status)
             );
+            const desiredInterval = hasActive ? 5000 : 60000;
+
+            // Update state for UI display
             setPollIntervalMs((prev) => {
-                const desired = hasActive ? 5000 : 60000;
-                return prev === desired ? prev : desired;
+                if (prev !== desiredInterval) {
+                    return desiredInterval;
+                }
+                return prev;
             });
+
+            // Update ref and recreate interval if needed
+            if (pollIntervalMsRef.current !== desiredInterval) {
+                pollIntervalMsRef.current = desiredInterval;
+
+                // Clear existing interval
+                if (pollIntervalRef.current !== null) {
+                    window.clearInterval(pollIntervalRef.current);
+                }
+
+                // Create new interval with updated timing
+                pollIntervalRef.current = window.setInterval(() => {
+                    loadMetrics();
+                }, desiredInterval);
+            }
         } catch (e: any) {
             if (!isMountedRef.current) return;
             setError(e?.message || "Failed to load metrics");
@@ -200,14 +442,22 @@ export default function MetricsDashboard() {
 
     useEffect(() => {
         loadMetrics();
-        const intervalId = window.setInterval(() => {
+
+        // Initialize ref with current poll interval
+        pollIntervalMsRef.current = pollIntervalMs;
+
+        // Set up initial interval
+        pollIntervalRef.current = window.setInterval(() => {
             loadMetrics();
         }, pollIntervalMs);
 
         return () => {
-            window.clearInterval(intervalId);
+            if (pollIntervalRef.current !== null) {
+                window.clearInterval(pollIntervalRef.current);
+                pollIntervalRef.current = null;
+            }
         };
-    }, [loadMetrics, pollIntervalMs]);
+    }, [loadMetrics]); // Only depend on loadMetrics, not pollIntervalMs
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -258,6 +508,28 @@ export default function MetricsDashboard() {
         return () => { isMounted = false; };
     }, []);
 
+    // Load category health metrics on mount
+    useEffect(() => {
+        let cancelled = false;
+        loadCategoryHealth().catch((e) => {
+            if (!cancelled) {
+                console.error("Failed to load category health:", e);
+            }
+        });
+        return () => { cancelled = true; };
+    }, [loadCategoryHealth]);
+
+    // Load location state metrics on mount
+    useEffect(() => {
+        let cancelled = false;
+        loadLocationStateMetrics().catch((e) => {
+            if (!cancelled) {
+                console.error("Failed to load location state metrics:", e);
+            }
+        });
+        return () => { cancelled = true; };
+    }, [loadLocationStateMetrics]);
+
     // Load cities overview for city selector
     useEffect(() => {
         let cancelled = false;
@@ -296,11 +568,11 @@ export default function MetricsDashboard() {
     const activeRuns: WorkerRun[] = data?.currentRuns ?? [];
     const workerStatuses = data?.workers ?? [];
     const hasActiveRuns = activeRuns.length > 0;
-    
+
     // Get city progress for selected city (fallback to rotterdam for backward compatibility)
     const selectedCityKey = selectedCity || "rotterdam";
-    const cityProgress = data?.cityProgress?.cities?.[selectedCityKey] 
-        ?? data?.cityProgress?.rotterdam 
+    const cityProgress = data?.cityProgress?.cities?.[selectedCityKey]
+        ?? data?.cityProgress?.rotterdam
         ?? null;
     const qualityMetrics = data?.quality ?? null;
     const discoverySummary = data?.discovery ?? null;
@@ -693,8 +965,8 @@ export default function MetricsDashboard() {
                                             categoriesLoading
                                                 ? "Loading..."
                                                 : categoryDisabled
-                                                ? "N/A for monitor"
-                                                : "All categories"
+                                                    ? "N/A for monitor"
+                                                    : "All categories"
                                         }
                                     />
                                 </SelectTrigger>
@@ -860,6 +1132,75 @@ export default function MetricsDashboard() {
                                 )}
                             </div>
                         </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Location State Breakdown */}
+            <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        Location State Breakdown
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {locationStateMetrics ? (
+                        <div className="space-y-4">
+                            <div className="text-sm text-muted-foreground">
+                                Total locations: <span className="font-semibold text-foreground">{locationStateMetrics.total}</span>
+                            </div>
+                            <div className="space-y-2">
+                                {locationStateMetrics.by_state.map((bucket) => {
+                                    const state = bucket.state;
+                                    const count = bucket.count;
+                                    const badgeClass =
+                                        state === "VERIFIED"
+                                            ? "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900 dark:text-emerald-200"
+                                            : state === "PENDING_VERIFICATION"
+                                                ? "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900 dark:text-amber-200"
+                                                : state === "CANDIDATE"
+                                                    ? "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-200"
+                                                    : state === "RETIRED"
+                                                        ? "bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-300"
+                                                        : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300";
+                                    return (
+                                        <div key={state} className="flex items-center justify-between p-2 rounded-md border">
+                                            <Badge className={cn("font-medium", badgeClass)}>
+                                                {state}
+                                            </Badge>
+                                            <span className="text-sm font-semibold">{count}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="text-sm text-muted-foreground">
+                            Failed to load location state metrics
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Category Health */}
+            <Card className="rounded-2xl shadow-sm">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Activity className="h-5 w-5" />
+                        Category Health
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {loadingCategoryHealth ? (
+                        <div className="space-y-2">
+                            <Skeleton className="h-6 w-32" />
+                            <Skeleton className="h-48 w-full" />
+                        </div>
+                    ) : !categoryHealth || Object.keys(categoryHealth.categories).length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No category health data available</div>
+                    ) : (
+                        <CategoryHealthTable categoryHealth={categoryHealth} categoryOptions={categoryOptions} />
                     )}
                 </CardContent>
             </Card>

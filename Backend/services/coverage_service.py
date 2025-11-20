@@ -119,6 +119,7 @@ async def _fetch_locations_coverage(
     grid_points: Sequence[GridPoint],
     from_date: Optional[datetime],
     to_date: Optional[datetime],
+    category: Optional[str] = None,
 ) -> Dict[str, int]:
     """
     Map OSM_OVERPASS locations within bbox/date filters to nearest grid cell_id.
@@ -131,7 +132,9 @@ async def _fetch_locations_coverage(
     all_lng_min = min(lng for _, lng, _, _ in grid_points)
     all_lng_max = max(lng for _, lng, _, _ in grid_points)
 
-    sql = """
+    # Build SQL with optional category filter
+    category_filter = "AND category = $7" if category else ""
+    sql = f"""
         SELECT lat, lng, first_seen_at
         FROM locations
         WHERE source = 'OSM_OVERPASS'
@@ -141,8 +144,12 @@ async def _fetch_locations_coverage(
           AND ($6::timestamptz IS NULL OR first_seen_at <= $6)
           AND lat IS NOT NULL
           AND lng IS NOT NULL
+          {category_filter}
     """
-    rows = await fetch(sql, all_lat_min, all_lat_max, all_lng_min, all_lng_max, from_date, to_date)
+    params = [all_lat_min, all_lat_max, all_lng_min, all_lng_max, from_date, to_date]
+    if category:
+        params.append(category)
+    rows = await fetch(sql, *params)
 
     # Precompute grid centers for nearest match
     centers: List[Tuple[float, float, str]] = [(lat, lng, cell_id) for lat, lng, cell_id, _ in grid_points]
@@ -172,6 +179,7 @@ async def _fetch_overpass_call_coverage(
     grid_points: Sequence[GridPoint],
     from_date: Optional[datetime],
     to_date: Optional[datetime],
+    category: Optional[str] = None,
 ) -> Dict[str, Dict[str, Any]]:
     """
     SQL-driven aggregation over overpass_calls constrained by cell_id list and optional dates.
@@ -185,7 +193,9 @@ async def _fetch_overpass_call_coverage(
     if not cell_ids:
         return {}
 
-    sql = """
+    # Build SQL with optional category filter
+    category_filter = "AND $4 = ANY(category_set)" if category else ""
+    sql = f"""
         SELECT
           cell_id,
           COUNT(*)::int AS total_calls,
@@ -198,9 +208,13 @@ async def _fetch_overpass_call_coverage(
         WHERE cell_id = ANY($1::text[])
           AND ($2::timestamptz IS NULL OR ts >= $2)
           AND ($3::timestamptz IS NULL OR ts <= $3)
+          {category_filter}
         GROUP BY cell_id
     """
-    rows = await fetch(sql, cell_ids, from_date, to_date)
+    params = [cell_ids, from_date, to_date]
+    if category:
+        params.append(category)
+    rows = await fetch(sql, *params)
 
     metrics: Dict[str, Dict[str, Any]] = {}
     for r in rows or []:
@@ -242,6 +256,7 @@ async def get_city_coverage_summary(
     district: Optional[str],
     from_date: Optional[datetime],
     to_date: Optional[datetime],
+    category: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Unified coverage summary for both the summary widget and the heatmap.
@@ -250,6 +265,9 @@ async def get_city_coverage_summary(
     - subdivided cells contribute
     - locations also count as coverage (same logic as heatmap)
     - total calls, errors, timestamps come from overpass_calls
+    
+    Args:
+        category: Optional category filter. If provided, filters both overpass_calls and locations by category.
     """
     grid_points, city_bbox, _ = _build_grid_points(city, district)
     # cells list to preserve ordering/coords/districts
@@ -257,8 +275,8 @@ async def get_city_coverage_summary(
         cell_id: (lat, lng, dist) for (lat, lng, cell_id, dist) in grid_points
     }
 
-    locations_cov = await _fetch_locations_coverage(grid_points, from_date, to_date)
-    calls_cov = await _fetch_overpass_call_coverage(grid_points, from_date, to_date)
+    locations_cov = await _fetch_locations_coverage(grid_points, from_date, to_date, category)
+    calls_cov = await _fetch_overpass_call_coverage(grid_points, from_date, to_date, category)
 
     cells: List[Dict[str, Any]] = []
     total_calls = 0

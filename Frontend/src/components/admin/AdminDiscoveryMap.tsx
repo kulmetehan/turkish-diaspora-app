@@ -3,6 +3,7 @@ import mapboxgl, { Map as MapboxMap, Popup } from "mapbox-gl";
 import type { FeatureCollection, Polygon, Point } from "geojson";
 import { initMap } from "@/lib/map/mapbox";
 import { getDiscoveryCoverage, getCityDistricts, type DiscoveryCoverageCell, type CityReadiness } from "@/lib/api";
+import { fetchCategories, type CategoryOption } from "@/api/fetchLocations";
 import { Button } from "@/components/ui/button";
 import { CONFIG } from "@/lib/config";
 
@@ -127,7 +128,9 @@ export default function AdminDiscoveryMap({
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [districts, setDistricts] = useState<string[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [showGridOverlay, setShowGridOverlay] = useState(true);
   const [mapReady, setMapReady] = useState(false);
 
@@ -187,6 +190,24 @@ export default function AdminDiscoveryMap({
     return () => { cancelled = true; };
   }, [selectedCity]);
 
+  // Load categories (discovery-enabled only)
+  useEffect(() => {
+    let cancelled = false;
+    fetchCategories()
+      .then((cats) => {
+        if (!cancelled) {
+          // Filter to discovery-enabled categories only
+          const discoverable = cats.filter(cat => cat.isDiscoverable !== false);
+          setCategoryOptions(discoverable);
+        }
+      })
+      .catch((e) => {
+        console.warn("Failed to load categories:", e);
+        if (!cancelled) setCategoryOptions([]);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   // Fetch coverage data when coverage is enabled or filters change
   // Note: This effect does NOT depend on map readiness - we can fetch data independently
   useEffect(() => {
@@ -206,7 +227,8 @@ export default function AdminDiscoveryMap({
           selectedCity,
           selectedDistrict || undefined,
           dateFrom || undefined,
-          dateTo || undefined
+          dateTo || undefined,
+          selectedCategory || undefined
         );
         console.debug("[DiscoveryCoverage] cells", data);
         if (!cancelled) {
@@ -229,7 +251,7 @@ export default function AdminDiscoveryMap({
 
     fetchCoverage();
     return () => { cancelled = true; };
-  }, [showCoverage, selectedCity, selectedDistrict, dateFrom, dateTo]);
+  }, [showCoverage, selectedCity, selectedDistrict, dateFrom, dateTo, selectedCategory]);
 
   // Update map layers when grid data changes or coverage toggle changes
   useEffect(() => {
@@ -550,6 +572,24 @@ export default function AdminDiscoveryMap({
             <option value="">All districts</option>
             {districts.map((d) => (
               <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+        
+        {/* Category selector */}
+        <div>
+          <label className="block text-xs font-medium mb-1">Category</label>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="border rounded px-2 py-1 text-sm w-full"
+            disabled={loading}
+          >
+            <option value="">All categories</option>
+            {categoryOptions.map((cat) => (
+              <option key={cat.value} value={cat.value}>
+                {cat.label}
+              </option>
             ))}
           </select>
         </div>

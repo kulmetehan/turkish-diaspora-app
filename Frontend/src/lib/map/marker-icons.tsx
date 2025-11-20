@@ -20,6 +20,9 @@ import {
   Coffee,
   Building2,
   MapPin,
+  CarFront,
+  ShieldCheck,
+  Needle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -47,6 +50,12 @@ function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
       return Coffee;
     case "mosque":
       return Building2;
+    case "car_dealer":
+      return CarFront;
+    case "insurance":
+      return ShieldCheck;
+    case "tailor":
+      return Needle;
     default:
       return MapPin; // fallback
   }

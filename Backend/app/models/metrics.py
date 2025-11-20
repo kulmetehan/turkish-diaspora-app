@@ -136,3 +136,49 @@ class MetricsSnapshot(BaseModel):
     stale_candidates: Optional[StaleCandidates] = None
 
 
+class CategoryHealth(BaseModel):
+    """Health metrics for a single category."""
+    overpass_calls: int
+    overpass_successful_calls: int
+    overpass_zero_results: int
+    overpass_zero_result_ratio_pct: float
+    inserted_locations_last_7d: int
+    state_counts: Dict[str, int] = Field(default_factory=dict)
+    avg_confidence_last_7d: Optional[float] = None
+    ai_classifications_last_7d: int
+    ai_action_keep: int
+    ai_action_ignore: int
+    ai_avg_confidence: Optional[float] = None
+    promoted_verified_last_7d: int
+    # New fields for Turkish-first strategy metrics
+    overpass_found: int = 0
+    turkish_coverage_ratio_pct: float = 0.0
+    ai_precision_pct: float = 0.0
+    status: Literal["healthy", "warning", "degraded", "critical", "no_data"] = "no_data"
+
+
+class CategoryHealthResponse(BaseModel):
+    """Response model for category health metrics endpoint."""
+    categories: Dict[str, CategoryHealth] = Field(default_factory=dict)
+    time_windows: Dict[str, int] = Field(
+        default_factory=lambda: {
+            "overpass_window_hours": 72,
+            "inserts_window_days": 7,
+            "classifications_window_days": 7,
+            "promotions_window_days": 7,
+        }
+    )
+
+
+class LocationStateBucket(BaseModel):
+    """Count of locations in a specific state."""
+    state: str
+    count: int
+
+
+class LocationStateMetrics(BaseModel):
+    """Location state breakdown metrics."""
+    total: int
+    by_state: List[LocationStateBucket] = Field(default_factory=list)
+
+
