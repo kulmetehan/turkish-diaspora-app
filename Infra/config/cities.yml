@@ -161,5 +161,43 @@ cities:
     apply: *rotterdam_defaults
     center_lat: 52.0705
     center_lng: 4.3007
-    # TODO: Add district definitions for Den Haag
-    # Districts to be defined based on Turkish diaspora concentration areas
+    districts:
+      centrum:
+        lat: 52.079984
+        lng: 4.311346
+        apply: *rotterdam_defaults
+
+      escamp:
+        lat: 52.044234
+        lng: 4.281284
+        apply: *rotterdam_defaults
+
+      haagse_hout:
+        lat: 52.092291
+        lng: 4.330432
+        apply: *rotterdam_defaults
+
+      laak:
+        lat: 52.063162
+        lng: 4.321460
+        apply: *rotterdam_defaults
+
+      ypenburg:
+        lat: 52.041460
+        lng: 4.368883
+        apply: *rotterdam_defaults
+
+      loosduinen:
+        lat: 52.053157
+        lng: 4.234829
+        apply: *rotterdam_defaults
+
+      scheveningen:
+        lat: 52.106745
+        lng: 4.273694
+        apply: *rotterdam_defaults
+
+      segbroek:
+        lat: 52.077009
+        lng: 4.267409
+        apply: *rotterdam_defaults
