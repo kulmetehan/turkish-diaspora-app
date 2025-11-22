@@ -29,19 +29,19 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run news ingest worker (once)
+      - name: Run news ingest worker
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python -m app.workers.news_ingest_bot --once
+          python -m app.workers.news_ingest_bot
 
-      - name: Run news classify worker (once)
+      - name: Run news classify worker
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python -m app.workers.news_classify_worker --once
+          python -m app.workers.news_classify_worker
 
