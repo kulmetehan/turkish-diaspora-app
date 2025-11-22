@@ -1,8 +1,11 @@
 // src/components/MarkerLayer.tsx
 import type { LocationMarker } from "@/api/fetchLocations";
-import { buildMarkerGeoJSON, ensureBaseLayers, ensureIconIdsForFeatures, MarkerLayerIds } from "@/components/markerLayerUtils";
-import { ensureCategoryIcons } from "@/lib/map/categoryIcons";
-import type { LngLatLike, MapboxGeoJSONFeature, Map as MapboxMap } from "mapbox-gl";
+import { buildMarkerGeoJSON, ensureBaseLayers, MarkerLayerIds } from "@/components/markerLayerUtils";
+import type {
+    LngLatLike,
+    MapboxGeoJSONFeature,
+    Map as MapboxMap,
+} from "mapbox-gl";
 import { useEffect, useMemo, useRef } from "react";
 
 type Props = {
@@ -14,9 +17,7 @@ type Props = {
 };
 
 // Stable IDs for source/layers
-const { SRC_ID, L_CLUSTER, L_CLUSTER_COUNT, L_HALO, L_POINT_FALLBACK, L_POINT } = MarkerLayerIds;
-
-const isDev = typeof import.meta !== "undefined" && Boolean((import.meta as any)?.env?.DEV);
+const { SRC_ID, L_CLUSTER, L_CLUSTER_COUNT, L_POINT, L_HI } = MarkerLayerIds;
 
 // Safely check if style exists on the map
 function hasStyleObject(m: MapboxMap) {
@@ -46,91 +47,38 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
 
     // 1. Create source + layers once per map
     useEffect(() => {
-        if (layersReady.current) return;
-
-        let styleDataHandler: (() => void) | null = null;
-
-        const ensureReady = () => {
+        function tryInitLayers() {
             if (layersReady.current) return;
-            ensureBaseLayers(map);
-            const sourceReady = Boolean(map.getSource(SRC_ID));
-            const layersPresent = Boolean(map.getLayer(L_POINT) && map.getLayer(L_HALO));
-            if (sourceReady && layersPresent) {
-                layersReady.current = true;
-                if (styleDataHandler) {
-                    try {
-                        map.off("styledata", styleDataHandler as any);
-                    } catch {
-                        /* ignore */
-                    }
-                    styleDataHandler = null;
-                }
-            }
-        };
 
-        const mapIsReady = hasStyleObject(map) && (typeof map.isStyleLoaded !== "function" || map.isStyleLoaded());
-        if (!mapIsReady) {
+            ensureBaseLayers(map);
+            layersReady.current = true;
+        }
+
+        if (!hasStyleObject(map)) {
+            // Style not ready yet: wait for load, then init
             const handleLoad = () => {
-                ensureReady();
+                tryInitLayers();
             };
-            map.once("load", handleLoad as any);
+            map.once("load", handleLoad);
             return () => {
                 try {
-                    map.off("load", handleLoad as any);
+                    map.off("load", handleLoad);
                 } catch {
                     /* ignore */
-                }
-                if (styleDataHandler) {
-                    try {
-                        map.off("styledata", styleDataHandler as any);
-                    } catch {
-                        /* ignore */
-                    }
                 }
             };
         }
 
-        ensureReady();
-
-        if (!layersReady.current) {
-            styleDataHandler = () => ensureReady();
-            map.on("styledata", styleDataHandler as any);
-        }
-
-        return () => {
-            if (styleDataHandler) {
-                try {
-                    map.off("styledata", styleDataHandler as any);
-                } catch {
-                    /* ignore */
-                }
-            }
-        };
+        tryInitLayers();
     }, [map, onClusterFocus]);
 
     // 2. Sync GeoJSON data when locations change
     useEffect(() => {
         if (!layersReady.current) return;
-        if (!map || typeof map.getSource !== "function") return;
         if (!hasStyleObject(map)) return;
-
-        void ensureCategoryIcons(map);
-        ensureIconIdsForFeatures(map, data.features as any[]);
-
         const src: any = map.getSource(SRC_ID);
-        if (!src?.setData) return;
-
-        try {
+        if (src && src.setData) {
             src.setData(data as any);
-        } catch {
-            /* ignore */
-        }
-
-        if (isDev && Array.isArray((data as any)?.features)) {
-            console.debug(
-                "[icons] feature icons sample:",
-                (data as any).features.slice(0, 5).map((f: any) => f?.properties?.icon),
-            );
         }
     }, [map, data, locations]);
 
@@ -138,29 +86,6 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
     useEffect(() => {
         if (!layersReady.current) return;
         if (handlersReady.current) return;
-
-        const applyFeatureSelection = (feature: MapboxGeoJSONFeature | undefined) => {
-            const rawId = feature?.properties?.id;
-            if (rawId == null) return;
-            const id = String(rawId);
-            const previous = featureStateRef.current;
-            if (previous && previous !== id) {
-                try {
-                    map.removeFeatureState({ source: SRC_ID, id: previous }, "selected");
-                } catch {
-                    /* ignore */
-                }
-            }
-            try {
-                map.setFeatureState({ source: SRC_ID, id }, { selected: true });
-            } catch {
-                /* ignore */
-            }
-            featureStateRef.current = id;
-            if (onSelectRef.current) {
-                onSelectRef.current(id);
-            }
-        };
 
         const onClusterClick = (e: any) => {
             const feats = map.queryRenderedFeatures(e.point, {
@@ -182,17 +107,19 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
         };
 
         const onPointClick = (e: any) => {
-            applyFeatureSelection(e.features?.[0] as MapboxGeoJSONFeature | undefined);
-        };
-
-        const onFallbackClick = (e: any) => {
-            applyFeatureSelection(e.features?.[0] as MapboxGeoJSONFeature | undefined);
+            const feats = map.queryRenderedFeatures(e.point, {
+                layers: [L_POINT],
+            }) as MapboxGeoJSONFeature[] | undefined;
+            const id = feats?.[0]?.properties?.id as string | undefined;
+            if (id && onSelectRef.current) {
+                onSelectRef.current(id);
+            }
         };
 
         const onMouseMove = (e: any) => {
             try {
                 const feats = map.queryRenderedFeatures(e.point, {
-                    layers: [L_POINT, L_POINT_FALLBACK, L_CLUSTER, L_CLUSTER_COUNT],
+                    layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT],
                 }) as any[];
                 const hit = Array.isArray(feats) && feats.length > 0;
                 map.getCanvas().style.cursor = hit ? "pointer" : "";
@@ -218,13 +145,10 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
 
         map.on("click", L_CLUSTER, onClusterClick as any);
         map.on("click", L_POINT, onPointClick as any);
-        map.on("click", L_POINT_FALLBACK, onFallbackClick as any);
         map.on("mousemove", onMouseMove as any);
 
         map.on("mouseenter", L_POINT, forcePointer as any);
         map.on("mouseleave", L_POINT, clearPointer as any);
-        map.on("mouseenter", L_POINT_FALLBACK, forcePointer as any);
-        map.on("mouseleave", L_POINT_FALLBACK, clearPointer as any);
         map.on("mouseenter", L_CLUSTER, forcePointer as any);
         map.on("mouseleave", L_CLUSTER, clearPointer as any);
 
@@ -263,8 +187,8 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
     }, [map, selectedId, data]);
 
     useEffect(() => {
+        if (!layersReady.current) return;
         const handleStyleData = () => {
-            ensureBaseLayers(map);
             if (!featureStateRef.current) return;
             try {
                 map.setFeatureState({ source: SRC_ID, id: featureStateRef.current }, { selected: true });
@@ -293,6 +217,23 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
             featureStateRef.current = null;
         };
     }, [map]);
+
+    // 5. Sync highlight ring with selectedId
+    useEffect(() => {
+        if (!layersReady.current) return;
+        if (!hasStyleObject(map)) return;
+        if (!map.getLayer(L_HI)) return;
+        const selId = selectedId != null ? String(selectedId) : "__none__";
+        try {
+            map.setFilter(L_HI, [
+                "all",
+                ["!", ["has", "point_count"]],
+                ["==", ["get", "id"], selId],
+            ]);
+        } catch {
+            /* ignore */
+        }
+    }, [map, selectedId, locations]);
 
     return null;
 }

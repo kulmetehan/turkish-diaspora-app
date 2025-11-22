@@ -12,6 +12,12 @@ class AIConfig(BaseModel):
     verify_min_conf: float = Field(ge=0.0, le=1.0, description="Minimum confidence for verify_locations bot (0.0-1.0)")
     task_verifier_min_conf: float = Field(ge=0.0, le=1.0, description="Minimum confidence for task_verifier bot (0.0-1.0)")
     auto_promote_conf: float = Field(ge=0.0, le=1.0, description="Auto-promotion threshold for task_verifier (0.0-1.0)")
+    news_diaspora_min_score: float = Field(ge=0.0, le=1.0, description="Minimum relevance score for diaspora news feed")
+    news_nl_min_score: float = Field(ge=0.0, le=1.0, description="Minimum relevance score for NL news feed")
+    news_tr_min_score: float = Field(ge=0.0, le=1.0, description="Minimum relevance score for TR news feed")
+    news_local_min_score: float = Field(ge=0.0, le=1.0, description="Minimum relevance score for local NL feed")
+    news_origin_min_score: float = Field(ge=0.0, le=1.0, description="Minimum relevance score for origin feed")
+    news_geo_min_score: float = Field(ge=0.0, le=1.0, description="Minimum relevance score for geopolitics feed")
     monitor_low_conf_days: int = Field(ge=1, description="Freshness interval (days) for low confidence locations")
     monitor_medium_conf_days: int = Field(ge=1, description="Freshness interval (days) for medium confidence locations")
     monitor_high_conf_days: int = Field(ge=1, description="Freshness interval (days) for high confidence locations")
@@ -21,7 +27,19 @@ class AIConfig(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last update timestamp")
     updated_by: Optional[str] = Field(default=None, description="Admin email who made the change")
 
-    @field_validator("classify_min_conf", "verify_min_conf", "task_verifier_min_conf", "auto_promote_conf", mode="before")
+    @field_validator(
+        "classify_min_conf",
+        "verify_min_conf",
+        "task_verifier_min_conf",
+        "auto_promote_conf",
+        "news_diaspora_min_score",
+        "news_nl_min_score",
+        "news_tr_min_score",
+        "news_local_min_score",
+        "news_origin_min_score",
+        "news_geo_min_score",
+        mode="before",
+    )
     @classmethod
     def validate_threshold(cls, v: any) -> float:
         """Ensure threshold is in valid range [0.0, 1.0]."""
@@ -58,6 +76,12 @@ class AIConfigUpdate(BaseModel):
     verify_min_conf: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum confidence for verify_locations bot")
     task_verifier_min_conf: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum confidence for task_verifier bot")
     auto_promote_conf: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Auto-promotion threshold for task_verifier")
+    news_diaspora_min_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum relevance score for diaspora news feed")
+    news_nl_min_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum relevance score for NL news feed")
+    news_tr_min_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum relevance score for TR news feed")
+    news_local_min_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum relevance score for local NL feed")
+    news_origin_min_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum relevance score for origin feed")
+    news_geo_min_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum relevance score for geopolitics feed")
     monitor_low_conf_days: Optional[int] = Field(default=None, ge=1, description="Freshness interval (days) for low confidence")
     monitor_medium_conf_days: Optional[int] = Field(default=None, ge=1, description="Freshness interval (days) for medium confidence")
     monitor_high_conf_days: Optional[int] = Field(default=None, ge=1, description="Freshness interval (days) for high confidence")
@@ -65,7 +89,19 @@ class AIConfigUpdate(BaseModel):
     monitor_verified_medium_reviews_days: Optional[int] = Field(default=None, ge=1, description="Freshness interval (days) for VERIFIED with 10-99 reviews")
     monitor_verified_many_reviews_days: Optional[int] = Field(default=None, ge=1, description="Freshness interval (days) for VERIFIED with >= 100 reviews")
 
-    @field_validator("classify_min_conf", "verify_min_conf", "task_verifier_min_conf", "auto_promote_conf", mode="before")
+    @field_validator(
+        "classify_min_conf",
+        "verify_min_conf",
+        "task_verifier_min_conf",
+        "auto_promote_conf",
+        "news_diaspora_min_score",
+        "news_nl_min_score",
+        "news_tr_min_score",
+        "news_local_min_score",
+        "news_origin_min_score",
+        "news_geo_min_score",
+        mode="before",
+    )
     @classmethod
     def validate_threshold(cls, v: any) -> Optional[float]:
         """Ensure threshold is in valid range [0.0, 1.0]."""
@@ -98,6 +134,8 @@ class AIConfigUpdate(BaseModel):
             if isinstance(e, ValueError) and "must be >=" in str(e):
                 raise
             raise ValueError(f"Invalid days value: {v}") from e
+
+
 
 
 

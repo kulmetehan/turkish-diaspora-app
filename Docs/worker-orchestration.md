@@ -70,6 +70,8 @@ The orchestrator maps API bot names to worker functions:
 | `classify` | `app.workers.classify_bot` | `main_async()` | Uses sys.argv mocking |
 | `verify` | `app.workers.verify_locations` | `main_async()` | Uses sys.argv mocking |
 | `monitor` | `app.workers.monitor_bot` | `main_async(limit, dry_run, worker_run_id)` | Direct function call |
+| `news_ingest` | `app.workers.news_ingest_bot` | `main_async()` | RSS ingest pipeline |
+| `news_classify` | `app.workers.news_classify_bot` | `main_async()` | Classifies `raw_ingested_news` rows |
 
 ### Worker Argument Construction
 
@@ -98,6 +100,19 @@ The orchestrator constructs appropriate arguments for each worker:
 
 #### Monitor Bot
 - Called directly with: `limit=None`, `dry_run=False`, `worker_run_id=run_id`
+
+#### News Ingest Bot
+- `--worker-run-id`: UUID from worker_runs record
+- Optional `--limit`: passed through for smoke tests (default: process every source)
+
+#### News Classify Bot
+- `--limit`: 100 (default, configurable via API)
+- `--model`: Optional OpenAI model override
+- `--worker-run-id`: UUID from worker_runs record
+- Processing state semantics:
+  - `pending` → untouched ingestion output
+  - `classified` → success, relevance fields populated
+  - `error_ai` → AI failure, see `processing_errors`
 
 ## Implementation Details
 

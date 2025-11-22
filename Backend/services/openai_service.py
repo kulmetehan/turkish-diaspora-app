@@ -95,6 +95,7 @@ class OpenAIService:
         response_model: Type[BaseModel],
         action_type: str = "generic",
         location_id: Optional[int] = None,
+        news_id: Optional[int] = None,
     ) -> Tuple[BaseModel, Dict[str, Any]]:
         """
         Returns: (parsed_model_instance, meta_dict)
@@ -129,6 +130,7 @@ class OpenAIService:
                 # Logging → aansluitend op jouw schema (async safe)
                 asyncio.create_task(ai_log(
                     location_id=location_id,
+                    news_id=news_id,
                     action_type=action_type,
                     prompt=prompt_payload,  # als TEXT in DB (JSON-string)
                     raw_response={
@@ -171,6 +173,7 @@ class OpenAIService:
         # Failure logging (async safe)
         asyncio.create_task(ai_log(
             location_id=location_id,
+            news_id=news_id,
             action_type=action_type,
             prompt=prompt_payload,
             raw_response={"raw": None, "usage": None, "duration_ms": duration_ms},
