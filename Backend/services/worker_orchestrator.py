@@ -72,6 +72,10 @@ async def start_worker_run(
             await _run_monitor_bot(run_id)
         elif bot == "verification_consumer":
             await _run_verification_consumer(run_id, city)
+        elif bot == "news_ingest":
+            await _run_news_ingest(run_id)
+        elif bot == "news_classify":
+            await _run_news_classify(run_id)
         else:
             raise ValueError(f"Unknown bot: {bot}")
             
@@ -250,3 +254,25 @@ async def _run_verification_consumer(run_id: UUID, city: Optional[str]) -> None:
         max_attempts=3,       # default attempts
         worker_run_id=run_id,
     )
+
+
+async def _run_news_ingest(run_id: UUID) -> None:
+    """Run news_ingest_bot via CLI-compatible entrypoint."""
+    from app.workers.news_ingest_bot import main_async
+
+    logger.info("starting_news_ingest_bot", run_id=str(run_id))
+
+    argv = ["news_ingest_bot", "--worker-run-id", str(run_id)]
+    with mock_sys_argv(argv):
+        await main_async()
+
+
+async def _run_news_classify(run_id: UUID) -> None:
+    """Run news_classify_bot via CLI-compatible entrypoint."""
+    from app.workers.news_classify_bot import main_async
+
+    logger.info("starting_news_classify_bot", run_id=str(run_id))
+
+    argv = ["news_classify_bot", "--worker-run-id", str(run_id)]
+    with mock_sys_argv(argv):
+        await main_async()

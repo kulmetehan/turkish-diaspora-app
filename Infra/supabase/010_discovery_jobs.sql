@@ -40,3 +40,5 @@ COMMENT ON COLUMN public.discovery_jobs.attempts IS 'Number of execution attempt
 COMMENT ON COLUMN public.discovery_jobs.last_error IS 'Last error message if job failed';
 
 
+
+

@@ -1,4 +1,5 @@
 import AdminLocationsTable from "@/components/admin/AdminLocationsTable";
+import NewsAIDiagnosticsPanel from "@/components/admin/NewsAIDiagnosticsPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -75,6 +76,7 @@ export default function AdminHomePage() {
                             <TabsTrigger value="metrics">Metrics</TabsTrigger>
                             <TabsTrigger value="workers">Workers</TabsTrigger>
                             <TabsTrigger value="tasks">Tasks</TabsTrigger>
+                            <TabsTrigger value="news-ai">News AI Logs</TabsTrigger>
                             <TabsTrigger value="coverage">Discovery Coverage</TabsTrigger>
                             <TabsTrigger value="ai-policy">AI Policy</TabsTrigger>
                             <TabsTrigger value="audit">Audit Log (coming soon)</TabsTrigger>
@@ -102,6 +104,9 @@ export default function AdminHomePage() {
                                 <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading tasks…</div>}>
                                     <TasksPanel />
                                 </Suspense>
+                            </TabsContent>
+                            <TabsContent value="news-ai">
+                                <NewsAIDiagnosticsPanel />
                             </TabsContent>
                             <TabsContent value="coverage">
                                 <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading coverage visualization…</div>}>

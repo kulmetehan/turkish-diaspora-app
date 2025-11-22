@@ -82,6 +82,35 @@ class Discovery(BaseModel):
     new_candidates_per_week: int
 
 
+class NewsTrendingMetrics(BaseModel):
+    window_hours: int
+    eligible_count: int
+    sample_titles: List[str] = Field(default_factory=list)
+
+
+class NewsPerDayItem(BaseModel):
+    date: date
+    count: int
+
+
+class NewsLabelCount(BaseModel):
+    label: str
+    count: int
+
+
+class NewsErrorMetrics(BaseModel):
+    ingest_errors_last_24h: int
+    classify_errors_last_24h: int
+    pending_items_last_24h: int
+
+
+class NewsMetricsSnapshot(BaseModel):
+    items_per_day_last_7d: List[NewsPerDayItem] = Field(default_factory=list)
+    items_by_source_last_24h: List[NewsLabelCount] = Field(default_factory=list)
+    items_by_feed_last_24h: List[NewsLabelCount] = Field(default_factory=list)
+    errors: NewsErrorMetrics
+
+
 class StaleCandidates(BaseModel):
     """Metrics for stale CANDIDATE records (older than threshold days)."""
     total_stale: int
@@ -130,6 +159,7 @@ class MetricsSnapshot(BaseModel):
     city_progress: CityProgress
     quality: Quality
     discovery: Discovery
+    news_trending: Optional[NewsTrendingMetrics] = None
     latency: Latency
     weekly_candidates: Optional[List[WeeklyCandidatesItem]] = None
     workers: List[WorkerStatus] = Field(default_factory=list)

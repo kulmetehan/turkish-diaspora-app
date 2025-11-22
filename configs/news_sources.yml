@@ -1,0 +1,96 @@
+# Turkish Diaspora App – News Sources Config
+# Generated: 2025-11-21
+# Description: Central registry for RSS/news feeds used by the diaspora news layer.
+# Encoding: UTF-8
+
+version: 1
+notes:
+  - "All feeds are curated for relevance to Turkish communities in NL and abroad."
+  - "Update this file to add/remove feeds without touching code."
+defaults:
+  language: "nl"
+  refresh_minutes: 30
+
+sources:
+  # NL Local (Rotterdam + nearby)
+  - name: "Rijnmond – Algemeen"
+    url: "https://www.rijnmond.nl/rss"
+    language: "nl"
+    category: "nl_local"
+    region: "rotterdam"
+    license: "proprietary-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - name: "AD Rotterdam"
+    url: "https://www.ad.nl/rotterdam/rss.xml"
+    language: "nl"
+    category: "nl_local"
+    region: "rotterdam"
+    license: "dpg-media-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+
+  # NL National
+  - name: "NOS – Algemeen Nieuws"
+    url: "https://feeds.nos.nl/nosnieuwsalgemeen"
+    language: "nl"
+    category: "nl_national"
+    license: "nos-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - name: "NU.nl – Algemeen"
+    url: "https://www.nu.nl/rss/Algemeen"
+    language: "nl"
+    category: "nl_national"
+    license: "nu-nl-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+
+  # TR National
+  - name: "TRT Haber – Türkiye"
+    url: "https://www.trthaber.com/xml_mobile.php"
+    language: "tr"
+    category: "tr_national"
+    license: "trt-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - name: "Anadolu Ajansı – Son Dakika"
+    url: "https://www.aa.com.tr/tr/rss/default?cat=guncel"
+    language: "tr"
+    category: "tr_national"
+    license: "aa-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+
+  # International coverage
+  - name: "BBC World – International"
+    url: "http://feeds.bbci.co.uk/news/world/rss.xml"
+    language: "en"
+    category: "international"
+    license: "bbc-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - name: "Reuters World News"
+    url: "https://feeds.reuters.com/Reuters/worldNews"
+    language: "en"
+    category: "international"
+    license: "reuters-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+
+  # Geopolitics
+  - name: "Al Jazeera – Global Politics"
+    url: "https://www.aljazeera.com/xml/rss/all.xml"
+    language: "en"
+    category: "geopolitiek"
+    license: "aljazeera-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - name: "Politico Europe – World & Security"
+    url: "https://www.politico.eu/feed/"
+    language: "en"
+    category: "geopolitiek"
+    license: "politico-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+

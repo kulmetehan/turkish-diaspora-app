@@ -8,7 +8,9 @@ from typing import Any, Dict, List, Optional, Tuple, Callable, Awaitable
 import asyncpg
 import yaml
 
-from services.db_service import fetch
+from services.db_service import fetch, fetchrow
+from services.ai_config_service import get_ai_config, initialize_ai_config
+from services.news_feed_rules import FeedThresholds, FeedType, is_in_feed, thresholds_from_config
 from app.models.metrics import (
     CategoryHealth,
     CategoryHealthResponse,
@@ -20,6 +22,11 @@ from app.models.metrics import (
     LocationStateBucket,
     LocationStateMetrics,
     MetricsSnapshot,
+    NewsErrorMetrics,
+    NewsLabelCount,
+    NewsMetricsSnapshot,
+    NewsPerDayItem,
+    NewsTrendingMetrics,
     Quality,
     StaleCandidates,
     WeeklyCandidatesItem,
@@ -30,6 +37,7 @@ from app.models.metrics import (
 from app.core.location_filters import get_verified_filter_sql
 from app.core.logging import get_logger
 from app.models.categories import get_discoverable_categories
+from services.news_service import TRENDING_WINDOW_HOURS, list_trending_news
 
 # Import load_cities_config from discovery_bot
 try:
@@ -53,6 +61,7 @@ VERIFICATION_CONSUMER_STALE_HOURS = 2
 MONITOR_STALE_HOURS = 6
 ALERT_ERR_RATE_THRESHOLD = 0.10
 ALERT_GOOGLE_THRESHOLD = 5
+NEWS_TRENDING_SAMPLE_LIMIT = 3
 
 # Category Health thresholds for Turkish-first strategy
 CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD = 5.0
@@ -62,6 +71,26 @@ CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD = 15.0
 CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD = 25.0
 
 logger = get_logger()
+
+
+async def _news_trending_metrics(
+    limit: int = NEWS_TRENDING_SAMPLE_LIMIT,
+) -> Optional[NewsTrendingMetrics]:
+    try:
+        items, total = await list_trending_news(
+            limit=limit,
+            offset=0,
+            window_hours=TRENDING_WINDOW_HOURS,
+        )
+    except Exception as exc:
+        logger.warning("news_trending_metrics_failed", error=str(exc))
+        return None
+
+    return NewsTrendingMetrics(
+        window_hours=TRENDING_WINDOW_HOURS,
+        eligible_count=total,
+        sample_titles=[item.title for item in items],
+    )
 
 
 def _compute_city_bbox(city_key: str) -> Optional[Tuple[float, float, float, float]]:
@@ -328,6 +357,161 @@ async def _weekly_candidates_series(weeks: int = 8) -> List[WeeklyCandidatesItem
         d = dict(r)
         items.append(WeeklyCandidatesItem(week_start=d["week_start"], count=int(d["count"])) )
     return items
+
+
+async def _news_ingest_daily_series(days: int = 7) -> List[NewsPerDayItem]:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=int(days))
+    sql = """
+        SELECT
+            date_trunc('day', published_at)::date AS day,
+            COUNT(*)::int AS count
+        FROM raw_ingested_news
+        WHERE published_at >= $1
+          AND processing_state = 'classified'
+        GROUP BY day
+        ORDER BY day ASC
+    """
+    rows = await fetch(sql, cutoff)
+    return [
+        NewsPerDayItem(
+            date=row["day"],
+            count=int(row["count"] or 0),
+        )
+        for row in rows or []
+    ]
+
+
+async def _news_ingest_by_source(window_hours: int = 24) -> List[NewsLabelCount]:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=int(window_hours))
+    sql = """
+        SELECT
+            COALESCE(NULLIF(source_name, ''), source_key) AS label,
+            COUNT(*)::int AS count
+        FROM raw_ingested_news
+        WHERE published_at >= $1
+          AND processing_state = 'classified'
+        GROUP BY label
+        ORDER BY count DESC, label ASC
+    """
+    rows = await fetch(sql, cutoff)
+    return [
+        NewsLabelCount(
+            label=str(row["label"] or "unknown"),
+            count=int(row["count"] or 0),
+        )
+        for row in rows or []
+    ]
+
+
+async def _news_error_metrics(window_hours: int = 24) -> NewsErrorMetrics:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=int(window_hours))
+    sql_states = """
+        SELECT
+            COUNT(*) FILTER (WHERE processing_state = 'error_ai')::int AS error_ai_count,
+            COUNT(*) FILTER (WHERE processing_state = 'pending')::int AS pending_count
+        FROM raw_ingested_news
+        WHERE created_at >= $1
+    """
+    state_row = await fetchrow(sql_states, cutoff) or {}
+    ingest_errors = int(state_row.get("error_ai_count") or 0)
+    pending = int(state_row.get("pending_count") or 0)
+
+    sql_logs = """
+        SELECT COUNT(*)::int AS count
+        FROM ai_logs
+        WHERE created_at >= $1
+          AND action_type = 'news.classify'
+          AND (
+                COALESCE(is_success, true) = false
+             OR error_message IS NOT NULL
+          )
+    """
+    log_row = await fetchrow(sql_logs, cutoff) or {}
+    classify_errors = int(log_row.get("count") or 0)
+
+    return NewsErrorMetrics(
+        ingest_errors_last_24h=ingest_errors,
+        classify_errors_last_24h=classify_errors,
+        pending_items_last_24h=pending,
+    )
+
+
+async def _load_news_feed_thresholds() -> FeedThresholds:
+    config = await get_ai_config()
+    if not config:
+        config = await initialize_ai_config()
+    return thresholds_from_config(config)
+
+
+async def _load_news_source_meta(source_keys: List[str]) -> Dict[str, Dict[str, Any]]:
+    if not source_keys:
+        return {}
+    sql = """
+        SELECT
+            source_key,
+            source_name,
+            category,
+            language,
+            region
+        FROM news_source_state
+        WHERE source_key = ANY($1::text[])
+    """
+    rows = await fetch(sql, source_keys)
+    return {
+        str(row["source_key"]): {
+            "source_name": row.get("source_name"),
+            "category": row.get("category"),
+            "language": row.get("language"),
+            "region": row.get("region"),
+        }
+        for row in rows or []
+    }
+
+
+async def _news_feed_distribution(window_hours: int = 24) -> List[NewsLabelCount]:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=int(window_hours))
+    sql = """
+        SELECT
+            source_key,
+            category,
+            language,
+            location_tag,
+            relevance_diaspora,
+            relevance_nl,
+            relevance_tr,
+            relevance_geo
+        FROM raw_ingested_news
+        WHERE published_at >= $1
+          AND processing_state = 'classified'
+    """
+    rows = await fetch(sql, cutoff)
+    if not rows:
+        return [
+            NewsLabelCount(label=feed.value, count=0)
+            for feed in FeedType
+        ]
+
+    records = [dict(row) for row in rows]
+    source_keys = sorted(
+        {rec.get("source_key") for rec in records if rec.get("source_key")}
+    )
+    source_meta = await _load_news_source_meta(source_keys)
+    thresholds = await _load_news_feed_thresholds()
+
+    counts: Dict[FeedType, int] = {feed: 0 for feed in FeedType}
+    for rec in records:
+        source_key = rec.get("source_key")
+        meta = source_meta.get(source_key) or {}
+        for feed in FeedType:
+            if is_in_feed(feed, rec, meta, thresholds):
+                counts[feed] += 1
+
+    result = [
+        NewsLabelCount(label=feed.value, count=counts[feed])
+        for feed in FeedType
+    ]
+    result.sort(key=lambda item: item.count, reverse=True)
+    return result
 
 
 async def _city_progress(city_key: str) -> Optional[CityProgressData]:
@@ -1406,6 +1590,8 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
                 growth_weekly=rot.growth_weekly,
             )
 
+    news_trending_metrics = await _news_trending_metrics()
+
     workers = await _worker_statuses(err_rate, g429)
     current_runs = await _active_worker_runs()
     
@@ -1426,11 +1612,32 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
             google429_last60m=g429,
         ),
         discovery=Discovery(new_candidates_per_week=latest_count),
+        news_trending=news_trending_metrics,
         latency=Latency(p50_ms=p50, avg_ms=avg, max_ms=mx),
         weekly_candidates=weekly,
         workers=workers,
         current_runs=current_runs,
         stale_candidates=stale_candidates,
+    )
+
+
+async def generate_news_metrics_snapshot(
+    days: int = 7,
+    window_hours: int = 24,
+) -> NewsMetricsSnapshot:
+    """
+    Build a news-specific metrics snapshot without altering the main MetricsSnapshot payload.
+    """
+    daily_series = await _news_ingest_daily_series(days=days)
+    by_source = await _news_ingest_by_source(window_hours=window_hours)
+    by_feed = await _news_feed_distribution(window_hours=window_hours)
+    errors = await _news_error_metrics(window_hours=window_hours)
+
+    return NewsMetricsSnapshot(
+        items_per_day_last_7d=daily_series,
+        items_by_source_last_24h=by_source,
+        items_by_feed_last_24h=by_feed,
+        errors=errors,
     )
 
 

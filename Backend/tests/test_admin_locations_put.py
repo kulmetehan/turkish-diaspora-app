@@ -3,13 +3,14 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 import pytest
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 
 from app.deps.admin_auth import AdminUser, verify_admin_user
 from app.main import app
 from services.db_service import execute, fetchrow
 
-pytestmark = pytest.mark.asyncio
+pytestmark = pytest.mark.asyncio(loop_scope="module")
 
 
 async def _insert_location(
@@ -50,18 +51,20 @@ async def _fetch_location(location_id: int) -> Dict[str, Any] | None:
     return dict(row) if row else None
 
 
-@pytest.fixture(autouse=True)
+@pytest_asyncio.fixture(autouse=True, scope="module")
 async def cleanup_locations() -> List[int]:
     created: List[int] = []
-    yield created
-    if created:
-        await execute(
-            "DELETE FROM locations WHERE id = ANY($1::bigint[])",
-            created,
-        )
+    try:
+        yield created
+    finally:
+        if created:
+            await execute(
+                "DELETE FROM locations WHERE id = ANY($1::bigint[])",
+                created,
+            )
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def admin_client(cleanup_locations: List[int]):  # noqa: D401
     """HTTP client with admin auth override applied."""
 
@@ -69,7 +72,8 @@ async def admin_client(cleanup_locations: List[int]):  # noqa: D401
         return AdminUser(email="admin@test.local")
 
     app.dependency_overrides[verify_admin_user] = _override
-    async with AsyncClient(app=app, base_url="http://testserver") as client:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
     app.dependency_overrides.pop(verify_admin_user, None)
 
@@ -128,6 +132,8 @@ async def test_put_verify_retired_with_force_promotes(
     assert refreshed["is_retired"] is False
     assert refreshed["last_verified_at"] is not None
     assert float(refreshed["confidence_score"]) >= 0.9
+
+
 
 
 

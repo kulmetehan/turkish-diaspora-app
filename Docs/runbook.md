@@ -121,8 +121,9 @@ Refer to [`Docs/worker-runs.md`](./worker-runs.md) for run-tracking conventions 
 | `tda_alert.yml` | `*/5 * * * *` | Alert thresholds (error/429). | `DATABASE_URL`, alert webhook/channel. |
 | `tda_cleanup.yml` | `0 4 * * *` | Housekeeping / backlog cleanup. | `DATABASE_URL`. |
 | `frontend_deploy.yml` | On `main` push | Builds + deploys GitHub Pages site. | `VITE_*` secrets, `MAPBOX` token, GH Pages deploy key. |
+| `tda_news_ingest.yml` | `*/30 * * * *` | `python -m app.workers.news_ingest_bot` | `DATABASE_URL`. |
 
-Render cron jobs (if configured) should mirror the same commands/secrets as above. Keep `.env.template` synchronized so Service → Worker → GitHub Actions share names.
+Render cron jobs (if configured) should mirror the same commands/secrets as above. Keep `.env.template` synchronized so Service → Worker → GitHub Actions share names. For NewsIngestBot specifically, create a Render cron task (or background worker) that runs `python -m app.workers.news_ingest_bot` with `DATABASE_URL` (and optional `NEWS_INGEST_*` overrides) in the worker environment.
 
 ## 5. Observability
 

@@ -79,6 +79,13 @@ These values control `OsmPlacesService` and `discovery_bot`. Adjust only if you 
 | Monitor bot | `MONITOR_MAX_PER_RUN`, `MONITOR_BOOTSTRAP_BATCH` | Batch sizes for freshness checks and bootstrap runs. |
 | Alert bot | `ALERT_CHECK_INTERVAL_SECONDS`, `ALERT_ERR_RATE_THRESHOLD`, `ALERT_ERR_RATE_WINDOW_MINUTES`, `ALERT_GOOGLE429_THRESHOLD`, `ALERT_GOOGLE429_WINDOW_MINUTES`, `ALERT_WEBHOOK_URL`, `ALERT_CHANNEL`, `ALERT_RUN_ONCE` | Tune the alert cadence and thresholds. Supply webhook/channel when sending notifications to Slack or another service. |
 
+### News ingest settings
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `NEWS_INGEST_TIMEOUT_S` | `15` | HTTP timeout for RSS downloads. Raise cautiously if large feeds frequently time out. |
+| `NEWS_INGEST_MAX_CONCURRENCY` | `5` | Max concurrent RSS requests. Keep low to avoid hammering publishers; Render cron and GitHub Actions share the same limit. |
+
 ## Frontend (Vite) Variables
 
 Create `Frontend/.env.development` (or `.env.production`) when you need to override defaults:

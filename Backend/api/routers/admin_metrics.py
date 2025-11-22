@@ -2,8 +2,18 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.models.metrics import CategoryHealthResponse, LocationStateMetrics, MetricsSnapshot
-from app.services.metrics_service import category_health_metrics, generate_metrics_snapshot, location_state_metrics
+from app.models.metrics import (
+    CategoryHealthResponse,
+    LocationStateMetrics,
+    MetricsSnapshot,
+    NewsMetricsSnapshot,
+)
+from app.services.metrics_service import (
+    category_health_metrics,
+    generate_metrics_snapshot,
+    generate_news_metrics_snapshot,
+    location_state_metrics,
+)
 
 
 router = APIRouter(
@@ -41,5 +51,19 @@ async def get_location_state_metrics() -> LocationStateMetrics:
     - Count per state: CANDIDATE, PENDING_VERIFICATION, VERIFIED, RETIRED, SUSPENDED
     """
     return await location_state_metrics()
+
+
+@router.get("/news", response_model=NewsMetricsSnapshot)
+async def get_news_metrics_snapshot() -> NewsMetricsSnapshot:
+    """
+    Returns ingest, feed distribution, and error stats for the news pipeline.
+    
+    Includes:
+    - Items per day (last 7 days)
+    - Items by source (last 24h)
+    - Items by feed (last 24h)
+    - Error counters for ingest/classification
+    """
+    return await generate_news_metrics_snapshot()
 
 

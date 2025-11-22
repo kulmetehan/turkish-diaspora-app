@@ -57,3 +57,5 @@ async def get_categories(discoverable_only: bool = False) -> List[CategoryRespon
     return [CategoryResponse.from_metadata(cat) for cat in categories]
 
 
+
+

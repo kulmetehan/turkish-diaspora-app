@@ -1,0 +1,59 @@
+version: 1
+notes:
+  - "Central registry for NL/TR city aliases used by the news location intelligence layer."
+  - "Only lowercase aliases are required; accents are optional but recommended."
+nl:
+  - city_key: rotterdam
+    city_name: "Rotterdam"
+    aliases:
+      - rotterdam
+      - "r'dam"
+      - rdam
+  - city_key: amsterdam
+    city_name: "Amsterdam"
+    aliases:
+      - amsterdam
+      - "amstelveen"  # intentionally separate alias for broader metro coverage
+  - city_key: den_haag
+    city_name: "Den Haag"
+    aliases:
+      - den haag
+      - the hague
+      - s-gravenhage
+  - city_key: utrecht
+    city_name: "Utrecht"
+    aliases:
+      - utrecht
+      - domstad
+  - city_key: rotterdam_south
+    city_name: "Rotterdam-Zuid"
+    aliases:
+      - rotterdam zuid
+      - zuidplein
+tr:
+  - city_key: istanbul
+    city_name: "İstanbul"
+    aliases:
+      - istanbul
+      - "istanbulu"
+      - constantinople
+  - city_key: ankara
+    city_name: "Ankara"
+    aliases:
+      - ankara
+      - angora
+  - city_key: izmir
+    city_name: "İzmir"
+    aliases:
+      - izmir
+      - smyrna
+  - city_key: bursa
+    city_name: "Bursa"
+    aliases:
+      - bursa
+  - city_key: gaziantep
+    city_name: "Gaziantep"
+    aliases:
+      - gaziantep
+      - antep
+

@@ -273,6 +273,7 @@ export async function getWorkerRunDetail(runId: string): Promise<WorkerRunDetail
 export type AILogItem = {
     id: number;
     location_id?: number | null;
+    news_id?: number | null;
     action_type: string;
     model_used?: string | null;
     confidence_score?: number | null;
@@ -282,6 +283,8 @@ export type AILogItem = {
     is_success: boolean;
     error_message?: string | null;
     explanation: string;
+    news_source_key?: string | null;
+    news_source_name?: string | null;
 };
 
 export type AILogsResponse = {
@@ -291,20 +294,49 @@ export type AILogsResponse = {
     offset: number;
 };
 
+export type AILogDetail = {
+    id: number;
+    location_id?: number | null;
+    news_id?: number | null;
+    action_type: string;
+    model_used?: string | null;
+    prompt?: Record<string, unknown> | string | null;
+    raw_response?: Record<string, unknown> | string | null;
+    validated_output?: Record<string, unknown> | string | null;
+    is_success: boolean;
+    error_message?: string | null;
+    created_at: string;
+    news_source_key?: string | null;
+    news_source_name?: string | null;
+    news_title?: string | null;
+};
+
 export async function listAILogs(params?: {
     location_id?: number;
     action_type?: string;
     since?: string;
     limit?: number;
     offset?: number;
+    news_only?: boolean;
+    news_id?: number;
+    source_key?: string;
+    source_name?: string;
 }): Promise<AILogsResponse> {
     const q = new URLSearchParams();
     if (params?.location_id != null) q.set("location_id", String(params.location_id));
     if (params?.action_type) q.set("action_type", params.action_type);
     if (params?.since) q.set("since", params.since);
+    if (params?.news_only !== undefined) q.set("news_only", String(params.news_only));
+    if (params?.news_id != null) q.set("news_id", String(params.news_id));
+    if (params?.source_key) q.set("source_key", params.source_key);
+    if (params?.source_name) q.set("source_name", params.source_name);
     q.set("limit", String(params?.limit ?? 20));
     q.set("offset", String(params?.offset ?? 0));
     return authFetch<AILogsResponse>(`/api/v1/admin/ai/logs?${q.toString()}`);
+}
+
+export async function getAILogDetail(id: number): Promise<AILogDetail> {
+    return authFetch<AILogDetail>(`/api/v1/admin/ai/logs/${id}`);
 }
 
 // --- Tasks ---
