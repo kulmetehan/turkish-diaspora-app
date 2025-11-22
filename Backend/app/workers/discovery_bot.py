@@ -104,6 +104,50 @@ def deg_lat_to_m(deg: float) -> float:
 def deg_lng_to_m(deg: float, at_lat_deg: float) -> float:
     return deg * math.pi / 180.0 * EARTH_RADIUS_M * math.cos(math.radians(at_lat_deg))
 
+DEFAULT_DISTRICT_LAT_DELTA = 0.01
+DEFAULT_DISTRICT_LNG_DELTA = 0.015
+
+def resolve_district_bbox(city_key: str, district_key: str, district_def: Dict[str, Any]) -> Tuple[float, float, float, float]:
+    """
+    Return (lat_min, lat_max, lng_min, lng_max) for a district definition.
+    Falls back to center lat/lng if full bbox is missing.
+    """
+    required_keys = ("lat_min", "lat_max", "lng_min", "lng_max")
+    if all(k in district_def for k in required_keys):
+        return (
+            float(district_def["lat_min"]),
+            float(district_def["lat_max"]),
+            float(district_def["lng_min"]),
+            float(district_def["lng_max"]),
+        )
+    
+    lat = district_def.get("lat") or district_def.get("center_lat")
+    lng = district_def.get("lng") or district_def.get("center_lng")
+    if lat is None or lng is None:
+        raise ValueError(
+            f"District '{district_key}' in city '{city_key}' missing bbox and center coordinates."
+        )
+    
+    lat_delta = float(district_def.get("lat_delta", DEFAULT_DISTRICT_LAT_DELTA))
+    lng_delta = float(district_def.get("lng_delta", DEFAULT_DISTRICT_LNG_DELTA))
+    lat_min = float(lat) - lat_delta
+    lat_max = float(lat) + lat_delta
+    lng_min = float(lng) - lng_delta
+    lng_max = float(lng) + lng_delta
+    
+    logger.warning(
+        "district_bbox_missing_using_fallback",
+        city=city_key,
+        district=district_key,
+        lat_min=lat_min,
+        lat_max=lat_max,
+        lng_min=lng_min,
+        lng_max=lng_max,
+        lat_delta=lat_delta,
+        lng_delta=lng_delta,
+    )
+    return lat_min, lat_max, lng_min, lng_max
+
 def generate_grid_points(center_lat: float, center_lng: float, grid_span_km: float, cell_spacing_m: int) -> List[Tuple[float, float]]:
     half_span_m = grid_span_km * 1000
     lat_step = meters_to_lat_deg(cell_spacing_m)
@@ -711,8 +755,7 @@ def build_config(ns: argparse.Namespace, yml: Dict[str, Any]) -> DiscoveryConfig
         d = (city_def["districts"] or {}).get(district)
         if not d:
             raise ValueError(f"cities.yml: district '{district}' niet gevonden voor stad '{city}'.")
-        lat_min, lat_max = float(d["lat_min"]), float(d["lat_max"])
-        lng_min, lng_max = float(d["lng_min"]), float(d["lng_max"])
+        lat_min, lat_max, lng_min, lng_max = resolve_district_bbox(city, district, d)
         center_lat = (lat_min + lat_max) / 2.0
         center_lng = (lng_min + lng_max) / 2.0
         # span = max(latspan, lngspan) in km
@@ -787,8 +830,7 @@ async def run_discovery_job(
         if not districts or district_key not in districts:
             raise ValueError(f"District '{district_key}' not found for city '{city_key}'")
         d = districts[district_key]
-        lat_min, lat_max = float(d["lat_min"]), float(d["lat_max"])
-        lng_min, lng_max = float(d["lng_min"]), float(d["lng_max"])
+        lat_min, lat_max, lng_min, lng_max = resolve_district_bbox(city_key, district_key, d)
         center_lat = (lat_min + lat_max) / 2.0
         center_lng = (lng_min + lng_max) / 2.0
         # Compute grid span from district bbox
