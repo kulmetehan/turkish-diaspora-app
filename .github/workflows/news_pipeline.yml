@@ -43,5 +43,5 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python -m app.workers.news_classify_worker
+          python -m app.workers.news_classify_bot
 
