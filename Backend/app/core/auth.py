@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from fastapi import HTTPException, Request
 import jwt  # type: ignore
 
-from app.config import settings
+from app.config import require_allowed_admin_emails, require_supabase_jwt
 from app.core.logging import logger
 
 
@@ -25,7 +25,11 @@ async def verify_admin_user(request: Request) -> AdminUser:
     token = auth_header.split(" ", 1)[1].strip()
 
     try:
-        payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"])  # type: ignore[arg-type]
+        payload = jwt.decode(
+            token,
+            require_supabase_jwt(),
+            algorithms=["HS256"],
+        )  # type: ignore[arg-type]
     except jwt.ExpiredSignatureError:  # type: ignore[attr-defined]
         logger.info("auth_token_expired")
         raise HTTPException(status_code=401, detail="token expired")
@@ -38,8 +42,7 @@ async def verify_admin_user(request: Request) -> AdminUser:
         logger.info("auth_email_missing")
         raise HTTPException(status_code=401, detail="email missing in token")
 
-    allow_csv = settings.ALLOWED_ADMIN_EMAILS
-    allowed = {e.strip().lower() for e in allow_csv.split(",") if e.strip()}
+    allowed = set(require_allowed_admin_emails())
     if email.lower() not in allowed:
         logger.info("auth_email_forbidden", email=email)
         raise HTTPException(status_code=403, detail="forbidden")
