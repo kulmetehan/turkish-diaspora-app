@@ -163,41 +163,57 @@ cities:
     center_lng: 4.3007
     districts:
       centrum:
-        lat: 52.079984
-        lng: 4.311346
+        lat_min: 52.0650
+        lat_max: 52.0900
+        lng_min: 4.2900
+        lng_max: 4.3350
         apply: *rotterdam_defaults
 
       escamp:
-        lat: 52.044234
-        lng: 4.281284
+        lat_min: 52.0300
+        lat_max: 52.0600
+        lng_min: 4.2550
+        lng_max: 4.3050
         apply: *rotterdam_defaults
 
       haagse_hout:
-        lat: 52.092291
-        lng: 4.330432
+        lat_min: 52.0800
+        lat_max: 52.1100
+        lng_min: 4.3050
+        lng_max: 4.3600
         apply: *rotterdam_defaults
 
       laak:
-        lat: 52.063162
-        lng: 4.321460
+        lat_min: 52.0500
+        lat_max: 52.0800
+        lng_min: 4.3000
+        lng_max: 4.3450
         apply: *rotterdam_defaults
 
       ypenburg:
-        lat: 52.041460
-        lng: 4.368883
+        lat_min: 52.0250
+        lat_max: 52.0550
+        lng_min: 4.3400
+        lng_max: 4.3950
         apply: *rotterdam_defaults
 
       loosduinen:
-        lat: 52.053157
-        lng: 4.234829
+        lat_min: 52.0350
+        lat_max: 52.0700
+        lng_min: 4.2050
+        lng_max: 4.2650
         apply: *rotterdam_defaults
 
       scheveningen:
-        lat: 52.106745
-        lng: 4.273694
+        lat_min: 52.0950
+        lat_max: 52.1300
+        lng_min: 4.2400
+        lng_max: 4.3000
         apply: *rotterdam_defaults
 
       segbroek:
-        lat: 52.077009
-        lng: 4.267409
+        lat_min: 52.0650
+        lat_max: 52.0950
+        lng_min: 4.2450
+        lng_max: 4.2950
         apply: *rotterdam_defaults
