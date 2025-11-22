@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import EmailStr, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Absoluut pad naar jouw .env (staat in Backend/.env)
@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-4.1-mini"
 
     # ---- Admin Auth (Supabase) ----
-    SUPABASE_JWT_SECRET: str
-    ALLOWED_ADMIN_EMAILS: str
+    SUPABASE_JWT_SECRET: Optional[str] = Field(
+        default_factory=lambda: os.getenv("SUPABASE_JWT_SECRET")
+    )
+    ALLOWED_ADMIN_EMAILS: List[EmailStr] = Field(default_factory=list)
 
     # Pydantic v2 configuratie
     model_config = SettingsConfigDict(
@@ -55,3 +57,40 @@ def require_openai() -> None:
             "OPENAI_API_KEY ontbreekt. Controleer Backend/.env "
             f"(geprobeerd te laden vanaf: {ENV_FILE})."
         )
+
+
+def require_supabase_jwt() -> str:
+    """
+    Verifieer dat SUPABASE_JWT_SECRET aanwezig is wanneer auth dit nodig heeft.
+    """
+    secret = settings.SUPABASE_JWT_SECRET
+    if not secret:
+        raise RuntimeError(
+            "SUPABASE_JWT_SECRET ontbreekt. Zet deze in Backend/.env "
+            f"(geprobeerd te laden vanaf: {ENV_FILE})."
+        )
+    return secret
+
+
+def get_allowed_admin_emails() -> list[str]:
+    """
+    Geef de geparste admin allowlist terug (lowercase, zonder lege waarden).
+    """
+    return [
+        str(email).strip().lower()
+        for email in settings.ALLOWED_ADMIN_EMAILS
+        if str(email).strip()
+    ]
+
+
+def require_allowed_admin_emails() -> list[str]:
+    """
+    Zorg dat admin flows enkel doorgaan als er minstens één e-mailadres is geconfigureerd.
+    """
+    allowed = get_allowed_admin_emails()
+    if not allowed:
+        raise RuntimeError(
+            "ALLOWED_ADMIN_EMAILS ontbreekt of is leeg. Voeg minstens één admin e-mail toe "
+            f"in Backend/.env (bron: {ENV_FILE})."
+        )
+    return allowed

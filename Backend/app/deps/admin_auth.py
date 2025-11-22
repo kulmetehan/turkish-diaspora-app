@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from typing import Optional
 
 import jwt  # type: ignore
@@ -8,6 +7,12 @@ from fastapi import Header, HTTPException
 
 from app.core.logging import logger
 from app.core.auth import AdminUser
+from app.config import (
+    get_allowed_admin_emails,
+    require_allowed_admin_emails,
+    require_supabase_jwt,
+    settings,
+)
 
 __all__ = ["AdminUser", "verify_admin_user"]
 
@@ -20,8 +25,8 @@ async def verify_admin_user(authorization: Optional[str] = Header(None)) -> Admi
     logger.info(
         "auth_debug_header",
         raw_auth_header=authorization,
-        allowed_admins=os.getenv("ALLOWED_ADMIN_EMAILS"),
-        has_secret=bool(os.getenv("SUPABASE_JWT_SECRET")),
+        allowed_admins=get_allowed_admin_emails(),
+        has_secret=bool(settings.SUPABASE_JWT_SECRET),
     )
 
     if not authorization or not str(authorization).startswith("Bearer "):
@@ -36,7 +41,7 @@ async def verify_admin_user(authorization: Optional[str] = Header(None)) -> Admi
         token_len=len(token_only) if token_only else 0,
     )
 
-    secret = os.getenv("SUPABASE_JWT_SECRET")
+    secret = require_supabase_jwt()
     try:
         # Supabase access tokens include an "aud": "authenticated".
         # Disable audience verification only; keep signature/expiry checks.
@@ -47,11 +52,7 @@ async def verify_admin_user(authorization: Optional[str] = Header(None)) -> Admi
             options={"verify_aud": False},
         )  # type: ignore[arg-type]
     except Exception as e:  # broad to log any decode failure
-        logger.info(
-            "auth_debug_decode_failed",
-            error=str(e),
-            has_secret=bool(secret),
-        )
+        logger.info("auth_debug_decode_failed", error=str(e), has_secret=bool(secret))
         raise HTTPException(status_code=401, detail="invalid token")
 
     logger.info(
@@ -66,8 +67,7 @@ async def verify_admin_user(authorization: Optional[str] = Header(None)) -> Admi
         logger.info("auth_email_missing")
         raise HTTPException(status_code=401, detail="email missing in token")
 
-    allow_csv = os.getenv("ALLOWED_ADMIN_EMAILS", "")
-    allowed = {e.strip().lower() for e in allow_csv.split(",") if e.strip()}
+    allowed = set(require_allowed_admin_emails())
     if email.lower() not in allowed:
         logger.info("auth_email_forbidden", email=email)
         raise HTTPException(status_code=403, detail="forbidden")
