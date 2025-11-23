@@ -157,3 +157,4 @@ async def test_generate_news_metrics_snapshot(monkeypatch):
     assert snapshot.items_by_feed_last_24h == sample_by_feed
     assert snapshot.errors == sample_errors
 
+

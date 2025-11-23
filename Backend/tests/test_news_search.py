@@ -45,3 +45,4 @@ async def test_news_search_happy_path(monkeypatch):
     assert payload["items"][0]["title"] == sample_item.title
     assert payload["items"][0]["tags"] == sample_item.tags
 
+

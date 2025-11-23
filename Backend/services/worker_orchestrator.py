@@ -76,6 +76,12 @@ async def start_worker_run(
             await _run_news_ingest(run_id)
         elif bot == "news_classify":
             await _run_news_classify(run_id)
+        elif bot == "event_scraper":
+            await _run_event_scraper(run_id)
+        elif bot == "event_enrichment":
+            await _run_event_enrichment(run_id)
+        elif bot == "event_normalization":
+            await _run_event_normalization(run_id)
         else:
             raise ValueError(f"Unknown bot: {bot}")
             
@@ -274,5 +280,38 @@ async def _run_news_classify(run_id: UUID) -> None:
     logger.info("starting_news_classify_bot", run_id=str(run_id))
 
     argv = ["news_classify_bot", "--worker-run-id", str(run_id)]
+    with mock_sys_argv(argv):
+        await main_async()
+
+
+async def _run_event_scraper(run_id: UUID) -> None:
+    """Run event_scraper_bot via CLI-compatible entrypoint."""
+    from app.workers.event_scraper_bot import main_async
+
+    logger.info("starting_event_scraper_bot", run_id=str(run_id))
+
+    argv = ["event_scraper_bot", "--worker-run-id", str(run_id)]
+    with mock_sys_argv(argv):
+        await main_async()
+
+
+async def _run_event_enrichment(run_id: UUID) -> None:
+    """Run event_enrichment_bot via CLI-compatible entrypoint."""
+    from app.workers.event_enrichment_bot import main_async
+
+    logger.info("starting_event_enrichment_bot", run_id=str(run_id))
+
+    argv = ["event_enrichment_bot", "--worker-run-id", str(run_id)]
+    with mock_sys_argv(argv):
+        await main_async()
+
+
+async def _run_event_normalization(run_id: UUID) -> None:
+    """Run event_normalization_bot via CLI-compatible entrypoint."""
+    from app.workers.event_normalization_bot import main_async
+
+    logger.info("starting_event_normalization_bot", run_id=str(run_id))
+
+    argv = ["event_normalization_bot", "--worker-run-id", str(run_id)]
     with mock_sys_argv(argv):
         await main_async()

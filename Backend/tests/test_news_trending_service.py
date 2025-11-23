@@ -64,3 +64,4 @@ async def test_list_trending_news_applies_thresholds(monkeypatch):
     assert items[0].tags == ["origin", "geo"]
 
 
+

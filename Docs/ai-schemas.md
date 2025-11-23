@@ -75,6 +75,23 @@ Defines the Pydantic models and helpers that unify AI inputs/outputs across clas
 
 Unified DTO for AI ↔ backend interactions. Includes geo point, contact info, categories, and optional enrichment fields.
 
+### `EventEnrichmentResult`
+
+```json
+{
+  "language_code": "tr",
+  "category_key": "community",
+  "summary": "Short natural-language description (<= 1k chars).",
+  "confidence_score": 0.84
+}
+```
+
+- Defined in `Backend/app/models/event_enrichment.py`.
+- Used by `EventEnrichmentService` + `event_enrichment_bot`.
+- `language_code` limited to `nl`, `tr`, `en`, `other`.
+- Categories normalized against `Infra/config/event_categories.yml` (defaults to `other`).
+- Every call logs `action_type="events.enrich"` with `event_raw_id` for auditing.
+
 ### Supporting models
 
 - `OpeningHours`, `Evidence`, `GeoPoint`, `ContactInfo`, `GoldRecord`, `AuditEvent`.

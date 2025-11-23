@@ -15,6 +15,8 @@ import { initTheme } from "@/lib/theme/darkMode";
 import { initI18n } from "@/i18n";
 const AdminHomePage = React.lazy(() => import("@/pages/AdminHomePage"));
 const AdminCitiesPage = React.lazy(() => import("@/pages/AdminCitiesPage"));
+const AdminEventSourcesPage = React.lazy(() => import("@/pages/admin/AdminEventSourcesPage"));
+const AdminEventsPage = React.lazy(() => import("@/pages/AdminEventsPage"));
 const WorkersDashboardPage = React.lazy(() => import("@/pages/WorkersDashboardPage"));
 const WorkerRunDetailPage = React.lazy(() => import("@/pages/WorkerRunDetailPage"));
 import LoginPage from "@/pages/LoginPage";
@@ -72,6 +74,20 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <RequireAdmin>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <WorkersDashboardPage />
+            </Suspense>
+          </RequireAdmin>
+        } />
+        <Route path="/admin/event-sources" element={
+          <RequireAdmin>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminEventSourcesPage />
+            </Suspense>
+          </RequireAdmin>
+        } />
+        <Route path="/admin/events" element={
+          <RequireAdmin>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminEventsPage />
             </Suspense>
           </RequireAdmin>
         } />

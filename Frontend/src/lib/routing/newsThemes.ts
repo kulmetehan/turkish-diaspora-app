@@ -90,3 +90,4 @@ export function subscribeToNewsThemesHashChange(callback: () => void): () => voi
   return () => window.removeEventListener("hashchange", callback);
 }
 
+

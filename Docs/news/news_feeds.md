@@ -47,3 +47,4 @@ PUT /admin/ai/config              # send partial updates
 Only send the fields you want to change. All thresholds are validated to stay
 between `0.0` and `1.0`, and changes are logged via `ai_config_service`.
 
+

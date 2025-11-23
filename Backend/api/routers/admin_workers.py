@@ -34,6 +34,9 @@ BOT_CHOICES = {
     "verification_consumer",
     "news_ingest",
     "news_classify",
+    "event_scraper",
+    "event_enrichment",
+    "event_normalization",
 }
 
 THIS_FILE = Path(__file__).resolve()

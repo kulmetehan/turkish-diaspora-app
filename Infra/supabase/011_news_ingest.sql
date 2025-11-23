@@ -56,3 +56,4 @@ CREATE INDEX IF NOT EXISTS raw_ingested_news_category_idx
 CREATE INDEX IF NOT EXISTS raw_ingested_news_processing_state_idx
     ON raw_ingested_news (processing_state);
 
+

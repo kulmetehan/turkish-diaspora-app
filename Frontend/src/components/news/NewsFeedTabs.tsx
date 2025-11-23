@@ -30,3 +30,4 @@ export function NewsFeedTabs({ value, onChange, className }: NewsFeedTabsProps) 
   );
 }
 
+

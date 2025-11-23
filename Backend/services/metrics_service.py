@@ -18,6 +18,12 @@ from app.models.metrics import (
     CityProgressData,
     CityProgressRotterdam,
     Discovery,
+    EventMetricsSnapshot,
+    EventPerDayItem,
+    EventEnrichmentMetrics,
+    EventDedupeMetrics,
+    EventCategoryBreakdown,
+    EventSourceStat,
     Latency,
     LocationStateBucket,
     LocationStateMetrics,
@@ -62,6 +68,7 @@ MONITOR_STALE_HOURS = 6
 ALERT_ERR_RATE_THRESHOLD = 0.10
 ALERT_GOOGLE_THRESHOLD = 5
 NEWS_TRENDING_SAMPLE_LIMIT = 3
+EVENT_CANDIDATE_ACTIVE_STATES: Tuple[str, ...] = ("candidate", "verified", "published")
 
 # Category Health thresholds for Turkish-first strategy
 CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD = 5.0
@@ -1618,6 +1625,174 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
         workers=workers,
         current_runs=current_runs,
         stale_candidates=stale_candidates,
+    )
+
+
+async def _event_daily_series(days: int = 7) -> List[EventPerDayItem]:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=int(days))
+    sql = """
+        SELECT
+            date_trunc('day', COALESCE(start_at, fetched_at))::date AS day,
+            COUNT(*)::int AS count
+        FROM event_raw
+        WHERE fetched_at >= $1
+        GROUP BY day
+        ORDER BY day ASC
+    """
+    rows = await fetch(sql, cutoff)
+    return [
+        EventPerDayItem(
+            date=row["day"],
+            count=int(row["count"] or 0),
+        )
+        for row in rows or []
+    ]
+
+
+async def _event_source_stats(window_hours: int = 24) -> List[EventSourceStat]:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=int(window_hours))
+    sql = """
+        WITH recent AS (
+            SELECT event_source_id, COUNT(*)::int AS count_last
+            FROM event_raw
+            WHERE fetched_at >= $1
+            GROUP BY event_source_id
+        ),
+        total AS (
+            SELECT event_source_id, COUNT(*)::int AS total_count
+            FROM event_raw
+            GROUP BY event_source_id
+        )
+        SELECT
+            es.id,
+            es.key,
+            es.name,
+            es.last_success_at,
+            es.last_error_at,
+            es.last_error,
+            COALESCE(recent.count_last, 0) AS events_last_24h,
+            COALESCE(total.total_count, 0) AS total_events
+        FROM event_sources es
+        LEFT JOIN recent ON recent.event_source_id = es.id
+        LEFT JOIN total ON total.event_source_id = es.id
+        ORDER BY events_last_24h DESC, es.name ASC
+    """
+    rows = await fetch(sql, cutoff)
+    return [
+        EventSourceStat(
+            source_id=int(row["id"]),
+            source_key=str(row["key"]),
+            source_name=str(row["name"]),
+            last_success_at=row.get("last_success_at"),
+            last_error_at=row.get("last_error_at"),
+            last_error=row.get("last_error"),
+            events_last_24h=int(row.get("events_last_24h") or 0),
+            total_events=int(row.get("total_events") or 0),
+        )
+        for row in rows or []
+    ]
+
+
+async def _total_events_last_30d(days: int = 30) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=int(days))
+    sql = """
+        SELECT COUNT(*)::int AS count
+        FROM event_raw
+        WHERE fetched_at >= $1
+    """
+    rows = await fetch(sql, cutoff)
+    return int(rows[0]["count"]) if rows else 0
+
+
+async def _event_enrichment_metrics() -> EventEnrichmentMetrics:
+    totals_sql = """
+        SELECT
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE processing_state = 'enriched')::int AS enriched,
+            COUNT(*) FILTER (WHERE processing_state = 'pending')::int AS pending,
+            COUNT(*) FILTER (WHERE processing_state = 'error')::int AS errors,
+            AVG(confidence_score) FILTER (
+                WHERE processing_state = 'enriched' AND confidence_score IS NOT NULL
+            ) AS avg_confidence
+        FROM event_raw
+    """
+    rows = await fetch(totals_sql)
+    totals = rows[0] if rows else {}
+
+    breakdown_sql = """
+        SELECT
+            COALESCE(NULLIF(category_key, ''), 'other') AS category_key,
+            COUNT(*)::int AS count
+        FROM event_raw
+        WHERE processing_state = 'enriched'
+        GROUP BY category_key
+        ORDER BY count DESC
+        LIMIT 10
+    """
+    category_rows = await fetch(breakdown_sql)
+    breakdown = [
+        EventCategoryBreakdown(
+            category_key=str(row["category_key"] or "other"),
+            count=int(row["count"] or 0),
+        )
+        for row in category_rows or []
+    ]
+
+    return EventEnrichmentMetrics(
+        total=int(totals.get("total") or 0),
+        enriched=int(totals.get("enriched") or 0),
+        pending=int(totals.get("pending") or 0),
+        errors=int(totals.get("errors") or 0),
+        avg_confidence_score=totals.get("avg_confidence"),
+        category_breakdown=breakdown,
+    )
+
+
+async def _event_dedupe_metrics(days: int = 7) -> EventDedupeMetrics:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=int(days))
+    row = await fetchrow(
+        """
+        SELECT
+            COUNT(*) FILTER (WHERE duplicate_of_id IS NULL) AS canonical_count,
+            COUNT(*) FILTER (WHERE duplicate_of_id IS NOT NULL) AS duplicate_count,
+            COUNT(*) FILTER (
+                WHERE duplicate_of_id IS NOT NULL AND updated_at >= $1
+            ) AS duplicates_recent
+        FROM events_candidate
+        WHERE state = ANY($2::text[])
+        """,
+        cutoff,
+        list(EVENT_CANDIDATE_ACTIVE_STATES),
+    )
+    canonical = int(row["canonical_count"]) if row else 0
+    duplicates = int(row["duplicate_count"]) if row else 0
+    duplicates_recent = int(row["duplicates_recent"]) if row else 0
+    total = canonical + duplicates
+    ratio = canonical / total if total else None
+    return EventDedupeMetrics(
+        canonical_events=canonical,
+        duplicate_events=duplicates,
+        duplicates_last_7d=duplicates_recent,
+        canonical_ratio=ratio,
+    )
+
+
+async def generate_event_metrics_snapshot(
+    days: int = 7,
+    window_hours: int = 24,
+) -> EventMetricsSnapshot:
+    daily_series = await _event_daily_series(days=days)
+    source_stats = await _event_source_stats(window_hours=window_hours)
+    total_events_last_30d = await _total_events_last_30d()
+    enrichment_metrics = await _event_enrichment_metrics()
+    dedupe_metrics = await _event_dedupe_metrics(days=days)
+
+    return EventMetricsSnapshot(
+        events_per_day_last_7d=daily_series,
+        sources=source_stats,
+        total_events_last_30d=total_events_last_30d,
+        enrichment=enrichment_metrics,
+        dedupe=dedupe_metrics,
     )
 
 
