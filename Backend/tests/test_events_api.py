@@ -1,13 +1,29 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import os
 from typing import Any, Dict, List, Tuple
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
+import dotenv
+
+os.environ.setdefault("DATABASE_URL", "postgresql://localhost/test")
+
+
+def _noop_load_dotenv(*args: Any, **kwargs: Any) -> bool:
+    return False
+
+
+dotenv.load_dotenv = _noop_load_dotenv  # type: ignore[assignment]
 
 from api.routers import events as events_router
 from app.models.events_public import EventItem
+
+events_test_app = FastAPI()
+events_test_app.include_router(events_router.router, prefix="/api/v1")
+client = TestClient(events_test_app)
 
 
 @pytest.mark.asyncio
@@ -138,4 +154,37 @@ async def test_get_events_invalid_date_range(monkeypatch: pytest.MonkeyPatch) ->
         )
     assert exc.value.status_code == 400
     assert "date_to" in exc.value.detail
+
+
+def test_get_events_endpoint_via_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = datetime.now(timezone.utc)
+    sample = EventItem(
+        id=42,
+        title="Community Brunch",
+        description="Delicious food and networking",
+        start_time_utc=now,
+        end_time_utc=None,
+        city_key="rotterdam",
+        category_key="community",
+        location_text="Central Rotterdam",
+        url="https://example.com/events/42",
+        source_key="sample_source",
+        summary_ai="Sample summary",
+        updated_at=now,
+    )
+
+    async def fake_list_public_events(**kwargs: Any) -> Tuple[List[EventItem], int]:
+        assert kwargs["limit"] == 20
+        assert kwargs["offset"] == 0
+        return [sample], 1
+
+    monkeypatch.setattr(events_router, "list_public_events", fake_list_public_events)
+
+    response = client.get("/api/v1/events?limit=20&offset=0")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 1
+    assert body["limit"] == 20
+    assert body["offset"] == 0
+    assert body["items"][0]["title"] == sample.title
 
