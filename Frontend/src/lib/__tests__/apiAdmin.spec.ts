@@ -1,7 +1,14 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 
 import { authFetch } from "@/lib/api";
-import { getAILogDetail, listAILogs } from "@/lib/apiAdmin";
+import {
+    getAILogDetail,
+    listAILogs,
+    listEventCandidatesAdmin,
+    publishEventCandidateAdmin,
+    rejectEventCandidateAdmin,
+    verifyEventCandidateAdmin,
+} from "@/lib/apiAdmin";
 
 vi.mock("@/lib/api", () => ({
     authFetch: vi.fn(),
@@ -40,4 +47,54 @@ describe("apiAdmin AI logs client", () => {
         expect(result).toBe(sample);
     });
 });
+
+describe("apiAdmin event candidates client", () => {
+    beforeEach(() => {
+        mockAuthFetch.mockReset();
+    });
+
+    it("serializes filters when listing event candidates", async () => {
+        mockAuthFetch.mockResolvedValue({ items: [], total: 0, limit: 50, offset: 0 });
+
+        await listEventCandidatesAdmin({
+            state: "candidate",
+            sourceKey: "rotterdam_culture",
+            search: "meet",
+            limit: 25,
+            offset: 50,
+        });
+
+        expect(mockAuthFetch).toHaveBeenCalledWith(
+            "/api/v1/admin/events/candidates?state=candidate&source_key=rotterdam_culture&search=meet&limit=25&offset=50",
+        );
+    });
+
+    it("posts to verify endpoint", async () => {
+        mockAuthFetch.mockResolvedValue({});
+        await verifyEventCandidateAdmin(5);
+        expect(mockAuthFetch).toHaveBeenCalledWith(
+            "/api/v1/admin/events/candidates/5/verify",
+            { method: "POST" },
+        );
+    });
+
+    it("posts to publish endpoint", async () => {
+        mockAuthFetch.mockResolvedValue({});
+        await publishEventCandidateAdmin(9);
+        expect(mockAuthFetch).toHaveBeenCalledWith(
+            "/api/v1/admin/events/candidates/9/publish",
+            { method: "POST" },
+        );
+    });
+
+    it("posts to reject endpoint", async () => {
+        mockAuthFetch.mockResolvedValue({});
+        await rejectEventCandidateAdmin(2);
+        expect(mockAuthFetch).toHaveBeenCalledWith(
+            "/api/v1/admin/events/candidates/2/reject",
+            { method: "POST" },
+        );
+    });
+});
+
 

@@ -21,3 +21,4 @@ def test_admin_news_metrics_endpoint_structure():
         assert "classify_errors_last_24h" in errors
         assert "pending_items_last_24h" in errors
 
+

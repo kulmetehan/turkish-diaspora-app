@@ -29,3 +29,4 @@ ALTER TABLE IF EXISTS public.ai_logs
     ADD COLUMN IF NOT EXISTS news_id BIGINT REFERENCES public.raw_ingested_news(id);
 
 
+

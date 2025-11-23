@@ -72,6 +72,11 @@ The orchestrator maps API bot names to worker functions:
 | `monitor` | `app.workers.monitor_bot` | `main_async(limit, dry_run, worker_run_id)` | Direct function call |
 | `news_ingest` | `app.workers.news_ingest_bot` | `main_async()` | RSS ingest pipeline |
 | `news_classify` | `app.workers.news_classify_bot` | `main_async()` | Classifies `raw_ingested_news` rows |
+| `event_scraper` | `app.workers.event_scraper_bot` | `main_async()` | Scrapes event_sources into `event_raw` |
+| `event_page_fetcher` | `app.workers.event_page_fetcher_bot` | `main_async()` | Fetches full HTML pages for AI extraction |
+| `event_ai_extractor` | `app.workers.event_ai_extractor_bot` | `main_async()` | Runs OpenAI extraction and inserts `event_raw` rows |
+| `event_enrichment` | `app.workers.event_enrichment_bot` | `main_async()` | AI enrichment for `event_raw` rows |
+| `event_normalization` | `app.workers.event_normalization_bot` | `main_async()` | Normalizes `event_raw` rows into `events_candidate` |
 
 ### Worker Argument Construction
 
@@ -113,6 +118,36 @@ The orchestrator constructs appropriate arguments for each worker:
   - `pending` → untouched ingestion output
   - `classified` → success, relevance fields populated
   - `error_ai` → AI failure, see `processing_errors`
+
+#### Event Scraper Bot
+- Triggered without additional CLI flags; bot enforces per-source intervals internally.
+- `--worker-run-id`: UUID from worker_runs record (supplied automatically by orchestrator/CLI when present).
+- Emits counters: processed sources, inserted items, skipped sources, etc., stored in `worker_runs.counters`.
+
+#### Event Page Fetcher Bot
+- `--limit`: Optional cap on number of AI-enabled sources to fetch.
+- `--source-key`: Optional slug to target a single source (e.g., `sahmeran_events`).
+- `--worker-run-id`: UUID from worker_runs record.
+- Stores HTML responses in `event_pages_raw` with dedupe hashing; counters include `pages_fetched`, `pages_inserted`, `pages_deduped`, `fetch_errors`.
+
+#### Event AI Extractor Bot
+- `--limit`: Maximum number of pending pages to convert (default 20).
+- `--chunk-size`: Max characters per HTML chunk sent to OpenAI (default 16k).
+- `--model`: Optional OpenAI model override passed to `EventExtractionService`.
+- `--worker-run-id`: UUID from worker_runs record.
+- Reads `event_pages_raw(processing_state='pending')`, dedupes extracted events, inserts `event_raw` rows, and marks pages as `extracted`/`error_extract`.
+
+#### Event Enrichment Bot
+- `--limit`: Defaults to 50 pending rows per run (configurable via API/CLI).
+- `--model`: Optional OpenAI model override; falls back to global default.
+- `--worker-run-id`: UUID from worker_runs record (auto-supplied).
+- Processes `event_raw` rows with `processing_state='pending'`, writes language/category/summary/confidence, and updates state to `enriched`/`error`.
+- Logs every AI call in `ai_logs` (`action_type="events.enrich"`, `event_raw_id` populated).
+
+#### Event Normalization Bot
+- Triggered with default `--limit 100` (configurable via CLI/API).
+- `--worker-run-id`: UUID from worker_runs record (supplied automatically).
+- Processes `event_raw` rows with `processing_state='pending'`, writes normalized rows into `events_candidate`, and updates processing states to `normalized`/`error_norm`.
 
 ## Implementation Details
 

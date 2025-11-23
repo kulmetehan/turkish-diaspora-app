@@ -12,3 +12,4 @@ CREATE INDEX IF NOT EXISTS idx_news_search_tsv
     ON public.raw_ingested_news
     USING GIN (news_search_tsv);
 
+

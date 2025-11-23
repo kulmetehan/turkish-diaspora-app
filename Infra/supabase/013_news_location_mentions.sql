@@ -4,3 +4,4 @@
 ALTER TABLE IF EXISTS public.raw_ingested_news
     ADD COLUMN IF NOT EXISTS location_mentions JSONB NOT NULL DEFAULT '[]'::jsonb;
 
+

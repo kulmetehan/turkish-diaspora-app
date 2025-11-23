@@ -17,3 +17,4 @@ export function NewsCardSkeleton() {
 
 export default NewsCardSkeleton;
 
+

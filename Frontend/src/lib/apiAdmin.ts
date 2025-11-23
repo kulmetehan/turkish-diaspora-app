@@ -124,6 +124,162 @@ export async function getLocationStateMetrics(): Promise<LocationStateMetrics> {
     return authFetch<LocationStateMetrics>("/api/v1/admin/metrics/location_states");
 }
 
+export type NewsPerDayDTO = {
+    date: string;
+    count: number;
+};
+
+export type NewsLabelCountDTO = {
+    label: string;
+    count: number;
+};
+
+export type NewsErrorsDTO = {
+    ingest_errors_last_24h: number;
+    classify_errors_last_24h: number;
+    pending_items_last_24h: number;
+};
+
+export type NewsMetricsSnapshotDTO = {
+    items_per_day_last_7d: NewsPerDayDTO[];
+    items_by_source_last_24h: NewsLabelCountDTO[];
+    items_by_feed_last_24h: NewsLabelCountDTO[];
+    errors: NewsErrorsDTO;
+};
+
+export async function getNewsMetricsAdmin(): Promise<NewsMetricsSnapshotDTO> {
+    return authFetch<NewsMetricsSnapshotDTO>("/api/v1/admin/metrics/news");
+}
+
+export type EventPerDayDTO = {
+    date: string;
+    count: number;
+};
+
+export type EventSourceStatDTO = {
+    source_id: number;
+    source_key: string;
+    source_name: string;
+    last_success_at?: string | null;
+    last_error_at?: string | null;
+    last_error?: string | null;
+    events_last_24h: number;
+    total_events: number;
+};
+
+export type EventEnrichmentMetricsDTO = {
+    total: number;
+    enriched: number;
+    pending: number;
+    errors: number;
+    avg_confidence_score?: number | null;
+    category_breakdown: Array<{ category_key: string; count: number }>;
+};
+
+export type EventDedupeMetricsDTO = {
+    canonical_events: number;
+    duplicate_events: number;
+    duplicates_last_7d: number;
+    canonical_ratio?: number | null;
+};
+
+export type EventMetricsSnapshotDTO = {
+    events_per_day_last_7d: EventPerDayDTO[];
+    sources: EventSourceStatDTO[];
+    total_events_last_30d: number;
+    enrichment?: EventEnrichmentMetricsDTO;
+    dedupe?: EventDedupeMetricsDTO;
+};
+
+export async function getEventMetricsAdmin(): Promise<EventMetricsSnapshotDTO> {
+    return authFetch<EventMetricsSnapshotDTO>("/api/v1/admin/metrics/events");
+}
+
+export type AdminEventCandidate = {
+    id: number;
+    event_source_id: number;
+    source_key: string;
+    source_name?: string | null;
+    title: string;
+    description?: string | null;
+    location_text?: string | null;
+    url?: string | null;
+    start_time_utc: string;
+    end_time_utc?: string | null;
+    duplicate_of_id?: number | null;
+    duplicate_score?: number | null;
+    has_duplicates?: boolean;
+    state: "candidate" | "verified" | "published" | "rejected";
+    created_at: string;
+    updated_at: string;
+};
+
+export type AdminEventCandidateListResponse = {
+    items: AdminEventCandidate[];
+    total: number;
+    limit: number;
+    offset: number;
+};
+
+export type AdminEventDuplicateCluster = {
+    canonical: AdminEventCandidate;
+    duplicates: AdminEventCandidate[];
+};
+
+export async function listEventCandidatesAdmin(params?: {
+    state?: "candidate" | "verified" | "published" | "rejected";
+    sourceId?: number;
+    sourceKey?: string;
+    search?: string;
+    duplicatesOnly?: boolean;
+    canonicalOnly?: boolean;
+    limit?: number;
+    offset?: number;
+}): Promise<AdminEventCandidateListResponse> {
+    const q = new URLSearchParams();
+    if (params?.state) q.set("state", params.state);
+    if (params?.sourceId) q.set("source_id", String(params.sourceId));
+    if (params?.sourceKey) q.set("source_key", params.sourceKey.toLowerCase());
+    if (params?.search) q.set("search", params.search);
+    if (params?.duplicatesOnly) q.set("duplicates_only", "true");
+    if (params?.canonicalOnly) q.set("canonical_only", "true");
+    q.set("limit", String(params?.limit ?? 50));
+    q.set("offset", String(params?.offset ?? 0));
+    const query = q.toString();
+    return authFetch<AdminEventCandidateListResponse>(
+        `/api/v1/admin/events/candidates?${query}`,
+    );
+}
+
+export async function getEventCandidateDuplicatesAdmin(
+    id: number,
+): Promise<AdminEventDuplicateCluster> {
+    return authFetch<AdminEventDuplicateCluster>(
+        `/api/v1/admin/events/candidates/${id}/duplicates`,
+    );
+}
+
+export async function verifyEventCandidateAdmin(id: number): Promise<AdminEventCandidate> {
+    return authFetch<AdminEventCandidate>(
+        `/api/v1/admin/events/candidates/${id}/verify`,
+        { method: "POST" },
+    );
+}
+
+export async function publishEventCandidateAdmin(id: number): Promise<AdminEventCandidate> {
+    return authFetch<AdminEventCandidate>(
+        `/api/v1/admin/events/candidates/${id}/publish`,
+        { method: "POST" },
+    );
+}
+
+export async function rejectEventCandidateAdmin(id: number): Promise<AdminEventCandidate> {
+    return authFetch<AdminEventCandidate>(
+        `/api/v1/admin/events/candidates/${id}/reject`,
+        { method: "POST" },
+    );
+}
+
 // Import CategoryOption type from fetchLocations
 import type { CategoryOption } from "@/api/fetchLocations";
 
@@ -381,6 +537,75 @@ export async function getTasks(params?: {
     q.set("limit", String(params?.limit ?? 50));
     q.set("offset", String(params?.offset ?? 0));
     return authFetch<TasksResponse>(`/api/v1/admin/tasks?${q.toString()}`);
+}
+
+
+// --- Event Sources ---
+
+export type EventSourceDTO = {
+    id: number;
+    key: string;
+    name: string;
+    base_url: string;
+    list_url?: string | null;
+    selectors: Record<string, unknown>;
+    interval_minutes: number;
+    status: "active" | "disabled";
+    last_run_at?: string | null;
+    last_success_at?: string | null;
+    last_error_at?: string | null;
+    last_error?: string | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export type EventSourcePayload = {
+    key: string;
+    name: string;
+    base_url: string;
+    list_url?: string | null;
+    selectors: Record<string, unknown>;
+    interval_minutes: number;
+    status?: "active" | "disabled";
+};
+
+type EventSourceUpdatePayload = Partial<EventSourcePayload>;
+
+type EventSourcesResponse = {
+    items: EventSourceDTO[];
+};
+
+export async function listEventSourcesAdmin(status?: "active" | "disabled"): Promise<EventSourceDTO[]> {
+    const q = new URLSearchParams();
+    if (status) {
+        q.set("status", status);
+    }
+    const query = q.toString();
+    const path = query ? `/api/v1/admin/event-sources?${query}` : "/api/v1/admin/event-sources";
+    const response = await authFetch<EventSourcesResponse>(path);
+    return Array.isArray(response.items) ? response.items : [];
+}
+
+export async function createEventSourceAdmin(payload: EventSourcePayload): Promise<EventSourceDTO> {
+    return authFetch<EventSourceDTO>("/api/v1/admin/event-sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function updateEventSourceAdmin(id: number, payload: EventSourceUpdatePayload): Promise<EventSourceDTO> {
+    return authFetch<EventSourceDTO>(`/api/v1/admin/event-sources/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function toggleEventSourceStatusAdmin(id: number): Promise<{ id: number; status: "active" | "disabled" }> {
+    return authFetch<{ id: number; status: "active" | "disabled" }>(`/api/v1/admin/event-sources/${id}/toggle-status`, {
+        method: "POST",
+    });
 }
 
 

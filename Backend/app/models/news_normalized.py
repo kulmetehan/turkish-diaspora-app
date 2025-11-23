@@ -23,3 +23,4 @@ class NormalizedNewsItem(BaseModel):
     # and secondary processing steps.
     raw_metadata: Dict[str, Any] = Field(default_factory=dict)
 
+

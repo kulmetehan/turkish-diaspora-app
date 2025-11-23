@@ -111,6 +111,51 @@ class NewsMetricsSnapshot(BaseModel):
     errors: NewsErrorMetrics
 
 
+class EventPerDayItem(BaseModel):
+    date: date
+    count: int
+
+
+class EventSourceStat(BaseModel):
+    source_id: int
+    source_key: str
+    source_name: str
+    last_success_at: Optional[datetime]
+    last_error_at: Optional[datetime]
+    last_error: Optional[str]
+    events_last_24h: int
+    total_events: int
+
+
+class EventCategoryBreakdown(BaseModel):
+    category_key: str
+    count: int
+
+
+class EventEnrichmentMetrics(BaseModel):
+    total: int
+    enriched: int
+    pending: int
+    errors: int
+    avg_confidence_score: Optional[float] = None
+    category_breakdown: List[EventCategoryBreakdown] = Field(default_factory=list)
+
+
+class EventDedupeMetrics(BaseModel):
+    canonical_events: int
+    duplicate_events: int
+    duplicates_last_7d: int
+    canonical_ratio: Optional[float] = None
+
+
+class EventMetricsSnapshot(BaseModel):
+    events_per_day_last_7d: List[EventPerDayItem] = Field(default_factory=list)
+    sources: List[EventSourceStat] = Field(default_factory=list)
+    total_events_last_30d: int
+    enrichment: Optional[EventEnrichmentMetrics] = None
+    dedupe: Optional[EventDedupeMetrics] = None
+
+
 class StaleCandidates(BaseModel):
     """Metrics for stale CANDIDATE records (older than threshold days)."""
     total_stale: int

@@ -83,3 +83,4 @@ async def test_run_ingest_failure(monkeypatch):
     assert finish_calls[0][0] == "failed"
     assert "boom" in finish_calls[0][1]
 
+

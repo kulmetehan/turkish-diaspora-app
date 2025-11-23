@@ -1,0 +1,23 @@
+categories:
+  - key: community
+    label: "Community"
+    description: "Networking, meetups, and general Turkish community gatherings."
+  - key: religion
+    label: "Religion"
+    description: "Mosque gatherings, Quran study circles, and other faith-based events."
+  - key: culture
+    label: "Culture"
+    description: "Concerts, film nights, exhibitions, and cultural festivals."
+  - key: business
+    label: "Business"
+    description: "Entrepreneurship meetups, trade shows, and professional workshops."
+  - key: education
+    label: "Education"
+    description: "Classes, lectures, youth programs, and tutoring sessions."
+  - key: sports
+    label: "Sports"
+    description: "Matches, training sessions, tournaments, and wellness activities."
+  - key: other
+    label: "Other"
+    description: "Catch-all for events that do not fit another category."
+

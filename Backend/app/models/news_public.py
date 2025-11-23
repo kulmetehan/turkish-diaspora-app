@@ -31,3 +31,4 @@ class NewsListResponse(BaseModel):
     offset: int
 
 
+

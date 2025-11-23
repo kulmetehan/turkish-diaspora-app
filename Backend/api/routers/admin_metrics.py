@@ -1,15 +1,18 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+import asyncpg
+from fastapi import APIRouter, HTTPException
 
 from app.models.metrics import (
     CategoryHealthResponse,
+    EventMetricsSnapshot,
     LocationStateMetrics,
     MetricsSnapshot,
     NewsMetricsSnapshot,
 )
 from app.services.metrics_service import (
     category_health_metrics,
+    generate_event_metrics_snapshot,
     generate_metrics_snapshot,
     generate_news_metrics_snapshot,
     location_state_metrics,
@@ -64,6 +67,26 @@ async def get_news_metrics_snapshot() -> NewsMetricsSnapshot:
     - Items by feed (last 24h)
     - Error counters for ingest/classification
     """
-    return await generate_news_metrics_snapshot()
+    try:
+        return await generate_news_metrics_snapshot()
+    except (asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
+        raise HTTPException(status_code=503, detail="news metrics unavailable") from exc
+
+
+@router.get("/events", response_model=EventMetricsSnapshot)
+async def get_event_metrics_snapshot() -> EventMetricsSnapshot:
+    """
+    Returns per-day, per-source, and enrichment stats for the event pipeline.
+    
+    Includes:
+    - Events per day (last 7 days)
+    - Per-source counts & last success/error metadata (last 24h)
+    - Total inserts in the last 30 days
+    - Enrichment coverage/errors, average confidence, and top categories
+    """
+    try:
+        return await generate_event_metrics_snapshot()
+    except (asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
+        raise HTTPException(status_code=503, detail="event metrics unavailable") from exc
 
 

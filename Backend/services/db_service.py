@@ -216,6 +216,7 @@ async def ai_log(
     *,
     location_id: Optional[int],
     news_id: Optional[int] = None,
+    event_raw_id: Optional[int] = None,
     action_type: str,
     prompt: Optional[Dict[str, Any]],
     raw_response: Optional[Dict[str, Any]],
@@ -234,6 +235,7 @@ async def ai_log(
             INSERT INTO ai_logs (
                 location_id,
                 news_id,
+                event_raw_id,
                 action_type,
                 prompt,
                 raw_response,
@@ -245,12 +247,13 @@ async def ai_log(
                 $1,
                 $2,
                 $3,
-                CAST($4 AS JSONB),
+                $4,
                 CAST($5 AS JSONB),
                 CAST($6 AS JSONB),
-                $7,
+                CAST($7 AS JSONB),
                 $8,
-                $9
+                $9,
+                $10
             )
             """
         )
@@ -259,6 +262,7 @@ async def ai_log(
             sql,
             location_id,
             news_id,
+            event_raw_id,
             action_type,
             json.dumps(prompt, ensure_ascii=False) if prompt is not None else None,
             json.dumps(raw_response, ensure_ascii=False) if raw_response is not None else None,
