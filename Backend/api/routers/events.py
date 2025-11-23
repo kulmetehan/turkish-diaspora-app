@@ -82,6 +82,7 @@ def _normalize_categories(values: Optional[Sequence[str]]) -> List[str]:
 
 
 @router.get("", response_model=EventsListResponse)
+@router.get("/", response_model=EventsListResponse, include_in_schema=False)
 async def get_events(
     city: Optional[str] = Query(
         default=None,
