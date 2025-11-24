@@ -63,22 +63,22 @@ export default function OverlayDetailCard({ location, open, onClose }: OverlayDe
     return (
         <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
             <DialogPrimitive.Portal>
-                <DialogPrimitive.Overlay className="fixed inset-0 z-[55] bg-black/20 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+                <DialogPrimitive.Overlay className="fixed inset-0 z-[55] bg-black/40 backdrop-blur data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
                 <DialogPrimitive.Content
                     className={cn(
                         "fixed inset-x-0 bottom-0 top-auto z-[60] mx-auto w-full max-w-screen-sm",
-                        "flex max-h-[min(70vh,560px)] flex-col rounded-t-3xl border border-border/80 bg-background text-foreground shadow-2xl",
+                        "flex max-h-[min(70vh,560px)] flex-col rounded-t-[40px] border border-white/15 bg-surface-raised/95 text-foreground shadow-[0_-40px_80px_rgba(0,0,0,0.6)] backdrop-blur-2xl",
                         "px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+20px)]",
                         "focus:outline-none data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-bottom",
                         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-bottom",
                         "lg:left-1/2 lg:right-auto lg:top-1/2 lg:bottom-auto lg:max-h-[85vh] lg:w-[min(90vw,840px)] lg:max-w-[min(90vw,840px)] lg:-translate-x-1/2 lg:-translate-y-1/2",
-                        "lg:rounded-2xl lg:px-6 lg:pb-6 lg:shadow-2xl",
+                        "lg:rounded-[40px] lg:px-6 lg:pb-6 lg:shadow-[0_45px_90px_rgba(0,0,0,0.6)]",
                         "lg:data-[state=open]:zoom-in-95 lg:data-[state=closed]:zoom-out-95"
                     )}
                     aria-labelledby="overlay-detail-title"
                     aria-describedby="overlay-detail-description"
                 >
-                    <header className="flex flex-col gap-4 border-b pb-4 lg:flex-row lg:items-start lg:justify-between">
+                    <header className="flex flex-col gap-4 border-b border-white/10 pb-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="min-w-0 flex-1 space-y-3">
                             <div>
                                 <DialogPrimitive.Title
@@ -87,7 +87,7 @@ export default function OverlayDetailCard({ location, open, onClose }: OverlayDe
                                 >
                                     {location.name}
                                 </DialogPrimitive.Title>
-                                <div className="h-[3px] w-12 rounded-full bg-brand-redSoft mt-2" />
+                                <div className="h-[3px] w-12 rounded-full bg-brand-white/50 mt-2" />
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 {categoryLabel && (
@@ -96,7 +96,7 @@ export default function OverlayDetailCard({ location, open, onClose }: OverlayDe
                                     </Badge>
                                 )}
                                 {location.is_turkish && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-100">
                                         <Icon name="CheckCircle" className="h-3.5 w-3.5" />
                                         Turkish owned
                                     </span>
@@ -116,6 +116,7 @@ export default function OverlayDetailCard({ location, open, onClose }: OverlayDe
                                 size="icon"
                                 aria-label="Open route in Maps"
                                 title="Open route in Maps"
+                                className="border-white/20 text-brand-white hover:bg-white/10"
                             >
                                 <a href={routeUrl} {...routeLinkProps}>
                                     <Icon name="Navigation" className="h-4 w-4" />
@@ -127,13 +128,14 @@ export default function OverlayDetailCard({ location, open, onClose }: OverlayDe
                                 size="icon"
                                 aria-label="Search on Google"
                                 title="Search on Google"
+                                className="border-white/20 text-brand-white hover:bg-white/10"
                             >
                                 <a href={googleSearchUrl} {...googleLinkProps}>
                                     <Icon name="Search" className="h-4 w-4" />
                                 </a>
                             </Button>
                             <DialogPrimitive.Close
-                                className="ml-1 rounded-full border border-transparent p-2 text-muted-foreground transition hover:border-border hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="ml-1 rounded-full border border-white/10 p-2 text-brand-white/70 transition hover:border-white/30 hover:text-brand-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70"
                                 aria-label="Close details"
                             >
                                 <Icon name="X" className="h-4 w-4" />

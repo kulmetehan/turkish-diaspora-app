@@ -41,7 +41,7 @@ export function NewsList({
 }: NewsListProps) {
   if (isLoading && items.length === 0) {
     return (
-      <div className="rounded-xl border bg-card p-4 space-y-3">
+      <div className="rounded-3xl border border-border bg-card p-4 text-foreground shadow-soft">
         {Array.from({ length: LOADING_SKELETON_COUNT }).map((_, index) => (
           <NewsCardSkeleton key={index} />
         ))}
@@ -52,14 +52,14 @@ export function NewsList({
   if (error) {
     const message = errorMessage ?? error;
     return (
-      <div className="rounded-xl border bg-card p-5 text-center text-muted-foreground">
+      <div className="rounded-3xl border border-border bg-card p-5 text-center text-foreground shadow-soft">
         <p>{message}</p>
         {errorMessage && error ? (
-          <p className="mt-1 text-xs text-muted-foreground/80">{error}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         ) : null}
         <Button
           size="sm"
-          className="mt-4"
+            className="mt-4 border-border text-foreground"
           onClick={onReload}
           variant="outline"
         >
@@ -72,7 +72,7 @@ export function NewsList({
   if (!items.length) {
     const message = emptyMessage ?? "Er is op dit moment nog geen nieuws voor jou.";
     return (
-      <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+      <div className="rounded-3xl border border-border bg-card p-6 text-center text-muted-foreground shadow-soft">
         {message}
       </div>
     );
@@ -81,8 +81,8 @@ export function NewsList({
   return (
     <div
       className={cn(
-        "rounded-xl border bg-card divide-y overflow-auto",
-        "max-h-[calc(100vh-260px)]",
+        "rounded-3xl border border-border bg-card text-foreground shadow-soft",
+        "divide-y divide-border overflow-auto max-h-[calc(100vh-260px)]",
         className,
       )}
     >
@@ -102,7 +102,7 @@ export function NewsList({
           {isLoadingMore ? (
             <p className="text-sm text-muted-foreground">Meer nieuws laden…</p>
           ) : (
-            <Button size="sm" variant="outline" onClick={onLoadMore}>
+            <Button size="sm" variant="outline" onClick={onLoadMore} className="border-border text-foreground hover:bg-muted">
               Meer laden
             </Button>
           )}

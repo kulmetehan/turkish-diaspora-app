@@ -75,8 +75,8 @@ export function NewsCard({
       onClick={handleActivate}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative border rounded-xl p-3.5 cursor-pointer bg-card text-card-foreground transition-colors",
-        "hover:bg-accent/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "relative cursor-pointer rounded-3xl border border-border bg-card p-4 text-foreground shadow-soft transition-all duration-200",
+        "hover:border-brand-accent hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
     >
@@ -87,10 +87,10 @@ export function NewsCard({
           aria-pressed={isBookmarked}
           title={bookmarkLabel}
           onClick={handleBookmarkClick}
-          className={cn(
-            "absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border",
-            "bg-background/80 text-muted-foreground transition-colors hover:text-foreground hover:border-foreground",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            className={cn(
+              "absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground",
+              "transition-all hover:border-foreground hover:text-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
           )}
         >
           {isBookmarked ? (
@@ -102,7 +102,7 @@ export function NewsCard({
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row">
         {item.image_url ? (
-          <div className="flex-shrink-0 overflow-hidden rounded-lg border bg-muted/40 sm:w-32 sm:h-24">
+          <div className="flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-muted sm:h-24 sm:w-32">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.image_url}
@@ -136,7 +136,7 @@ export function NewsCard({
               {visibleTags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center rounded-full bg-brand-redSoft/20 px-2 py-0.5 text-xs font-medium capitalize text-brand-red"
+                  className="inline-flex items-center rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs font-medium capitalize text-foreground"
                 >
                   {tag}
                 </span>

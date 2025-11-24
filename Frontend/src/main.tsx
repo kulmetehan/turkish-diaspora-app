@@ -33,8 +33,8 @@ initI18n();
 
 function AppLayout() {
   return (
-    <div className="flex min-h-[100svh] flex-col bg-background overflow-hidden">
-      <main className="flex-1 overflow-hidden">
+    <div className="flex min-h-[100svh] flex-col bg-brand-surface text-foreground">
+      <main className="relative flex-1 overflow-hidden bg-brand-surface-alt">
         <Outlet />
       </main>
       <FooterTabs />

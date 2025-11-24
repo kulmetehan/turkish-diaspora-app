@@ -6,10 +6,11 @@
     will-change: transform, opacity;
     contain: layout paint;
     transform: translateY(0);
-    background: var(--bs-bg, var(--background, #fff));
+    background: var(--bs-bg, hsl(var(--surface-raised)));
     border-top-left-radius: var(--bs-radius, 16px);
     border-top-right-radius: var(--bs-radius, 16px);
-    box-shadow: 0 -2px 12px rgba(0, 0, 0, calc(0.08 + (var(--bs-elevation, 0) * 0.08)));
+    box-shadow: 0 -30px 60px rgba(0, 0, 0, calc(0.35 + (var(--bs-elevation, 0) * 0.1)));
+    border: 1px solid color-mix(in srgb, hsl(var(--border)) 70%, transparent);
     height: 100dvh;
     /* sheet uses translateY, not height anim */
     padding-bottom: env(safe-area-inset-bottom);
@@ -24,7 +25,7 @@
     left: 0;
     right: 0;
     height: 2px;
-    background: hsl(var(--brand-red-soft));
+    background: color-mix(in srgb, hsl(var(--brand-accent)) 60%, transparent);
     border-top-left-radius: var(--bs-radius, 16px);
     border-top-right-radius: var(--bs-radius, 16px);
     z-index: 1;
@@ -46,7 +47,7 @@
     width: 32px;
     height: 4px;
     border-radius: 9999px;
-    background: color-mix(in srgb, hsl(var(--brand-red)) 18%, transparent);
+    background: color-mix(in srgb, hsl(var(--brand-accent)) 35%, transparent);
 }
 
 .tda-bs-content {
@@ -61,7 +62,7 @@
 .tda-bs-backdrop {
     position: fixed;
     inset: 0;
-    background: var(--bs-backdrop, rgba(0, 0, 0, 0.4));
+    background: var(--bs-backdrop, rgba(5, 7, 11, 0.6));
     opacity: 0;
     pointer-events: none;
     display: none;

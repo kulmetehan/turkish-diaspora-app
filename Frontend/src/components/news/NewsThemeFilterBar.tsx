@@ -60,19 +60,19 @@ export function NewsThemeFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-xl border bg-card p-3",
+        "flex flex-col gap-3 rounded-3xl border border-border bg-surface-raised p-4 text-foreground shadow-soft",
         className,
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">
+        <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Thema filters
         </span>
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+          className="h-8 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
           onClick={handleClear}
           disabled={!normalizedSelection.length}
         >
@@ -91,11 +91,11 @@ export function NewsThemeFilterBar({
               aria-checked={active}
               onClick={() => handleToggle(theme)}
               className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
                 active
-                  ? "border-brand-red bg-brand-redSoft text-primary-foreground shadow-sm"
-                  : "border-border bg-background text-foreground hover:bg-muted",
+                  ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+                  : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
               )}
             >
               {THEME_LABELS[theme]}

@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import type { NewsListResponse } from "@/api/news";
@@ -37,6 +37,7 @@ describe("useNewsFeed", () => {
   afterEach(() => {
     vi.clearAllMocks();
     clearNewsFeedCache();
+    vi.useRealTimers();
   });
 
   it("reuses cached first-page data within the TTL", async () => {
@@ -110,6 +111,48 @@ describe("useNewsFeed", () => {
     expect(mockFetchNews).toHaveBeenLastCalledWith(
       expect.objectContaining({ themes: ["economy", "politics"] }),
     );
+  });
+
+  it("tracks freshness timestamps and reload bypasses cache", async () => {
+    const firstLoad = new Date("2025-01-01T00:00:00.000Z");
+    let mockNow = firstLoad.getTime();
+    const dateSpy = vi.spyOn(Date, "now").mockImplementation(() => mockNow);
+
+    mockFetchNews.mockResolvedValueOnce(createNewsResponse());
+
+    const { result } = renderHook(() => useNewsFeed({ feed: "diaspora", pageSize: 20 }));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.lastUpdatedAt?.toISOString()).toBe(firstLoad.toISOString());
+    expect(mockFetchNews).toHaveBeenCalledTimes(1);
+
+    mockFetchNews.mockResolvedValueOnce(
+      createNewsResponse({
+        items: [
+          {
+            id: 2,
+            title: "Reloaded",
+            source: "NL",
+            published_at: "2025-01-02T00:00:00.000Z",
+            url: "https://example.com/reloaded",
+            tags: [],
+          },
+        ],
+      }),
+    );
+
+    const secondLoad = new Date("2025-01-01T00:02:00.000Z");
+    mockNow = secondLoad.getTime();
+
+    await act(async () => {
+      await result.current.reload();
+    });
+
+    await waitFor(() => expect(result.current.isReloading).toBe(false));
+    expect(result.current.items[0]?.id).toBe(2);
+    expect(result.current.lastUpdatedAt?.toISOString()).toBe(secondLoad.toISOString());
+    expect(mockFetchNews).toHaveBeenCalledTimes(2);
+    dateSpy.mockRestore();
   });
 });
 

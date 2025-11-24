@@ -12,6 +12,12 @@ The public map screen now supports two mutually exclusive presentation modes tha
 
 Developers adding new features should reuse the existing helpers in `Frontend/src/lib/routing/viewMode.ts` (`readViewMode`, `writeViewMode`, `readFocusId`, `writeFocusId`, `clearFocusId`) to stay aligned with this contract.
 
+## Brand Surfaces (FR-2)
+
+- **Shell gradients** – The body + `AppLayout` use `.bg-brand-surface`; never drop back to plain white while switching modes.
+- **Panels & overlays** – Floating filters, list containers, and bottom sheets live on `.bg-brand-surface-alt` (blurred) or `bg-surface-raised` for nested cards.
+- **Map glassmorphism** – Map controls, preview tooltip, and overlay detail card all reference the same translucent surface tokens. When adding new overlays, prefer these helpers over ad-hoc rgba colors.
+
 ## Map Tooltip Lifecycle (TDA-107)
 
 - `MapView` owns a single Mapbox popup instance via the popup controller; it survives re-renders and only detaches on unmount or explicit hide, keeping the tooltip stable across List → Map transitions.

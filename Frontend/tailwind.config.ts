@@ -36,9 +36,19 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
         brand: {
+          redStrong: "hsl(var(--brand-red-strong))",
           red: "hsl(var(--brand-red))",
           redSoft: "hsl(var(--brand-red-soft))",
           white: "hsl(var(--brand-white))",
+          accent: "hsl(var(--brand-accent))",
+          accentSoft: "hsl(var(--brand-accent-soft))",
+        },
+        surface: {
+          base: "hsl(var(--surface-base))",
+          raised: "hsl(var(--surface-raised))",
+          card: "hsl(var(--surface-card))",
+          muted: "hsl(var(--surface-muted))",
+          contrast: "hsl(var(--surface-contrast))",
         },
       },
       borderRadius: {
@@ -52,6 +62,11 @@ export default {
       },
       spacing: {
         "grid-gutter": "var(--space-grid-gutter)",
+      },
+      backgroundImage: {
+        "gradient-main": "var(--gradient-main)",
+        "gradient-nav": "var(--gradient-nav)",
+        "gradient-card": "var(--gradient-card)",
       },
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },

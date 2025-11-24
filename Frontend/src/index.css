@@ -6,6 +6,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -38,150 +39,168 @@ body {
 }
 
 /* ==========================================================================
-   1) CSS-variabelen (layout tokens)
+   1) CSS-variabelen (layout & brand tokens)
    --------------------------------------------------------------------------
-   Je kunt de waardes hieronder aanpassen zonder code te breken.
+   Deze waarden vormen de basis voor Tailwind en custom surfaces.
    ========================================================================== */
 :root {
-  /* Hoogtes */
-  --tda-header-h: 0px;
-  /* hoogte van evt. topbar/header (pas aan of laat op 0) */
-  --tda-min-map-h: 72vh;
-  /* minimum hoogte van de kaart */
-  --tda-min-map-h-mobile: 60vh;
-  /* minimum hoogte van de kaart op mobiel */
+  /* Layout */
+  --layout-header-h: 0px;
+  --layout-min-map-h: 72vh;
+  --layout-min-map-h-mobile: 60vh;
+  --layout-sidebar-w: 380px;
+  --layout-content-max: 1600px;
 
-  /* Breedtes */
-  --tda-sidebar-w: 380px;
-  /* vaste breedte van de lijst/filters desktop */
-  --tda-content-max: 1600px;
-  /* optionele max breedte van de gehele app */
-
-  /* Kleur-tokens (licht) */
-  --tda-bg: #ffffff;
-  --tda-surface: #f8fafc;
-  /* lichtgrijs voor panel-achtergrond */
-  --tda-border: #e5e7eb;
-  /* randjes / dividers */
-  --tda-text: #0f172a;
-  /* bijna-zwart tekst */
-  --tda-muted: #64748b;
-  /* secundaire tekst */
-  --tda-accent: var(--brand-red);
-  /* Turkspot brand red accent */
-  --tda-accent-weak: var(--brand-red-soft);
-  /* Soft brand red achtergrond (hover/select) */
-
-  /* Brand core (light mode) */
-  --brand-red: 0 72% 50%;
-  /* Turkspot brand red - WCAG AA compliant with white text */
-  --brand-red-soft: 0 84% 60%;
-  /* Softer red for gradients and backgrounds */
+  /* Brand palette */
+  --brand-red-strong: 357 94% 45%;
+  --brand-red: 0 86% 55%;
+  --brand-red-soft: 4 82% 68%;
   --brand-white: 0 0% 100%;
+  --brand-cream: 32 100% 96%;
+
+  /* Surface + text tokens (light) */
+  --surface-base: 0 0% 100%;
+  --surface-raised: 0 0% 98%;
+  --surface-card: 0 0% 100%;
+  --surface-muted: 217 32% 94%;
+  --surface-contrast: 228 18% 12%;
+  --surface-border: 214 32% 90%;
+  --surface-border-strong: 216 23% 78%;
+  --text-primary: 229 40% 12%;
+  --text-muted: 224 16% 48%;
+  --text-inverse: 0 0% 100%;
+
+  --brand-accent: var(--brand-red);
+  --brand-accent-strong: var(--brand-red-strong);
+  --brand-accent-soft: var(--brand-red-soft);
+  --brand-accent-veil: hsl(var(--brand-red-soft) / 0.18);
+
+  /* Gradients */
+  --gradient-main: linear-gradient(135deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 55%, hsl(var(--brand-red-soft)) 100%);
+  --gradient-nav: linear-gradient(180deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 60%, hsl(var(--brand-red-soft)) 100%);
+  --gradient-card: linear-gradient(145deg, hsl(var(--brand-red-soft) / 0.35) 0%, hsl(var(--brand-red) / 0.18) 60%, hsl(var(--brand-red-strong) / 0.32) 100%);
+
+  /* Radii & shadows */
+  --radius-lg: 1.25rem;
+  --radius-md: 0.875rem;
+  --radius-sm: 0.625rem;
+  --shadow-soft: 0 15px 35px rgba(15, 23, 42, 0.08), 0 5px 15px rgba(15, 23, 42, 0.05);
+  --shadow-card: 0 25px 45px rgba(15, 23, 42, 0.12), 0 10px 20px rgba(15, 23, 42, 0.06);
+  --space-grid-gutter: 1.5rem;
 
   /* Tailwind CSS variables (light mode) */
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  --primary: var(--brand-red);
+  --background: var(--surface-base);
+  --foreground: var(--text-primary);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand-accent);
   --primary-foreground: var(--brand-white);
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 84% 4.9%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222.2 84% 4.9%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: var(--brand-red);
-  --radius: 0.5rem;
-
-  /* Kleur-tokens (donker) */
-  color-scheme: light dark;
+  --secondary: var(--surface-muted);
+  --secondary-foreground: var(--text-primary);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--surface-muted);
+  --accent-foreground: var(--text-primary);
+  --destructive: 0 90% 62%;
+  --destructive-foreground: var(--brand-white);
+  --border: var(--surface-border);
+  --input: var(--surface-border);
+  --ring: var(--brand-accent);
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --tda-bg: #0b1020;
-    --tda-surface: #0f172a;
-    --tda-border: #1f2a44;
-    --tda-text: #e5e7eb;
-    --tda-muted: #94a3b8;
-    --tda-accent: var(--brand-red);
-    --tda-accent-weak: var(--brand-red-soft);
+    --surface-base: 230 24% 7%;
+    --surface-raised: 228 25% 11%;
+    --surface-card: 228 27% 13%;
+    --surface-muted: 226 22% 18%;
+    --surface-contrast: 210 20% 96%;
+    --surface-border: 222 22% 24%;
+    --surface-border-strong: 223 32% 38%;
+    --text-primary: 210 36% 96%;
+    --text-muted: 216 16% 72%;
 
-    /* Brand core (dark mode) */
-    --brand-red: 0 80% 65%;
-    /* Brighter red for dark backgrounds */
-    --brand-red-soft: 0 90% 70%;
-    /* Softer red for gradients */
-    --brand-white: 0 0% 100%;
+    --brand-red-strong: 357 88% 64%;
+    --brand-red: 0 78% 62%;
+    --brand-red-soft: 4 78% 70%;
+    --brand-accent: var(--brand-red);
+    --brand-accent-strong: var(--brand-red-strong);
+    --brand-accent-soft: var(--brand-red-soft);
+    --brand-accent-veil: hsl(var(--brand-red-soft) / 0.25);
 
-    /* Tailwind CSS variables (dark mode) */
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: var(--brand-red);
+    --gradient-main: linear-gradient(135deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 50%, hsl(var(--brand-red-soft)) 100%);
+    --gradient-nav: linear-gradient(180deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 65%, hsl(var(--brand-red-soft)) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(var(--brand-red-soft) / 0.25) 0%, hsl(var(--brand-red) / 0.15) 60%, hsl(var(--brand-red-strong) / 0.28) 100%);
+
+    --background: var(--surface-base);
+    --foreground: var(--text-primary);
+    --card: var(--surface-card);
+    --card-foreground: var(--text-primary);
+    --popover: var(--surface-card);
+    --popover-foreground: var(--text-primary);
+    --primary: var(--brand-accent);
     --primary-foreground: var(--brand-white);
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: var(--brand-red);
+    --secondary: 217 32% 20%;
+    --secondary-foreground: var(--text-primary);
+    --muted: 217 25% 22%;
+    --muted-foreground: var(--text-muted);
+    --accent: 217 25% 20%;
+    --accent-foreground: var(--text-primary);
+    --destructive: 2 78% 58%;
+    --destructive-foreground: var(--brand-white);
+    --border: var(--surface-border);
+    --input: var(--surface-border);
+    --ring: var(--brand-accent);
+    color-scheme: dark;
   }
 }
 
 /* Dark mode via class (for manual theme switching) */
 .dark {
-  --tda-bg: #0b1020;
-  --tda-surface: #0f172a;
-  --tda-border: #1f2a44;
-  --tda-text: #e5e7eb;
-  --tda-muted: #94a3b8;
-  --tda-accent: var(--brand-red);
-  --tda-accent-weak: var(--brand-red-soft);
+  --surface-base: 230 24% 7%;
+  --surface-raised: 228 25% 11%;
+  --surface-card: 228 27% 13%;
+  --surface-muted: 226 22% 18%;
+  --surface-contrast: 210 20% 96%;
+  --surface-border: 222 22% 24%;
+  --surface-border-strong: 223 32% 38%;
+  --text-primary: 210 36% 96%;
+  --text-muted: 216 16% 72%;
 
-  /* Brand core (dark mode) */
-  --brand-red: 0 80% 65%;
-  /* Brighter red for dark backgrounds */
-  --brand-red-soft: 0 90% 70%;
-  /* Softer red for gradients */
-  --brand-white: 0 0% 100%;
+  --brand-red-strong: 357 88% 64%;
+  --brand-red: 0 78% 62%;
+  --brand-red-soft: 4 78% 70%;
+  --brand-accent: var(--brand-red);
+  --brand-accent-strong: var(--brand-red-strong);
+  --brand-accent-soft: var(--brand-red-soft);
+  --brand-accent-veil: hsl(var(--brand-red-soft) / 0.25);
 
-  /* Tailwind CSS variables (dark mode) */
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: var(--brand-red);
+  --gradient-main: linear-gradient(135deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 50%, hsl(var(--brand-red-soft)) 100%);
+  --gradient-nav: linear-gradient(180deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 65%, hsl(var(--brand-red-soft)) 100%);
+  --gradient-card: linear-gradient(145deg, hsl(var(--brand-red-soft) / 0.25) 0%, hsl(var(--brand-red) / 0.15) 60%, hsl(var(--brand-red-strong) / 0.28) 100%);
+
+  --background: var(--surface-base);
+  --foreground: var(--text-primary);
+  --card: var(--surface-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--surface-card);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--brand-accent);
   --primary-foreground: var(--brand-white);
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: var(--brand-red);
+  --secondary: 217 32% 20%;
+  --secondary-foreground: var(--text-primary);
+  --muted: 217 25% 22%;
+  --muted-foreground: var(--text-muted);
+  --accent: 217 25% 20%;
+  --accent-foreground: var(--text-primary);
+  --destructive: 2 78% 58%;
+  --destructive-foreground: var(--brand-white);
+  --border: var(--surface-border);
+  --input: var(--surface-border);
+  --ring: var(--brand-accent);
 }
 
 /* ==========================================================================
@@ -199,8 +218,12 @@ html,
 body {
   padding: 0;
   margin: 0;
-  background: var(--tda-bg);
-  color: var(--tda-text);
+  background-color: hsl(var(--surface-base));
+  background-image: var(--gradient-main);
+  background-attachment: fixed;
+  background-size: 220% 220%;
+  background-repeat: no-repeat;
+  color: hsl(var(--text-primary));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -212,7 +235,7 @@ body {
 }
 
 /* Optioneel: centraalkader met max-breedte (alleen gebruiken als je dat wil) */
-/* .tda-container { max-width: var(--tda-content-max); margin-inline: auto; } */
+/* .tda-container { max-width: var(--layout-content-max); margin-inline: auto; } */
 
 /* ==========================================================================
    3) App layout (grid): sidebar + map
@@ -223,10 +246,14 @@ body {
    ========================================================================== */
 .tda-app {
   display: grid;
-  grid-template-columns: minmax(320px, var(--tda-sidebar-w)) 1fr;
+  grid-template-columns: minmax(320px, var(--layout-sidebar-w)) 1fr;
   gap: 0;
   /* geen gat tussen lijst en kaart */
-  min-height: calc(100dvh - var(--tda-header-h));
+  min-height: calc(100dvh - var(--layout-header-h));
+  background-color: hsl(var(--surface-base));
+  background-image: var(--gradient-card);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, hsl(var(--border)) 65%, transparent);
 }
 
 /* Mobiel/kleine schermen: lijst boven, kaart eronder */
@@ -240,13 +267,15 @@ body {
 
 /* Sidebar-paneel */
 .tda-sidebar {
-  background: var(--tda-surface);
-  border-right: 1px solid var(--tda-border);
-  min-height: calc(100dvh - var(--tda-header-h));
+  background: color-mix(in oklab, hsl(var(--surface-raised)) 80%, transparent);
+  border-right: 1px solid color-mix(in srgb, hsl(var(--border)) 80%, transparent);
+  min-height: calc(100dvh - var(--layout-header-h));
   overflow: hidden;
   /* we scrollen binnenin het body-gedeelte */
   display: flex;
   flex-direction: column;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 /* Scrollbaar gebied voor de lijst */
@@ -259,13 +288,15 @@ body {
 /* Kaartkolom → moet ALTIJD full width/height innemen */
 .tda-map {
   position: relative;
-  min-height: var(--tda-min-map-h);
-  background: var(--tda-bg);
+  min-height: var(--layout-min-map-h);
+  background:
+    radial-gradient(circle at 20% 20%, hsl(var(--brand-accent-soft) / 0.15), transparent 55%),
+    hsl(var(--surface-base));
 }
 
 @media (max-width: 1024px) {
   .tda-map {
-    min-height: var(--tda-min-map-h-mobile);
+    min-height: var(--layout-min-map-h-mobile);
   }
 }
 
@@ -299,13 +330,13 @@ body {
 
 .tda-list__header {
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--tda-border);
+  border-bottom: 1px solid hsl(var(--border));
   font-weight: 600;
 }
 
 .tda-list__empty {
   padding: 1rem;
-  color: var(--tda-muted);
+  color: hsl(var(--text-muted));
 }
 
 /* Een item in de lijst */
@@ -315,20 +346,20 @@ body {
   /* tekst links, afstand/pil of actie rechts */
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--tda-border);
+  border-bottom: 1px solid hsl(var(--border));
   cursor: pointer;
   background: transparent;
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 
 .tda-item:hover {
-  background: var(--tda-accent-weak);
+  background: var(--brand-accent-veil);
 }
 
 .tda-item.is-selected {
-  outline: 2px solid var(--tda-accent);
+  outline: 2px solid hsl(var(--brand-accent));
   outline-offset: -2px;
-  background: color-mix(in oklab, var(--tda-accent-weak) 70%, transparent);
+  background: color-mix(in oklab, var(--brand-accent-veil) 70%, transparent);
 }
 
 .tda-item__title {
@@ -338,7 +369,7 @@ body {
 
 .tda-item__meta {
   font-size: 0.85rem;
-  color: var(--tda-muted);
+  color: hsl(var(--text-muted));
 }
 
 /* Badges/pillen rechts */
@@ -348,9 +379,9 @@ body {
   line-height: 1;
   padding: 0.35rem 0.5rem;
   border-radius: 999px;
-  background: var(--tda-accent-weak);
-  color: var(--tda-accent);
-  border: 1px solid color-mix(in oklab, var(--tda-accent) 30%, transparent);
+  background: var(--brand-accent-veil);
+  color: hsl(var(--brand-accent));
+  border: 1px solid color-mix(in oklab, hsl(var(--brand-accent)) 30%, transparent);
 }
 
 /* ==========================================================================
@@ -361,9 +392,9 @@ body {
 
 /* Popups: iets neutraler thema-conform */
 .mapboxgl-popup-content {
-  background: var(--tda-surface);
-  color: var(--tda-text);
-  border: 1px solid var(--tda-border);
+  background: hsl(var(--surface-raised));
+  color: hsl(var(--text-primary));
+  border: 1px solid hsl(var(--border));
   border-radius: 10px;
   box-shadow:
     0 10px 25px rgba(2, 8, 23, 0.20),
@@ -371,8 +402,8 @@ body {
 }
 
 .mapboxgl-popup-tip {
-  border-top-color: var(--tda-surface) !important;
-  border-bottom-color: var(--tda-surface) !important;
+  border-top-color: hsl(var(--surface-raised)) !important;
+  border-bottom-color: hsl(var(--surface-raised)) !important;
 }
 
 /* Ensure popup does not block map interactions outside its own content */
@@ -402,7 +433,7 @@ body {
   display: none !important;
 }
 
-.tda-preview-popup .mapboxgl-popup-content > div {
+.tda-preview-popup .mapboxgl-popup-content>div {
   margin: 0 !important;
 }
 
@@ -448,7 +479,7 @@ body {
   content: "";
   position: absolute;
   inset: -8px;
-  border: 3px solid var(--tda-accent);
+  border: 3px solid hsl(var(--brand-accent));
   border-radius: 999px;
   pointer-events: none;
   animation: tdaPulse 1.6s ease-out infinite;
@@ -473,10 +504,10 @@ body {
 
 /* Clusters (optioneel, als je eigen HTML/CSS clusters gebruikt) */
 .tda-cluster {
-  background: var(--tda-accent);
-  color: #fff;
+  background: hsl(var(--brand-accent));
+  color: hsl(var(--brand-white));
   border-radius: 999px;
-  border: 2px solid #fff3;
+  border: 2px solid color-mix(in srgb, hsl(var(--brand-white)) 65%, transparent);
   display: grid;
   place-items: center;
   width: 36px;
@@ -494,7 +525,7 @@ button,
 }
 
 a {
-  color: var(--tda-accent);
+  color: hsl(var(--brand-accent));
   text-decoration: none;
 }
 
@@ -507,7 +538,7 @@ a:hover {
    -------------------------------------------------------------------------- */
 .tda-divider {
   height: 1px;
-  background: var(--tda-border);
+  background: hsl(var(--border));
   width: 100%;
 }
 
@@ -517,13 +548,29 @@ a:hover {
 }
 
 .tda-muted {
-  color: var(--tda-muted);
+  color: hsl(var(--text-muted));
 }
 
 /* Volledige breedte/hoogte helpers voor containers die moeten rekken */
 .tda-fill {
   width: 100%;
   height: 100%;
+}
+
+.bg-brand-surface {
+  background-color: hsl(var(--surface-base));
+  background-image: var(--gradient-main);
+  background-size: 220% 220%;
+  color: hsl(var(--foreground));
+}
+
+.bg-brand-surface-alt {
+  background-color: hsl(var(--surface-raised));
+  background-image: var(--gradient-card);
+  background-size: 180% 180%;
+  color: hsl(var(--foreground));
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
 }
 
 /* ==========================================================================
@@ -541,16 +588,16 @@ a:hover {
 /* ==========================================================================
    9) (Optioneel) Header ruimte reserveren als je een topbar hebt
    --------------------------------------------------------------------------
-   Als je een vaste header gebruikt, geef die dan hoogte --tda-header-h en
+   Als je een vaste header gebruikt, geef die dan hoogte --layout-header-h en
    laat .tda-app eronder beginnen.
    ========================================================================== */
 /*
 .tda-header {
-  height: var(--tda-header-h);
+  height: var(--layout-header-h);
   display: flex;
   align-items: center;
   padding-inline: 1rem;
-  border-bottom: 1px solid var(--tda-border);
-  background: var(--tda-bg);
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--surface-base));
 }
 */

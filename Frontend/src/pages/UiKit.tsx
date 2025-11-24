@@ -14,9 +14,9 @@ export default function UiKit() {
   const [value, setValue] = useState("");
 
   return (
-    <div className="mx-auto max-w-5xl p-6 space-y-8">
+    <div className="mx-auto max-w-5xl space-y-8 rounded-[40px] border border-white/10 bg-surface-raised/70 p-6 text-foreground shadow-soft backdrop-blur-2xl">
       <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">UI Kit</h1>
+        <h1 className="text-2xl font-semibold text-brand-white">UI Kit</h1>
         <div className="flex items-center gap-2">
           <Button variant="secondary" onClick={() => toast("Hello from toast!")}>
             Show Toast
@@ -36,24 +36,56 @@ export default function UiKit() {
       </header>
 
       <Card>
-        <CardHeader><CardTitle>Brand Colors</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Brand Colors & Gradients</CardTitle></CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-6">
-            <div className="flex flex-col items-center">
-              <div className="h-16 w-16 rounded-full bg-brand-red shadow-card border border-border" />
-              <span className="mt-2 text-sm font-medium">Brand Red</span>
-              <span className="text-xs text-muted-foreground">Primary actions</span>
+          <div className="grid gap-6 sm:grid-cols-3">
+            <div className="flex flex-col items-center text-center">
+              <div className="h-16 w-16 rounded-full border border-white/10 bg-brand-red shadow-card" />
+              <span className="mt-2 text-sm font-medium text-brand-white">Brand Red</span>
+              <span className="text-xs text-brand-white/70">Primary actions</span>
             </div>
-            <div className="flex flex-col items-center">
-              <div className="h-16 w-16 rounded-full bg-brand-redSoft shadow-card border border-border" />
-              <span className="mt-2 text-sm font-medium">Brand Red Soft</span>
-              <span className="text-xs text-muted-foreground">Gradients & backgrounds</span>
+            <div className="flex flex-col items-center text-center">
+              <div className="h-16 w-16 rounded-full border border-white/10 bg-brand-redSoft shadow-card" />
+              <span className="mt-2 text-sm font-medium text-brand-white">Brand Red Soft</span>
+              <span className="text-xs text-brand-white/70">Hover + chips</span>
             </div>
-            <div className="flex flex-col items-center">
-              <div className="h-16 w-16 rounded-full bg-brand-white border-2 border-border shadow-card" />
-              <span className="mt-2 text-sm font-medium">Brand White</span>
-              <span className="text-xs text-muted-foreground">Text on brand red</span>
+            <div className="flex flex-col items-center text-center">
+              <div className="h-16 w-16 rounded-full border border-white/20 bg-brand-white shadow-card" />
+              <span className="mt-2 text-sm font-medium text-brand-white">Brand White</span>
+              <span className="text-xs text-brand-white/70">Text on red</span>
             </div>
+          </div>
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-gradient-main p-4 text-brand-white shadow-card">
+              <span className="text-sm font-semibold uppercase tracking-wide">Gradient Main</span>
+              <span className="text-xs text-brand-white/80">Hero backgrounds</span>
+            </div>
+            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-gradient-nav p-4 text-brand-white shadow-card">
+              <span className="text-sm font-semibold uppercase tracking-wide">Gradient Nav</span>
+              <span className="text-xs text-brand-white/80">Footer + overlays</span>
+            </div>
+            <div className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-gradient-card p-4 text-brand-white shadow-card">
+              <span className="text-sm font-semibold uppercase tracking-wide">Gradient Card</span>
+              <span className="text-xs text-brand-white/80">Cards & chips</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Surfaces</CardTitle></CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-3xl border border-white/10 bg-brand-surface p-4 text-brand-white shadow-soft">
+            <h3 className="text-sm font-semibold uppercase tracking-wide">Brand Surface</h3>
+            <p className="text-xs text-brand-white/80">App shell &amp; body gradient</p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-brand-surface-alt p-4 text-brand-white shadow-soft">
+            <h3 className="text-sm font-semibold uppercase tracking-wide">Surface Alt</h3>
+            <p className="text-xs text-brand-white/80">Panels &amp; overlays</p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-surface-raised/80 p-4 text-foreground shadow-soft">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-brand-white">Muted Surface</h3>
+            <p className="text-xs text-brand-white/70">Cards inside overlays</p>
           </div>
         </CardContent>
       </Card>
@@ -108,9 +140,21 @@ export default function UiKit() {
         <CardHeader><CardTitle>Tabs & Icons</CardTitle></CardHeader>
         <CardContent>
           <Tabs defaultValue="one">
-            <TabsList>
-              <TabsTrigger value="one"><Icon name="MapPin" className="mr-2 h-4 w-4" />One</TabsTrigger>
-              <TabsTrigger value="two"><Icon name="List" className="mr-2 h-4 w-4" />Two</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 rounded-2xl border border-white/10 bg-surface-muted/70 p-1 text-brand-white/70 shadow-inner">
+              <TabsTrigger
+                value="one"
+                className="flex items-center justify-center gap-2 rounded-xl py-2 data-[state=active]:bg-gradient-card data-[state=active]:text-brand-white"
+              >
+                <Icon name="MapPin" className="h-4 w-4" />
+                Map
+              </TabsTrigger>
+              <TabsTrigger
+                value="two"
+                className="flex items-center justify-center gap-2 rounded-xl py-2 data-[state=active]:bg-gradient-card data-[state=active]:text-brand-white"
+              >
+                <Icon name="List" className="h-4 w-4" />
+                List
+              </TabsTrigger>
             </TabsList>
             <div className="mt-4">
               <TabsContent value="one">Tab One Content</TabsContent>
