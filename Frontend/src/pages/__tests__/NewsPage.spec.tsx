@@ -16,6 +16,7 @@ const mockUseNewsBookmarks = vi.fn();
 
 vi.mock("@/hooks/useNewsFeed", () => ({
   useNewsFeed: (...args: unknown[]) => mockUseNewsFeed(...args),
+  NEWS_FEED_STALE_MS: 120_000,
 }));
 
 vi.mock("@/hooks/useNewsSearch", () => ({
@@ -114,6 +115,8 @@ function createHookState(
     hasMore: true,
     reload: vi.fn(),
     loadMore: vi.fn(),
+    isReloading: false,
+    lastUpdatedAt: new Date("2025-01-01T00:00:00.000Z"),
     ...overrides,
   };
 }
@@ -387,6 +390,23 @@ describe("NewsPage", () => {
     expect(
       screen.getByText("Geen artikelen gevonden voor je zoekopdracht."),
     ).toBeTruthy();
+  });
+
+  it("renders the refresh toolbar and triggers manual reloads", () => {
+    const reloadMock = vi.fn().mockResolvedValue(undefined);
+    mockUseNewsFeed.mockImplementation(() =>
+      createHookState({
+        reload: reloadMock,
+        lastUpdatedAt: new Date("2025-01-01T10:00:00.000Z"),
+      }),
+    );
+
+    render(<NewsPage />);
+
+    const refreshButton = screen.getByRole("button", { name: "Ververs nieuws" });
+    fireEvent.click(refreshButton);
+    expect(reloadMock).toHaveBeenCalled();
+    expect(screen.getByText(/Laatst bijgewerkt:/i)).toBeTruthy();
   });
 
   it("includes an Opgeslagen tab that updates the hash", async () => {

@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { NewsItem } from "@/api/news";
+import { Button } from "@/components/ui/button";
 import { NewsFeedTabs } from "@/components/news/NewsFeedTabs";
 import { NewsList } from "@/components/news/NewsList";
 import { NewsSearchBar } from "@/components/news/NewsSearchBar";
 import { NewsThemeFilterBar } from "@/components/news/NewsThemeFilterBar";
 import { useNewsBookmarks } from "@/hooks/useNewsBookmarks";
-import { useNewsFeed } from "@/hooks/useNewsFeed";
+import { NEWS_FEED_STALE_MS, useNewsFeed } from "@/hooks/useNewsFeed";
 import { useNewsSearch } from "@/hooks/useNewsSearch";
 import {
   readNewsFeedFromHash,
@@ -22,6 +23,8 @@ import {
   writeNewsThemesToHash,
   type NewsThemeKey,
 } from "@/lib/routing/newsThemes";
+
+const FRESHNESS_WARNING_MS = 5 * 60 * 1000;
 
 function themesAreEqual(a: NewsThemeKey[], b: NewsThemeKey[]) {
   if (a.length !== b.length) return false;
@@ -155,6 +158,8 @@ function StandardNewsSection({
     hasMore,
     reload,
     loadMore,
+    isReloading,
+    lastUpdatedAt,
   } = useNewsFeed({ feed, pageSize: 20, themes: effectiveThemes });
 
   const {
@@ -174,9 +179,58 @@ function StandardNewsSection({
   const displayedHasMore = isSearchMode ? searchHasMore : hasMore;
   const displayedReload = isSearchMode ? searchReload : reload;
   const displayedLoadMore = isSearchMode ? searchLoadMore : loadMore;
+  const isInitialLoading = isLoading && items.length === 0;
+  const refreshDisabled = isInitialLoading || isReloading;
+
+  const maybeAutoRefresh = useCallback(() => {
+    if (!lastUpdatedAt) return;
+    const age = Date.now() - lastUpdatedAt.getTime();
+    if (age >= NEWS_FEED_STALE_MS) {
+      void reload();
+    }
+  }, [lastUpdatedAt, reload]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        maybeAutoRefresh();
+      }
+    };
+
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [maybeAutoRefresh]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        maybeAutoRefresh();
+      }
+    }, NEWS_FEED_STALE_MS);
+    return () => window.clearInterval(intervalId);
+  }, [maybeAutoRefresh]);
 
   return (
     <>
+      <NewsRefreshToolbar
+        lastUpdatedAt={lastUpdatedAt}
+        onRefresh={reload}
+        disabled={refreshDisabled}
+        isBusy={isReloading}
+        isInitialLoading={isInitialLoading}
+      />
       <NewsSearchBar
         value={searchQuery}
         onChange={onSearchQueryChange}
@@ -262,6 +316,69 @@ function BookmarksSection({
         isBookmarked={isBookmarked}
         toggleBookmark={toggleBookmark}
       />
+    </div>
+  );
+}
+
+interface NewsRefreshToolbarProps {
+  lastUpdatedAt: Date | null;
+  onRefresh: () => Promise<void> | void;
+  disabled: boolean;
+  isBusy: boolean;
+  isInitialLoading: boolean;
+}
+
+function NewsRefreshToolbar({
+  lastUpdatedAt,
+  onRefresh,
+  disabled,
+  isBusy,
+  isInitialLoading,
+}: NewsRefreshToolbarProps) {
+  const timeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat("nl-NL", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [],
+  );
+
+  const now = Date.now();
+  const isStale =
+    Boolean(lastUpdatedAt) && now - (lastUpdatedAt?.getTime() ?? 0) > FRESHNESS_WARNING_MS;
+
+  let label = "Nog niet bijgewerkt.";
+  if (isInitialLoading) {
+    label = "Bezig met laden…";
+  } else if (lastUpdatedAt) {
+    label = `Laatst bijgewerkt: ${timeFormatter.format(lastUpdatedAt)}${
+      isStale ? " · mogelijk verouderd" : ""
+    }`;
+  }
+
+  const handleRefresh = () => {
+    const maybePromise = onRefresh();
+    if (maybePromise && typeof (maybePromise as Promise<void>).then === "function") {
+      void maybePromise;
+    }
+  };
+
+  return (
+    <div className="rounded-xl border bg-card p-3 sm:flex sm:items-center sm:justify-between">
+      <p className={`text-xs sm:text-sm ${isStale ? "text-amber-600" : "text-muted-foreground"}`}>
+        {label}
+      </p>
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="mt-2 w-full sm:mt-0 sm:w-auto"
+        onClick={handleRefresh}
+        disabled={disabled}
+      >
+        {isBusy || isInitialLoading ? "Bezig…" : "Ververs nieuws"}
+      </Button>
     </div>
   );
 }
