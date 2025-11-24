@@ -205,10 +205,10 @@ export default function Filters({
           size="sm"
           onClick={() => onChange({ category: "all" })}
           className={cn(
-            "rounded-full border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide",
+            "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
             category === "all"
-              ? "border-transparent bg-gradient-main text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-              : "bg-transparent text-brand-white/70 hover:bg-white/5",
+              ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+              : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
           )}
         >
           Alle
@@ -224,10 +224,10 @@ export default function Filters({
               size="sm"
               onClick={() => onChange({ category: c.key })}
               className={cn(
-                "rounded-full border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide",
+                "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
                 active
-                  ? "border-transparent bg-gradient-card text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.4)]"
-                  : "bg-transparent text-brand-white/70 hover:bg-white/5",
+                  ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.4)]"
+                  : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
               )}
             >
               {displayName}
@@ -238,10 +238,10 @@ export default function Filters({
         <button
           type="button"
           className={cn(
-            "inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+            "inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
             onlyTurkish
-              ? "border-brand-white/40 bg-brand-white/15 text-brand-white shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
-              : "text-brand-white/70 hover:bg-white/5",
+              ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+              : "bg-surface-muted text-foreground hover:bg-surface-muted/80",
           )}
           onClick={() => onChange({ onlyTurkish: !onlyTurkish })}
         >

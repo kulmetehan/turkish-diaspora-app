@@ -63,10 +63,10 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "my-2 cursor-pointer rounded-3xl border border-white/10 bg-surface-raised/75 p-4 text-foreground shadow-soft transition-all duration-200",
-        "hover:border-white/25 hover:bg-surface-raised/90 hover:text-brand-white",
+        "my-2 cursor-pointer rounded-3xl border border-border bg-card p-4 text-foreground shadow-soft transition-all duration-200",
+        "hover:border-brand-accent hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isSelected &&
-          "bg-gradient-card text-brand-white shadow-[0_30px_45px_rgba(0,0,0,0.55)] ring-2 ring-brand-white/60",
+          "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_30px_45px_rgba(0,0,0,0.55)]",
       )}
     >
       <div className="flex items-center justify-between gap-2">
