@@ -4,6 +4,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CategoryChips } from "@/components/search/CategoryChips";
 import type { ViewMode } from "@/lib/routing/viewMode";
 import { humanizeCategoryLabel } from "@/lib/categories";
 import { Search, X } from "lucide-react";
@@ -198,50 +199,22 @@ export default function Filters({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => onChange({ category: "all" })}
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
-            category === "all"
-              ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-              : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
-          )}
-        >
-          Alle
-        </Button>
-        {categories.map((c) => {
-          const active = category === c.key;
-          const displayName = c.label || humanizeCategoryLabel(c.key);
-          return (
-            <Button
-              key={c.key}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onChange({ category: c.key })}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
-                active
-                  ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.4)]"
-                  : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
-              )}
-            >
-              {displayName}
-            </Button>
-          );
-        })}
+      {viewMode !== "map" ? (
+        <CategoryChips
+          categories={categories}
+          activeCategory={category}
+          onSelect={(key) => onChange({ category: key })}
+        />
+      ) : null}
 
+      <div className="flex items-center gap-2 pt-2">
         <button
           type="button"
           className={cn(
-            "inline-flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+            "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
             onlyTurkish
               ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
-              : "bg-surface-muted text-foreground hover:bg-surface-muted/80",
+              : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
           )}
           onClick={() => onChange({ onlyTurkish: !onlyTurkish })}
         >
@@ -250,7 +223,7 @@ export default function Filters({
         </button>
 
         {loading ? (
-          <span className="ml-auto text-xs text-muted-foreground">Laden…</span>
+          <span className="text-xs text-muted-foreground">Laden…</span>
         ) : null}
       </div>
     </div>

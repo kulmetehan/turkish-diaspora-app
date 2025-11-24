@@ -62,7 +62,7 @@ export default function EventsPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-[32px] border border-border bg-card px-5 py-5 text-foreground shadow-card sm:py-8">
+    <div className="flex w-full flex-col gap-4 px-4 py-6 text-foreground sm:px-8">
       <header className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">
           Turkspot Highlights
@@ -73,7 +73,7 @@ export default function EventsPage() {
         </p>
       </header>
 
-      <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
+      <div className="rounded-2xl border border-border bg-surface-raised p-3 shadow-soft">
         <Tabs
           value={viewMode}
           onValueChange={(value) => {

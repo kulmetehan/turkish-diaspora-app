@@ -250,10 +250,6 @@ body {
   gap: 0;
   /* geen gat tussen lijst en kaart */
   min-height: calc(100dvh - var(--layout-header-h));
-  background-color: hsl(var(--surface-base));
-  background-image: var(--gradient-card);
-  border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, hsl(var(--border)) 65%, transparent);
 }
 
 /* Mobiel/kleine schermen: lijst boven, kaart eronder */
@@ -267,15 +263,11 @@ body {
 
 /* Sidebar-paneel */
 .tda-sidebar {
-  background: color-mix(in oklab, hsl(var(--surface-raised)) 80%, transparent);
-  border-right: 1px solid color-mix(in srgb, hsl(var(--border)) 80%, transparent);
   min-height: calc(100dvh - var(--layout-header-h));
   overflow: hidden;
   /* we scrollen binnenin het body-gedeelte */
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 /* Scrollbaar gebied voor de lijst */
@@ -289,9 +281,7 @@ body {
 .tda-map {
   position: relative;
   min-height: var(--layout-min-map-h);
-  background:
-    radial-gradient(circle at 20% 20%, hsl(var(--brand-accent-soft) / 0.15), transparent 55%),
-    hsl(var(--surface-base));
+  background: hsl(var(--surface-base));
 }
 
 @media (max-width: 1024px) {

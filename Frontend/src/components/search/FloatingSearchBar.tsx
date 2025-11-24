@@ -54,7 +54,7 @@ export function FloatingSearchBar({
           autoComplete="off"
           placeholder={placeholder}
           value={value}
-          className="h-12 rounded-xl border border-border bg-background pl-9 pr-12 text-base shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          className="h-12 rounded-xl border border-border bg-card pl-9 pr-12 text-base text-foreground placeholder:text-muted-foreground shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           onChange={(event) => {
             onValueChange(event.target.value);
             setOpenSuggest(true);
@@ -121,7 +121,7 @@ export function FloatingSearchBar({
           id={listboxId}
           role="listbox"
           aria-label="Zoek suggesties"
-          className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
+          className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-xl"
         >
           <div className="max-h-60 overflow-auto py-1 text-sm">
             {normalizedSuggestions.map((suggestion, index) => {

@@ -371,7 +371,7 @@ function HomePage() {
 
   const listViewDesktop = (
     <div
-      className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden rounded-[32px] border border-border bg-card px-5 py-6 text-foreground shadow-card focus:outline-none"
+      className="flex h-full w-full flex-col gap-4 overflow-hidden px-4 py-5 text-foreground focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
@@ -404,7 +404,7 @@ function HomePage() {
 
   const listViewMobile = (
     <div
-      className="flex h-full w-full flex-col gap-4 overflow-hidden rounded-[28px] border border-border bg-card px-4 py-5 text-foreground shadow-card focus:outline-none"
+      className="flex h-full w-full flex-col gap-4 overflow-hidden px-4 py-5 text-foreground focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
@@ -553,7 +553,7 @@ function HomePage() {
     <ViewportProvider>
       <div
         data-route-viewport
-        className="relative h-[calc(100svh-var(--footer-height))] overflow-hidden bg-brand-surface-alt shadow-inner"
+        className="relative h-[calc(100svh-var(--footer-height))] w-full overflow-hidden"
       >
         {viewMode === "map"
           ? mapView

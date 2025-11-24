@@ -60,11 +60,11 @@ export function NewsThemeFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-3xl border border-border bg-surface-raised p-4 text-foreground shadow-soft",
+        "flex flex-col gap-2 rounded-3xl border border-border bg-surface-raised p-4 text-foreground shadow-soft",
         className,
       )}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Thema filters
         </span>
@@ -80,28 +80,33 @@ export function NewsThemeFilterBar({
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {SUPPORTED_NEWS_THEMES.map((theme) => {
-          const active = normalizedSelection.includes(theme);
-          return (
-            <button
-              key={theme}
-              type="button"
-              role="checkbox"
-              aria-checked={active}
-              onClick={() => handleToggle(theme)}
-              className={cn(
-                "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
-                active
-                  ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-                  : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
-              )}
-            >
-              {THEME_LABELS[theme]}
-            </button>
-          );
-        })}
+      <div className="relative -mx-1">
+        <div
+          className="flex items-center gap-2 overflow-x-auto px-1 pb-1 whitespace-nowrap [scrollbar-width:thin] scrollbar-thumb-border/60 scrollbar-track-transparent snap-x snap-mandatory"
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
+          {SUPPORTED_NEWS_THEMES.map((theme) => {
+            const active = normalizedSelection.includes(theme);
+            return (
+              <button
+                key={theme}
+                type="button"
+                role="checkbox"
+                aria-checked={active}
+                onClick={() => handleToggle(theme)}
+                className={cn(
+                  "inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
+                  "snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+                  active
+                    ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+                    : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
+                )}
+              >
+                {THEME_LABELS[theme]}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

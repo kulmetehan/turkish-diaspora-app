@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { NewsItem } from "@/api/news";
+import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { NewsFeedTabs } from "@/components/news/NewsFeedTabs";
 import { NewsList } from "@/components/news/NewsList";
@@ -23,6 +24,7 @@ import {
   writeNewsThemesToHash,
   type NewsThemeKey,
 } from "@/lib/routing/newsThemes";
+import { cn } from "@/lib/ui/cn";
 
 const FRESHNESS_WARNING_MS = 5 * 60 * 1000;
 
@@ -84,7 +86,7 @@ export default function NewsPage() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 rounded-[32px] border border-border bg-surface-raised px-5 py-6 text-foreground shadow-soft sm:py-8">
+    <div className="flex w-full flex-col gap-5 px-4 py-6 text-foreground sm:px-8">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-foreground">Nieuws voor jou</h1>
         <p className="text-sm text-muted-foreground">
@@ -223,20 +225,37 @@ function StandardNewsSection({
   }, [maybeAutoRefresh]);
 
   return (
-    <>
-      <NewsRefreshToolbar
-        lastUpdatedAt={lastUpdatedAt}
-        onRefresh={reload}
-        disabled={refreshDisabled}
-        isBusy={isReloading}
-        isInitialLoading={isInitialLoading}
-      />
-      <NewsSearchBar
-        value={searchQuery}
-        onChange={onSearchQueryChange}
-        onClear={onSearchClear}
-        loading={isSearchMode && searchLoading}
-      />
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <NewsSearchBar
+          value={searchQuery}
+          onChange={onSearchQueryChange}
+          onClear={onSearchClear}
+          loading={isSearchMode && searchLoading}
+          className="flex-1"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          aria-label="Nieuws verversen"
+          className="shrink-0 border-border"
+          disabled={refreshDisabled}
+          onClick={() => {
+            const maybePromise = displayedReload();
+            if (maybePromise && typeof (maybePromise as Promise<void>).then === "function") {
+              void maybePromise;
+            }
+          }}
+        >
+          <Icon
+            name={isReloading ? "Loader2" : "RotateCcw"}
+            className={cn("h-4 w-4", isReloading && "animate-spin")}
+            aria-hidden
+          />
+        </Button>
+      </div>
+
       {isSearchMode ? (
         <p className="px-1 text-xs text-muted-foreground">
           Zoekresultaten binnen de diaspora-feed. Gebruik de tabs om snel terug te
@@ -265,7 +284,7 @@ function StandardNewsSection({
         isBookmarked={isBookmarked}
         toggleBookmark={toggleBookmark}
       />
-    </>
+    </div>
   );
 }
 
@@ -319,67 +338,3 @@ function BookmarksSection({
     </div>
   );
 }
-
-interface NewsRefreshToolbarProps {
-  lastUpdatedAt: Date | null;
-  onRefresh: () => Promise<void> | void;
-  disabled: boolean;
-  isBusy: boolean;
-  isInitialLoading: boolean;
-}
-
-function NewsRefreshToolbar({
-  lastUpdatedAt,
-  onRefresh,
-  disabled,
-  isBusy,
-  isInitialLoading,
-}: NewsRefreshToolbarProps) {
-  const timeFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat("nl-NL", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    [],
-  );
-
-  const now = Date.now();
-  const isStale =
-    Boolean(lastUpdatedAt) && now - (lastUpdatedAt?.getTime() ?? 0) > FRESHNESS_WARNING_MS;
-
-  let label = "Nog niet bijgewerkt.";
-  if (isInitialLoading) {
-    label = "Bezig met laden…";
-  } else if (lastUpdatedAt) {
-    label = `Laatst bijgewerkt: ${timeFormatter.format(lastUpdatedAt)}${
-      isStale ? " · mogelijk verouderd" : ""
-    }`;
-  }
-
-  const handleRefresh = () => {
-    const maybePromise = onRefresh();
-    if (maybePromise && typeof (maybePromise as Promise<void>).then === "function") {
-      void maybePromise;
-    }
-  };
-
-  return (
-    <div className="rounded-3xl border border-border bg-surface-raised p-4 text-foreground shadow-soft sm:flex sm:items-center sm:justify-between">
-      <p className={`text-xs sm:text-sm ${isStale ? "text-amber-600" : "text-muted-foreground"}`}>
-        {label}
-      </p>
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="mt-2 w-full border-border text-foreground sm:mt-0 sm:w-auto"
-        onClick={handleRefresh}
-        disabled={disabled}
-      >
-        {isBusy || isInitialLoading ? "Bezig…" : "Ververs nieuws"}
-      </Button>
-    </div>
-  );
-}
-
