@@ -132,4 +132,5 @@ These categories were added following the checklist above:
 - Missing frontend icons will fall back to generic icons ("Store" for chips, "MapPin" for markers)
 - OSM tags must match real OSM data structure; test discovery before production use
 - Turkish aliases improve AI classification accuracy for Turkish business names
+- The `car_dealer` category now covers a broader automotive set (dealers, garages, car wash/detailing, APK/inspection stations, tyre + car parts shops, motorcycle dealers) via the expanded OSM tag list in `categories.yml`.
 
