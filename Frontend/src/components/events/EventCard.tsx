@@ -34,10 +34,10 @@ export function EventCard({
       tabIndex={0}
       data-selected={selected ? "true" : "false"}
       className={cn(
-        "rounded-xl border bg-card px-4 py-4 transition-all duration-150 ease-out",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        "hover:bg-accent/40 hover:shadow-sm",
-        selected && "bg-accent/60 border-l-4 border-brand-red shadow-md",
+        "rounded-3xl border border-border bg-card px-4 py-4 text-foreground shadow-soft transition-all duration-200 ease-out",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        "hover:border-brand-accent hover:shadow-card",
+        selected && "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_25px_45px_rgba(0,0,0,0.45)]",
       )}
       onClick={() => onSelect?.(event)}
       onKeyDown={(eventKeyboard) => {

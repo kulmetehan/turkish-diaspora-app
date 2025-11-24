@@ -77,7 +77,7 @@ export function EventList({
     <div className={cn("space-y-3", className)}>
       <div
         className={cn(
-          "rounded-2xl border bg-card divide-y",
+          "rounded-2xl border border-border bg-card divide-y divide-border shadow-soft",
           "overflow-auto",
           "max-h-[calc(100vh-260px)]",
         )}

@@ -63,7 +63,7 @@ export default function LocationList({
   // Loading state
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-surface-raised/80 p-6 text-center text-brand-white/70 shadow-soft backdrop-blur-lg">
+      <div className="rounded-2xl border border-border bg-card p-6 text-center text-muted-foreground shadow-soft">
         Warming up the backend… Getting your data…
       </div>
     );
@@ -72,7 +72,7 @@ export default function LocationList({
   // Error state
   if (error) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-surface-raised/80 p-6 text-center text-brand-white shadow-soft backdrop-blur-lg">
+      <div className="rounded-2xl border border-border bg-card p-6 text-center text-foreground shadow-soft">
         {error || "Er ging iets mis bij het laden van de locaties."}
       </div>
     );
@@ -84,7 +84,7 @@ export default function LocationList({
       ? "Geen resultaten gevonden voor deze zoekopdracht."
       : "Er zijn nog geen locaties beschikbaar in deze stad.";
     return (
-      <div className="rounded-2xl border border-white/10 bg-surface-raised/80 p-6 text-center text-brand-white/80 shadow-soft backdrop-blur-lg">
+      <div className="rounded-2xl border border-border bg-card p-6 text-center text-muted-foreground shadow-soft">
         {message}
       </div>
     );
@@ -94,8 +94,8 @@ export default function LocationList({
     <div
       ref={containerRef}
       className={cn(
-        "rounded-3xl border border-white/10 bg-surface-raised/70 text-foreground shadow-soft backdrop-blur-lg",
-        "divide-y divide-white/5 overflow-auto",
+        "rounded-3xl border border-border bg-card text-foreground shadow-card",
+        "divide-y divide-border overflow-auto",
         fullHeight ? "h-full max-h-none" : "max-h-[calc(100vh-220px)]",
       )}
     >
@@ -110,13 +110,13 @@ export default function LocationList({
               else itemRefs.current.delete(l.id);
             }}
             role="button"
-          className={cn(
-            "px-4 py-3 transition-all duration-200 ease-out",
-            "hover:bg-white/5 hover:text-brand-white",
-            active
-              ? "bg-gradient-card text-brand-white shadow-[0_20px_35px_rgba(0,0,0,0.45)] ring-1 ring-brand-white/60"
-              : "text-foreground/90",
-          )}
+            className={cn(
+              "px-4 py-3 transition-all duration-200 ease-out text-foreground",
+              "hover:bg-surface-muted hover:text-foreground",
+              active
+                ? "bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_20px_35px_rgba(0,0,0,0.45)] ring-1 ring-brand-white/60"
+                : ""
+            )}
             onClick={() => onSelect?.(l.id)}
           >
             <div className="flex items-center justify-between gap-3">

@@ -62,7 +62,7 @@ export default function EventsPage() {
   );
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-[32px] border border-border bg-surface-raised px-5 py-5 text-foreground shadow-soft sm:py-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-[32px] border border-border bg-card px-5 py-5 text-foreground shadow-card sm:py-8">
       <header className="space-y-2">
         <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">
           Turkspot Highlights
@@ -73,7 +73,7 @@ export default function EventsPage() {
         </p>
       </header>
 
-      <div className="rounded-2xl border border-border bg-surface-raised p-3">
+      <div className="rounded-2xl border border-border bg-card p-3 shadow-soft">
         <Tabs
           value={viewMode}
           onValueChange={(value) => {
@@ -82,11 +82,11 @@ export default function EventsPage() {
             }
           }}
         >
-          <TabsList className="grid w-full grid-cols-2 rounded-xl border border-border bg-surface-muted/95 p-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            <TabsTrigger value="list" data-view="list" className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm data-[state=active]:bg-gradient-card data-[state=active]:text-brand-white">
+          <TabsList className="grid w-full grid-cols-2 rounded-xl border border-border bg-surface-muted p-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            <TabsTrigger value="list" data-view="list" className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white">
               Lijst
             </TabsTrigger>
-            <TabsTrigger value="map" data-view="map" className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm data-[state=active]:bg-gradient-card data-[state=active]:text-brand-white">
+            <TabsTrigger value="map" data-view="map" className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white">
               Kaart
             </TabsTrigger>
           </TabsList>

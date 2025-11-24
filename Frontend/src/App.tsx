@@ -6,16 +6,16 @@ import { Icon } from "@/components/Icon";
 import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
-import { ViewportProvider } from "@/contexts/viewport";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ViewportProvider } from "@/contexts/viewport";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, writeViewMode, type ViewMode } from "@/lib/routing/viewMode";
 
-import { fetchLocations, fetchLocationsCount, fetchCategories, type LocationMarker, type CategoryOption } from "@/api/fetchLocations";
+import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
 
 function HomePage() {
   // Global locations state (viewport-independent, fetched on mount)
@@ -371,7 +371,7 @@ function HomePage() {
 
   const listViewDesktop = (
     <div
-      className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden rounded-[32px] border border-white/10 bg-surface-raised/70 px-4 py-5 text-foreground shadow-soft backdrop-blur-xl focus:outline-none"
+      className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden rounded-[32px] border border-border bg-card px-5 py-6 text-foreground shadow-card focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
@@ -404,7 +404,7 @@ function HomePage() {
 
   const listViewMobile = (
     <div
-      className="flex h-full w-full flex-col gap-4 overflow-hidden rounded-[28px] border border-white/10 bg-surface-raised/70 px-4 py-5 text-foreground shadow-soft backdrop-blur-xl focus:outline-none"
+      className="flex h-full w-full flex-col gap-4 overflow-hidden rounded-[28px] border border-border bg-card px-4 py-5 text-foreground shadow-card focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
