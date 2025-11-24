@@ -14,7 +14,7 @@ export default function MapControls({ onResetNorth, onLocateUser, locating, disa
     <div
       data-map-controls
       className={cn(
-        "pointer-events-auto fixed right-3 md:right-4",
+        "pointer-events-auto fixed right-3 text-brand-white md:right-4",
         "bottom-[var(--bottom-offset)]",
         "z-40 flex flex-col gap-2",
       )}
@@ -28,7 +28,7 @@ export default function MapControls({ onResetNorth, onLocateUser, locating, disa
         disabled={disabled}
         aria-label="Reset bearing to North"
         title="Reset bearing to North"
-        className="shadow-md transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="h-12 w-12 rounded-2xl border border-white/15 bg-surface-raised/80 text-current shadow-soft transition focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent hover:bg-white/10"
       >
         <Icon name="Compass" sizeRem={1.1} aria-hidden />
       </Button>
@@ -40,7 +40,7 @@ export default function MapControls({ onResetNorth, onLocateUser, locating, disa
         disabled={disabled || locating}
         aria-label="Show my location"
         title="Show my location"
-        className="shadow-md transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="h-12 w-12 rounded-2xl border border-white/15 bg-surface-raised/80 text-current shadow-soft transition focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent hover:bg-white/10"
       >
         <Icon
           name="LocateFixed"

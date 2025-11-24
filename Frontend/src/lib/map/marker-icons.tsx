@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   MARKER_BASE_SIZE,
-  MARKER_FILL_DEFAULT,
   MARKER_ICON_COLOR,
   MARKER_BORDER_RADIUS,
   MARKER_ICON_SIZE,
+  resolveMarkerFillColor,
   normalizeCategoryKey,
 } from "@/lib/map/categoryIcons";
 import {
@@ -83,15 +83,15 @@ export function MarkerIcon({ loc, selected }: Props) {
   return (
     <div
       className={cn(
-        "text-white shadow-lg border border-white/60",
-        selected ? "ring-2 ring-black/20 scale-105" : "ring-1 ring-black/10",
+        "text-brand-white shadow-lg border border-white/40",
+        selected ? "ring-2 ring-white/50 scale-105" : "ring-1 ring-black/30",
         "transition-transform will-change-transform"
       )}
       style={{
         width: size,
         height: size,
         borderRadius: `${borderRadius}px`,
-        backgroundColor: MARKER_FILL_DEFAULT,
+        backgroundColor: resolveMarkerFillColor(),
         display: "grid",
         placeItems: "center",
       }}

@@ -371,7 +371,7 @@ function HomePage() {
 
   const listViewDesktop = (
     <div
-      className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden px-4 py-4 focus:outline-none"
+      className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 overflow-hidden rounded-[32px] border border-white/10 bg-surface-raised/70 px-4 py-5 text-foreground shadow-soft backdrop-blur-xl focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
@@ -404,7 +404,7 @@ function HomePage() {
 
   const listViewMobile = (
     <div
-      className="flex h-full w-full flex-col gap-4 overflow-hidden px-4 py-4 focus:outline-none"
+      className="flex h-full w-full flex-col gap-4 overflow-hidden rounded-[28px] border border-white/10 bg-surface-raised/70 px-4 py-5 text-foreground shadow-soft backdrop-blur-xl focus:outline-none"
       role="region"
       aria-labelledby={listHeadingId}
       data-view="list"
@@ -486,7 +486,7 @@ function HomePage() {
       </div>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-4 pt-[var(--top-offset)]">
         <div className="pointer-events-auto w-full max-w-2xl" data-filters-overlay>
-          <div className="flex flex-col gap-3 rounded-2xl border border-border/80 bg-background/95 p-4 shadow-2xl shadow-[0_0_0_1px_hsl(var(--brand-red-soft))] supports-[backdrop-filter]:bg-background/80">
+          <div className="flex flex-col gap-3 rounded-[32px] border border-border bg-card p-4 text-foreground shadow-card supports-[backdrop-filter]:backdrop-blur-2xl">
             <Tabs
               value={viewMode}
               onValueChange={(value) => {
@@ -496,11 +496,11 @@ function HomePage() {
                 }
               }}
             >
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 rounded-2xl border border-border bg-surface-muted p-1 text-xs	font-semibold uppercase tracking-wide text-muted-foreground sm:text-sm shadow-inner">
                 <TabsTrigger
                   value="map"
                   data-view="map"
-                  className="flex items-center justify-center gap-2 text-sm"
+                  className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white data-[state=active]:shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
                   onClick={() => {
                     if (viewMode !== "map") {
                       handleViewModeChange("map");
@@ -513,7 +513,7 @@ function HomePage() {
                 <TabsTrigger
                   value="list"
                   data-view="list"
-                  className="flex items-center justify-center gap-2 text-sm"
+                  className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white data-[state=active]:shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
                   onClick={() => {
                     if (viewMode !== "list") {
                       handleViewModeChange("list");
@@ -542,7 +542,7 @@ function HomePage() {
         </div>
       </div>
       {loading && (
-        <div className="absolute top-4 right-4 z-10 rounded-md bg-background/90 px-4 py-2 text-sm text-foreground shadow-md">
+        <div className="absolute top-4 right-4 z-10 rounded-2xl border border-white/10 bg-surface-raised/85 px-4 py-2 text-sm text-brand-white shadow-soft">
           Loading locations...
         </div>
       )}
@@ -553,7 +553,7 @@ function HomePage() {
     <ViewportProvider>
       <div
         data-route-viewport
-        className="relative h-[calc(100svh-var(--footer-height))] overflow-hidden"
+        className="relative h-[calc(100svh-var(--footer-height))] overflow-hidden bg-brand-surface-alt shadow-inner"
       >
         {viewMode === "map"
           ? mapView

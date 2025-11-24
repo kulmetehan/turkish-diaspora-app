@@ -32,8 +32,8 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
         ref={ref}
         style={combinedStyle}
         className={cn(
-          "fixed bottom-0 inset-x-0 z-50 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] shadow-lg",
-          "supports-[backdrop-filter]:bg-background/80 backdrop-blur",
+          "fixed bottom-0 inset-x-0 z-50 border-t border-white/10 bg-gradient-nav pb-[env(safe-area-inset-bottom)] text-brand-white shadow-[0_-35px_75px_rgba(0,0,0,0.55)]",
+          "supports-[backdrop-filter]:backdrop-blur-xl",
           className,
         )}
         {...props}
@@ -49,10 +49,10 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
               end={tab.end}
               className={({ isActive }) =>
                 cn(
-                  "group flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-medium text-muted-foreground transition-all duration-150 ease-out",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                  "group flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-[0.75rem] font-medium uppercase tracking-wide text-brand-white/70 transition-all duration-200 ease-out md:text-xs",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
                   "min-h-[56px]",
-                  isActive && "text-primary",
+                  isActive && "text-brand-white drop-shadow-[0_10px_25px_rgba(255,255,255,0.45)]",
                 )
               }
               aria-label={`${tab.label} tab`}
@@ -62,8 +62,10 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
                   <span
                     data-active={isActive ? "true" : "false"}
                     className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full transition-all duration-150 ease-out",
-                      isActive ? "bg-gradient-to-t from-brand-redSoft/40 to-transparent text-primary border-t-2 border-brand-red shadow-[0_-1px_4px_rgba(0,0,0,0.35)]" : "bg-transparent text-muted-foreground",
+                      "flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-brand-white/5 text-brand-white transition-all duration-200 ease-out",
+                      isActive
+                        ? "scale-105 border-brand-white/70 bg-brand-white/20 shadow-[0_15px_35px_rgba(0,0,0,0.45)]"
+                        : "opacity-80",
                     )}
                   >
                     <Icon name={tab.icon} sizeRem={1.35} aria-hidden />

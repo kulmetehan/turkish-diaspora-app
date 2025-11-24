@@ -1,13 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ViewMode } from "@/lib/routing/viewMode";
 import { humanizeCategoryLabel } from "@/lib/categories";
 import { Search, X } from "lucide-react";
+import { cn } from "@/lib/ui/cn";
 
 type CategoryOption = { key: string; label: string };
 
@@ -81,7 +81,12 @@ export default function Filters({
   }, [category, categoryOptions]);
 
   return (
-    <div className="rounded-xl border bg-card p-3 flex flex-col gap-3">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-3xl border border-white/10 bg-surface-raised/80 p-4 text-foreground shadow-soft",
+        "supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:bg-surface-raised/60",
+      )}
+    >
       {viewMode && onViewModeChange ? (
         <Tabs
           value={viewMode}
@@ -92,12 +97,12 @@ export default function Filters({
             }
           }}
         >
-          <TabsList className="flex w-full">
-            <TabsTrigger value="map" className="flex-1 gap-2 text-sm">
+          <TabsList className="grid w-full grid-cols-2 rounded-2xl border border-white/10 bg-surface-muted/70 p-1 text-sm font-medium text-foreground/70 shadow-inner">
+            <TabsTrigger value="map" className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm data-[state=active]:bg-surface-base data-[state=active]:text-foreground data-[state=active]:shadow-soft">
               <Icon name="Map" className="h-4 w-4" />
               Kaart
             </TabsTrigger>
-            <TabsTrigger value="list" className="flex-1 gap-2 text-sm">
+            <TabsTrigger value="list" className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm data-[state=active]:bg-surface-base data-[state=active]:text-foreground data-[state=active]:shadow-soft">
               <Icon name="List" className="h-4 w-4" />
               Lijst
             </TabsTrigger>
@@ -108,14 +113,14 @@ export default function Filters({
       <div className="relative" ref={suggestBoxRef}>
         <label htmlFor={searchInputId} className="sr-only">Zoek op naam of categorie</label>
         <div className="relative">
-          <span className="absolute inset-y-0 left-2 flex items-center text-muted-foreground">
+          <span className="absolute inset-y-0 left-3 flex items-center text-brand-white/70">
             <Search className="h-4 w-4" aria-hidden />
           </span>
           <Input
             id={searchInputId}
             name="search"
             placeholder="Zoek op naam of categorie…"
-            className="pl-8 pr-8"
+            className="h-12 rounded-2xl border border-white/10 bg-card pl-10 pr-12 text-base text-foreground placeholder:text-foreground/60 focus-visible:ring-brand-white/60"
             value={search}
             onChange={(e) => {
               onChange({ search: e.target.value });
@@ -152,7 +157,7 @@ export default function Filters({
           {search ? (
             <button
               type="button"
-              className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute inset-y-0 right-3 flex items-center text-brand-white/70 transition-colors hover:text-brand-white"
               aria-label="Zoekveld wissen"
               onClick={() => {
                 onChange({ search: "" });
@@ -165,14 +170,19 @@ export default function Filters({
           ) : null}
         </div>
 
-        {showSuggestions ? (
-          <div className="absolute mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md overflow-hidden z-20">
-            <div className="max-h-56 overflow-auto py-1 text-sm">
+          {showSuggestions ? (
+          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-white/10 bg-surface-raised text-sm shadow-soft">
+            <div className="max-h-56 overflow-auto py-1">
               {suggestions!.map((s, idx) => (
                 <button
                   type="button"
                   key={`${s}-${idx}`}
-                  className={`w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground ${idx === activeIndex ? "bg-accent/60" : ""}`}
+                  className={cn(
+                    "w-full px-3 py-2 text-left text-foreground transition-colors",
+                    idx === activeIndex
+                      ? "bg-brand-accent-veil text-brand-white"
+                      : "hover:bg-white/5",
+                  )}
                   onMouseEnter={() => setActiveIndex(idx)}
                   onMouseDown={(e) => {
                     e.preventDefault();
@@ -188,12 +198,18 @@ export default function Filters({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-wrap items-center gap-2 pt-2">
         <Button
           type="button"
-          variant={category === "all" ? "secondary" : "outline"}
+          variant="outline"
           size="sm"
           onClick={() => onChange({ category: "all" })}
+          className={cn(
+            "rounded-full border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide",
+            category === "all"
+              ? "border-transparent bg-gradient-main text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+              : "bg-transparent text-brand-white/70 hover:bg-white/5",
+          )}
         >
           Alle
         </Button>
@@ -204,17 +220,34 @@ export default function Filters({
             <Button
               key={c.key}
               type="button"
-              variant={active ? "secondary" : "outline"}
+              variant="outline"
               size="sm"
               onClick={() => onChange({ category: c.key })}
-              className="rounded-full"
+              className={cn(
+                "rounded-full border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide",
+                active
+                  ? "border-transparent bg-gradient-card text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.4)]"
+                  : "bg-transparent text-brand-white/70 hover:bg-white/5",
+              )}
             >
-              <Badge variant={active ? "default" : "outline"} className="pointer-events-none">
-                {displayName}
-              </Badge>
+              {displayName}
             </Button>
           );
         })}
+
+        <button
+          type="button"
+          className={cn(
+            "inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors",
+            onlyTurkish
+              ? "border-brand-white/40 bg-brand-white/15 text-brand-white shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+              : "text-brand-white/70 hover:bg-white/5",
+          )}
+          onClick={() => onChange({ onlyTurkish: !onlyTurkish })}
+        >
+          <Icon name={onlyTurkish ? "ShieldCheck" : "Users"} className="h-4 w-4" />
+          Alleen Turks
+        </button>
 
         {loading ? (
           <span className="ml-auto text-xs text-muted-foreground">Laden…</span>

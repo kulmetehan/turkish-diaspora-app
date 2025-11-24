@@ -10,22 +10,35 @@ type Props = {
   onSelect?: (id: string) => void;
 };
 
-function formatDistance(km?: number): string {
-  if (km == null || Number.isNaN(km)) return "—";
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  return `${km.toFixed(km < 10 ? 1 : 0)} km`;
-}
-
 function getStatusBadge(loc: LocationMarker): { text: string; className: string } {
-  // Probeer iets zinvols te tonen met de velden die we hebben.
-  // We ondersteunen generieke "state" waarden; zo blijft het future-proof.
-  // Op basis van state (val rustig terug op 'Onbekend').
   const s = (loc.state ?? "").toUpperCase();
-  if (s.includes("VERIFIED")) return { text: "Geverifieerd", className: "badge badge--success" };
-  if (s.includes("CANDIDATE")) return { text: "Kandidaat", className: "badge badge--warn" };
-  if (s.includes("REJECT")) return { text: "Afgewezen", className: "badge badge--error" };
+  if (s.includes("VERIFIED")) {
+    return {
+      text: "Geverifieerd",
+      className:
+        "inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-emerald-100",
+    };
+  }
+  if (s.includes("CANDIDATE")) {
+    return {
+      text: "Kandidaat",
+      className:
+        "inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-50",
+    };
+  }
+  if (s.includes("REJECT")) {
+    return {
+      text: "Afgewezen",
+      className:
+        "inline-flex items-center rounded-full border border-rose-500/50 bg-rose-500/15 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-rose-100",
+    };
+  }
 
-  return { text: "Onbekend", className: "badge" };
+  return {
+    text: "Onbekend",
+    className:
+      "inline-flex items-center rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-brand-white/70",
+  };
 }
 
 const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect }) => {
@@ -50,9 +63,10 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
-        "border rounded-xl p-3.5 my-2 cursor-pointer bg-card text-card-foreground transition-colors",
-        "hover:bg-accent/40 hover:shadow-sm",
-        isSelected && "bg-accent/60 border-brand-red shadow-md"
+        "my-2 cursor-pointer rounded-3xl border border-white/10 bg-surface-raised/75 p-4 text-foreground shadow-soft transition-all duration-200",
+        "hover:border-white/25 hover:bg-surface-raised/90 hover:text-brand-white",
+        isSelected &&
+          "bg-gradient-card text-brand-white shadow-[0_30px_45px_rgba(0,0,0,0.55)] ring-2 ring-brand-white/60",
       )}
     >
       <div className="flex items-center justify-between gap-2">

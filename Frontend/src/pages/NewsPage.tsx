@@ -84,7 +84,7 @@ export default function NewsPage() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4 py-4 sm:py-8">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-5 rounded-[32px] border border-border bg-surface-raised px-5 py-6 text-foreground shadow-soft sm:py-8">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-foreground">Nieuws voor jou</h1>
         <p className="text-sm text-muted-foreground">
@@ -287,7 +287,7 @@ function BookmarksSection({
           Je opgeslagen artikelen worden lokaal op dit apparaat bewaard en worden niet
           gesynchroniseerd met andere apparaten.
         </p>
-        <div className="rounded-xl border bg-card p-6 text-center">
+        <div className="rounded-3xl border border-border bg-surface-raised p-6 text-center text-foreground shadow-soft">
           <p className="text-base font-semibold text-foreground">
             Nog geen opgeslagen artikelen
           </p>
@@ -365,7 +365,7 @@ function NewsRefreshToolbar({
   };
 
   return (
-    <div className="rounded-xl border bg-card p-3 sm:flex sm:items-center sm:justify-between">
+    <div className="rounded-3xl border border-border bg-surface-raised p-4 text-foreground shadow-soft sm:flex sm:items-center sm:justify-between">
       <p className={`text-xs sm:text-sm ${isStale ? "text-amber-600" : "text-muted-foreground"}`}>
         {label}
       </p>
@@ -373,7 +373,7 @@ function NewsRefreshToolbar({
         type="button"
         size="sm"
         variant="outline"
-        className="mt-2 w-full sm:mt-0 sm:w-auto"
+        className="mt-2 w-full border-border text-foreground sm:mt-0 sm:w-auto"
         onClick={handleRefresh}
         disabled={disabled}
       >

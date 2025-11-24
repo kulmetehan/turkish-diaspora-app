@@ -1,7 +1,7 @@
 ---
 title: Design System Guide
 status: active
-last_updated: 2025-11-04
+last_updated: 2025-11-24
 scope: frontend
 owners: [tda-ux]
 ---
@@ -28,6 +28,14 @@ Defined primarily in `Frontend/src/index.css` and `Frontend/src/lib/theme/darkMo
 | Radius | `--radius-sm`, `--radius-md`, `--radius-lg`. |
 | Shadow | `--shadow-soft`, `--shadow-card`. |
 | Spacing | `--space-grid-gutter`, contextual Tailwind spacing utilities. |
+| Gradient | `--gradient-main`, `--gradient-nav`, `--gradient-card` (also exposed via Tailwind `bg-gradient-*`). |
+
+### Surfaces
+
+- `.bg-brand-surface` → Main app shell gradient + body background.
+- `.bg-brand-surface-alt` → Overlay and panel backdrop with blur baked in.
+- Use `bg-surface-raised`, `bg-surface-muted`, and `bg-surface-contrast` Tailwind colors inside cards for layered depth.
+- Map/list containers always sit on one of these surfaces to avoid flashing white when switching modes.
 
 ### Brand Colors
 
@@ -35,27 +43,31 @@ Turkspot brand colors are integrated into the design system via CSS variables an
 
 | Variable | Tailwind Token | Usage |
 | --- | --- | --- |
-| `--brand-red` | `bg-brand-red`, `text-brand-red`, etc. | Primary brand red for main actions, buttons, and key surfaces. Maps to `--primary`. |
-| `--brand-red-soft` | `bg-brand-redSoft` | Softer red variant for gradients, backgrounds, and active chip states. |
-| `--brand-white` | `bg-brand-white` | White for text on brand red backgrounds. Maps to `--primary-foreground`. |
+| `--brand-red-strong` | `from-brand-redStrong`, `text-brand-redStrong` | Ferrari highlight for halos, gradients, and CTA glows. |
+| `--brand-red` | `bg-brand-red`, `text-brand-red` | Primary action color (maps to `--primary`). |
+| `--brand-red-soft` | `bg-brand-redSoft` | Soft overlays, selected states, subtle chips. |
+| `--brand-accent` | `bg-brand-accent` | Semantic alias for current accent hue (light/dark aware). |
+| `--brand-white` | `text-brand-white`, `bg-brand-white` | Foreground on red backgrounds and inverse surfaces. |
 
-**Light mode values:**
-- `--brand-red`: `0 72% 50%` (WCAG AA compliant with white text)
-- `--brand-red-soft`: `0 84% 60%`
+**Light mode values (HSL):**
+- `--brand-red-strong`: `357 94% 45%`
+- `--brand-red`: `0 86% 55%`
+- `--brand-red-soft`: `4 82% 68%`
 - `--brand-white`: `0 0% 100%`
 
-**Dark mode values:**
-- `--brand-red`: `0 80% 65%` (brighter for dark backgrounds)
-- `--brand-red-soft`: `0 90% 70%`
+**Dark mode values (HSL):**
+- `--brand-red-strong`: `357 88% 64%`
+- `--brand-red`: `0 78% 62%`
+- `--brand-red-soft`: `4 78% 70%`
 - `--brand-white`: `0 0% 100%`
 
 **Usage guidelines:**
-- **Primary actions** → Use `bg-primary` or `bg-brand-red` (buttons, CTAs)
-- **Header/key surfaces** → Use `bg-primary` or gradient `bg-gradient-to-b from-brand-redSoft to-brand-red`
-- **Active chips/filters** → Use `bg-brand-redSoft` with `text-primary-foreground`
-- **Error/destructive** → Use `--destructive` (distinct from brand red to avoid confusion)
+- **Primary actions** → `bg-primary` / `bg-brand-red` with `text-brand-white`
+- **Header & hero surfaces** → `bg-gradient-main` or `bg-gradient-nav` utilities
+- **Card halos / chips** → `bg-brand-redSoft` or `bg-gradient-card` for elevated states
+- **Error/destructive** → Use `bg-destructive`; do not repurpose Ferrari red
 
-The `--primary` and `--primary-foreground` variables are mapped to brand colors, so components using semantic tokens automatically inherit the brand identity.
+The `--primary` / `--primary-foreground` variables are mapped to the current accent hues, so shadcn/ui primitives stay on-brand without hardcoded reds. Tailwind exposes gradients via `bg-gradient-main`, `bg-gradient-nav`, and `bg-gradient-card`.
 
 ### Dark mode
 

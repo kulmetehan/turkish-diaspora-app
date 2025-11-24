@@ -37,7 +37,7 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
             role="dialog"
             aria-modal="false"
             aria-label={`Preview voor ${location.name}`}
-            className="tda-card w-[260px] rounded-xl border border-border bg-background/95 p-4 shadow-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="tda-card w-[260px] rounded-3xl border border-white/10 bg-surface-raised/95 p-4 text-foreground shadow-soft backdrop-blur-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70"
             tabIndex={-1}
         >
             <div className="flex items-start justify-between gap-3">
@@ -50,7 +50,7 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
                             </Badge>
                         )}
                         {location.is_turkish && (
-                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                            <span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-100">
                                 Turkish
                             </span>
                         )}
@@ -58,7 +58,7 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
                 </div>
                 <button
                     type="button"
-                    className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className="rounded-full border border-white/10 p-1 text-brand-white/70 transition-colors hover:bg-white/10 hover:text-brand-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-white/70"
                     aria-label="Sluit preview"
                     onClick={onRequestClose}
                 >

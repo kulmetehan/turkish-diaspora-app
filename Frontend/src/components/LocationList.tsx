@@ -24,7 +24,7 @@ export default function LocationList({
   onSelectDetail,
   onShowOnMap,
   autoScrollToSelected = true,
-  emptyText = "Geen resultaten",
+  emptyText: _legacyEmptyText = "Geen resultaten",
   fullHeight = false,
   isLoading = false,
   error = null,
@@ -63,7 +63,7 @@ export default function LocationList({
   // Loading state
   if (isLoading) {
     return (
-      <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+      <div className="rounded-2xl border border-white/10 bg-surface-raised/80 p-6 text-center text-brand-white/70 shadow-soft backdrop-blur-lg">
         Warming up the backend… Getting your data…
       </div>
     );
@@ -72,7 +72,7 @@ export default function LocationList({
   // Error state
   if (error) {
     return (
-      <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+      <div className="rounded-2xl border border-white/10 bg-surface-raised/80 p-6 text-center text-brand-white shadow-soft backdrop-blur-lg">
         {error || "Er ging iets mis bij het laden van de locaties."}
       </div>
     );
@@ -84,7 +84,7 @@ export default function LocationList({
       ? "Geen resultaten gevonden voor deze zoekopdracht."
       : "Er zijn nog geen locaties beschikbaar in deze stad.";
     return (
-      <div className="rounded-xl border bg-card p-6 text-center text-muted-foreground">
+      <div className="rounded-2xl border border-white/10 bg-surface-raised/80 p-6 text-center text-brand-white/80 shadow-soft backdrop-blur-lg">
         {message}
       </div>
     );
@@ -94,7 +94,8 @@ export default function LocationList({
     <div
       ref={containerRef}
       className={cn(
-        "rounded-xl border bg-card divide-y overflow-auto",
+        "rounded-3xl border border-white/10 bg-surface-raised/70 text-foreground shadow-soft backdrop-blur-lg",
+        "divide-y divide-white/5 overflow-auto",
         fullHeight ? "h-full max-h-none" : "max-h-[calc(100vh-220px)]",
       )}
     >
@@ -109,11 +110,13 @@ export default function LocationList({
               else itemRefs.current.delete(l.id);
             }}
             role="button"
-            className={cn(
-              "px-4 py-3 cursor-pointer transition-all duration-150 ease-out",
-              "hover:bg-accent/40 hover:shadow-sm",
-              active ? "bg-accent/60 border-l-4 border-brand-red shadow-md" : ""
-            )}
+          className={cn(
+            "px-4 py-3 transition-all duration-200 ease-out",
+            "hover:bg-white/5 hover:text-brand-white",
+            active
+              ? "bg-gradient-card text-brand-white shadow-[0_20px_35px_rgba(0,0,0,0.45)] ring-1 ring-brand-white/60"
+              : "text-foreground/90",
+          )}
             onClick={() => onSelect?.(l.id)}
           >
             <div className="flex items-center justify-between gap-3">

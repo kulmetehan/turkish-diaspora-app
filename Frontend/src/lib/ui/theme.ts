@@ -1,4 +1,5 @@
 export type ColorToken = `hsl(${string})`;
+export type GradientToken = string;
 
 export const tokens = {
   color: {
@@ -27,10 +28,18 @@ export const tokens = {
     soft: "var(--shadow-soft)",
     card: "var(--shadow-card)",
   },
+  gradient: {
+    main: "var(--gradient-main)" as GradientToken,
+    nav: "var(--gradient-nav)" as GradientToken,
+    card: "var(--gradient-card)" as GradientToken,
+  },
 } as const;
 
 export const brandColors = {
+  redStrong: "hsl(var(--brand-red-strong))" as ColorToken,
   red: "hsl(var(--brand-red))" as ColorToken,
   redSoft: "hsl(var(--brand-red-soft))" as ColorToken,
+  accent: "hsl(var(--brand-accent))" as ColorToken,
+  accentSoft: "hsl(var(--brand-accent-soft))" as ColorToken,
   white: "hsl(var(--brand-white))" as ColorToken,
 } as const;

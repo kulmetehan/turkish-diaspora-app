@@ -10,10 +10,10 @@ export const DEFAULT_ICON_ID = `${ICON_BASE_ID}-${FALLBACK_KEY}`;
 
 // F4-S2: Snap-style marker design tokens
 // Compact 32px markers with red base and white Lucide icons
-// F4-S6: Marker colors align with brand red (--brand-red-soft ≈ #EF4444)
+// F4-S6: Marker colors align with the Ferrari-grade brand tokens
 export const MARKER_BASE_SIZE = 32; // Compact size, down from 48px
-export const MARKER_FILL_DEFAULT = "#EF4444"; // red-500, aligns with brand-red-soft
-export const MARKER_FILL_SELECTED = "#DC2626"; // red-600, optional for future use
+export const MARKER_FILL_DEFAULT = "hsl(357 94% 45%)"; // fallback Ferrari red
+export const MARKER_FILL_SELECTED = "hsl(357 84% 52%)"; // optional for future use
 export const MARKER_ICON_COLOR = "#FFFFFF"; // white
 export const MARKER_STROKE_COLOR = "rgba(0, 0, 0, 0.1)"; // subtle shadow
 export const MARKER_BORDER_RADIUS = 8; // pill/rounded rect shape
@@ -22,7 +22,6 @@ export const MARKER_ICON_SIZE = 16; // Lucide icon size within marker
 
 export const CATEGORY_ICON_BASE_SIZE = MARKER_BASE_SIZE;
 
-const CATEGORY_BACKGROUND = MARKER_FILL_DEFAULT;
 const GLYPH_STROKE = MARKER_ICON_COLOR;
 const GLYPH_SCALE = 0.5; // Adjusted for 16px icon in 32px marker (16/32 = 0.5)
 const RIM_STROKE = MARKER_STROKE_COLOR;
@@ -30,8 +29,6 @@ const RIM_STROKE = MARKER_STROKE_COLOR;
 type CategoryIconDefinition = {
   key: string;
   lucide: string;
-  background: string;
-  stroke: string;
 };
 
 const LUCIDE_ALIAS_MAP: Record<string, string> = {
@@ -82,12 +79,20 @@ const RAW_CATEGORY_CONFIG = [
 
 const CATEGORY_CONFIG: CategoryIconDefinition[] = RAW_CATEGORY_CONFIG.map((entry) => ({
   ...entry,
-  background: CATEGORY_BACKGROUND,
-  stroke: GLYPH_STROKE,
 }));
 
 const SVG_BY_KEY = new Map<string, string>();
 const SVG_BY_ID = new Map<string, string>();
+
+function resolveBrandRedStrong(): string {
+  if (typeof document === "undefined") return MARKER_FILL_DEFAULT;
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--brand-red-strong").trim();
+  return raw ? `hsl(${raw})` : MARKER_FILL_DEFAULT;
+}
+
+export function resolveMarkerFillColor(): string {
+  return resolveBrandRedStrong();
+}
 
 function buildLucideSvg(name: string, size = 24, strokeWidth = 2): string {
   const resolvedName = resolveLucideName(name);
@@ -124,11 +129,11 @@ function buildMarkerSvg(definition: CategoryIconDefinition): string {
   
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <!-- Rounded rectangle background -->
-  <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="${definition.background}" />
+  <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="${resolveBrandRedStrong()}" />
   <!-- Subtle inner shadow/highlight -->
   <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="none" stroke="${RIM_STROKE}" stroke-width="1" />
   <!-- Centered white Lucide icon -->
-  <g stroke="${definition.stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
+  <g stroke="${GLYPH_STROKE}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none">
     <g transform="translate(${center} ${center}) scale(${iconScale}) translate(-12 -12)">
       ${inner}
     </g>
