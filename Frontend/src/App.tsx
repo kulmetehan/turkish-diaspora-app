@@ -6,16 +6,16 @@ import { Icon } from "@/components/Icon";
 import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
-import { ViewportProvider } from "@/contexts/viewport";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ViewportProvider } from "@/contexts/viewport";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, writeViewMode, type ViewMode } from "@/lib/routing/viewMode";
 
-import { fetchLocations, fetchLocationsCount, fetchCategories, type LocationMarker, type CategoryOption } from "@/api/fetchLocations";
+import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
 
 function HomePage() {
   // Global locations state (viewport-independent, fetched on mount)
