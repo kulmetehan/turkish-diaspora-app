@@ -51,6 +51,10 @@ categories:
 3. The category label is stored in `locations.category` and flows through classification/verification.
 4. Aliases help the AI layer interpret Turkish phrases when the raw OSM tags are sparse.
 
+### Automotive coverage
+
+- The `car_dealer` category’s `osm_tags.any` list now includes not only car/garage shops but also `amenity=car_wash`, `amenity=vehicle_inspection`, `craft=car_repair`, `shop=tyres`, `shop=car_parts`, and `shop=motorcycle`, ensuring carwash/detailing, APK stations, tyre + parts stores, and motorcycle dealers are all ingested under the existing automotive bucket.
+
 ## Validation tips
 
 - Run `python -m app.workers.discovery_bot --categories <cat> --limit 5 --dry-run` after editing the YAML to ensure queries still return results.

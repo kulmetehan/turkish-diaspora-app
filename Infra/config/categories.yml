@@ -191,6 +191,12 @@ categories:
         - { shop: "car_dealer" }
         - { shop: "car_repair" }
         - { amenity: "garage" }
+        - { amenity: "car_wash" }
+        - { amenity: "vehicle_inspection" }
+        - { craft: "car_repair" }
+        - { shop: "tyres" }
+        - { shop: "car_parts" }
+        - { shop: "motorcycle" }
     aliases:
       - "autodealer"
       - "garage"
