@@ -1693,13 +1693,13 @@ export default function MapView({
   return (
     <div
       className={cn(
-        "relative h-full w-full rounded-[36px] border border-white/10 bg-brand-surface shadow-[0_35px_80px_rgba(0,0,0,0.65)]",
+        "relative h-full w-full",
         interactionDisabled && "pointer-events-none"
       )}
     >
       <div
         ref={mapContainerRef}
-        className="relative h-full w-full overflow-hidden rounded-[36px]"
+        className="relative h-full w-full overflow-hidden"
       />
       {mapReady && mapRef.current && (
         <MapControls
