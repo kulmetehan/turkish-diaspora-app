@@ -6,6 +6,7 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -432,7 +433,7 @@ body {
   display: none !important;
 }
 
-.tda-preview-popup .mapboxgl-popup-content > div {
+.tda-preview-popup .mapboxgl-popup-content>div {
   margin: 0 !important;
 }
 
