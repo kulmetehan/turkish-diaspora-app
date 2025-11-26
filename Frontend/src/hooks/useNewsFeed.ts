@@ -12,8 +12,14 @@ const NEWS_FEED_CACHE = new Map<string, NewsFeedCacheEntry>();
 const CACHE_TTL_MS = 60_000;
 export const NEWS_FEED_STALE_MS = 120_000;
 
-function createCacheKey(feed: string, pageSize: number, themesKey: string) {
-  return `${feed}:${pageSize}:${themesKey}`;
+function createCacheKey(
+  feed: string,
+  pageSize: number,
+  themesKey: string,
+  citiesKey: string,
+  trendCountryKey: string,
+) {
+  return `${feed}:${trendCountryKey}:${pageSize}:${themesKey}:${citiesKey}`;
 }
 
 function normalizeThemes(themes?: string[]): string[] {
@@ -39,6 +45,9 @@ export interface UseNewsFeedOptions {
   feed?: string;
   pageSize?: number;
   themes?: string[];
+  citiesNl?: string[];
+  citiesTr?: string[];
+  trendCountry?: "nl" | "tr";
 }
 
 export interface UseNewsFeedResult {
@@ -57,6 +66,9 @@ export function useNewsFeed({
   feed = "diaspora",
   pageSize = 20,
   themes,
+  citiesNl,
+  citiesTr,
+  trendCountry = "nl",
 }: UseNewsFeedOptions = {}): UseNewsFeedResult {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -74,7 +86,14 @@ export function useNewsFeed({
     if (!normalizedThemes.length) return "";
     return [...normalizedThemes].sort().join(",");
   }, [normalizedThemes]);
-  const cacheKey = createCacheKey(feed, pageSize, themesKey);
+  const citiesKey = useMemo(() => {
+    const nl = (citiesNl ?? []).map((city) => city.trim().toLowerCase()).filter(Boolean);
+    const tr = (citiesTr ?? []).map((city) => city.trim().toLowerCase()).filter(Boolean);
+    if (!nl.length && !tr.length) return "";
+    return `${nl.sort().join(",")}|${tr.sort().join(",")}`;
+  }, [citiesNl, citiesTr]);
+  const trendCountryKey = feed === "trending" ? trendCountry : "";
+  const cacheKey = createCacheKey(feed, pageSize, themesKey, citiesKey, trendCountryKey);
 
   const hasMore = useMemo(() => {
     if (total === null) return false;
@@ -133,6 +152,9 @@ export function useNewsFeed({
           limit: pageSize,
           offset: nextOffset,
           themes: normalizedThemes.length ? normalizedThemes : undefined,
+          citiesNl: citiesNl && citiesNl.length ? citiesNl : undefined,
+          citiesTr: citiesTr && citiesTr.length ? citiesTr : undefined,
+          trendCountry: feed === "trending" ? trendCountry : undefined,
           signal: controller.signal,
         });
 
@@ -192,7 +214,7 @@ export function useNewsFeed({
         }
       }
     },
-    [cacheKey, feed, normalizedThemes, pageSize],
+    [cacheKey, feed, normalizedThemes, pageSize, citiesNl, citiesTr, trendCountry],
   );
 
   useEffect(() => {

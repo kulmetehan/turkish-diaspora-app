@@ -13,3 +13,5 @@ CREATE INDEX IF NOT EXISTS idx_news_search_tsv
     USING GIN (news_search_tsv);
 
 
+
+

@@ -317,9 +317,60 @@ python -m app.workers.discovery_bot --city rotterdam --worker-run-id <UUID> --dr
 - **Retry logic**: Automatic retry for failed workers
 - **Priority queue**: Support for prioritizing certain worker runs
 
+## News Ingest Pipeline
+
+### Canonical Ingest Workflow
+
+The **canonical news ingest pipeline** is defined in `.github/workflows/tda_news_ingest.yml`:
+
+- **Schedule**: Runs every 15 minutes via GitHub Actions cron (`*/15 * * * *`)
+- **Manual trigger**: Can be triggered manually via `workflow_dispatch` for debugging
+- **Worker**: Runs `python -m app.workers.news_ingest_bot`
+- **Purpose**: Pulls fresh RSS news from `configs/news_sources.yml` and stores normalized items in `raw_ingested_news` table
+
+The ingest worker:
+1. Reads all sources from `configs/news_sources.yml`
+2. Fetches RSS feeds respecting rate limits and robots.txt policies
+3. Normalizes entries and stores them in `raw_ingested_news` with `processing_state='pending'`
+4. Items are later classified by `news_classify_bot` (can be triggered manually or via separate workflow)
+
+### Manual Pipeline Workflow
+
+The `.github/workflows/news_pipeline.yml` workflow is **manual-only** (no schedule):
+
+- **Trigger**: Only via `workflow_dispatch` (manual GitHub Actions trigger)
+- **Purpose**: Debugging and testing - runs both ingest and classification steps
+- **Workers**: 
+  - `python -m app.workers.news_ingest_bot` (ingest)
+  - `python -m app.workers.news_classify_bot` (classification)
+
+Use this workflow for:
+- Testing the full pipeline manually
+- Troubleshooting classification issues
+- One-off runs when needed
+
+### News Feed Endpoints
+
+After ingestion and classification, news items are served via:
+- `GET /api/v1/news?feed=nl` - Dutch news feed
+- `GET /api/v1/news?feed=tr` - Turkish news feed
+- `GET /api/v1/news?feed=local` - Local city-based news
+- `GET /api/v1/news?feed=origin` - Origin city-based news
+- `GET /api/v1/news?feed=trending` - Trending topics (X API or stub fallback)
+
+### X Trending Topics Configuration
+
+The trending feed (`feed=trending`) uses X (Twitter) API when configured:
+
+- **To enable real X trending topics**: Set the `X_API_BEARER_TOKEN` environment variable in your Backend environment (both local `.env` and production).
+- **Fallback behavior**: Without the token, the system uses stub topics (generic trending items for NL/TR). Stub topics are enabled by default.
+- **No database fallback**: The system does NOT fall back to database items (which may contain legacy sources like Reuters/Al Jazeera) when X API is unavailable.
+
 ## Related Documentation
 
 - `Docs/worker-runs.md` - Worker runs table schema and usage
 - `Backend/services/worker_runs_service.py` - Worker runs service functions
 - `Backend/api/routers/admin_workers.py` - Admin workers API endpoints
+- `Docs/news/news_ingest.md` - News ingest process details
+- `Docs/news/news_sources.md` - News sources configuration
 

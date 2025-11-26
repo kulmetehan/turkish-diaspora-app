@@ -24,3 +24,5 @@ class NormalizedNewsItem(BaseModel):
     raw_metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+
+

@@ -108,3 +108,5 @@ async def test_run_scraper_success(monkeypatch: pytest.MonkeyPatch) -> None:
     assert counters["processed_sources"] == 1
     assert counters["inserted_items"] == 2
 
+
+

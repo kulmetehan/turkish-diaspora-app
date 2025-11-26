@@ -12,12 +12,10 @@ export type NewsFeedKey =
   | "bookmarks";
 
 export const NEWS_FEEDS: Array<{ key: NewsFeedKey; label: string }> = [
-  { key: "diaspora", label: "Voor jou" },
   { key: "nl", label: "Nederland" },
   { key: "tr", label: "Turkije" },
   { key: "local", label: "Lokaal" },
   { key: "origin", label: "Herkomst" },
-  { key: "geo", label: "Geopolitiek" },
   { key: "trending", label: "Trending" },
   { key: "bookmarks", label: "Opgeslagen" },
 ];
@@ -25,10 +23,10 @@ export const NEWS_FEEDS: Array<{ key: NewsFeedKey; label: string }> = [
 const ALLOWED_FEEDS = NEWS_FEEDS.map((feed) => feed.key);
 
 export function normalizeNewsFeed(raw: string | null | undefined): NewsFeedKey {
-  if (!raw) return "diaspora";
+  if (!raw) return "nl";
   return ALLOWED_FEEDS.includes(raw as NewsFeedKey)
     ? (raw as NewsFeedKey)
-    : "diaspora";
+    : "nl";
 }
 
 function getHashSearch(): URLSearchParams {

@@ -40,6 +40,7 @@ def test_news_sources_happy_path(tmp_path):
     src = sources[0]
     assert src.name == "Sample Feed"
     assert src.url == "https://example.com/rss"
+    assert src.key == "https://example.com/rss"
     assert src.language == "nl"
     assert src.category in ALLOWED_NEWS_CATEGORIES
 
@@ -58,7 +59,8 @@ def test_news_sources_skips_invalid_entries(tmp_path):
             url: "https://example.com/rss"
             language: "nl"
             category: "unknown"
-          - name: "Valid"
+          - key: "valid_feed"
+            name: "Valid"
             url: "https://valid.example/rss"
             language: "en"
             category: "international"
@@ -68,6 +70,7 @@ def test_news_sources_skips_invalid_entries(tmp_path):
     sources = get_all_news_sources(path=cfg)
     assert len(sources) == 1
     assert sources[0].name == "Valid"
+    assert sources[0].key == "valid_feed"
     assert sources[0].category == "international"
 
 

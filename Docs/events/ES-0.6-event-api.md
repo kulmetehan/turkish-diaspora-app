@@ -78,3 +78,5 @@ Rules:
   - City/category normalization.
   - Validation errors (unknown city/category, invalid date range).
 
+
+

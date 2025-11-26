@@ -57,3 +57,5 @@ Implementation highlights:
 - Resolving the legacy `event_raw.processing_state` check constraint mismatch (`normalized/error_norm` vs `pending/enriched/error`).
 - Public-facing event exposure once published rows are ready for end-users.
 
+
+

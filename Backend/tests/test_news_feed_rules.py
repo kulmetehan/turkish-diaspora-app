@@ -48,6 +48,7 @@ def test_is_in_feed_respects_thresholds():
 def test_feed_specific_rules_cover_local_and_origin():
     thresholds = _base_thresholds()
     row = _base_row()
+    row["relevance_nl"] = 0.05
 
     assert is_in_feed(FeedType.LOCAL, row, row, thresholds)
 
@@ -57,11 +58,30 @@ def test_feed_specific_rules_cover_local_and_origin():
             "language": "tr",
             "category": "tr_national",
             "location_tag": "origin",
-            "relevance_tr": thresholds.news_origin_min_score - 0.05,
+            "relevance_tr": 0.0,
         }
     )
-    # Category alone should qualify origin even if score is slightly under threshold
+    # Category/language alone should qualify origin even if score is low.
     assert is_in_feed(FeedType.ORIGIN, origin_row, origin_row, thresholds)
+
+
+def test_local_origin_ignore_relevance_thresholds():
+    thresholds = _base_thresholds()
+    row = _base_row()
+    row["relevance_nl"] = 0.0
+    assert is_in_feed(FeedType.LOCAL, row, row, thresholds)
+
+    origin_row = {
+        "language": "tr",
+        "category": "culture",  # not TR category, but language matches
+        "location_tag": "origin",
+        "relevance_tr": 0.0,
+    }
+    assert is_in_feed(FeedType.ORIGIN, origin_row, origin_row, thresholds)
+    non_tr_row = dict(origin_row)
+    non_tr_row["language"] = "en"
+    non_tr_row["category"] = "tr_national"
+    assert is_in_feed(FeedType.ORIGIN, non_tr_row, non_tr_row, thresholds)
 
 
 def test_custom_threshold_overrides_change_membership():
@@ -90,8 +110,21 @@ def test_build_feed_filter_embeds_threshold_param_names():
     assert params["diaspora_score"] == thresholds.news_diaspora_min_score
 
     sql_origin, params_origin = build_feed_filter(FeedType.ORIGIN, thresholds)
-    assert "origin_score" in params_origin
-    assert "LOWER(COALESCE(category, '')) IN ('tr_national')" in sql_origin
+    assert params_origin == {}
+    assert "relevance_tr" not in sql_origin
+    assert "COALESCE(location_tag" in sql_origin
+
+    sql_nl, params_nl = build_feed_filter(FeedType.NL, thresholds)
+    assert "source_key" in sql_nl
+    assert "nl_priority" in params_nl
+    assert params_nl["nl_priority"]
+    # Note: nl_allowed is no longer used - we relaxed the allowlist
+
+    sql_tr, params_tr = build_feed_filter(FeedType.TR, thresholds)
+    assert "source_key" in sql_tr
+    assert "tr_priority" in params_tr
+    assert params_tr["tr_priority"]
+    # Note: tr_allowed is no longer used - we relaxed the allowlist
 
 
 def test_thresholds_from_config_maps_all_fields():
@@ -119,4 +152,53 @@ def test_thresholds_from_config_maps_all_fields():
     thresholds = thresholds_from_config(cfg)
     assert thresholds.news_diaspora_min_score == 0.81
     assert thresholds.news_geo_min_score == 0.82
+
+
+def test_priority_sources_bypass_thresholds_for_nl_tr():
+    thresholds = _base_thresholds()
+    nl_row = {
+        **_base_row(),
+        "language": "nl",
+        "category": "nl_national",
+        "relevance_nl": 0.1,
+        "source_key": "nos_headlines",
+    }
+    assert is_in_feed(FeedType.NL, nl_row, nl_row, thresholds)
+
+    tr_row = {
+        **_base_row(),
+        "language": "tr",
+        "category": "tr_national",
+        "relevance_tr": 0.1,
+        "source_key": "haberturk_headlines",
+    }
+    assert is_in_feed(FeedType.TR, tr_row, tr_row, thresholds)
+
+
+def test_nl_feed_allows_all_sources_with_score():
+    """NL feed now allows all sources that pass score + language + category filters."""
+    thresholds = _base_thresholds()
+    row = {
+        **_base_row(),
+        "source_key": "ad_rotterdam",
+        "relevance_nl": 0.99,
+        "language": "nl",
+        "category": "nl_national",
+    }
+    # Non-priority sources can appear if they pass normal filters
+    assert is_in_feed(FeedType.NL, row, row, thresholds)
+
+
+def test_tr_feed_allows_all_sources_with_score():
+    """TR feed now allows all sources that pass score + language + category filters."""
+    thresholds = _base_thresholds()
+    row = {
+        **_base_row(),
+        "language": "tr",
+        "category": "tr_national",
+        "relevance_tr": 0.99,
+        "source_key": "anadolu_ajansi",
+    }
+    # Non-priority sources can appear if they pass normal filters
+    assert is_in_feed(FeedType.TR, row, row, thresholds)
 

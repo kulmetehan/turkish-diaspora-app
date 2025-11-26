@@ -1,9 +1,9 @@
 name: News ingest & classify pipeline
 
+# Manual pipeline workflow for debugging and testing.
+# Runs both ingest and classification steps. Use this for manual testing or troubleshooting.
+# The canonical periodic ingest is handled by tda_news_ingest.yml (runs every 15 minutes).
 on:
-  schedule:
-    # Eén keer per uur
-    - cron: "0 * * * *"
   workflow_dispatch: {}
 
 jobs:

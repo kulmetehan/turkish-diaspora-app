@@ -27,3 +27,5 @@ ALTER TABLE IF EXISTS public.ai_logs
     ADD COLUMN IF NOT EXISTS event_raw_id BIGINT REFERENCES public.event_raw(id) ON DELETE SET NULL;
 
 
+
+

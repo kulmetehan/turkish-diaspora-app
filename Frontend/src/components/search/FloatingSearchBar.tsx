@@ -12,6 +12,8 @@ type FloatingSearchBarProps = {
   ariaLabel?: string;
   placeholder?: string;
   loading?: boolean;
+  className?: string;
+  inputId?: string;
 };
 
 export function FloatingSearchBar({
@@ -22,9 +24,12 @@ export function FloatingSearchBar({
   ariaLabel = "Search locations",
   placeholder = "Zoek op naam of categorie…",
   loading,
+  className,
+  inputId,
 }: FloatingSearchBarProps) {
-  const inputId = useId();
-  const listboxId = `${inputId}-suggestions`;
+  const generatedInputId = useId();
+  const resolvedInputId = inputId ?? generatedInputId;
+  const listboxId = `${resolvedInputId}-suggestions`;
   const suggestBoxRef = useRef<HTMLDivElement | null>(null);
   const [openSuggest, setOpenSuggest] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -37,83 +42,83 @@ export function FloatingSearchBar({
   );
 
   return (
-    <div className="relative w-full" ref={suggestBoxRef}>
-      <label htmlFor={inputId} className="sr-only">
+    <div className={cn("relative w-full", className)} ref={suggestBoxRef}>
+      <label htmlFor={resolvedInputId} className="sr-only">
         {ariaLabel}
       </label>
       <div className="relative">
-        <span className="absolute inset-y-0 left-3 flex items-center text-muted-foreground">
-          <Search className="h-4 w-4" aria-hidden />
-        </span>
-        <Input
-          id={inputId}
-          role="combobox"
-          aria-expanded={showSuggestions}
-          aria-controls={showSuggestions ? listboxId : undefined}
-          aria-autocomplete="list"
-          autoComplete="off"
-          placeholder={placeholder}
-          value={value}
-          className="h-12 rounded-xl border border-border bg-card pl-9 pr-12 text-base text-foreground placeholder:text-muted-foreground shadow-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-          onChange={(event) => {
-            onValueChange(event.target.value);
-            setOpenSuggest(true);
-            setActiveIndex(0);
-          }}
-          onFocus={() => setOpenSuggest(true)}
-          onBlur={() => {
-            window.setTimeout(() => setOpenSuggest(false), 120);
-          }}
-          onKeyDown={(event) => {
-            if (!normalizedSuggestions.length) return;
-            if (event.key === "ArrowDown") {
-              event.preventDefault();
+        <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2 shadow-soft transition focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2 focus-within:ring-offset-background">
+          <span className="text-muted-foreground">
+            <Search className="h-5 w-5" aria-hidden />
+          </span>
+          <Input
+            id={resolvedInputId}
+            role="combobox"
+            aria-expanded={showSuggestions}
+            aria-controls={showSuggestions ? listboxId : undefined}
+            aria-autocomplete="list"
+            autoComplete="off"
+            placeholder={placeholder}
+            value={value}
+            className="h-12 flex-1 border-0 bg-transparent px-0 py-0 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+            onChange={(event) => {
+              onValueChange(event.target.value);
               setOpenSuggest(true);
-              setActiveIndex((index) =>
-                Math.min(index + 1, normalizedSuggestions.length - 1),
-              );
-            } else if (event.key === "ArrowUp") {
-              event.preventDefault();
-              setOpenSuggest(true);
-              setActiveIndex((index) => Math.max(index - 1, 0));
-            } else if (event.key === "Enter") {
-              if (!showSuggestions) return;
-              event.preventDefault();
-              const suggestion = normalizedSuggestions[activeIndex];
-              if (suggestion) {
-                onValueChange(suggestion);
-                setOpenSuggest(false);
-              }
-            } else if (event.key === "Escape") {
-              if (value) {
-                onClear();
-              }
-              setOpenSuggest(false);
-            }
-          }}
-        />
-        {value ? (
-          <button
-            type="button"
-            className={cn(
-              "absolute inset-y-0 right-3 flex items-center text-muted-foreground transition-colors",
-              "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-            )}
-            aria-label="Zoekveld wissen"
-            onClick={() => {
-              onClear();
-              setOpenSuggest(false);
               setActiveIndex(0);
             }}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        ) : null}
-        {loading ? (
-          <span className="pointer-events-none absolute inset-y-0 right-10 flex items-center text-xs text-muted-foreground">
-            …
-          </span>
-        ) : null}
+            onFocus={() => setOpenSuggest(true)}
+            onBlur={() => {
+              window.setTimeout(() => setOpenSuggest(false), 120);
+            }}
+            onKeyDown={(event) => {
+              if (!normalizedSuggestions.length) return;
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setOpenSuggest(true);
+                setActiveIndex((index) =>
+                  Math.min(index + 1, normalizedSuggestions.length - 1),
+                );
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setOpenSuggest(true);
+                setActiveIndex((index) => Math.max(index - 1, 0));
+              } else if (event.key === "Enter") {
+                if (!showSuggestions) return;
+                event.preventDefault();
+                const suggestion = normalizedSuggestions[activeIndex];
+                if (suggestion) {
+                  onValueChange(suggestion);
+                  setOpenSuggest(false);
+                }
+              } else if (event.key === "Escape") {
+                if (value) {
+                  onClear();
+                }
+                setOpenSuggest(false);
+              }
+            }}
+          />
+          {loading ? (
+            <span className="text-xs font-semibold text-muted-foreground">…</span>
+          ) : null}
+          {value ? (
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors",
+                "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+              )}
+              aria-label="Zoekveld wissen"
+              onClick={() => {
+                onClear();
+                setOpenSuggest(false);
+                setActiveIndex(0);
+              }}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {showSuggestions ? (
@@ -121,7 +126,7 @@ export function FloatingSearchBar({
           id={listboxId}
           role="listbox"
           aria-label="Zoek suggesties"
-          className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-border bg-card text-foreground shadow-xl"
+          className="absolute z-20 mt-3 w-full overflow-hidden rounded-2xl border border-border bg-card text-foreground shadow-card"
         >
           <div className="max-h-60 overflow-auto py-1 text-sm">
             {normalizedSuggestions.map((suggestion, index) => {

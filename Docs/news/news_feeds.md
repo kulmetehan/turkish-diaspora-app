@@ -16,6 +16,10 @@ deploying code.
 | `origin` | `location_tag = origin` and (`relevance_tr ≥ threshold` or category `tr_national`). |
 | `geo` | `relevance_geo ≥ threshold` and either category `geopolitiek`/`international` or language EN/FR/DE. |
 
+## UI vs backend feeds
+
+De backend blijft alle feedtypes (`diaspora`, `nl`, `tr`, `local`, `origin`, `geo`, `trending`) ondersteunen via `/api/v1/news?feed=<key>`. Voor de publieke app worden alleen de volgende tabs getoond: Nederland (`nl`), Turkije (`tr`), Lokaal (`local`), Herkomst (`origin`), Trending (`trending`) en Opgeslagen (`bookmarks`). De feedtypes `diaspora` (Voor jou) en `geo` (Geopolitiek) blijven beschikbaar voor interne tooling en toekomstige personalisatie, maar komen niet meer voor in de UI.
+
 ## Default Thresholds
 
 | Field | Default |
@@ -46,5 +50,7 @@ PUT /admin/ai/config              # send partial updates
 
 Only send the fields you want to change. All thresholds are validated to stay
 between `0.0` and `1.0`, and changes are logged via `ai_config_service`.
+
+
 
 

@@ -113,10 +113,10 @@ export function CategoryChips({ categories, activeCategory, onSelect }: Category
               onClick={() => onSelect(key)}
               className={cn(
                 "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200 ease-out",
-                "snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+                "snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                 active
-                  ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-                  : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
+                  ? "border-transparent bg-accent text-accent-foreground shadow-soft"
+                  : "border-border bg-card text-foreground hover:bg-surface-muted",
               )}
             >
               <Icon name={resolveIconName(key)} className="h-4 w-4" aria-hidden />

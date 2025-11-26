@@ -54,7 +54,7 @@ export function EventList({
 
   if (error && !events.length) {
     return (
-      <div className="rounded-2xl border bg-card p-6 text-center text-muted-foreground">
+      <div className="rounded-2xl border border-border/80 bg-card p-6 text-center text-muted-foreground">
         <p>{error}</p>
         {onRetry ? (
           <Button className="mt-4" variant="outline" size="sm" onClick={onRetry}>
@@ -77,7 +77,7 @@ export function EventList({
     <div className={cn("space-y-3", className)}>
       <div
         className={cn(
-          "rounded-2xl border border-border bg-card divide-y divide-border shadow-soft",
+          "rounded-2xl border border-border/80 bg-card divide-y divide-border/80 shadow-soft",
           "overflow-auto",
           "max-h-[calc(100vh-260px)]",
         )}

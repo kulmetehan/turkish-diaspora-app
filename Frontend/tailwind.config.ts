@@ -35,6 +35,10 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        nav: {
+          DEFAULT: "hsl(var(--nav))",
+          foreground: "hsl(var(--foreground))",
+        },
         brand: {
           redStrong: "hsl(var(--brand-red-strong))",
           red: "hsl(var(--brand-red))",

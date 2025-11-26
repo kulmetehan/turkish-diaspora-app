@@ -15,6 +15,11 @@ from typing import Any, Dict, List, Optional, Sequence
 import yaml
 
 from app.core.logging import get_logger
+from app.models.news_city_config import (
+    NewsCity,
+    get_city_google_news_query,
+    get_default_cities,
+)
 
 logger = get_logger()
 
@@ -27,7 +32,13 @@ NEWS_SOURCES_YML = REPO_ROOT / "configs" / "news_sources.yml"
 ALLOWED_NEWS_CATEGORIES: Sequence[str] = (
     "nl_local",
     "nl_national",
+    "nl_national_economie",
+    "nl_national_sport",
+    "nl_national_cultuur",
     "tr_national",
+    "tr_national_economie",
+    "tr_national_sport",
+    "tr_national_magazin",
     "international",
     "geopolitiek",
 )
@@ -37,6 +48,7 @@ ALLOWED_NEWS_CATEGORIES: Sequence[str] = (
 class NewsSource:
     """Single RSS/news feed definition."""
 
+    key: str
     name: str
     url: str
     language: str
@@ -183,6 +195,12 @@ def _validate_source(raw: Dict[str, object]) -> Optional[NewsSource]:
         )
         return None
 
+    key_raw = raw.get("key")
+    if isinstance(key_raw, str) and key_raw.strip():
+        source_key = key_raw.strip()
+    else:
+        source_key = url
+
     license_value = _normalize_license(raw.get("license"))
     redistribution_flag = _normalize_redistribution_flag(raw.get("redistribution_allowed"))
     robots_policy = _normalize_robots_policy(raw.get("robots_policy"))
@@ -209,6 +227,7 @@ def _validate_source(raw: Dict[str, object]) -> Optional[NewsSource]:
         )
 
     return NewsSource(
+        key=source_key,
         name=name,
         url=url,
         language=language,
@@ -251,12 +270,16 @@ def _load_sources_from_path(path_str: str) -> List[NewsSource]:
         if parsed:
             result.append(parsed)
 
+    city_config_path = cfg_path.parent / "news_cities_template.yml"
+    city_sources = _load_city_feed_sources(city_config_path)
+    all_sources = [*result, *city_sources]
+
     logger.info(
         "news_sources_loaded",
         path=str(cfg_path),
-        total=len(result),
+        total=len(all_sources),
     )
-    return result
+    return all_sources
 
 
 def get_all_news_sources(path: Optional[Path] = None) -> List[NewsSource]:
@@ -273,4 +296,48 @@ def get_all_news_sources(path: Optional[Path] = None) -> List[NewsSource]:
 def clear_news_sources_cache() -> None:
     """Reset LRU cache (useful for tests)."""
     _load_sources_from_path.cache_clear()
+
+
+def _load_city_feed_sources(city_config_path: Path) -> List[NewsSource]:
+    config = get_default_cities(path=city_config_path)
+    dynamic_sources: List[NewsSource] = []
+    for city_entry in config["nl"]:
+        parsed = _build_city_source(city_entry, category="nl_local")
+        if parsed:
+            dynamic_sources.append(parsed)
+    for city_entry in config["tr"]:
+        parsed = _build_city_source(city_entry, category="tr_national")
+        if parsed:
+            dynamic_sources.append(parsed)
+    return dynamic_sources
+
+
+def _build_city_source(entry: NewsCity, *, category: str) -> Optional[NewsSource]:
+    query = get_city_google_news_query(entry.city_key)
+    url = _build_google_news_url(query, language=entry.language, country=entry.country)
+    raw: Dict[str, object] = {
+        "key": f"google_news_{entry.city_key}",
+        "name": f"Google News – {entry.name}",
+        "url": url,
+        "language": entry.language,
+        "category": category,
+        "region": entry.name,
+        "license": "google-news",
+        "redistribution_allowed": True,
+        "robots_policy": "follow",
+    }
+    parsed = _validate_source(raw)
+    return parsed
+
+
+def _build_google_news_url(query: str, *, language: str, country: str) -> str:
+    from urllib.parse import quote_plus
+
+    encoded = quote_plus(query)
+    lang = language.lower()
+    country_upper = country.upper()
+    return (
+        "https://news.google.com/rss/search?"
+        f"q={encoded}&hl={lang}&gl={country_upper}&ceid={country_upper}:{lang}"
+    )
 

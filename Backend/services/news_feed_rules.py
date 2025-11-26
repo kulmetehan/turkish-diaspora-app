@@ -2,15 +2,45 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 
 from app.models.ai_config import AIConfig
 
-NL_CATEGORIES = {"nl_local", "nl_national"}
-TR_CATEGORIES = {"tr_national"}
+NL_CATEGORIES = {
+    "nl_local",
+    "nl_national",
+    "nl_national_economie",
+    "nl_national_sport",
+    "nl_national_cultuur",
+}
+TR_CATEGORIES = {
+    "tr_national",
+    "tr_national_economie",
+    "tr_national_sport",
+    "tr_national_magazin",
+}
 GEO_CATEGORIES = {"geopolitiek", "international"}
 LOCAL_TAG = "local"
 ORIGIN_TAG = "origin"
+
+NL_PRIORITY_SOURCE_KEYS = {
+    "nos_headlines",
+    "nos_economie",
+    "nos_sport",
+    "nos_magazin",
+    "nu_headlines",
+}
+TR_PRIORITY_SOURCE_KEYS = {
+    "haberturk_headlines",
+    "haberturk_economie",
+    "haberturk_sport",
+    "haberturk_magazin",
+    "trt_headlines",
+}
+# Note: We intentionally do NOT maintain hard allowlists (NL_ALLOWED_SOURCE_KEYS / TR_ALLOWED_SOURCE_KEYS)
+# that block all other sources. Priority keys (NOS/NU, TRT/Habertürk) are treated more leniently
+# (can bypass strict scoring), but any NL/TR source from news_sources.yml can appear if it passes
+# the normal score + language + category filters. This keeps feeds close to underlying RSS streams.
 
 
 class FeedType(str, Enum):
@@ -54,6 +84,7 @@ def is_in_feed(
     category = _normalize_category(meta.get("category") or news_row.get("category"))
     language = _normalize_language(meta.get("language") or news_row.get("language"))
     location_tag = _normalize_location_tag(news_row.get("location_tag"))
+    source_key = _normalize_source_key(news_row.get("source_key"))
     scores = _extract_scores(news_row)
 
     if feed == FeedType.DIASPORA:
@@ -66,26 +97,31 @@ def is_in_feed(
             )
         )
     if feed == FeedType.NL:
+        # Priority sources (NOS/NU) can bypass strict scoring - they just need language/category match
+        if source_key in NL_PRIORITY_SOURCE_KEYS:
+            return language == "nl" or category in NL_CATEGORIES
+        # All other NL sources must pass normal score + language + category filters
         return (
             scores["relevance_nl"] >= thresholds.news_nl_min_score
             and language == "nl"
             and category in NL_CATEGORIES
         )
     if feed == FeedType.TR:
+        # Priority sources (TRT/Habertürk) can bypass strict scoring - they just need language/category match
+        if source_key in TR_PRIORITY_SOURCE_KEYS:
+            return language == "tr" or category in TR_CATEGORIES
+        # All other TR sources must pass normal score + language + category filters
         return (
             scores["relevance_tr"] >= thresholds.news_tr_min_score
             and (language == "tr" or category in TR_CATEGORIES)
         )
     if feed == FeedType.LOCAL:
-        return (
-            location_tag == LOCAL_TAG
-            and scores["relevance_nl"] >= thresholds.news_local_min_score
-            and category in NL_CATEGORIES
-        )
+        # LOCAL feeds surface all city-matched Google News items—no relevance gating.
+        return location_tag == LOCAL_TAG and category in NL_CATEGORIES
     if feed == FeedType.ORIGIN:
+        # ORIGIN feeds surface all origin-tagged items (language/category scoped) without relevance thresholds.
         return location_tag == ORIGIN_TAG and (
-            scores["relevance_tr"] >= thresholds.news_origin_min_score
-            or category in TR_CATEGORIES
+            category in TR_CATEGORIES or language == "tr"
         )
     if feed == FeedType.GEO:
         return (
@@ -107,33 +143,53 @@ def build_feed_filter(feed: FeedType, thresholds: FeedThresholds) -> Tuple[str, 
         return _build_conditions(
             score=("relevance_diaspora", "diaspora_score", thresholds.news_diaspora_min_score),
             language=("LOWER(COALESCE(language, '')) IN ('nl','tr')"),
-            extra="(COALESCE(location_tag, '') IN ('local','origin') OR LOWER(COALESCE(category, '')) IN ('nl_local','nl_national'))",
+            extra=f"(COALESCE(location_tag, '') IN ('local','origin') OR LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)})",
         )
     if feed == FeedType.NL:
-        return _build_conditions(
+        # Base conditions: score threshold + language + category (applies to all NL sources)
+        sql, params = _build_conditions(
             score=("relevance_nl", "nl_score", thresholds.news_nl_min_score),
             language=("LOWER(COALESCE(language, '')) = 'nl'"),
-            extra="LOWER(COALESCE(category, '')) IN ('nl_local','nl_national')",
+            extra=f"LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)}",
         )
+        # Priority sources (NOS/NU) can bypass strict scoring - they just need language/category
+        priority_clause = (
+            f"LOWER(COALESCE(source_key, '')) = ANY(%(nl_priority)s) "
+            f"AND (LOWER(COALESCE(language, '')) = 'nl' OR LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)})"
+        )
+        nl_priority = _lowered(NL_PRIORITY_SOURCE_KEYS)
+        # Combined: either pass normal filters OR be a priority source with language/category match
+        combined = f"(({sql}) OR ({priority_clause}))"
+        return combined, {**params, "nl_priority": nl_priority}
     if feed == FeedType.TR:
-        return _build_conditions(
+        # Base conditions: score threshold + language/category (applies to all TR sources)
+        sql, params = _build_conditions(
             score=("relevance_tr", "tr_score", thresholds.news_tr_min_score),
-            extra="(LOWER(COALESCE(language, '')) = 'tr' OR LOWER(COALESCE(category, '')) IN ('tr_national'))",
+            extra=f"(LOWER(COALESCE(language, '')) = 'tr' OR LOWER(COALESCE(category, '')) IN {_categories_sql(TR_CATEGORIES)})",
         )
+        # Priority sources (TRT/Habertürk) can bypass strict scoring - they just need language/category
+        priority_clause = (
+            f"LOWER(COALESCE(source_key, '')) = ANY(%(tr_priority)s) "
+            f"AND (LOWER(COALESCE(language, '')) = 'tr' OR LOWER(COALESCE(category, '')) IN {_categories_sql(TR_CATEGORIES)})"
+        )
+        tr_priority = _lowered(TR_PRIORITY_SOURCE_KEYS)
+        # Combined: either pass normal filters OR be a priority source with language/category match
+        combined = f"(({sql}) OR ({priority_clause}))"
+        return combined, {**params, "tr_priority": tr_priority}
     if feed == FeedType.LOCAL:
-        return _build_conditions(
-            score=("relevance_nl", "local_score", thresholds.news_local_min_score),
-            extra="COALESCE(location_tag, '') = 'local' AND LOWER(COALESCE(category, '')) IN ('nl_local','nl_national')",
+        sql = (
+            "COALESCE(location_tag, '') = 'local' "
+            f"AND LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)}"
         )
+        return sql, {}
     if feed == FeedType.ORIGIN:
         sql = (
-            "COALESCE(location_tag, '') = 'origin' AND "
-            "("
-            "COALESCE(relevance_tr, 0) >= %(origin_score)s OR "
-            "LOWER(COALESCE(category, '')) IN ('tr_national')"
+            "COALESCE(location_tag, '') = 'origin' AND ("
+            f"LOWER(COALESCE(category, '')) IN {_categories_sql(TR_CATEGORIES)} "
+            "OR LOWER(COALESCE(language, '')) = 'tr'"
             ")"
         )
-        return sql, {"origin_score": thresholds.news_origin_min_score}
+        return sql, {}
     if feed == FeedType.GEO:
         return _build_conditions(
             score=("relevance_geo", "geo_score", thresholds.news_geo_min_score),
@@ -170,6 +226,10 @@ def _normalize_location_tag(value: Any) -> str:
     return str(value).strip().lower() if isinstance(value, str) else ""
 
 
+def _normalize_source_key(value: Any) -> str:
+    return str(value).strip().lower() if isinstance(value, str) else ""
+
+
 def _extract_scores(news_row: Mapping[str, Any]) -> Dict[str, float]:
     return {
         "relevance_diaspora": float(news_row.get("relevance_diaspora") or 0.0),
@@ -177,4 +237,13 @@ def _extract_scores(news_row: Mapping[str, Any]) -> Dict[str, float]:
         "relevance_tr": float(news_row.get("relevance_tr") or 0.0),
         "relevance_geo": float(news_row.get("relevance_geo") or 0.0),
     }
+
+
+def _categories_sql(categories: Sequence[str] | set[str]) -> str:
+    values = ",".join(f"'{cat}'" for cat in sorted({c.lower() for c in categories}))
+    return f"({values})"
+
+
+def _lowered(values: Sequence[str] | set[str]) -> List[str]:
+    return [value.lower() for value in sorted(values)]
 

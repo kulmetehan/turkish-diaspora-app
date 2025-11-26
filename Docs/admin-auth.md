@@ -50,6 +50,13 @@ Secrets are documented centrally in `Docs/env-config.md`.
 - `Backend/api/routers/admin_auth.py` exposes `GET /api/v1/admin/whoami` returning `{ ok, admin_email }`.
 - Admin-specific routers (metrics, locations) depend on the same auth dependency.
 
+### Manual Location Creation (ADMIN_MANUAL)
+
+- Authenticated admins can create verified locations via `POST /api/v1/admin/locations`.
+- The backend stamps `source = ADMIN_MANUAL`, generates a unique `place_id`, and calls `update_location_classification` with `confidence_score = 0.90` so the row enters the map immediately as `VERIFIED`.
+- The action automatically records `[manual add by <admin email>]` in notes and logs an `admin_location_create` audit entry in `ai_logs`.
+- Inputs must include lat/lng within the valid WGS84 range and a canonical category key (from `categories.yml`) to keep the public map filters consistent.
+
 ## Manual test
 
 1. Create admin user in Supabase dashboard (Auth ▸ Users). Add email to `ALLOWED_ADMIN_EMAILS`.

@@ -20,7 +20,7 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold text-foreground">Account</h1>
         <p className="text-muted-foreground">
@@ -30,7 +30,7 @@ export default function AccountPage() {
 
       <section
         aria-labelledby="appearance-heading"
-        className="rounded-2xl border border-border/60 bg-card/80 p-4 shadow-sm supports-[backdrop-filter]:bg-card/70"
+        className="rounded-3xl border border-border bg-card p-6 shadow-soft"
       >
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">

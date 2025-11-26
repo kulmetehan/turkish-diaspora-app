@@ -26,7 +26,9 @@ _BLOCKING_X_ROBOTS_TOKENS = {"noai", "noindex", "none", "nosnippet", "noarchive"
 
 
 def make_source_key(source: NewsSource) -> str:
-    return source.url
+    """Generate normalized source_key (lowercase) for consistent matching with feed rules."""
+    raw_key = source.key or source.url
+    return raw_key.strip().lower() if raw_key else ""
 
 
 def _jsonify_entry(entry: Any) -> Any:
@@ -317,7 +319,7 @@ class NewsIngestService:
             "content": None,
             "author": None,
             "link": item.url,
-            "image_url": None,
+            "image_url": item.image_url,
             "published_at": published_at,
             "raw_entry": _jsonify_entry(item.raw_metadata),
             "ingest_hash": ingest_hash,
@@ -440,7 +442,18 @@ class NewsIngestService:
                 legal=legal_meta,
             )
 
-        rows = [self._sanitized_item_to_row(source, item) for item in sanitized_items]
+        deduped_items: List[SanitizedNewsItem] = []
+        for sanitized in sanitized_items:
+            if await self._is_recent_duplicate(sanitized.url):
+                logger.info(
+                    "news_ingest_duplicate_skipped",
+                    source=source.name,
+                    url=sanitized.url,
+                )
+                continue
+            deduped_items.append(sanitized)
+
+        rows = [self._sanitized_item_to_row(source, item) for item in deduped_items]
 
         inserted = await self._persist_items(rows)
         await self._mark_source_success(source, inserted)
@@ -451,6 +464,21 @@ class NewsIngestService:
             "inserted": inserted,
             "failed_items": len(norm_errors),
         }
+
+    async def _is_recent_duplicate(self, link: str) -> bool:
+        if not link:
+            return False
+        row = await fetchrow(
+            """
+            SELECT 1
+            FROM raw_ingested_news
+            WHERE link = $1
+              AND published_at >= NOW() - INTERVAL '24 hours'
+            LIMIT 1
+            """,
+            link,
+        )
+        return bool(row)
 
 
 async def ingest_all_sources(limit: Optional[int] = None) -> Dict[str, Any]:

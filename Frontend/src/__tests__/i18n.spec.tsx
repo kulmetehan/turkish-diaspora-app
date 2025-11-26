@@ -62,7 +62,7 @@ describe("i18n singleton", () => {
       );
     });
 
-    const buttons = Array.from(container.querySelectorAll('button[type="button"]'));
+    const buttons = Array.from(container.querySelectorAll('button[role="option"]'));
     const labels = buttons
       .slice(1) // skip "Alle"
       .map((btn) => btn.textContent?.trim())

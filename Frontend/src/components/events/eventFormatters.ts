@@ -67,3 +67,5 @@ export function eventHasCoordinates(event: Pick<EventItem, "lat" | "lng">): bool
 }
 
 
+
+

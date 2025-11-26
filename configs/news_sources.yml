@@ -12,53 +12,91 @@ defaults:
   refresh_minutes: 30
 
 sources:
-  # NL Local (Rotterdam + nearby)
-  - name: "Rijnmond – Algemeen"
-    url: "https://www.rijnmond.nl/rss"
-    language: "nl"
-    category: "nl_local"
-    region: "rotterdam"
-    license: "proprietary-rss"
-    redistribution_allowed: true
-    robots_policy: "follow"
-  - name: "AD Rotterdam"
-    url: "https://www.ad.nl/rotterdam/rss.xml"
-    language: "nl"
-    category: "nl_local"
-    region: "rotterdam"
-    license: "dpg-media-rss"
-    redistribution_allowed: true
-    robots_policy: "follow"
-
-  # NL National
-  - name: "NOS – Algemeen Nieuws"
+  # NL Public (NOS)
+  - key: "nos_headlines"
+    name: "NOS – Headlines"
     url: "https://feeds.nos.nl/nosnieuwsalgemeen"
     language: "nl"
     category: "nl_national"
     license: "nos-rss"
     redistribution_allowed: true
     robots_policy: "follow"
-  - name: "NU.nl – Algemeen"
-    url: "https://www.nu.nl/rss/Algemeen"
+  - key: "nos_economie"
+    name: "NOS – Economie"
+    url: "https://feeds.nos.nl/nosnieuwseconomie"
     language: "nl"
-    category: "nl_national"
-    license: "nu-nl-rss"
+    category: "nl_national_economie"
+    license: "nos-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "nos_sport"
+    name: "NOS – Sport"
+    url: "https://feeds.nos.nl/nossportalgemeen"
+    language: "nl"
+    category: "nl_national_sport"
+    license: "nos-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "nos_magazin"
+    name: "NOS – Cultuur & Media"
+    url: "https://feeds.nos.nl/nosnieuwscultuurenmedia"
+    language: "nl"
+    category: "nl_national_cultuur"
+    license: "nos-rss"
     redistribution_allowed: true
     robots_policy: "follow"
 
-  # TR National
-  - name: "TRT Haber – Türkiye"
-    url: "https://www.trthaber.com/xml_mobile.php"
+  # NL Digital (NU.nl)
+  - key: "nu_headlines"
+    name: "NU.nl – Algemeen"
+    url: "https://www.nu.nl/rss/Algemeen"
+    language: "nl"
+    category: "nl_national"
+    license: "nu-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+
+  # TR Commercial (Habertürk)
+  - key: "haberturk_headlines"
+    name: "Habertürk – Headlines"
+    url: "https://www.haberturk.com/rss/manset.xml"
+    language: "tr"
+    category: "tr_national"
+    license: "haberturk-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "haberturk_economie"
+    name: "Habertürk – Economie"
+    url: "https://www.haberturk.com/rss/ekonomi.xml"
+    language: "tr"
+    category: "tr_national_economie"
+    license: "haberturk-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "haberturk_sport"
+    name: "Habertürk – Sport"
+    url: "https://www.haberturk.com/rss/spor.xml"
+    language: "tr"
+    category: "tr_national_sport"
+    license: "haberturk-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "haberturk_magazin"
+    name: "Habertürk – Magazin"
+    url: "https://www.haberturk.com/rss/magazin.xml"
+    language: "tr"
+    category: "tr_national_magazin"
+    license: "haberturk-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+
+  # TR Public (TRT Haber)
+  - key: "trt_headlines"
+    name: "TRT Haber – Son Dakika"
+    url: "https://www.trthaber.com/rss/sondakika.rss"
     language: "tr"
     category: "tr_national"
     license: "trt-rss"
-    redistribution_allowed: true
-    robots_policy: "follow"
-  - name: "Anadolu Ajansı – Son Dakika"
-    url: "https://www.aa.com.tr/tr/rss/default?cat=guncel"
-    language: "tr"
-    category: "tr_national"
-    license: "aa-rss"
     redistribution_allowed: true
     robots_policy: "follow"
 

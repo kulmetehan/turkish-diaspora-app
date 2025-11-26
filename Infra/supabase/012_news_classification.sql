@@ -30,3 +30,5 @@ ALTER TABLE IF EXISTS public.ai_logs
 
 
 
+
+

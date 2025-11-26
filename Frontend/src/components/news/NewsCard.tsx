@@ -75,8 +75,8 @@ export function NewsCard({
       onClick={handleActivate}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative cursor-pointer rounded-3xl border border-border bg-card p-4 text-foreground shadow-soft transition-all duration-200",
-        "hover:border-brand-accent hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "relative cursor-pointer rounded-2xl border border-border/80 bg-card p-5 text-foreground shadow-soft transition-all duration-200",
+        "hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:shadow-card",
         className,
       )}
     >
@@ -87,10 +87,9 @@ export function NewsCard({
           aria-pressed={isBookmarked}
           title={bookmarkLabel}
           onClick={handleBookmarkClick}
-            className={cn(
-              "absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground",
-              "transition-all hover:border-foreground hover:text-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          className={cn(
+            "absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground",
+            "transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
           )}
         >
           {isBookmarked ? (
@@ -102,7 +101,7 @@ export function NewsCard({
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row">
         {item.image_url ? (
-          <div className="flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-muted sm:h-24 sm:w-32">
+          <div className="flex-shrink-0 overflow-hidden rounded-2xl border border-border/70 bg-muted sm:h-24 sm:w-32">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.image_url}
@@ -136,7 +135,7 @@ export function NewsCard({
               {visibleTags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center rounded-full border border-border bg-surface-muted px-2 py-0.5 text-xs font-medium capitalize text-foreground"
+                  className="inline-flex items-center rounded-full border border-border/70 bg-surface-muted px-2 py-0.5 text-xs font-medium capitalize text-foreground"
                 >
                   {tag}
                 </span>
