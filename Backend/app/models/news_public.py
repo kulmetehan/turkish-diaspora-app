@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,25 @@ class NewsListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class NewsCityRecord(BaseModel):
+    city_key: str
+    name: str
+    country: str
+    province: Optional[str] = None
+    parent_key: Optional[str] = None
+    population: Optional[int] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class NewsCityListResponse(BaseModel):
+    cities: List[NewsCityRecord]
+    defaults: Dict[str, List[str]] = Field(default_factory=dict)
+
+
 
 
 

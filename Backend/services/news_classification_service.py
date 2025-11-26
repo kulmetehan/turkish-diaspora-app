@@ -12,8 +12,9 @@ logger = get_logger()
 SYSTEM_PROMPT = (
     "You are an AI assistant that classifies news stories about the Turkish diaspora in the Netherlands. "
     "Respond ONLY with valid JSON that matches the provided schema. "
-    "Scores must be floats between 0.0 and 1.0. Topics are short English tags "
-    "such as \"diaspora\", \"politics\", \"economy\", \"migration\", \"religion\", \"culture\", \"sports\". "
+    "Scores must be floats between 0.0 and 1.0. "
+    "Topics MUST be one or more of these exact values: \"politics\", \"economy\", \"culture\", \"religion\", \"sports\", \"security\". "
+    "Do NOT use other topic values like \"diaspora\", \"migration\", or any other tags. "
     "Language must be an ISO 639-1 code like \"nl\", \"tr\", or \"en\". "
     "You MUST always include `location_mentions` (an array, possibly empty). "
     "Use these exact NL city_key values: rotterdam, amsterdam, den_haag, schiedam, vlaardingen. "

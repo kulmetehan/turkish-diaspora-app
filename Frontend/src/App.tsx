@@ -10,10 +10,12 @@ import OverlayDetailCard from "@/components/OverlayDetailCard";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
 import { ViewportProvider } from "@/contexts/viewport";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, writeViewMode, type ViewMode } from "@/lib/routing/viewMode";
+import { cn } from "@/lib/ui/cn";
 
 import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
 
@@ -496,11 +498,11 @@ function HomePage() {
                 }
               }}
             >
-              <TabsList className="grid w-full grid-cols-2 rounded-2xl border border-border bg-surface-muted p-1 text-xs	font-semibold uppercase tracking-wide text-muted-foreground sm:text-sm shadow-inner">
+              <TabsList className={cn(surfaceTabsList, "grid w-full grid-cols-2 bg-card")}>
                 <TabsTrigger
                   value="map"
                   data-view="map"
-                  className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white data-[state=active]:shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+                  className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
                   onClick={() => {
                     if (viewMode !== "map") {
                       handleViewModeChange("map");
@@ -513,7 +515,7 @@ function HomePage() {
                 <TabsTrigger
                   value="list"
                   data-view="list"
-                  className="flex items-center justify-center gap-2 rounded-xl py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white data-[state=active]:shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
+                  className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
                   onClick={() => {
                     if (viewMode !== "list") {
                       handleViewModeChange("list");
@@ -542,8 +544,8 @@ function HomePage() {
         </div>
       </div>
       {loading && (
-        <div className="absolute top-4 right-4 z-10 rounded-2xl border border-white/10 bg-surface-raised/85 px-4 py-2 text-sm text-brand-white shadow-soft">
-          Loading locations...
+        <div className="absolute top-4 right-4 z-10 rounded-2xl border border-border bg-card px-4 py-2 text-sm text-foreground shadow-soft">
+          Locaties worden geladen…
         </div>
       )}
     </div>
@@ -553,7 +555,7 @@ function HomePage() {
     <ViewportProvider>
       <div
         data-route-viewport
-        className="relative h-[calc(100svh-var(--footer-height))] w-full overflow-hidden"
+        className="relative h-[calc(100svh-var(--footer-height))] w-full overflow-hidden bg-background"
       >
         {viewMode === "map"
           ? mapView

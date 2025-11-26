@@ -41,6 +41,14 @@ CANDIDATE (confidence_score = NULL)
   - These workers discover locations from OSM Overpass API
   - All newly inserted locations start as `CANDIDATE`
 
+### Admin Manual Creation
+
+- **`POST /api/v1/admin/locations`**: Admin UI action for hand-picked additions
+  - Inserts with `source = ADMIN_MANUAL` and a generated `place_id`
+  - Immediately calls `update_location_classification(..., confidence_score=0.90)` to promote the record to `VERIFIED`
+  - Notes include `[manual add by <admin email>]` and the action is logged via `audit_admin_action`
+  - Manual entries must include valid lat/lng coordinates so they satisfy the verified filter used by the public map
+
 ### Verification Workers
 
 - **`verify_locations`** (PRIMARY): Main verification worker that performs classification-based transitions

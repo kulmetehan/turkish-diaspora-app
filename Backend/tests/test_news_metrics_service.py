@@ -158,3 +158,5 @@ async def test_generate_news_metrics_snapshot(monkeypatch):
     assert snapshot.errors == sample_errors
 
 
+
+

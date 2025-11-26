@@ -1,3 +1,4 @@
+import AdminAddLocationDialog from "@/components/admin/AdminAddLocationDialog";
 import EditLocationDialog from "@/components/admin/EditLocationDialog";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
@@ -103,6 +104,7 @@ export default function AdminLocationsTable() {
     const [bulkLoading, setBulkLoading] = useState(false);
     const [bulkUnretire, setBulkUnretire] = useState(false);
     const [isOptionsLoading, setIsOptionsLoading] = useState(true);
+    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const nav = useNavigate();
 
     const parseConfidence = (value: string): number | undefined => {
@@ -391,9 +393,25 @@ export default function AdminLocationsTable() {
         overscan: 5,
     });
 
+    const handleLocationCreated = () => {
+        toast.success("Locatie succesvol aangemaakt.");
+        setIsAddDialogOpen(false);
+        setOffset(0);
+        void load();
+    };
+
     return (
         <Card className="max-h-[80vh]">
             <CardContent className="p-4 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <Button onClick={() => setIsAddDialogOpen(true)}>
+                        <Icon name="Plus" className="mr-2 h-4 w-4" />
+                        Locatie toevoegen
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                        {total} resultaten
+                    </span>
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex-1 min-w-[220px]">
                         <Input placeholder="Zoek op naam of adres…" value={search} onChange={e => { setOffset(0); setSearch(e.target.value); }} />
@@ -656,6 +674,7 @@ export default function AdminLocationsTable() {
                 </div>
             </CardContent>
             <EditLocationDialog id={editingId} open={editingId !== null} onOpenChange={(o) => { if (!o) setEditingId(null); }} onSaved={() => void load()} />
+            <AdminAddLocationDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} onCreated={handleLocationCreated} />
         </Card>
     );
 }

@@ -22,3 +22,5 @@ def test_admin_news_metrics_endpoint_structure():
         assert "pending_items_last_24h" in errors
 
 
+
+

@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { NewsItem } from "@/api/news";
-import { Icon } from "@/components/Icon";
-import { Button } from "@/components/ui/button";
+import { NewsCityModal } from "@/components/news/NewsCityModal";
 import { NewsFeedTabs } from "@/components/news/NewsFeedTabs";
 import { NewsList } from "@/components/news/NewsList";
 import { NewsSearchBar } from "@/components/news/NewsSearchBar";
 import { NewsThemeFilterBar } from "@/components/news/NewsThemeFilterBar";
+import { Button } from "@/components/ui/button";
 import { useNewsBookmarks } from "@/hooks/useNewsBookmarks";
+import { useNewsCityPreferences, type CityLabelMap } from "@/hooks/useNewsCityPreferences";
 import { NEWS_FEED_STALE_MS, useNewsFeed } from "@/hooks/useNewsFeed";
 import { useNewsSearch } from "@/hooks/useNewsSearch";
 import {
@@ -24,9 +25,6 @@ import {
   writeNewsThemesToHash,
   type NewsThemeKey,
 } from "@/lib/routing/newsThemes";
-import { cn } from "@/lib/ui/cn";
-
-const FRESHNESS_WARNING_MS = 5 * 60 * 1000;
 
 function themesAreEqual(a: NewsThemeKey[], b: NewsThemeKey[]) {
   if (a.length !== b.length) return false;
@@ -39,8 +37,30 @@ export default function NewsPage() {
   const [searchQuery, setSearchQuery] = useState<string>(() =>
     readNewsSearchQueryFromHash(),
   );
+  const [trendCountry, setTrendCountry] = useState<"nl" | "tr">("nl");
 
   const { bookmarks, isBookmarked, toggleBookmark } = useNewsBookmarks();
+  const {
+    options: cityOptions,
+    preferences: cityPreferences,
+    cityLabels,
+    ready: cityReady,
+    isModalOpen: isCityModalOpen,
+    openModal: openCityModal,
+    closeModal: closeCityModal,
+    savePreferences: saveCityPreferences,
+    rememberCityLabels,
+  } = useNewsCityPreferences({ currentFeed: feed });
+
+  useEffect(() => {
+    if (!cityReady) return;
+    if (
+      (feed === "local" && cityPreferences.nl.length === 0) ||
+      (feed === "origin" && cityPreferences.tr.length === 0)
+    ) {
+      openCityModal();
+    }
+  }, [cityReady, cityPreferences, feed, openCityModal]);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -86,15 +106,16 @@ export default function NewsPage() {
   }, []);
 
   return (
-    <div className="flex w-full flex-col gap-5 px-4 py-6 text-foreground sm:px-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 text-foreground">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold text-foreground">Nieuws voor jou</h1>
         <p className="text-sm text-muted-foreground">
           Artikelen geselecteerd op relevantie voor de Turkse diaspora.
         </p>
       </header>
-
-      <NewsFeedTabs value={feed} onChange={handleFeedChange} />
+      <section className="rounded-3xl border border-border bg-surface-raised p-4 shadow-soft">
+        <NewsFeedTabs value={feed} onChange={handleFeedChange} />
+      </section>
       {feed === "bookmarks" ? (
         <BookmarksSection
           bookmarks={bookmarks}
@@ -112,8 +133,22 @@ export default function NewsPage() {
           onSearchClear={() => setSearchQuery("")}
           isBookmarked={isBookmarked}
           toggleBookmark={toggleBookmark}
+          cityPreferences={cityPreferences}
+          cityLabels={cityLabels}
+          onEditCities={openCityModal}
+          trendCountry={trendCountry}
+          onTrendCountryChange={setTrendCountry}
         />
       )}
+      <NewsCityModal
+        isOpen={isCityModalOpen}
+        options={cityOptions}
+        preferences={cityPreferences}
+        cityLabels={cityLabels}
+        onRememberCities={rememberCityLabels}
+        onSave={saveCityPreferences}
+        onClose={closeCityModal}
+      />
     </div>
   );
 }
@@ -128,6 +163,11 @@ interface StandardNewsSectionProps {
   onSearchClear: () => void;
   isBookmarked: (id: number) => boolean;
   toggleBookmark: (item: NewsItem) => void;
+  cityPreferences: { nl: string[]; tr: string[] };
+  cityLabels: CityLabelMap;
+  onEditCities: () => void;
+  trendCountry: "nl" | "tr";
+  onTrendCountryChange: (country: "nl" | "tr") => void;
 }
 
 function StandardNewsSection({
@@ -140,6 +180,11 @@ function StandardNewsSection({
   onSearchClear,
   isBookmarked,
   toggleBookmark,
+  cityPreferences,
+  cityLabels,
+  onEditCities,
+  trendCountry,
+  onTrendCountryChange,
 }: StandardNewsSectionProps) {
   const trimmedSearch = searchQuery.trim();
   const isSearchMode = trimmedSearch.length >= 2;
@@ -162,7 +207,21 @@ function StandardNewsSection({
     loadMore,
     isReloading,
     lastUpdatedAt,
-  } = useNewsFeed({ feed, pageSize: 20, themes: effectiveThemes });
+  } = useNewsFeed({
+    feed,
+    pageSize: 20,
+    themes: effectiveThemes,
+    citiesNl: feed === "local" ? cityPreferences.nl : undefined,
+    citiesTr: feed === "origin" ? cityPreferences.tr : undefined,
+    trendCountry: feed === "trending" ? trendCountry : undefined,
+  });
+
+  const lastUpdatedLabel = lastUpdatedAt
+    ? new Intl.DateTimeFormat("nl-NL", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(lastUpdatedAt)
+    : "n.v.t.";
 
   const {
     items: searchItems,
@@ -181,8 +240,6 @@ function StandardNewsSection({
   const displayedHasMore = isSearchMode ? searchHasMore : hasMore;
   const displayedReload = isSearchMode ? searchReload : reload;
   const displayedLoadMore = isSearchMode ? searchLoadMore : loadMore;
-  const isInitialLoading = isLoading && items.length === 0;
-  const refreshDisabled = isInitialLoading || isReloading;
 
   const maybeAutoRefresh = useCallback(() => {
     if (!lastUpdatedAt) return;
@@ -225,43 +282,52 @@ function StandardNewsSection({
   }, [maybeAutoRefresh]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-        <NewsSearchBar
-          value={searchQuery}
-          onChange={onSearchQueryChange}
-          onClear={onSearchClear}
-          loading={isSearchMode && searchLoading}
-          className="flex-1"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          aria-label="Nieuws verversen"
-          className="shrink-0 border-border"
-          disabled={refreshDisabled}
-          onClick={() => {
-            const maybePromise = displayedReload();
-            if (maybePromise && typeof (maybePromise as Promise<void>).then === "function") {
-              void maybePromise;
-            }
-          }}
-        >
-          <Icon
-            name={isReloading ? "Loader2" : "RotateCcw"}
-            className={cn("h-4 w-4", isReloading && "animate-spin")}
-            aria-hidden
+    <div className="flex flex-col gap-5">
+      <div className="rounded-3xl border border-border bg-surface-raised p-4 shadow-soft">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          <NewsSearchBar
+            value={searchQuery}
+            onChange={onSearchQueryChange}
+            onClear={onSearchClear}
+            loading={isSearchMode && searchLoading}
+            className="flex-1"
           />
-        </Button>
-      </div>
+        </div>
 
-      {isSearchMode ? (
-        <p className="px-1 text-xs text-muted-foreground">
-          Zoekresultaten binnen de diaspora-feed. Gebruik de tabs om snel terug te
-          schakelen naar een vaste feed.
-        </p>
-      ) : null}
+        {isSearchMode ? (
+          <p className="px-1 pt-2 text-xs text-muted-foreground">
+            Zoekresultaten binnen de selectie. Gebruik de tabs om snel terug te schakelen naar een vaste feed.
+          </p>
+        ) : (
+          <p className="px-1 pt-2 text-xs text-muted-foreground">
+            Laatst bijgewerkt: {lastUpdatedLabel}
+          </p>
+        )}
+        {isTrendingFeed ? (
+          <div className="px-1 pt-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <span>Land</span>
+              <div className="flex gap-2">
+                {(["nl", "tr"] as const).map((country) => (
+                  <Button
+                    key={`trend-country-${country}`}
+                    type="button"
+                    size="sm"
+                    variant={trendCountry === country ? "default" : "outline"}
+                    onClick={() => {
+                      if (trendCountry !== country) {
+                        onTrendCountryChange(country);
+                      }
+                    }}
+                  >
+                    {country === "nl" ? "Nederland" : "Turkije"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {!isTrendingFeed ? (
         <NewsThemeFilterBar
@@ -269,6 +335,20 @@ function StandardNewsSection({
           onChange={onThemesChange}
           onClear={onClearThemes}
         />
+      ) : null}
+
+      {(feed === "local" || feed === "origin") ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-border bg-surface-raised px-4 py-3 text-xs text-muted-foreground shadow-soft">
+          <span>
+            Steden:&nbsp;
+            {feed === "local"
+              ? renderCityList(cityPreferences.nl, cityLabels)
+              : renderCityList(cityPreferences.tr, cityLabels)}
+          </span>
+          <Button type="button" variant="ghost" size="sm" onClick={onEditCities}>
+            Wijzig selectie
+          </Button>
+        </div>
       ) : null}
 
       <NewsList
@@ -306,7 +386,7 @@ function BookmarksSection({
           Je opgeslagen artikelen worden lokaal op dit apparaat bewaard en worden niet
           gesynchroniseerd met andere apparaten.
         </p>
-        <div className="rounded-3xl border border-border bg-surface-raised p-6 text-center text-foreground shadow-soft">
+        <div className="rounded-3xl border border-border bg-card p-6 text-center text-foreground shadow-soft">
           <p className="text-base font-semibold text-foreground">
             Nog geen opgeslagen artikelen
           </p>
@@ -337,4 +417,11 @@ function BookmarksSection({
       />
     </div>
   );
+}
+
+function renderCityList(cities: string[], cityLabels: CityLabelMap) {
+  if (!cities.length) {
+    return "geen selectie";
+  }
+  return cities.map((key) => cityLabels[key]?.name ?? key).join(", ");
 }

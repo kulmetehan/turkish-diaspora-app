@@ -57,3 +57,5 @@ Path: `Backend/services/event_enrichment_service.py`
 3. Enrichment worker is idempotent; rerunning processes only rows in `pending`.
 4. Watch `ai_logs` for `action_type="events.enrich"` to debug prompts or model drift.
 
+
+

@@ -31,3 +31,5 @@ COMMENT ON TABLE public.events_candidate IS 'Normalized event candidates ready f
 COMMENT ON COLUMN public.events_candidate.state IS 'State machine placeholder (candidate, verified, rejected, etc.).';
 
 
+
+

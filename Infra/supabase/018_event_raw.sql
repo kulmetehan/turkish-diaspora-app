@@ -49,3 +49,5 @@ COMMENT ON COLUMN public.event_raw.detected_format IS 'Input format used for par
 COMMENT ON COLUMN public.event_raw.raw_payload IS 'Original parsed payload (HTML node snapshot, feed entry, or JSON object).';
 
 
+
+

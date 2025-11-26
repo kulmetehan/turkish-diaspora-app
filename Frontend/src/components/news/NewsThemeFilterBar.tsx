@@ -60,7 +60,7 @@ export function NewsThemeFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-3xl border border-border bg-surface-raised p-4 text-foreground shadow-soft",
+        "flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 text-foreground shadow-soft",
         className,
       )}
     >
@@ -96,10 +96,10 @@ export function NewsThemeFilterBar({
                 onClick={() => handleToggle(theme)}
                 className={cn(
                   "inline-flex shrink-0 items-center rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
-                  "snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
+                  "snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
                   active
-                    ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_12px_30px_rgba(0,0,0,0.35)]"
-                    : "border-border bg-surface-muted text-foreground hover:bg-surface-muted/80",
+                    ? "border-transparent bg-accent text-accent-foreground shadow-soft"
+                    : "border-border bg-card text-foreground hover:bg-surface-muted",
                 )}
               >
                 {THEME_LABELS[theme]}

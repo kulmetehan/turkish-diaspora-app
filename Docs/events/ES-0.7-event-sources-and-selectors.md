@@ -103,3 +103,5 @@ These rows live in `Infra/supabase/017_event_sources.sql` and will be replayed v
 4. Call `/api/v1/events` (and filter by `city` / `date` to confirm indexing).
 5. If selectors stop matching, inspect the site, update the JSON, and re-run the pipeline.
 
+
+

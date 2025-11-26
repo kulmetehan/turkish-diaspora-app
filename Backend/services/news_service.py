@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
+from app.models.news_city_config import get_city_by_key
 from app.models.news_public import NewsItem
 from app.core.logging import get_logger
 from services.ai_config_service import get_ai_config, initialize_ai_config
@@ -156,12 +157,42 @@ def normalize_theme_filters(values: Sequence[str] | None) -> List[str]:
     return normalized
 
 
+def _normalize_city_filters(values: Sequence[str] | None) -> List[str]:
+    if not values:
+        return []
+    normalized: List[str] = []
+    seen: set[str] = set()
+    for raw_value in values:
+        if not isinstance(raw_value, str):
+            continue
+        candidate = raw_value.strip().lower()
+        if not candidate:
+            continue
+        resolved = _resolve_city_filter(candidate)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        normalized.append(resolved)
+        if len(normalized) == 2:
+            break
+    return normalized
+
+
+def _resolve_city_filter(city_key: str) -> str:
+    city = get_city_by_key(city_key)
+    if city:
+        return city.legacy_key or city.city_key
+    return city_key
+
+
 async def list_news_by_feed(
     feed: FeedType,
     *,
     limit: int,
     offset: int,
     themes: Sequence[str] | None = None,
+    cities_nl: Sequence[str] | None = None,
+    cities_tr: Sequence[str] | None = None,
 ) -> Tuple[List[NewsItem], int]:
     normalized_themes = normalize_theme_filters(themes)
     thresholds = await _load_feed_thresholds()
@@ -170,6 +201,9 @@ async def list_news_by_feed(
 
     where_clause = f"processing_state = 'classified' AND published_at IS NOT NULL AND ({feed_sql})"
     score_column = _score_column_for_feed(feed)
+    order_clause = "relevance_score DESC, published_at DESC"
+    if feed in (FeedType.NL, FeedType.TR):
+        order_clause = "published_at DESC, relevance_score DESC"
 
     where_params: List[Any] = [*feed_args]
     if normalized_themes:
@@ -183,6 +217,33 @@ async def list_news_by_feed(
             )
         """
         where_params.append(normalized_themes)
+
+    if feed == FeedType.LOCAL:
+        normalized_cities = _normalize_city_filters(cities_nl)
+        if normalized_cities:
+            city_placeholder = f"${next_index}"
+            next_index += 1
+            where_clause += f"""
+                AND EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(COALESCE(location_context -> 'matches', '[]'::jsonb)) AS match
+                    WHERE LOWER(match->>'city_key') = ANY({city_placeholder})
+                )
+            """
+            where_params.append(normalized_cities)
+    elif feed == FeedType.ORIGIN:
+        normalized_cities = _normalize_city_filters(cities_tr)
+        if normalized_cities:
+            city_placeholder = f"${next_index}"
+            next_index += 1
+            where_clause += f"""
+                AND EXISTS (
+                    SELECT 1
+                    FROM jsonb_array_elements(COALESCE(location_context -> 'matches', '[]'::jsonb)) AS match
+                    WHERE LOWER(match->>'city_key') = ANY({city_placeholder})
+                )
+            """
+            where_params.append(normalized_cities)
 
     limit_placeholder = f"${next_index}"
     offset_placeholder = f"${next_index + 1}"
@@ -203,7 +264,7 @@ async def list_news_by_feed(
             COALESCE({score_column}, 0) AS relevance_score
         FROM raw_ingested_news
         WHERE {where_clause}
-        ORDER BY relevance_score DESC, published_at DESC
+        ORDER BY {order_clause}
         LIMIT {limit_placeholder} OFFSET {offset_placeholder}
     """
 
@@ -213,6 +274,21 @@ async def list_news_by_feed(
     count_query = f"SELECT COUNT(*) AS total FROM raw_ingested_news WHERE {where_clause}"
     count_row = await fetchrow(count_query, *where_params)
     total = int(dict(count_row or {"total": 0}).get("total", 0))
+    
+    # Log empty feeds for debugging
+    if total == 0:
+        city_keys = []
+        if feed == FeedType.LOCAL and cities_nl:
+            city_keys = list(cities_nl)
+        elif feed == FeedType.ORIGIN and cities_tr:
+            city_keys = list(cities_tr)
+        logger.info(
+            "news_feed_empty",
+            feed=feed.value,
+            themes=normalized_themes if normalized_themes else None,
+            cities=city_keys if city_keys else None,
+        )
+    
     return items, total
 
 

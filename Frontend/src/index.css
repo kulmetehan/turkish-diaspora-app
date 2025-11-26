@@ -59,26 +59,28 @@ body {
   --brand-cream: 32 100% 96%;
 
   /* Surface + text tokens (light) */
-  --surface-base: 0 0% 100%;
+  --surface-base: 0 0% 97%;
   --surface-raised: 0 0% 98%;
   --surface-card: 0 0% 100%;
-  --surface-muted: 217 32% 94%;
-  --surface-contrast: 228 18% 12%;
-  --surface-border: 214 32% 90%;
-  --surface-border-strong: 216 23% 78%;
-  --text-primary: 229 40% 12%;
-  --text-muted: 224 16% 48%;
+  --surface-muted: 220 20% 95%;
+  --surface-contrast: 221 34% 14%;
+  --surface-border: 220 20% 88%;
+  --surface-border-strong: 220 15% 72%;
+  --text-primary: 222 39% 11%;
+  --text-muted: 219 14% 43%;
   --text-inverse: 0 0% 100%;
 
   --brand-accent: var(--brand-red);
   --brand-accent-strong: var(--brand-red-strong);
   --brand-accent-soft: var(--brand-red-soft);
   --brand-accent-veil: hsl(var(--brand-red-soft) / 0.18);
+  --nav: 0 0% 100%;
+  --accent-blue: 226 52% 46%;
 
   /* Gradients */
-  --gradient-main: linear-gradient(135deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 55%, hsl(var(--brand-red-soft)) 100%);
-  --gradient-nav: linear-gradient(180deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 60%, hsl(var(--brand-red-soft)) 100%);
-  --gradient-card: linear-gradient(145deg, hsl(var(--brand-red-soft) / 0.35) 0%, hsl(var(--brand-red) / 0.18) 60%, hsl(var(--brand-red-strong) / 0.32) 100%);
+  --gradient-main: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 60%, hsl(0 0% 96%) 100%);
+  --gradient-nav: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(0 0% 98%) 80%, hsl(0 0% 95%) 100%);
+  --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(0 0% 99%) 50%, hsl(0 0% 97%) 100%);
 
   /* Radii & shadows */
   --radius-lg: 1.25rem;
@@ -101,8 +103,8 @@ body {
   --secondary-foreground: var(--text-primary);
   --muted: var(--surface-muted);
   --muted-foreground: var(--text-muted);
-  --accent: var(--surface-muted);
-  --accent-foreground: var(--text-primary);
+  --accent: var(--accent-blue);
+  --accent-foreground: var(--brand-white);
   --destructive: 0 90% 62%;
   --destructive-foreground: var(--brand-white);
   --border: var(--surface-border);
@@ -122,6 +124,8 @@ body {
     --surface-border-strong: 223 32% 38%;
     --text-primary: 210 36% 96%;
     --text-muted: 216 16% 72%;
+    --accent-blue: 226 64% 64%;
+    --nav: 228 23% 13%;
 
     --brand-red-strong: 357 88% 64%;
     --brand-red: 0 78% 62%;
@@ -147,8 +151,8 @@ body {
     --secondary-foreground: var(--text-primary);
     --muted: 217 25% 22%;
     --muted-foreground: var(--text-muted);
-    --accent: 217 25% 20%;
-    --accent-foreground: var(--text-primary);
+    --accent: var(--accent-blue);
+    --accent-foreground: var(--brand-white);
     --destructive: 2 78% 58%;
     --destructive-foreground: var(--brand-white);
     --border: var(--surface-border);
@@ -169,6 +173,8 @@ body {
   --surface-border-strong: 223 32% 38%;
   --text-primary: 210 36% 96%;
   --text-muted: 216 16% 72%;
+  --accent-blue: 226 64% 64%;
+  --nav: 228 23% 13%;
 
   --brand-red-strong: 357 88% 64%;
   --brand-red: 0 78% 62%;
@@ -194,8 +200,8 @@ body {
   --secondary-foreground: var(--text-primary);
   --muted: 217 25% 22%;
   --muted-foreground: var(--text-muted);
-  --accent: 217 25% 20%;
-  --accent-foreground: var(--text-primary);
+  --accent: var(--accent-blue);
+  --accent-foreground: var(--brand-white);
   --destructive: 2 78% 58%;
   --destructive-foreground: var(--brand-white);
   --border: var(--surface-border);
@@ -218,11 +224,8 @@ html,
 body {
   padding: 0;
   margin: 0;
-  background-color: hsl(var(--surface-base));
-  background-image: var(--gradient-main);
-  background-attachment: fixed;
-  background-size: 220% 220%;
-  background-repeat: no-repeat;
+  background-color: hsl(var(--background));
+  background-image: none;
   color: hsl(var(--text-primary));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -549,18 +552,15 @@ a:hover {
 
 .bg-brand-surface {
   background-color: hsl(var(--surface-base));
-  background-image: var(--gradient-main);
-  background-size: 220% 220%;
   color: hsl(var(--foreground));
 }
 
 .bg-brand-surface-alt {
   background-color: hsl(var(--surface-raised));
-  background-image: var(--gradient-card);
-  background-size: 180% 180%;
   color: hsl(var(--foreground));
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 /* ==========================================================================

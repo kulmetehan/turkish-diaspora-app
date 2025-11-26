@@ -7,6 +7,8 @@ import { EventList } from "@/components/events/EventList";
 import { EventMapView } from "@/components/events/EventMapView";
 import { eventHasCoordinates } from "@/components/events/eventFormatters";
 import { useEventsFeed } from "@/hooks/useEventsFeed";
+import { cn } from "@/lib/ui/cn";
+import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
 
 export default function EventsPage() {
   const {
@@ -62,9 +64,9 @@ export default function EventsPage() {
   );
 
   return (
-    <div className="flex w-full flex-col gap-4 px-4 py-6 text-foreground sm:px-8">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 text-foreground">
       <header className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-red">
+        <p className="text-sm font-semibold uppercase tracking-wide text-accent">
           Turkspot Highlights
         </p>
         <h1 className="text-3xl font-semibold text-foreground">Events & bijeenkomsten</h1>
@@ -73,7 +75,7 @@ export default function EventsPage() {
         </p>
       </header>
 
-      <div className="rounded-2xl border border-border bg-surface-raised p-3 shadow-soft">
+      <div className="rounded-3xl border border-border bg-surface-raised p-4 shadow-soft">
         <Tabs
           value={viewMode}
           onValueChange={(value) => {
@@ -82,11 +84,19 @@ export default function EventsPage() {
             }
           }}
         >
-          <TabsList className="grid w-full grid-cols-2 rounded-xl border border-border bg-surface-muted p-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            <TabsTrigger value="list" data-view="list" className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white">
+          <TabsList className={cn(surfaceTabsList, "grid w-full grid-cols-2 bg-card")}>
+            <TabsTrigger
+              value="list"
+              data-view="list"
+              className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
+            >
               Lijst
             </TabsTrigger>
-            <TabsTrigger value="map" data-view="map" className="flex items-center justify-center gap-2 rounded-lg py-2 text-sm text-foreground data-[state=active]:bg-[hsl(var(--brand-red-strong))] data-[state=active]:text-brand-white">
+            <TabsTrigger
+              value="map"
+              data-view="map"
+              className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
+            >
               Kaart
             </TabsTrigger>
           </TabsList>

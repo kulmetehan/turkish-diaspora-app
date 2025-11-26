@@ -40,3 +40,5 @@ JOIN public.event_raw er ON er.id = ec.event_raw_id
 LEFT JOIN public.event_sources es ON es.id = ec.event_source_id
 WHERE er.processing_state = 'enriched';
 
+
+

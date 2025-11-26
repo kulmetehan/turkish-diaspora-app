@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict, List, Optional
 from decimal import Decimal, ROUND_HALF_UP
+from uuid import uuid4
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field, validator
 
 from app.deps.admin_auth import AdminUser, verify_admin_user
 from app.models.admin_locations import (
@@ -17,6 +19,7 @@ from app.models.admin_locations import (
     AdminLocationsBulkUpdateError,
 )
 from app.core.logging import get_logger
+from app.models.categories import get_all_categories
 from services.audit_service import audit_admin_action
 from services.db_service import (
     execute,
@@ -38,6 +41,43 @@ router = APIRouter(
     prefix="/admin/locations",
     tags=["admin-locations"],
 )
+
+
+class AdminLocationCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=500)
+    address: str = Field(..., min_length=1, max_length=1000)
+    lat: float = Field(..., description="Latitude in WGS84 degrees")
+    lng: float = Field(..., description="Longitude in WGS84 degrees")
+    category: str = Field(..., min_length=1)
+    notes: Optional[str] = Field(default=None, max_length=5000)
+    evidence_urls: Optional[List[str]] = None
+
+    @validator("lat")
+    def _validate_lat(cls, value: float) -> float:  # noqa: N805
+        try:
+            lat = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("lat must be numeric") from exc
+        if not (-90 <= lat <= 90):
+            raise ValueError("lat must be between -90 and 90 degrees")
+        return lat
+
+    @validator("lng")
+    def _validate_lng(cls, value: float) -> float:  # noqa: N805
+        try:
+            lng = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("lng must be numeric") from exc
+        if not (-180 <= lng <= 180):
+            raise ValueError("lng must be between -180 and 180 degrees")
+        return lng
+
+    @validator("evidence_urls", each_item=True)
+    def _clean_evidence_urls(cls, value: Optional[str]) -> Optional[str]:  # noqa: N805
+        if value is None:
+            return None
+        trimmed = value.strip()
+        return trimmed or None
 
 
 def _clamp_confidence(value: Optional[float]) -> Optional[float]:
@@ -178,6 +218,123 @@ async def list_admin_locations_slash(
         admin=admin,
     )
 
+
+def _validate_category_key(category: str) -> str:
+    allowed = {cat.key for cat in get_all_categories()}
+    normalized = (category or "").strip()
+    if not normalized or normalized not in allowed:
+        raise HTTPException(status_code=400, detail="invalid category")
+    return normalized
+
+
+def _normalize_evidence_urls(urls: Optional[List[Optional[str]]]) -> Optional[List[str]]:
+    if not urls:
+        return None
+    cleaned: List[str] = []
+    for entry in urls:
+        trimmed = (entry or "").strip()
+        if trimmed:
+            cleaned.append(trimmed)
+    return cleaned or None
+
+
+@router.post("", response_model=AdminLocationDetail, status_code=201)
+async def create_admin_location(
+    body: AdminLocationCreateRequest,
+    admin: AdminUser = Depends(verify_admin_user),
+) -> AdminLocationDetail:
+    category = _validate_category_key(body.category)
+    evidence_urls = _normalize_evidence_urls(body.evidence_urls)
+    place_id = f"admin_manual/{uuid4()}"
+
+    after: Optional[Dict[str, Any]] = None
+    async with run_in_transaction() as conn:
+        insert_sql = """
+            INSERT INTO locations (
+                place_id,
+                source,
+                name,
+                address,
+                lat,
+                lng,
+                category,
+                notes,
+                evidence_urls,
+                state,
+                confidence_score,
+                first_seen_at,
+                last_seen_at,
+                is_retired
+            ) VALUES (
+                $1,
+                'ADMIN_MANUAL',
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                'CANDIDATE',
+                NULL,
+                NOW(),
+                NOW(),
+                FALSE
+            )
+            RETURNING id
+        """
+        inserted = await fetchrow_with_conn(
+            conn,
+            insert_sql,
+            place_id,
+            body.name.strip(),
+            body.address.strip(),
+            float(body.lat),
+            float(body.lng),
+            category,
+            body.notes.strip() if body.notes else None,
+            evidence_urls,
+        )
+        if inserted is None:
+            raise HTTPException(status_code=500, detail="failed to insert location")
+        location_id = int(inserted["id"])
+
+        reason = f"[manual add by {admin.email}]"
+        await update_location_classification(
+            id=location_id,
+            action="keep",
+            category=category,
+            confidence_score=0.9,
+            reason=reason,
+            conn=conn,
+        )
+
+        detail_row = await fetchrow_with_conn(
+            conn,
+            """
+            SELECT
+                id, name, category, state, confidence_score, last_verified_at,
+                address, notes, business_status, rating, user_ratings_total,
+                is_probable_not_open_yet, is_retired
+            FROM locations
+            WHERE id = $1
+            """,
+            location_id,
+            timeout=DEFAULT_TIMEOUT_S,
+        )
+        after = dict(detail_row) if detail_row else None
+        await audit_admin_action(
+            admin.email,
+            location_id,
+            "admin_location_create",
+            None,
+            after,
+            conn=conn,
+        )
+
+    if after is None:
+        raise HTTPException(status_code=500, detail="failed to load created location")
+    return AdminLocationDetail(**after)
 
 
 @router.get("/{location_id}", response_model=AdminLocationDetail)

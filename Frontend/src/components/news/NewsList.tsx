@@ -41,7 +41,7 @@ export function NewsList({
 }: NewsListProps) {
   if (isLoading && items.length === 0) {
     return (
-      <div className="rounded-3xl border border-border bg-card p-4 text-foreground shadow-soft">
+      <div className="rounded-2xl border border-border/80 bg-card p-4 text-foreground shadow-soft">
         {Array.from({ length: LOADING_SKELETON_COUNT }).map((_, index) => (
           <NewsCardSkeleton key={index} />
         ))}
@@ -52,7 +52,7 @@ export function NewsList({
   if (error) {
     const message = errorMessage ?? error;
     return (
-      <div className="rounded-3xl border border-border bg-card p-5 text-center text-foreground shadow-soft">
+      <div className="rounded-2xl border border-border/80 bg-card p-5 text-center text-foreground shadow-soft">
         <p>{message}</p>
         {errorMessage && error ? (
             <p className="mt-1 text-xs text-muted-foreground">{error}</p>
@@ -72,7 +72,7 @@ export function NewsList({
   if (!items.length) {
     const message = emptyMessage ?? "Er is op dit moment nog geen nieuws voor jou.";
     return (
-      <div className="rounded-3xl border border-border bg-card p-6 text-center text-muted-foreground shadow-soft">
+      <div className="rounded-2xl border border-border/80 bg-card p-6 text-center text-muted-foreground shadow-soft">
         {message}
       </div>
     );
@@ -81,7 +81,7 @@ export function NewsList({
   return (
     <div
       className={cn(
-        "rounded-3xl border border-border bg-card text-foreground shadow-soft",
+        "rounded-2xl border border-border/80 bg-card text-foreground shadow-soft",
         "divide-y divide-border overflow-auto max-h-[calc(100vh-260px)]",
         className,
       )}

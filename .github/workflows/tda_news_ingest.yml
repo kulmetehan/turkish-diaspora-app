@@ -1,8 +1,11 @@
 name: TDA News Ingest
 
+# Canonical news ingest pipeline.
+# Runs every 15 minutes to pull fresh RSS news from configs/news_sources.yml into the database.
+# Can also be triggered manually via workflow_dispatch for debugging.
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 permissions:

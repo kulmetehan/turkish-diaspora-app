@@ -1,0 +1,43 @@
+version: 2
+defaults:
+  nl:
+    - rotterdam
+    - den_haag
+  tr:
+    - istanbul
+    - cinarcik
+nl:
+  - city_key: rotterdam
+    name: "Rotterdam"
+    province: "Zuid-Holland"
+    google_news_query: "Rotterdam Nederland"
+  - city_key: den_haag
+    name: "Den Haag"
+    province: "Zuid-Holland"
+    google_news_query: "Den Haag Nederland"
+  - city_key: amsterdam
+    name: "Amsterdam"
+    province: "Noord-Holland"
+    google_news_query: "Amsterdam Nederland"
+  - city_key: vlaardingen
+    name: "Vlaardingen"
+    province: "Zuid-Holland"
+    google_news_query: "Vlaardingen Nederland"
+tr:
+  - city_key: istanbul
+    name: "İstanbul"
+    province: "İstanbul"
+    google_news_query: "İstanbul Türkiye"
+  - city_key: cinarcik
+    name: "Çınarcık"
+    province: "Yalova"
+    google_news_query: "Çınarcık Türkiye"
+  - city_key: ankara
+    name: "Ankara"
+    province: "Ankara"
+    google_news_query: "Ankara Türkiye"
+  - city_key: izmir
+    name: "İzmir"
+    province: "İzmir"
+    google_news_query: "İzmir Türkiye"
+

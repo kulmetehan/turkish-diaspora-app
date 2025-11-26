@@ -67,6 +67,24 @@ export async function retireAdminLocation(id: number): Promise<{ ok: boolean }> 
     });
 }
 
+export type AdminLocationCreateRequest = {
+    name: string;
+    address: string;
+    lat: number;
+    lng: number;
+    category: string;
+    notes?: string;
+    evidence_urls?: string[];
+};
+
+export async function createAdminLocation(payload: AdminLocationCreateRequest): Promise<AdminLocationDetail> {
+    return authFetch(`/api/v1/admin/locations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
 export type BulkAction =
     | { type: "verify"; force?: boolean; clear_retired?: boolean }
     | { type: "retire" }
