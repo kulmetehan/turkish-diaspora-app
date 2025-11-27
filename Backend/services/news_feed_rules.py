@@ -134,10 +134,19 @@ def is_in_feed(
     return False
 
 
-def build_feed_filter(feed: FeedType, thresholds: FeedThresholds) -> Tuple[str, Dict[str, Any]]:
+def build_feed_filter(
+    feed: FeedType,
+    thresholds: FeedThresholds,
+    categories: Optional[Sequence[str]] = None,
+) -> Tuple[str, Dict[str, Any]]:
     """
     Build SQL WHERE fragment + params mirroring `is_in_feed` logic.
     Useful for future feed-specific queries.
+    
+    Args:
+        feed: Feed type
+        thresholds: AI thresholds (used for DIASPORA/GEO feeds)
+        categories: Optional list of RSS category strings (e.g., ['nl_national_sport'])
     """
     if feed == FeedType.DIASPORA:
         return _build_conditions(
@@ -146,36 +155,50 @@ def build_feed_filter(feed: FeedType, thresholds: FeedThresholds) -> Tuple[str, 
             extra=f"(COALESCE(location_tag, '') IN ('local','origin') OR LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)})",
         )
     if feed == FeedType.NL:
-        # Base conditions: score threshold + language + category (applies to all NL sources)
-        sql, params = _build_conditions(
-            score=("relevance_nl", "nl_score", thresholds.news_nl_min_score),
-            language=("LOWER(COALESCE(language, '')) = 'nl'"),
-            extra=f"LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)}",
+        # Simple filter: no AI score dependency, just language/category/source matching
+        # Supports both alias and URL-based source_key values
+        nl_sources = _get_nl_source_keys()
+        base_sql = (
+            "published_at IS NOT NULL "
+            "AND LOWER(COALESCE(language, '')) = 'nl' "
+            "AND LOWER(COALESCE(source_key, '')) = ANY(%(nl_sources)s)"
         )
-        # Priority sources (NOS/NU) can bypass strict scoring - they just need language/category
-        priority_clause = (
-            f"LOWER(COALESCE(source_key, '')) = ANY(%(nl_priority)s) "
-            f"AND (LOWER(COALESCE(language, '')) = 'nl' OR LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)})"
-        )
-        nl_priority = _lowered(NL_PRIORITY_SOURCE_KEYS)
-        # Combined: either pass normal filters OR be a priority source with language/category match
-        combined = f"(({sql}) OR ({priority_clause}))"
-        return combined, {**params, "nl_priority": nl_priority}
+        
+        if categories:
+            # categories already contain RSS category strings like 'nl_national_sport'
+            base_sql += " AND LOWER(COALESCE(category, '')) = ANY(%(nl_categories)s)"
+            named_params = {
+                "nl_sources": nl_sources,
+                "nl_categories": [c.lower() for c in categories],
+            }
+        else:
+            # Default: all NL categories
+            base_sql += f" AND LOWER(COALESCE(category, '')) IN {_categories_sql(NL_CATEGORIES)}"
+            named_params = {"nl_sources": nl_sources}
+        
+        return base_sql, named_params
     if feed == FeedType.TR:
-        # Base conditions: score threshold + language/category (applies to all TR sources)
-        sql, params = _build_conditions(
-            score=("relevance_tr", "tr_score", thresholds.news_tr_min_score),
-            extra=f"(LOWER(COALESCE(language, '')) = 'tr' OR LOWER(COALESCE(category, '')) IN {_categories_sql(TR_CATEGORIES)})",
+        # Simple filter: no AI score dependency, just language/category/source matching
+        # Supports both alias and URL-based source_key values
+        tr_sources = _get_tr_source_keys()
+        base_sql = (
+            "published_at IS NOT NULL "
+            "AND (LOWER(COALESCE(language, '')) = 'tr' "
+            "     OR LOWER(COALESCE(category, '')) LIKE 'tr_%') "
+            "AND LOWER(COALESCE(source_key, '')) = ANY(%(tr_sources)s)"
         )
-        # Priority sources (TRT/Habertürk) can bypass strict scoring - they just need language/category
-        priority_clause = (
-            f"LOWER(COALESCE(source_key, '')) = ANY(%(tr_priority)s) "
-            f"AND (LOWER(COALESCE(language, '')) = 'tr' OR LOWER(COALESCE(category, '')) IN {_categories_sql(TR_CATEGORIES)})"
-        )
-        tr_priority = _lowered(TR_PRIORITY_SOURCE_KEYS)
-        # Combined: either pass normal filters OR be a priority source with language/category match
-        combined = f"(({sql}) OR ({priority_clause}))"
-        return combined, {**params, "tr_priority": tr_priority}
+        
+        if categories:
+            base_sql += " AND LOWER(COALESCE(category, '')) = ANY(%(tr_categories)s)"
+            named_params = {
+                "tr_sources": tr_sources,
+                "tr_categories": [c.lower() for c in categories],
+            }
+        else:
+            base_sql += f" AND LOWER(COALESCE(category, '')) IN {_categories_sql(TR_CATEGORIES)}"
+            named_params = {"tr_sources": tr_sources}
+        
+        return base_sql, named_params
     if feed == FeedType.LOCAL:
         sql = (
             "COALESCE(location_tag, '') = 'local' "
@@ -246,4 +269,52 @@ def _categories_sql(categories: Sequence[str] | set[str]) -> str:
 
 def _lowered(values: Sequence[str] | set[str]) -> List[str]:
     return [value.lower() for value in sorted(values)]
+
+
+def _get_nl_source_keys() -> List[str]:
+    """
+    Returns list of source_key values (both alias and URL forms) for NL sources.
+    Includes NOS variants, NU.nl, and optionally AD Rotterdam.
+    All values are lowercase for case-insensitive matching.
+    """
+    return _lowered([
+        # NOS aliases
+        "nos_headlines",
+        "nos_economie",
+        "nos_sport",
+        "nos_magazin",
+        # NOS URLs
+        "https://feeds.nos.nl/nosnieuwsalgemeen",
+        "https://feeds.nos.nl/nosnieuwseconomie",
+        "https://feeds.nos.nl/nossportalgemeen",
+        "https://feeds.nos.nl/nosnieuwscultuurenmedia",
+        # NU.nl alias
+        "nu_headlines",
+        # NU.nl URL
+        "https://www.nu.nl/rss/algemeen",
+    ])
+
+
+def _get_tr_source_keys() -> List[str]:
+    """
+    Returns list of source_key values (both alias and URL forms) for TR sources.
+    Includes TRT and Habertürk variants only.
+    All values are lowercase for case-insensitive matching.
+    """
+    return _lowered([
+        # TRT alias
+        "trt_headlines",
+        # TRT URL
+        "https://www.trthaber.com/rss/sondakika.rss",
+        # Habertürk aliases
+        "haberturk_headlines",
+        "haberturk_economie",
+        "haberturk_sport",
+        "haberturk_magazin",
+        # Habertürk URLs
+        "https://www.haberturk.com/rss/manset.xml",
+        "https://www.haberturk.com/rss/ekonomi.xml",
+        "https://www.haberturk.com/rss/spor.xml",
+        "https://www.haberturk.com/rss/magazin.xml",
+    ])
 

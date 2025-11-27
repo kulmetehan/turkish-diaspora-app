@@ -21,6 +21,9 @@ export interface NewsListProps {
   errorMessage?: string;
   isBookmarked?: (id: number) => boolean;
   toggleBookmark?: (item: NewsItem) => void;
+  meta?: {
+    unavailable_reason?: string;
+  };
 }
 
 const LOADING_SKELETON_COUNT = 4;
@@ -38,6 +41,7 @@ export function NewsList({
   errorMessage,
   isBookmarked,
   toggleBookmark,
+  meta,
 }: NewsListProps) {
   if (isLoading && items.length === 0) {
     return (
@@ -65,6 +69,20 @@ export function NewsList({
         >
           Opnieuw proberen
         </Button>
+      </div>
+    );
+  }
+
+  // Show unavailable message for trending when meta.unavailable_reason is set
+  if (!items.length && meta?.unavailable_reason) {
+    return (
+      <div className="rounded-2xl border border-border/80 bg-card p-6 text-center text-muted-foreground shadow-soft">
+        <p className="text-base font-medium text-foreground">
+          Trending tijdelijk niet beschikbaar (X API)
+        </p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          De trending onderwerpen zijn momenteel niet beschikbaar. Probeer het later opnieuw.
+        </p>
       </div>
     );
   }

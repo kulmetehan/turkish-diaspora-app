@@ -50,6 +50,20 @@ NEWS_INGEST_TIMEOUT_S=15
 NEWS_INGEST_MAX_CONCURRENCY=5
 
 # =============================================================================
+# X (TWITTER) TRENDING CONFIGURATION
+# =============================================================================
+# X API Bearer Token for trending topics (optional)
+# Without this token, trending feed will return empty results with unavailable_reason
+X_API_BEARER_TOKEN=your_x_api_bearer_token_here
+
+# Allow stub/fallback topics when X API is unavailable (default: false)
+# Set to "true" to enable stub topics as fallback
+X_TRENDING_ALLOW_STUBS=false
+
+# X API cache TTL in seconds (default: 180)
+X_TRENDING_CACHE_TTL_SECONDS=180
+
+# =============================================================================
 # LOGGING CONFIGURATION
 # =============================================================================
 OSM_LOG_QUERIES=false

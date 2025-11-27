@@ -28,6 +28,9 @@ _SCORE_COLUMN_BY_FEED: Dict[FeedType, str] = {
 TRENDING_WINDOW_HOURS = 48
 _SNIPPET_MAX_LEN = 280
 logger = get_logger().bind(module="news_service")
+# Deprecated: ALLOWED_NEWS_THEMES is no longer used.
+# NL/TR feeds now use RSS category-based filtering instead of AI theme filtering.
+# Keeping for backward compatibility if needed, but not used in code.
 ALLOWED_NEWS_THEMES: Tuple[str, ...] = (
     "politics",
     "economy",
@@ -129,31 +132,42 @@ def _score_column_for_feed(feed: FeedType) -> str:
     return column
 
 
-def normalize_theme_filters(values: Sequence[str] | None) -> List[str]:
-    """Normalize requested themes and ensure they belong to the allowlist."""
-
-    normalized: List[str] = []
-    seen: set[str] = set()
-
+def normalize_category_filters(
+    values: Sequence[str] | None,
+    feed: FeedType,
+) -> List[str]:
+    """Map UI category keys to RSS category strings."""
     if not values:
-        return normalized
-
+        return []
+    
+    if feed == FeedType.NL:
+        category_map = {
+            "general": "nl_national",
+            "sport": "nl_national_sport",
+            "economie": "nl_national_economie",
+            "cultuur": "nl_national_cultuur",
+        }
+    elif feed == FeedType.TR:
+        category_map = {
+            "general": "tr_national",
+            "sport": "tr_national_sport",
+            "economie": "tr_national_economie",
+            "magazin": "tr_national_magazin",
+        }
+    else:
+        return []  # Categories only for NL/TR
+    
+    normalized = []
     for raw_value in values:
         if not isinstance(raw_value, str):
             continue
         parts = raw_value.split(",")
         for part in parts:
             candidate = part.strip().lower()
-            if not candidate:
-                continue
-            if candidate not in ALLOWED_NEWS_THEMES:
-                allowed = ", ".join(ALLOWED_NEWS_THEMES)
-                raise ValueError(f"Invalid theme '{candidate}'. Allowed values: {allowed}.")
-            if candidate in seen:
-                continue
-            seen.add(candidate)
-            normalized.append(candidate)
-
+            mapped = category_map.get(candidate)
+            if mapped:
+                normalized.append(mapped)
+    
     return normalized
 
 
@@ -190,60 +204,41 @@ async def list_news_by_feed(
     *,
     limit: int,
     offset: int,
-    themes: Sequence[str] | None = None,
+    categories: Sequence[str] | None = None,
     cities_nl: Sequence[str] | None = None,
     cities_tr: Sequence[str] | None = None,
 ) -> Tuple[List[NewsItem], int]:
-    normalized_themes = normalize_theme_filters(themes)
+    normalized_categories = normalize_category_filters(categories, feed)
     thresholds = await _load_feed_thresholds()
-    feed_sql_template, named_params = build_feed_filter(feed, thresholds)
+    feed_sql_template, named_params = build_feed_filter(
+        feed,
+        thresholds,
+        categories=normalized_categories if normalized_categories else None,
+    )
     feed_sql, feed_args, next_index = _convert_named_params(feed_sql_template, named_params)
 
-    where_clause = f"processing_state = 'classified' AND published_at IS NOT NULL AND ({feed_sql})"
-    score_column = _score_column_for_feed(feed)
-    order_clause = "relevance_score DESC, published_at DESC"
+    # For NL/TR feeds: no processing_state check (show pending items too)
+    # For other feeds (DIASPORA, GEO): require classified state
     if feed in (FeedType.NL, FeedType.TR):
-        order_clause = "published_at DESC, relevance_score DESC"
+        where_clause = f"published_at IS NOT NULL AND ({feed_sql})"
+        order_clause = "published_at DESC, id DESC"
+        score_column = "0.0"  # Hardcode relevance_score to 0.0 for NL/TR (not used)
+    else:
+        where_clause = f"processing_state = 'classified' AND published_at IS NOT NULL AND ({feed_sql})"
+        score_column = _score_column_for_feed(feed)
+        order_clause = "relevance_score DESC, published_at DESC"
 
     where_params: List[Any] = [*feed_args]
-    if normalized_themes:
-        theme_placeholder = f"${next_index}"
+    if normalized_categories:
+        category_placeholder = f"${next_index}"
         next_index += 1
         where_clause += f"""
-            AND EXISTS (
-                SELECT 1
-                FROM unnest({theme_placeholder}::text[]) AS theme(value)
-                WHERE COALESCE(topics, '[]'::jsonb) ? theme.value
-            )
+            AND LOWER(COALESCE(category, '')) = ANY({category_placeholder})
         """
-        where_params.append(normalized_themes)
+        where_params.append(normalized_categories)
 
-    if feed == FeedType.LOCAL:
-        normalized_cities = _normalize_city_filters(cities_nl)
-        if normalized_cities:
-            city_placeholder = f"${next_index}"
-            next_index += 1
-            where_clause += f"""
-                AND EXISTS (
-                    SELECT 1
-                    FROM jsonb_array_elements(COALESCE(location_context -> 'matches', '[]'::jsonb)) AS match
-                    WHERE LOWER(match->>'city_key') = ANY({city_placeholder})
-                )
-            """
-            where_params.append(normalized_cities)
-    elif feed == FeedType.ORIGIN:
-        normalized_cities = _normalize_city_filters(cities_tr)
-        if normalized_cities:
-            city_placeholder = f"${next_index}"
-            next_index += 1
-            where_clause += f"""
-                AND EXISTS (
-                    SELECT 1
-                    FROM jsonb_array_elements(COALESCE(location_context -> 'matches', '[]'::jsonb)) AS match
-                    WHERE LOWER(match->>'city_key') = ANY({city_placeholder})
-                )
-            """
-            where_params.append(normalized_cities)
+    # Note: LOCAL and ORIGIN feeds are now handled via Google News service in the router,
+    # so we don't need location_context matching here anymore
 
     limit_placeholder = f"${next_index}"
     offset_placeholder = f"${next_index + 1}"
@@ -261,7 +256,7 @@ async def list_news_by_feed(
             published_at,
             topics,
             location_tag,
-            COALESCE({score_column}, 0) AS relevance_score
+            {score_column} AS relevance_score
         FROM raw_ingested_news
         WHERE {where_clause}
         ORDER BY {order_clause}
@@ -277,16 +272,10 @@ async def list_news_by_feed(
     
     # Log empty feeds for debugging
     if total == 0:
-        city_keys = []
-        if feed == FeedType.LOCAL and cities_nl:
-            city_keys = list(cities_nl)
-        elif feed == FeedType.ORIGIN and cities_tr:
-            city_keys = list(cities_tr)
         logger.info(
             "news_feed_empty",
             feed=feed.value,
-            themes=normalized_themes if normalized_themes else None,
-            cities=city_keys if city_keys else None,
+            categories=normalized_categories if normalized_categories else None,
         )
     
     return items, total
