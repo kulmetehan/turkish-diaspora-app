@@ -15,36 +15,17 @@ export const NEWS_FEED_STALE_MS = 120_000;
 function createCacheKey(
   feed: string,
   pageSize: number,
-  themesKey: string,
+  categoriesKey: string,
   citiesKey: string,
   trendCountryKey: string,
 ) {
-  return `${feed}:${trendCountryKey}:${pageSize}:${themesKey}:${citiesKey}`;
-}
-
-function normalizeThemes(themes?: string[]): string[] {
-  if (!themes || !themes.length) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const result: string[] = [];
-
-  for (const raw of themes) {
-    if (!raw) continue;
-    const normalized = raw.trim().toLowerCase();
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-    result.push(normalized);
-  }
-
-  return result;
+  return `${feed}:${trendCountryKey}:${pageSize}:${categoriesKey}:${citiesKey}`;
 }
 
 export interface UseNewsFeedOptions {
   feed?: string;
   pageSize?: number;
-  themes?: string[];
+  categories?: string[];
   citiesNl?: string[];
   citiesTr?: string[];
   trendCountry?: "nl" | "tr";
@@ -60,12 +41,15 @@ export interface UseNewsFeedResult {
   loadMore: () => void;
   isReloading: boolean;
   lastUpdatedAt: Date | null;
+  meta?: {
+    unavailable_reason?: string;
+  };
 }
 
 export function useNewsFeed({
   feed = "diaspora",
   pageSize = 20,
-  themes,
+  categories,
   citiesNl,
   citiesTr,
   trendCountry = "nl",
@@ -78,14 +62,18 @@ export function useNewsFeed({
   const [offset, setOffset] = useState<number>(0);
   const [isReloading, setIsReloading] = useState<boolean>(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [meta, setMeta] = useState<{ unavailable_reason?: string } | undefined>(undefined);
 
   const controllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
-  const normalizedThemes = useMemo(() => normalizeThemes(themes), [themes]);
-  const themesKey = useMemo(() => {
-    if (!normalizedThemes.length) return "";
-    return [...normalizedThemes].sort().join(",");
-  }, [normalizedThemes]);
+  const normalizedCategories = useMemo(() => {
+    if (!categories || !categories.length) return [];
+    return [...categories].map(c => c.trim().toLowerCase()).filter(Boolean).sort();
+  }, [categories]);
+  const categoriesKey = useMemo(() => {
+    if (!normalizedCategories.length) return "";
+    return normalizedCategories.join(",");
+  }, [normalizedCategories]);
   const citiesKey = useMemo(() => {
     const nl = (citiesNl ?? []).map((city) => city.trim().toLowerCase()).filter(Boolean);
     const tr = (citiesTr ?? []).map((city) => city.trim().toLowerCase()).filter(Boolean);
@@ -93,7 +81,7 @@ export function useNewsFeed({
     return `${nl.sort().join(",")}|${tr.sort().join(",")}`;
   }, [citiesNl, citiesTr]);
   const trendCountryKey = feed === "trending" ? trendCountry : "";
-  const cacheKey = createCacheKey(feed, pageSize, themesKey, citiesKey, trendCountryKey);
+  const cacheKey = createCacheKey(feed, pageSize, categoriesKey, citiesKey, trendCountryKey);
 
   const hasMore = useMemo(() => {
     if (total === null) return false;
@@ -151,7 +139,7 @@ export function useNewsFeed({
           feed,
           limit: pageSize,
           offset: nextOffset,
-          themes: normalizedThemes.length ? normalizedThemes : undefined,
+          categories: normalizedCategories.length ? normalizedCategories : undefined,
           citiesNl: citiesNl && citiesNl.length ? citiesNl : undefined,
           citiesTr: citiesTr && citiesTr.length ? citiesTr : undefined,
           trendCountry: feed === "trending" ? trendCountry : undefined,
@@ -170,6 +158,7 @@ export function useNewsFeed({
         }
 
         setTotal(response.total);
+        setMeta(response.meta);
 
         setItems((prev) => {
           if (append) {
@@ -214,7 +203,7 @@ export function useNewsFeed({
         }
       }
     },
-    [cacheKey, feed, normalizedThemes, pageSize, citiesNl, citiesTr, trendCountry],
+    [cacheKey, feed, normalizedCategories, pageSize, citiesNl, citiesTr, trendCountry],
   );
 
   useEffect(() => {
@@ -223,6 +212,7 @@ export function useNewsFeed({
     setOffset(0);
     setError(null);
     setLastUpdatedAt(null);
+    setMeta(undefined);
 
     void beginFetch(0, false);
 
@@ -255,6 +245,7 @@ export function useNewsFeed({
     loadMore,
     isReloading,
     lastUpdatedAt,
+    meta,
   };
 }
 

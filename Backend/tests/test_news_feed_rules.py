@@ -114,17 +114,56 @@ def test_build_feed_filter_embeds_threshold_param_names():
     assert "relevance_tr" not in sql_origin
     assert "COALESCE(location_tag" in sql_origin
 
+    # NL feed: no AI score dependency, uses source_key matching
     sql_nl, params_nl = build_feed_filter(FeedType.NL, thresholds)
     assert "source_key" in sql_nl
-    assert "nl_priority" in params_nl
-    assert params_nl["nl_priority"]
-    # Note: nl_allowed is no longer used - we relaxed the allowlist
+    assert "nl_sources" in params_nl
+    assert isinstance(params_nl["nl_sources"], list)
+    assert len(params_nl["nl_sources"]) > 0
+    assert "relevance_nl" not in sql_nl  # No score threshold
+    assert "published_at IS NOT NULL" in sql_nl
 
+    # TR feed: no AI score dependency, uses source_key matching
     sql_tr, params_tr = build_feed_filter(FeedType.TR, thresholds)
     assert "source_key" in sql_tr
-    assert "tr_priority" in params_tr
-    assert params_tr["tr_priority"]
-    # Note: tr_allowed is no longer used - we relaxed the allowlist
+    assert "tr_sources" in params_tr
+    assert isinstance(params_tr["tr_sources"], list)
+    assert len(params_tr["tr_sources"]) > 0
+    assert "relevance_tr" not in sql_tr  # No score threshold
+    assert "published_at IS NOT NULL" in sql_tr
+
+
+def test_build_feed_filter_with_categories():
+    """Verify category parameter is applied to SQL for NL/TR feeds."""
+    thresholds = _base_thresholds()
+    
+    # NL feed with category filter
+    sql_nl, params_nl = build_feed_filter(
+        FeedType.NL,
+        thresholds,
+        categories=["nl_national_sport"],
+    )
+    assert "nl_sources" in params_nl
+    assert "nl_categories" in params_nl
+    assert params_nl["nl_categories"] == ["nl_national_sport"]
+    assert "category" in sql_nl.lower()
+    
+    # TR feed with category filter
+    sql_tr, params_tr = build_feed_filter(
+        FeedType.TR,
+        thresholds,
+        categories=["tr_national_sport"],
+    )
+    assert "tr_sources" in params_tr
+    assert "tr_categories" in params_tr
+    assert params_tr["tr_categories"] == ["tr_national_sport"]
+    assert "category" in sql_tr.lower()
+    
+    # NL feed without category filter (should use all NL categories)
+    sql_nl_default, params_nl_default = build_feed_filter(FeedType.NL, thresholds)
+    assert "nl_sources" in params_nl_default
+    assert "nl_categories" not in params_nl_default  # No category param when not specified
+    assert "nl_national" in sql_nl_default  # Should include all NL categories
 
 
 def test_thresholds_from_config_maps_all_fields():
@@ -154,51 +193,68 @@ def test_thresholds_from_config_maps_all_fields():
     assert thresholds.news_geo_min_score == 0.82
 
 
-def test_priority_sources_bypass_thresholds_for_nl_tr():
+def test_nl_feed_requires_source_key_match():
+    """NL feed now requires source_key to be in allowed list, no score threshold."""
     thresholds = _base_thresholds()
     nl_row = {
         **_base_row(),
         "language": "nl",
         "category": "nl_national",
-        "relevance_nl": 0.1,
+        "relevance_nl": 0.0,  # Score doesn't matter anymore
         "source_key": "nos_headlines",
     }
     assert is_in_feed(FeedType.NL, nl_row, nl_row, thresholds)
 
+    # Non-allowed source should not appear
+    nl_row_bad = {
+        **_base_row(),
+        "language": "nl",
+        "category": "nl_national",
+        "source_key": "unknown_source",
+    }
+    # Note: is_in_feed still uses priority logic, but build_feed_filter uses source_key list
+    # This test verifies the is_in_feed helper (used for in-memory checks)
+    # The actual SQL filter uses _get_nl_source_keys() which includes all NL sources
+    assert is_in_feed(FeedType.NL, nl_row_bad, nl_row_bad, thresholds) == False
+
+
+def test_tr_feed_requires_source_key_match():
+    """TR feed now requires source_key to be in allowed list, no score threshold."""
+    thresholds = _base_thresholds()
     tr_row = {
         **_base_row(),
         "language": "tr",
         "category": "tr_national",
-        "relevance_tr": 0.1,
+        "relevance_tr": 0.0,  # Score doesn't matter anymore
         "source_key": "haberturk_headlines",
     }
     assert is_in_feed(FeedType.TR, tr_row, tr_row, thresholds)
 
 
-def test_nl_feed_allows_all_sources_with_score():
-    """NL feed now allows all sources that pass score + language + category filters."""
+def test_nl_feed_source_whitelist():
+    """Verify NL feed only includes NOS and NU.nl sources."""
     thresholds = _base_thresholds()
-    row = {
-        **_base_row(),
-        "source_key": "ad_rotterdam",
-        "relevance_nl": 0.99,
-        "language": "nl",
-        "category": "nl_national",
-    }
-    # Non-priority sources can appear if they pass normal filters
-    assert is_in_feed(FeedType.NL, row, row, thresholds)
+    sql, params = build_feed_filter(FeedType.NL, thresholds)
+    
+    # Check that nl_sources contains only NOS and NU.nl
+    nl_sources = params["nl_sources"]
+    assert "nos_headlines" in nl_sources or "https://feeds.nos.nl/nosnieuwsalgemeen" in nl_sources
+    assert "nu_headlines" in nl_sources or "https://www.nu.nl/rss/algemeen" in nl_sources
+    
+    # AD Rotterdam should NOT be in the list
+    assert not any("ad.nl" in s.lower() for s in nl_sources)
 
 
-def test_tr_feed_allows_all_sources_with_score():
-    """TR feed now allows all sources that pass score + language + category filters."""
+def test_tr_feed_source_whitelist():
+    """Verify TR feed only includes Habertürk and TRT sources."""
     thresholds = _base_thresholds()
-    row = {
-        **_base_row(),
-        "language": "tr",
-        "category": "tr_national",
-        "relevance_tr": 0.99,
-        "source_key": "anadolu_ajansi",
-    }
-    # Non-priority sources can appear if they pass normal filters
-    assert is_in_feed(FeedType.TR, row, row, thresholds)
+    sql, params = build_feed_filter(FeedType.TR, thresholds)
+    
+    # Check that tr_sources contains Habertürk and TRT
+    tr_sources = params["tr_sources"]
+    assert "haberturk_headlines" in tr_sources or "https://www.haberturk.com/rss/manset.xml" in tr_sources
+    assert "trt_headlines" in tr_sources or "https://www.trthaber.com/rss/sondakika.rss" in tr_sources
+    
+    # AA.com.tr should NOT be in the list
+    assert not any("aa.com.tr" in s.lower() for s in tr_sources)
 

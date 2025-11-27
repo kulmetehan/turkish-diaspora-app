@@ -29,6 +29,7 @@ class NewsListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    meta: Optional[Dict[str, Any]] = None  # Optional metadata (e.g., unavailable_reason for trending)
 
 
 class NewsCityRecord(BaseModel):

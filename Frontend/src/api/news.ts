@@ -16,13 +16,16 @@ export interface NewsListResponse {
   total: number;
   limit: number;
   offset: number;
+  meta?: {
+    unavailable_reason?: string;
+  };
 }
 
 export interface FetchNewsParams {
   feed?: string;
   limit?: number;
   offset?: number;
-  themes?: string[];
+  categories?: string[];
   citiesNl?: string[];
   citiesTr?: string[];
   trendCountry?: "nl" | "tr";
@@ -33,7 +36,7 @@ export async function fetchNews({
   feed = "diaspora",
   limit = 20,
   offset = 0,
-  themes,
+  categories,
   citiesNl,
   citiesTr,
   trendCountry,
@@ -43,11 +46,11 @@ export async function fetchNews({
   params.set("feed", feed);
   params.set("limit", String(limit));
   params.set("offset", String(offset));
-  if (themes && themes.length) {
-    for (const theme of themes) {
-      const normalized = theme.trim().toLowerCase();
+  if (categories && categories.length) {
+    for (const category of categories) {
+      const normalized = category.trim().toLowerCase();
       if (!normalized) continue;
-      params.append("themes", normalized);
+      params.append("categories", normalized);
     }
   }
   if (citiesNl && citiesNl.length) {

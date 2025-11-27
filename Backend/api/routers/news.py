@@ -19,12 +19,12 @@ from app.models.news_public import (
 )
 from services.news_feed_rules import FeedType
 from services.news_service import (
-    ALLOWED_NEWS_THEMES,
     list_news_by_feed,
     list_trending_news,
     search_news as search_news_service,
 )
-from services.news_trending_x import fetch_trending_topics
+from services.news_trending_x import fetch_trending_topics, TrendingResult
+from services.news_google_service import fetch_google_news_for_city
 
 router = APIRouter(
     prefix="/news",
@@ -36,10 +36,6 @@ _ALLOWED_FEEDS = ", ".join(
 )
 
 
-THEME_DESCRIPTION = (
-    "Optional comma separated themes "
-    f"({', '.join(ALLOWED_NEWS_THEMES)})."
-)
 
 
 @router.get("", response_model=NewsListResponse)
@@ -50,7 +46,7 @@ async def get_news(
     ),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    themes: list[str] | None = Query(default=None, description=THEME_DESCRIPTION),
+    categories: list[str] | None = Query(default=None, description="Optional category filters for NL/TR feeds (general, sport, economie, cultuur/magazin)."),
     cities_nl: list[str] | None = Query(default=None, alias="cities_nl"),
     cities_tr: list[str] | None = Query(default=None, alias="cities_tr"),
     trend_country: Literal["nl", "tr"] = Query(
@@ -63,20 +59,20 @@ async def get_news(
     if not normalized:
         raise HTTPException(status_code=400, detail="Feed parameter is required.")
 
-    theme_values = list(themes) if isinstance(themes, list) else None
+    category_values = list(categories) if isinstance(categories, list) else None
 
     if normalized == "trending":
-        if theme_values:
+        if category_values:
             raise HTTPException(
                 status_code=400,
-                detail="Theme filters are not supported for the trending feed.",
+                detail="Category filters are not supported for the trending feed.",
             )
-        items, total = await _resolve_trending_payload(
+        items, total, meta = await _resolve_trending_payload(
             limit=limit,
             offset=offset,
             trend_country=trend_country,
         )
-        return NewsListResponse(items=items, total=total, limit=limit, offset=offset)
+        return NewsListResponse(items=items, total=total, limit=limit, offset=offset, meta=meta)
 
     try:
         feed_enum = FeedType(normalized)
@@ -86,21 +82,52 @@ async def get_news(
             detail=f"Invalid feed '{feed}'. Allowed values: {_ALLOWED_FEEDS}.",
         ) from exc
 
-    try:
-        city_filter_nl = None
-        city_filter_tr = None
-        if feed_enum == FeedType.LOCAL:
-            city_filter_nl = cities_nl
-        elif feed_enum == FeedType.ORIGIN:
-            city_filter_tr = cities_tr
+    # Handle LOCAL and ORIGIN feeds via Google News service (not DB)
+    if feed_enum == FeedType.LOCAL:
+        if not cities_nl or len(cities_nl) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="cities_nl parameter is required for local feed. Please select at least one city.",
+            )
+        # Use first city (documented behavior: simpler than merging multiple cities)
+        city_key = cities_nl[0].strip().lower()
+        all_items = await fetch_google_news_for_city(
+            country="nl",
+            city_key=city_key,
+            limit=limit + offset + 50,  # Fetch extra to account for pagination
+        )
+        # Apply pagination
+        total = len(all_items)
+        sliced = all_items[offset:offset + limit]
+        return NewsListResponse(items=sliced, total=total, limit=limit, offset=offset)
 
+    if feed_enum == FeedType.ORIGIN:
+        if not cities_tr or len(cities_tr) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="cities_tr parameter is required for origin feed. Please select at least one city.",
+            )
+        # Use first city (documented behavior: simpler than merging multiple cities)
+        city_key = cities_tr[0].strip().lower()
+        all_items = await fetch_google_news_for_city(
+            country="tr",
+            city_key=city_key,
+            limit=limit + offset + 50,  # Fetch extra to account for pagination
+        )
+        # Apply pagination
+        total = len(all_items)
+        sliced = all_items[offset:offset + limit]
+        return NewsListResponse(items=sliced, total=total, limit=limit, offset=offset)
+
+    # All other feeds (DIASPORA, NL, TR, GEO) use DB-based list_news_by_feed
+    try:
         items, total = await list_news_by_feed(
             feed_enum,
             limit=limit,
             offset=offset,
-            themes=theme_values,
-            cities_nl=city_filter_nl,
-            cities_tr=city_filter_tr,
+            categories=category_values,
+            cities_nl=None,  # Not used for these feeds
+            cities_tr=None,  # Not used for these feeds
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -117,8 +144,8 @@ async def get_trending_news(
         description="Country context for the trending feed.",
     ),
 ) -> NewsListResponse:
-    items, total = await _resolve_trending_payload(limit=limit, offset=offset, trend_country=trend_country)
-    return NewsListResponse(items=items, total=total, limit=limit, offset=offset)
+    items, total, meta = await _resolve_trending_payload(limit=limit, offset=offset, trend_country=trend_country)
+    return NewsListResponse(items=items, total=total, limit=limit, offset=offset, meta=meta)
 
 
 @router.get("/search", response_model=NewsListResponse)
@@ -164,19 +191,26 @@ async def _resolve_trending_payload(
     limit: int,
     offset: int,
     trend_country: Literal["nl", "tr"],
-) -> tuple[List[NewsItem], int]:
+) -> tuple[List[NewsItem], int, Optional[Dict[str, Any]]]:
     """
-    Resolve trending payload from X API or stub topics.
-    Falls back to stub topics if X API is unavailable (instead of database items).
+    Resolve trending payload from X API.
+    Returns items, total count, and optional metadata (e.g., unavailable_reason).
     """
-    raw_topics = await fetch_trending_topics(limit=limit + offset, country=trend_country)
-    if raw_topics:
-        sliced = raw_topics[offset:offset + limit]
+    result: TrendingResult = await fetch_trending_topics(limit=limit + offset, country=trend_country)
+    
+    if result.topics:
+        sliced = result.topics[offset:offset + limit]
         items = [_topic_to_news_item(topic) for topic in sliced]
-        return items, len(raw_topics)
-    # If no topics (X API failed and stubs not available), return empty list
-    # instead of falling back to database items which may contain legacy sources
-    return [], 0
+        meta = None
+        if result.unavailable_reason:
+            meta = {"unavailable_reason": result.unavailable_reason}
+        return items, len(result.topics), meta
+    
+    # No topics available
+    meta = None
+    if result.unavailable_reason:
+        meta = {"unavailable_reason": result.unavailable_reason}
+    return [], 0, meta
 
 
 def _topic_to_news_item(topic) -> NewsItem:

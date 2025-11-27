@@ -1,16 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { NewsItem } from "@/api/news";
+import { NewsCategoryFilterBar } from "@/components/news/NewsCategoryFilterBar";
 import { NewsCityModal } from "@/components/news/NewsCityModal";
 import { NewsFeedTabs } from "@/components/news/NewsFeedTabs";
 import { NewsList } from "@/components/news/NewsList";
 import { NewsSearchBar } from "@/components/news/NewsSearchBar";
-import { NewsThemeFilterBar } from "@/components/news/NewsThemeFilterBar";
 import { Button } from "@/components/ui/button";
 import { useNewsBookmarks } from "@/hooks/useNewsBookmarks";
 import { useNewsCityPreferences, type CityLabelMap } from "@/hooks/useNewsCityPreferences";
 import { NEWS_FEED_STALE_MS, useNewsFeed } from "@/hooks/useNewsFeed";
 import { useNewsSearch } from "@/hooks/useNewsSearch";
+import {
+  clearNewsCategoriesFromHash,
+  readNewsCategoriesFromHash,
+  writeNewsCategoriesToHash,
+  type NewsCategoryKey,
+} from "@/lib/routing/newsCategories";
 import {
   readNewsFeedFromHash,
   readNewsSearchQueryFromHash,
@@ -19,21 +25,15 @@ import {
   writeNewsSearchQueryToHash,
   type NewsFeedKey,
 } from "@/lib/routing/newsFeed";
-import {
-  clearNewsThemesFromHash,
-  readNewsThemesFromHash,
-  writeNewsThemesToHash,
-  type NewsThemeKey,
-} from "@/lib/routing/newsThemes";
 
-function themesAreEqual(a: NewsThemeKey[], b: NewsThemeKey[]) {
+function categoriesAreEqual(a: NewsCategoryKey[], b: NewsCategoryKey[]) {
   if (a.length !== b.length) return false;
   return a.every((value, index) => value === b[index]);
 }
 
 export default function NewsPage() {
   const [feed, setFeed] = useState<NewsFeedKey>(() => readNewsFeedFromHash());
-  const [themes, setThemes] = useState<NewsThemeKey[]>(() => readNewsThemesFromHash());
+  const [categories, setCategories] = useState<NewsCategoryKey[]>(() => readNewsCategoriesFromHash());
   const [searchQuery, setSearchQuery] = useState<string>(() =>
     readNewsSearchQueryFromHash(),
   );
@@ -68,9 +68,9 @@ export default function NewsPage() {
         const next = readNewsFeedFromHash();
         return current === next ? current : next;
       });
-      setThemes((current) => {
-        const next = readNewsThemesFromHash();
-        return themesAreEqual(current, next) ? current : next;
+      setCategories((current) => {
+        const next = readNewsCategoriesFromHash();
+        return categoriesAreEqual(current, next) ? current : next;
       });
       setSearchQuery((current) => {
         const next = readNewsSearchQueryFromHash();
@@ -85,8 +85,8 @@ export default function NewsPage() {
   }, [feed]);
 
   useEffect(() => {
-    writeNewsThemesToHash(themes);
-  }, [themes]);
+    writeNewsCategoriesToHash(categories);
+  }, [categories]);
 
   useEffect(() => {
     writeNewsSearchQueryToHash(searchQuery);
@@ -96,13 +96,13 @@ export default function NewsPage() {
     setFeed((current) => (current === next ? current : next));
   }, []);
 
-  const handleThemesChange = useCallback((next: NewsThemeKey[]) => {
-    setThemes((current) => (themesAreEqual(current, next) ? current : next));
+  const handleCategoriesChange = useCallback((next: NewsCategoryKey[]) => {
+    setCategories((current) => (categoriesAreEqual(current, next) ? current : next));
   }, []);
 
-  const handleClearThemes = useCallback(() => {
-    clearNewsThemesFromHash();
-    setThemes([]);
+  const handleClearCategories = useCallback(() => {
+    clearNewsCategoriesFromHash();
+    setCategories([]);
   }, []);
 
   return (
@@ -125,9 +125,9 @@ export default function NewsPage() {
       ) : (
         <StandardNewsSection
           feed={feed}
-          themes={themes}
-          onThemesChange={handleThemesChange}
-          onClearThemes={handleClearThemes}
+          categories={categories}
+          onCategoriesChange={handleCategoriesChange}
+          onClearCategories={handleClearCategories}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           onSearchClear={() => setSearchQuery("")}
@@ -155,9 +155,9 @@ export default function NewsPage() {
 
 interface StandardNewsSectionProps {
   feed: NewsFeedKey;
-  themes: NewsThemeKey[];
-  onThemesChange: (themes: NewsThemeKey[]) => void;
-  onClearThemes: () => void;
+  categories: NewsCategoryKey[];
+  onCategoriesChange: (categories: NewsCategoryKey[]) => void;
+  onClearCategories: () => void;
   searchQuery: string;
   onSearchQueryChange: (value: string) => void;
   onSearchClear: () => void;
@@ -172,9 +172,9 @@ interface StandardNewsSectionProps {
 
 function StandardNewsSection({
   feed,
-  themes,
-  onThemesChange,
-  onClearThemes,
+  categories,
+  onCategoriesChange,
+  onClearCategories,
   searchQuery,
   onSearchQueryChange,
   onSearchClear,
@@ -190,10 +190,10 @@ function StandardNewsSection({
   const isSearchMode = trimmedSearch.length >= 2;
   const isTrendingFeed = feed === "trending";
   /**
-   * Trending ondersteunt geen theme filters; geef undefined door zodat de
+   * Trending ondersteunt geen category filters; geef undefined door zodat de
    * hook geen onnodige renders krijgt door steeds nieuwe lege arrays.
    */
-  const effectiveThemes = isTrendingFeed ? undefined : themes;
+  const effectiveCategories = isTrendingFeed ? undefined : categories;
   const searchEmptyMessage = "Geen artikelen gevonden voor je zoekopdracht.";
   const searchErrorMessage = "Zoeken mislukt. Probeer het later opnieuw.";
 
@@ -207,10 +207,11 @@ function StandardNewsSection({
     loadMore,
     isReloading,
     lastUpdatedAt,
+    meta,
   } = useNewsFeed({
     feed,
     pageSize: 20,
-    themes: effectiveThemes,
+    categories: effectiveCategories,
     citiesNl: feed === "local" ? cityPreferences.nl : undefined,
     citiesTr: feed === "origin" ? cityPreferences.tr : undefined,
     trendCountry: feed === "trending" ? trendCountry : undefined,
@@ -330,10 +331,11 @@ function StandardNewsSection({
       </div>
 
       {!isTrendingFeed ? (
-        <NewsThemeFilterBar
-          selected={themes}
-          onChange={onThemesChange}
-          onClear={onClearThemes}
+        <NewsCategoryFilterBar
+          feed={feed}
+          selected={categories}
+          onChange={onCategoriesChange}
+          onClear={onClearCategories}
         />
       ) : null}
 
@@ -363,6 +365,7 @@ function StandardNewsSection({
         errorMessage={isSearchMode ? searchErrorMessage : undefined}
         isBookmarked={isBookmarked}
         toggleBookmark={toggleBookmark}
+        meta={!isSearchMode ? meta : undefined}
       />
     </div>
   );
