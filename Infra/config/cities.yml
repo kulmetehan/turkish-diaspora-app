@@ -218,44 +218,191 @@ cities:
         lng_max: 4.2950
         apply: *rotterdam_defaults
 
+      nootdorp:
+        lat_min: 52.028814568952435
+        lat_max: 52.058814568952435
+        lng_min: 4.37436985115
+        lng_max: 4.40436985115
+        apply: *rotterdam_defaults
+
   leidschendam_voorburg:
     city_name: "Leidschendam-Voorburg"
     country: "NL"
     apply: *rotterdam_defaults
-    center_lat: 52.08474
-    center_lng: 4.377376
+    center_lat: 52.080887
+    center_lng: 4.390966
+    districts:
+      haagse_hout:
+        lat_min: 52.070986262417975
+        lat_max: 52.100986262417975
+        lng_min: 4.320912132363758
+        lng_max: 4.350912132363758
+        apply: *rotterdam_defaults
+
+      het_loo:
+        lat_min: 52.06466594174572
+        lat_max: 52.09466594174572
+        lng_min: 4.3447224791540565
+        lng_max: 4.3747224791540565
+        apply: *rotterdam_defaults
+
+      de_heuvel:
+        lat_min: 52.07808473338146
+        lat_max: 52.10808473338146
+        lng_min: 4.377127093129018
+        lng_max: 4.407127093129018
+        apply: *rotterdam_defaults
+
+      prinsenhof:
+        lat_min: 52.08197975584516
+        lat_max: 52.11197975584516
+        lng_min: 4.390652497222915
+        lng_max: 4.420652497222915
+        apply: *rotterdam_defaults
+
+      de_velden:
+        lat_min: 52.05561880306843
+        lat_max: 52.08561880306843
+        lng_min: 4.3915834226546725
+        lng_max: 4.4215834226546725
+        apply: *rotterdam_defaults
+
+      leidschenveen:
+        lat_min: 52.05110567455454
+        lat_max: 52.08110567455454
+        lng_min: 4.395790010743269
+        lng_max: 4.425790010743269
+        apply: *rotterdam_defaults
+
+      haagoord:
+        lat_min: 52.04568578208614
+        lat_max: 52.07568578208614
+        lng_min: 4.383214453216431
+        lng_max: 4.413214453216431
+        apply: *rotterdam_defaults
+
+      de_lanen:
+        lat_min: 52.04799728725214
+        lat_max: 52.07799728725214
+        lng_min: 4.380491909834332
+        lng_max: 4.410491909834332
+        apply: *rotterdam_defaults
+
+  dordrecht:
+    city_name: "Dordrecht"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 51.813366281298144
+    center_lng: 4.668750627398341
+    districts:
+      west:
+        lat_min: 51.77088926261991
+        lat_max: 51.80088926261991
+        lng_min: 4.618549871684094
+        lng_max: 4.648549871684094
+        apply: *rotterdam_defaults
+
+      sterrenburg:
+        lat_min: 51.76266864904193
+        lat_max: 51.79266864904193
+        lng_min: 4.6600239430899505
+        lng_max: 4.6900239430899505
+        apply: *rotterdam_defaults
+
+      crabbehof:
+        lat_min: 51.77499900772626
+        lat_max: 51.80499900772626
+        lng_min: 4.650360081791499
+        lng_max: 4.680360081791499
+        apply: *rotterdam_defaults
+
+      dubbeldam:
+        lat_min: 51.78122518079483
+        lat_max: 51.81122518079483
+        lng_min: 4.684586257223516
+        lng_max: 4.714586257223516
+        apply: *rotterdam_defaults
+
+      stadspolders:
+        lat_min: 51.78745049455738
+        lat_max: 51.81745049455738
+        lng_min: 4.707135268551597
+        lng_max: 4.737135268551597
+        apply: *rotterdam_defaults
+
+      oud_krispijn:
+        lat_min: 51.786330001555726
+        lat_max: 51.816330001555726
+        lng_min: 4.643917509224224
+        lng_max: 4.673917509224224
+        apply: *rotterdam_defaults
+
+      staart:
+        lat_min: 51.80400564477288
+        lat_max: 51.83400564477288
+        lng_min: 4.676331710662782
+        lng_max: 4.706331710662782
+        apply: *rotterdam_defaults
+
+      centrum:
+        lat_min: 51.798366281298144
+        lat_max: 51.828366281298144
+        lng_min: 4.653750627398341
+        lng_max: 4.683750627398341
+        apply: *rotterdam_defaults
+
+      vogelbuurt:
+        lat_min: 51.793260004122076
+        lat_max: 51.823260004122076
+        lng_min: 4.673220994564773
+        lng_max: 4.703220994564773
+        apply: *rotterdam_defaults
+
+  zoetermeer:
+    city_name: "Zoetermeer"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 52.0603304035099
+    center_lng: 4.4925787701747675
     districts:
       centrum:
-        lat_min: 52.06974
-        lat_max: 52.09974
-        lng_min: 4.362376
-        lng_max: 4.392376
+        lat_min: 52.0453304035099
+        lat_max: 52.0753304035099
+        lng_min: 4.4775787701747675
+        lng_max: 4.5075787701747675
         apply: *rotterdam_defaults
 
-      zuid:
-        lat_min: 52.055905
-        lat_max: 52.085905
-        lng_min: 4.358829
-        lng_max: 4.388829
+      meerzicht:
+        lat_min: 52.04176686003942
+        lat_max: 52.07176686003942
+        lng_min: 4.454602811799693
+        lng_max: 4.484602811799693
         apply: *rotterdam_defaults
 
-      west:
-        lat_min: 52.063359
-        lat_max: 52.093359
-        lng_min: 4.330472
-        lng_max: 4.360472
+      rokkeveen:
+        lat_min: 52.02687326318494
+        lat_max: 52.05687326318494
+        lng_min: 4.478613723254726
+        lng_max: 4.508613723254726
         apply: *rotterdam_defaults
 
-      oost:
-        lat_min: 52.063267
-        lat_max: 52.093267
-        lng_min: 4.38661
-        lng_max: 4.41661
+      palenstein:
+        lat_min: 52.04138503494931
+        lat_max: 52.07138503494931
+        lng_min: 4.493517047606125
+        lng_max: 4.523517047606125
         apply: *rotterdam_defaults
 
-      noord:
-        lat_min: 52.077393
-        lat_max: 52.107393
-        lng_min: 4.358908
-        lng_max: 4.388908
+      seghwaert:
+        lat_min: 52.0510569313834
+        lat_max: 52.0810569313834
+        lng_min: 4.491447141446208
+        lng_max: 4.521447141446208
+        apply: *rotterdam_defaults
+
+      oosterheem:
+        lat_min: 52.05118417921893
+        lat_max: 52.08118417921893
+        lng_min: 4.520011846453057
+        lng_max: 4.550011846453057
         apply: *rotterdam_defaults
