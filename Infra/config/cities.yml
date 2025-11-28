@@ -217,3 +217,45 @@ cities:
         lng_min: 4.2450
         lng_max: 4.2950
         apply: *rotterdam_defaults
+
+  leidschendam_voorburg:
+    city_name: "Leidschendam-Voorburg"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 52.08474
+    center_lng: 4.377376
+    districts:
+      centrum:
+        lat_min: 52.06974
+        lat_max: 52.09974
+        lng_min: 4.362376
+        lng_max: 4.392376
+        apply: *rotterdam_defaults
+
+      zuid:
+        lat_min: 52.055905
+        lat_max: 52.085905
+        lng_min: 4.358829
+        lng_max: 4.388829
+        apply: *rotterdam_defaults
+
+      west:
+        lat_min: 52.063359
+        lat_max: 52.093359
+        lng_min: 4.330472
+        lng_max: 4.360472
+        apply: *rotterdam_defaults
+
+      oost:
+        lat_min: 52.063267
+        lat_max: 52.093267
+        lng_min: 4.38661
+        lng_max: 4.41661
+        apply: *rotterdam_defaults
+
+      noord:
+        lat_min: 52.077393
+        lat_max: 52.107393
+        lng_min: 4.358908
+        lng_max: 4.388908
+        apply: *rotterdam_defaults
