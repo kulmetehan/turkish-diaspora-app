@@ -25,7 +25,7 @@ MOSKEE REGELS
 STRICTE OUTPUT
 - Altijd geldige JSON op één regel:
   {"action": "...", "category": <string|null>, "confidence_score": <float>, "reason": "..."}
-- Als action="ignore": category=null.
+- Als action="ignore": category=null of weglaten.
 - Gebruik korte, concrete reason.
 
 AFWEGING

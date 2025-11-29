@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
-import mapboxgl, { Map as MapboxMap, Popup } from "mapbox-gl";
-import type { FeatureCollection, Polygon, Point } from "geojson";
-import { initMap } from "@/lib/map/mapbox";
-import { getDiscoveryCoverage, getCityDistricts, type DiscoveryCoverageCell, type CityReadiness } from "@/lib/api";
 import { fetchCategories, type CategoryOption } from "@/api/fetchLocations";
 import { Button } from "@/components/ui/button";
+import { getCityDistricts, getDiscoveryCoverage, type CityReadiness, type DiscoveryCoverageCell } from "@/lib/api";
 import { CONFIG } from "@/lib/config";
+import { initMap } from "@/lib/map/mapbox";
+import type { FeatureCollection, Point, Polygon } from "geojson";
+import mapboxgl, { Map as MapboxMap, Popup } from "mapbox-gl";
+import { useEffect, useRef, useState } from "react";
 
 // Safe date formatter that handles null/undefined values using native Date APIs
 function formatDateOrDash(value: string | null | undefined): string {
@@ -25,6 +25,8 @@ mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
 
 function safeHasLayer(map: MapboxMap | null | undefined, id: string): boolean {
   if (!map) return false;
+  // Guard against empty or undefined layer IDs to prevent "IDs can't be empty" errors
+  if (!id || typeof id !== "string" || id.trim() === "") return false;
   try {
     return Boolean(map.getLayer(id));
   } catch {
@@ -88,18 +90,18 @@ function getCellColor(cell: { calls: number; inserts: number; error429: number; 
   if (cell.calls === 0) {
     return COLOR_NOT_VISITED;
   }
-  
+
   const totalErrors = cell.error429 + cell.errorOther;
   const errorRate = cell.calls > 0 ? totalErrors / cell.calls : 0;
-  
+
   if (errorRate > ERROR_THRESHOLD) {
     return COLOR_HIGH_ERROR;
   }
-  
+
   if (cell.inserts > 0) {
     return COLOR_WITH_INSERTS;
   }
-  
+
   return COLOR_NO_INSERTS;
 }
 
@@ -146,9 +148,9 @@ export default function AdminDiscoveryMap({
     const mapCenter: [number, number] =
       gridData.length > 0
         ? [
-            gridData.reduce((sum, c) => sum + c.lngCenter, 0) / gridData.length,
-            gridData.reduce((sum, c) => sum + c.latCenter, 0) / gridData.length,
-          ]
+          gridData.reduce((sum, c) => sum + c.lngCenter, 0) / gridData.length,
+          gridData.reduce((sum, c) => sum + c.latCenter, 0) / gridData.length,
+        ]
         : defaultCenter;
 
     // Center on data center or default location
@@ -159,7 +161,7 @@ export default function AdminDiscoveryMap({
     const handleStyleLoad = () => {
       setMapReady(true);
     };
-    
+
     if (map.isStyleLoaded()) {
       setMapReady(true);
     } else {
@@ -261,13 +263,14 @@ export default function AdminDiscoveryMap({
     // If coverage is disabled, hide layers instead of removing them
     if (!showCoverage) {
       try {
-        if (map.getLayer(HEATMAP_LAYER_ID)) {
+        // Guard against empty layer IDs to prevent "IDs can't be empty" errors
+        if (HEATMAP_LAYER_ID && safeHasLayer(map, HEATMAP_LAYER_ID)) {
           map.setLayoutProperty(HEATMAP_LAYER_ID, "visibility", "none");
         }
-        if (map.getLayer(COVERAGE_LAYER_ID)) {
+        if (COVERAGE_LAYER_ID && safeHasLayer(map, COVERAGE_LAYER_ID)) {
           map.setLayoutProperty(COVERAGE_LAYER_ID, "visibility", "none");
         }
-        if (map.getLayer(COVERAGE_OUTLINE_LAYER_ID)) {
+        if (COVERAGE_OUTLINE_LAYER_ID && safeHasLayer(map, COVERAGE_OUTLINE_LAYER_ID)) {
           map.setLayoutProperty(COVERAGE_OUTLINE_LAYER_ID, "visibility", "none");
         }
       } catch {
@@ -365,6 +368,8 @@ export default function AdminDiscoveryMap({
         // NOTE: This was originally tuned for the "streets" style. Under Mapbox
         // Standard, "waterway-label" may not exist, but safeHasLayer() + fallback
         // to undefined keeps the heatmap insertion safe.
+        // We do not modify any base style layers (place-labels, etc.) - all warnings
+        // from sizerank/place-labels/terrain are from the Mapbox Standard style JSON itself.
         const heatmapBeforeId = safeHasLayer(map, "waterway-label")
           ? "waterway-label"
           : undefined;
@@ -382,7 +387,7 @@ export default function AdminDiscoveryMap({
       }
 
       // Set heatmap visibility based on showCoverage
-      if (map.getLayer(HEATMAP_LAYER_ID)) {
+      if (HEATMAP_LAYER_ID && safeHasLayer(map, HEATMAP_LAYER_ID)) {
         map.setLayoutProperty(HEATMAP_LAYER_ID, "visibility", "visible");
       }
 
@@ -447,10 +452,10 @@ export default function AdminDiscoveryMap({
       }
 
       // Update grid overlay visibility based on toggle
-      if (map.getLayer(COVERAGE_LAYER_ID)) {
+      if (COVERAGE_LAYER_ID && safeHasLayer(map, COVERAGE_LAYER_ID)) {
         map.setLayoutProperty(COVERAGE_LAYER_ID, "visibility", showGridOverlay ? "visible" : "none");
       }
-      if (map.getLayer(COVERAGE_OUTLINE_LAYER_ID)) {
+      if (COVERAGE_OUTLINE_LAYER_ID && safeHasLayer(map, COVERAGE_OUTLINE_LAYER_ID)) {
         map.setLayoutProperty(COVERAGE_OUTLINE_LAYER_ID, "visibility", showGridOverlay ? "visible" : "none");
       }
 
@@ -493,10 +498,15 @@ export default function AdminDiscoveryMap({
       };
 
       // Remove existing handlers before adding new ones to avoid duplicates
-      map.off("click", COVERAGE_LAYER_ID);
-      map.off("click", HEATMAP_LAYER_ID);
-      map.on("click", COVERAGE_LAYER_ID, handleClick);
-      map.on("click", HEATMAP_LAYER_ID, handleClick);
+      // Guard against empty layer IDs to prevent "IDs can't be empty" errors
+      try {
+        if (COVERAGE_LAYER_ID) map.off("click", COVERAGE_LAYER_ID);
+        if (HEATMAP_LAYER_ID) map.off("click", HEATMAP_LAYER_ID);
+        if (COVERAGE_LAYER_ID) map.on("click", COVERAGE_LAYER_ID, handleClick);
+        if (HEATMAP_LAYER_ID) map.on("click", HEATMAP_LAYER_ID, handleClick);
+      } catch (err) {
+        console.warn("Failed to attach click handlers:", err);
+      }
 
       // Add hover effect
       const handleMouseEnter = () => {
@@ -506,14 +516,18 @@ export default function AdminDiscoveryMap({
         map.getCanvas().style.cursor = "";
       };
 
-      map.off("mouseenter", COVERAGE_LAYER_ID);
-      map.off("mouseenter", HEATMAP_LAYER_ID);
-      map.off("mouseleave", COVERAGE_LAYER_ID);
-      map.off("mouseleave", HEATMAP_LAYER_ID);
-      map.on("mouseenter", COVERAGE_LAYER_ID, handleMouseEnter);
-      map.on("mouseenter", HEATMAP_LAYER_ID, handleMouseEnter);
-      map.on("mouseleave", COVERAGE_LAYER_ID, handleMouseLeave);
-      map.on("mouseleave", HEATMAP_LAYER_ID, handleMouseLeave);
+      try {
+        if (COVERAGE_LAYER_ID) map.off("mouseenter", COVERAGE_LAYER_ID);
+        if (HEATMAP_LAYER_ID) map.off("mouseenter", HEATMAP_LAYER_ID);
+        if (COVERAGE_LAYER_ID) map.off("mouseleave", COVERAGE_LAYER_ID);
+        if (HEATMAP_LAYER_ID) map.off("mouseleave", HEATMAP_LAYER_ID);
+        if (COVERAGE_LAYER_ID) map.on("mouseenter", COVERAGE_LAYER_ID, handleMouseEnter);
+        if (HEATMAP_LAYER_ID) map.on("mouseenter", HEATMAP_LAYER_ID, handleMouseEnter);
+        if (COVERAGE_LAYER_ID) map.on("mouseleave", COVERAGE_LAYER_ID, handleMouseLeave);
+        if (HEATMAP_LAYER_ID) map.on("mouseleave", HEATMAP_LAYER_ID, handleMouseLeave);
+      } catch (err) {
+        console.warn("Failed to attach hover handlers:", err);
+      }
     } catch (err) {
       console.error("Failed to setup coverage layers:", err);
     }
@@ -522,12 +536,13 @@ export default function AdminDiscoveryMap({
       // Cleanup: remove event listeners when effect re-runs or unmounts
       if (map) {
         try {
-          map.off("click", COVERAGE_LAYER_ID);
-          map.off("click", HEATMAP_LAYER_ID);
-          map.off("mouseenter", COVERAGE_LAYER_ID);
-          map.off("mouseenter", HEATMAP_LAYER_ID);
-          map.off("mouseleave", COVERAGE_LAYER_ID);
-          map.off("mouseleave", HEATMAP_LAYER_ID);
+          // Guard against empty layer IDs to prevent "IDs can't be empty" errors
+          if (COVERAGE_LAYER_ID) map.off("click", COVERAGE_LAYER_ID);
+          if (HEATMAP_LAYER_ID) map.off("click", HEATMAP_LAYER_ID);
+          if (COVERAGE_LAYER_ID) map.off("mouseenter", COVERAGE_LAYER_ID);
+          if (HEATMAP_LAYER_ID) map.off("mouseenter", HEATMAP_LAYER_ID);
+          if (COVERAGE_LAYER_ID) map.off("mouseleave", COVERAGE_LAYER_ID);
+          if (HEATMAP_LAYER_ID) map.off("mouseleave", HEATMAP_LAYER_ID);
         } catch {
           // Ignore errors
         }
@@ -562,7 +577,7 @@ export default function AdminDiscoveryMap({
             </select>
           )}
         </div>
-        
+
         {/* District selector */}
         <div>
           <label className="block text-xs font-medium mb-1">District</label>
@@ -578,7 +593,7 @@ export default function AdminDiscoveryMap({
             ))}
           </select>
         </div>
-        
+
         {/* Category selector */}
         <div>
           <label className="block text-xs font-medium mb-1">Category</label>
@@ -596,7 +611,7 @@ export default function AdminDiscoveryMap({
             ))}
           </select>
         </div>
-        
+
         {/* Date range */}
         <div className="flex gap-2">
           <div className="flex-1">
@@ -620,7 +635,7 @@ export default function AdminDiscoveryMap({
             />
           </div>
         </div>
-        
+
         {/* Toggles */}
         <div className="flex items-center justify-between gap-2 pt-1">
           <Button
@@ -641,24 +656,24 @@ export default function AdminDiscoveryMap({
             Grid overlay
           </label>
         </div>
-        
+
         {/* Loading state */}
         {loading && showCoverage && (
           <div className="text-xs text-blue-600 font-medium">
             Loading discovery coverage…
           </div>
         )}
-        
+
         {/* Error state */}
         {error && <div className="text-xs text-red-600">{error}</div>}
       </div>
-      
+
       {/* Map container with explicit height to ensure visibility */}
-      <div 
-        ref={mapContainerRef} 
-        className="w-full h-[600px] min-h-[400px] rounded-lg border border-border bg-muted/20" 
+      <div
+        ref={mapContainerRef}
+        className="w-full h-[600px] min-h-[400px] rounded-lg border border-border bg-muted/20"
       />
-      
+
       {/* Empty state overlay (only when no data and not loading) */}
       {!loading && !error && showCoverage && gridData.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

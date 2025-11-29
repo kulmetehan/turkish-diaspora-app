@@ -591,10 +591,11 @@ async def _city_progress(city_key: str) -> Optional[CityProgressData]:
     rows2 = await fetch(sql_weekly, *verified_params)
     # Python fallback safety-net: ensure None values become 0 before int() conversion
     row_dict = dict(rows2[0]) if rows2 else {}
-    cur_raw = row_dict.get("cur") or 0
-    prev_raw = row_dict.get("prev") or 0
-    cur = int(cur_raw)
-    prev = int(prev_raw)
+    cur_raw = row_dict.get("cur")
+    prev_raw = row_dict.get("prev")
+    # Explicit None checks before int() conversion
+    cur = int(cur_raw) if cur_raw is not None else 0
+    prev = int(prev_raw) if prev_raw is not None else 0
     growth = 0.0
     if prev > 0:
         growth = (float(cur - prev) / float(prev)) * 100.0

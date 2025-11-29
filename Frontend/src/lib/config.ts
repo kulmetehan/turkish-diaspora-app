@@ -13,6 +13,11 @@ export const CONFIG = {
   API_BASE_URL: normalizeApiBase(import.meta.env.VITE_API_BASE_URL as string | undefined),
 
   MAPBOX_TOKEN: (import.meta.env.VITE_MAPBOX_TOKEN as string | undefined) ?? "pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw",
+  // Mapbox style URL used for all maps (public and admin).
+  // Default: "mapbox://styles/mapbox/standard" (Mapbox Standard style).
+  // Override via VITE_MAPBOX_STYLE environment variable if needed.
+  // Note: Some base style warnings (sizerank, place-labels, terrain) are Mapbox-internal
+  // and cannot be eliminated without changing to a different style.
   MAPBOX_STYLE:
     (import.meta.env.VITE_MAPBOX_STYLE as string | undefined) ??
     "mapbox://styles/mapbox/standard",

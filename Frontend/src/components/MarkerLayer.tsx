@@ -1,6 +1,7 @@
 // src/components/MarkerLayer.tsx
 import type { LocationMarker } from "@/api/fetchLocations";
 import { buildMarkerGeoJSON, ensureBaseLayers, MarkerLayerIds } from "@/components/markerLayerUtils";
+import { safeHasLayer } from "@/lib/map/mapbox";
 import type {
     LngLatLike,
     MapboxGeoJSONFeature,
@@ -143,14 +144,15 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
             }
         };
 
-        map.on("click", L_CLUSTER, onClusterClick as any);
-        map.on("click", L_POINT, onPointClick as any);
+        // Guard against empty layer IDs to prevent "IDs can't be empty" errors
+        if (L_CLUSTER) map.on("click", L_CLUSTER, onClusterClick as any);
+        if (L_POINT) map.on("click", L_POINT, onPointClick as any);
         map.on("mousemove", onMouseMove as any);
 
-        map.on("mouseenter", L_POINT, forcePointer as any);
-        map.on("mouseleave", L_POINT, clearPointer as any);
-        map.on("mouseenter", L_CLUSTER, forcePointer as any);
-        map.on("mouseleave", L_CLUSTER, clearPointer as any);
+        if (L_POINT) map.on("mouseenter", L_POINT, forcePointer as any);
+        if (L_POINT) map.on("mouseleave", L_POINT, clearPointer as any);
+        if (L_CLUSTER) map.on("mouseenter", L_CLUSTER, forcePointer as any);
+        if (L_CLUSTER) map.on("mouseleave", L_CLUSTER, clearPointer as any);
 
         handlersReady.current = true;
 
@@ -222,7 +224,8 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
     useEffect(() => {
         if (!layersReady.current) return;
         if (!hasStyleObject(map)) return;
-        if (!map.getLayer(L_HI)) return;
+        // Guard against empty/undefined layer IDs to prevent "IDs can't be empty" errors
+        if (!L_HI || !safeHasLayer(map, L_HI)) return;
         const selId = selectedId != null ? String(selectedId) : "__none__";
         try {
             map.setFilter(L_HI, [

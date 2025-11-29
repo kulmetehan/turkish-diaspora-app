@@ -1,4 +1,5 @@
 import importlib.util
+import sys
 from pathlib import Path
 
 
@@ -6,6 +7,9 @@ MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "migrate_google_
 SPEC = importlib.util.spec_from_file_location("migrate_google_to_osm", MODULE_PATH)
 MODULE = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None  # pragma: no cover - defensive sanity
+# Insert module into sys.modules before exec_module to ensure proper namespace
+# initialization for Python 3.13 dataclass compatibility
+sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 

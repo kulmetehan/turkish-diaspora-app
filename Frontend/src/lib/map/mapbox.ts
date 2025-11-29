@@ -2,6 +2,24 @@
 import mapboxgl, { Map } from "mapbox-gl";
 import { CONFIG } from "@/lib/config";
 
+/**
+ * Safely check if a layer exists on the map, guarding against empty/undefined layer IDs
+ * to prevent "IDs can't be empty" errors from Mapbox GL JS.
+ */
+export function safeHasLayer(
+  map: Map | null | undefined,
+  id: string | undefined | null
+): boolean {
+  if (!map) return false;
+  // Guard against empty or undefined layer IDs to prevent "IDs can't be empty" errors
+  if (!id || typeof id !== "string" || id.trim() === "") return false;
+  try {
+    return Boolean(map.getLayer(id));
+  } catch {
+    return false;
+  }
+}
+
 export function initMap(container: HTMLElement): Map {
   mapboxgl.accessToken = CONFIG.MAPBOX_TOKEN;
   const map = new mapboxgl.Map({

@@ -25,9 +25,9 @@ Reference examples used when tuning the Dutch/Turkish classification prompt for 
 | 9 | Atlas Reisbureau | Rotterdam | travel_agency | `{ "action": "keep", "category": "travel_agency", "confidence_score": 0.84, "reason": "Reisbureau vaak TR routes." }` |
 | 10 | Bakkerij Avrasya | Rotterdam | bakery | `{ "action": "keep", "category": "bakery", "confidence_score": 0.88, "reason": "Avrasya = Turkse naam (Eurazië)." }` |
 | 11 | Bakkerij Enes | Den Haag | bakery | `{ "action": "keep", "category": "bakery", "confidence_score": 0.85, "reason": "Enes = veelvoorkomende Turkse naam." }` |
-| 12 | Bakkerij Kees | Nieuw-Beijerland | bakery | `{ "action": "ignore", "category": "other", "confidence_score": 0.70, "reason": "Geen TR indicaties, generiek NL." }` |
-| 13 | Pizzeria Napoli | Rotterdam | restaurant | `{ "action": "ignore", "category": "other", "confidence_score": 0.75, "reason": "Italiaans; geen TR signalen." }` |
-| 14 | Barber Bros | Rotterdam | hair_care | `{ "action": "ignore", "category": "other", "confidence_score": 0.65, "reason": "Generiek Engels; geen TR signalen." }` |
+| 12 | Bakkerij Kees | Nieuw-Beijerland | bakery | `{ "action": "ignore", "category": null, "confidence_score": 0.70, "reason": "Geen TR indicaties, generiek NL." }` |
+| 13 | Pizzeria Napoli | Rotterdam | restaurant | `{ "action": "ignore", "category": null, "confidence_score": 0.75, "reason": "Italiaans; geen TR signalen." }` |
+| 14 | Barber Bros | Rotterdam | hair_care | `{ "action": "ignore", "confidence_score": 0.65, "reason": "Generiek Engels; geen TR signalen." }` |
 | 15 | Yeni Cami | Schiedam | mosque | `{ "action": "keep", "category": "mosque", "confidence_score": 0.95, "reason": "Cami/Moskee met Turkse naam → duidelijk diaspora-relevant." }` |
 | 16 | Süleymaniye Moskee | Rotterdam | mosque | `{ "action": "keep", "category": "mosque", "confidence_score": 0.97, "reason": "Moskee met Turkse religieuze naam → duidelijk Turkse gemeenschap." }` |
 

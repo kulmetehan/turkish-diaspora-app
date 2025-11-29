@@ -94,6 +94,7 @@ Create `Frontend/.env.development` (or `.env.production`) when you need to overr
 | --- | --- | --- |
 | `VITE_API_BASE_URL` | ✅ | Base URL of the FastAPI backend. Required for all environments. |
 | `VITE_MAPBOX_TOKEN` | ✅ for live maps | Publishable Mapbox token for Map GL tiles. Leave blank to disable map rendering. |
+| `VITE_MAPBOX_STYLE` | optional | Mapbox style URL for all maps. Default: `"mapbox://styles/mapbox/standard"`. Override to use a different Mapbox style (e.g., `"mapbox://styles/mapbox/streets-v12"` or `"mapbox://styles/mapbox/light-v11"`). See `Docs/mapbox-style-config.md` for change guidelines. |
 | `VITE_SUPABASE_URL` | ✅ | Supabase project URL for admin login. |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase anon/public key used by the frontend. |
 

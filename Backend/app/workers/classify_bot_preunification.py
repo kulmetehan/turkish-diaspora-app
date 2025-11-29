@@ -62,7 +62,7 @@ async def run(limit: int, min_conf: float, dry_run: bool, model: Optional[str]) 
 
         # 3) Gebruik enums veilig (.value) en min_conf-drempel
         action = parsed.action.value
-        category = parsed.category.value
+        category = parsed.category.value if parsed.category else None
         conf = float(parsed.confidence_score or 0.0)
 
         if conf < min_conf:
