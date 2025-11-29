@@ -102,12 +102,22 @@ async def get_cities_overview(
             growth_weekly: float | None = None
             
             if has_districts:
-                progress = await _city_progress(city_key)
-                if progress:
-                    verified_count = progress.verified_count
-                    candidate_count = progress.candidate_count
-                    coverage_ratio = progress.coverage_ratio
-                    growth_weekly = progress.growth_weekly
+                try:
+                    progress = await _city_progress(city_key)
+                    if progress:
+                        verified_count = progress.verified_count
+                        candidate_count = progress.candidate_count
+                        coverage_ratio = progress.coverage_ratio
+                        growth_weekly = progress.growth_weekly
+                except Exception as e:
+                    # Log error but continue processing other cities
+                    logger.warning(
+                        "failed_to_compute_city_progress",
+                        city_key=city_key,
+                        error=str(e),
+                        exc_info=e
+                    )
+                    # Keep default values (0 counts, 0.0 coverage)
             
             # Determine readiness status
             readiness_status, readiness_notes = _determine_readiness_status(

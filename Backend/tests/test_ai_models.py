@@ -38,3 +38,31 @@ def test_verification_ok():
 def test_verification_invalid():
     with pytest.raises(AIValidationError):
         validate_verification({"status": "WRONG"})
+
+def test_classification_ignore_with_null_category():
+    data = {"action": "ignore", "category": None, "confidence_score": 0.95, "reason": "No Turkish cues"}
+    obj = validate_classification(data)
+    assert obj.action.value == "ignore"
+    assert obj.category is None
+
+def test_classification_ignore_with_omitted_category():
+    data = {"action": "ignore", "confidence_score": 0.95, "reason": "No Turkish cues"}
+    obj = validate_classification(data)
+    assert obj.action.value == "ignore"
+    assert obj.category is None
+
+def test_classification_keep_requires_category_null_fails():
+    with pytest.raises(AIValidationError):
+        validate_classification({"action": "keep", "category": None, "confidence_score": 0.95, "reason": "test"})
+
+def test_classification_keep_requires_category_missing_fails():
+    with pytest.raises(AIValidationError):
+        validate_classification({"action": "keep", "confidence_score": 0.95, "reason": "test"})
+
+def test_classification_ignore_with_valid_category_still_valid():
+    # Even if AI provides a category for ignore, it should still validate
+    data = {"action": "ignore", "category": "other", "confidence_score": 0.95, "reason": "test"}
+    obj = validate_classification(data)
+    assert obj.action.value == "ignore"
+    # Category is ignored in business logic, but validation should pass
+    assert obj.category is not None  # It's provided, so it exists

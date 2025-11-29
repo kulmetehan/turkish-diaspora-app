@@ -84,7 +84,7 @@ class AIClassification(BaseModel):
       - validation_alias: confidence|score -> confidence_score
     """
     action: Action = Field(..., description="keep/ignore decision")
-    category: Category = Field(default=Category.other)
+    category: Optional[Category] = Field(default=None)
     confidence_score: float = Field(
         ...,
         ge=0.0,
@@ -104,6 +104,13 @@ class AIClassification(BaseModel):
             raise PydanticCustomError("confidence_invalid", "confidence_score must be float in [0,1]")
         # CLIP vóór constraints zodat 1.2 niet faalt maar 1.0 wordt
         return _clip01(f) or 0.0
+
+    @model_validator(mode="after")
+    def _validate_category_for_action(self):
+        """Enforce that category is required when action='keep', optional when action='ignore'."""
+        if self.action == Action.KEEP and self.category is None:
+            raise ValueError("category is required when action='keep'")
+        return self
 
 
 class OpeningHours(BaseModel):

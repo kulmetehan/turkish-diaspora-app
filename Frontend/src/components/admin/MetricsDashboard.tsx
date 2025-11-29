@@ -126,42 +126,10 @@ function formatStartedAt(value: string | null | undefined): string {
 }
 
 // Helper function to determine category health status
-// Uses backend-computed status if available, otherwise falls back to frontend computation
+// Always uses backend-computed status (single source of truth)
 function getCategoryHealthStatus(category: CategoryHealth): 'healthy' | 'warning' | 'degraded' | 'critical' | 'no_data' {
-    // Use backend-computed status if available
-    if (category.status) {
-        return category.status;
-    }
-
-    // Fallback computation for backward compatibility (using new metrics)
-    const { overpassFound, turkishCoverageRatioPct, aiPrecisionPct, insertedLocationsLast7d, aiActionKeep, aiClassificationsLast7d } = category;
-
-    // no_data: no Overpass data in window
-    if (overpassFound === 0) {
-        return 'no_data';
-    }
-
-    // critical: very low Turkish coverage AND no inserts AND (no classifications OR all ignored)
-    if (turkishCoverageRatioPct < 5 && insertedLocationsLast7d === 0 && (aiClassificationsLast7d === 0 || aiActionKeep === 0)) {
-        return 'critical';
-    }
-
-    // degraded: low Turkish coverage OR no inserts OR very low AI precision
-    if (turkishCoverageRatioPct < 10 || insertedLocationsLast7d === 0 || aiPrecisionPct < 15) {
-        return 'degraded';
-    }
-
-    // warning: moderate Turkish coverage OR moderate AI precision
-    if (turkishCoverageRatioPct < 20 || aiPrecisionPct < 25) {
-        return 'warning';
-    }
-
-    // healthy: good Turkish coverage and good AI precision
-    if (turkishCoverageRatioPct >= 20 && aiPrecisionPct >= 25 && insertedLocationsLast7d > 0) {
-        return 'healthy';
-    }
-
-    return 'warning'; // Default fallback
+    // Always use backend-computed status
+    return category.status || 'no_data';
 }
 
 // Category Health Table Component
@@ -244,6 +212,10 @@ function CategoryHealthTable({ categoryHealth, categoryOptions }: { categoryHeal
             <div className="text-sm text-muted-foreground">
                 Time windows: Overpass {categoryHealth.timeWindows.overpassWindowHours}h,
                 Inserts/Classifications/Promotions {categoryHealth.timeWindows.insertsWindowDays}d
+                <span className="ml-2 text-xs">
+                    (Turkish coverage compares {categoryHealth.timeWindows.insertsWindowDays}d inserts 
+                    to {categoryHealth.timeWindows.overpassWindowHours}h Overpass finds)
+                </span>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -255,7 +227,7 @@ function CategoryHealthTable({ categoryHealth, categoryOptions }: { categoryHeal
                             <th className="text-right p-2">
                                 <SortButton field="turkishCoverage">Turkish Coverage %</SortButton>
                             </th>
-                            <th className="text-right p-2">Overpass Calls (72h)</th>
+                            <th className="text-right p-2">Overpass Calls ({categoryHealth.timeWindows.overpassWindowHours}h)</th>
                             <th className="text-right p-2">
                                 <SortButton field="inserted">Inserted (7d)</SortButton>
                             </th>

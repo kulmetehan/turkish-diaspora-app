@@ -264,7 +264,7 @@ async def run_verification_consumer(
 
             validated = validate_classification_payload(classification_result.model_dump())
             action = validated.action.value
-            new_category = validated.category.value
+            new_category = validated.category.value if validated.category else None
             new_confidence = float(validated.confidence_score)
             reason = validated.reason
 
@@ -278,9 +278,11 @@ async def run_verification_consumer(
             )
 
             if not dry_run:
-                # Normalize category into allowed enum prior to persisting
-                enum_category = map_llm_category_to_enum(new_category)
-                normalized_category_value = enum_category.value
+                # Normalize category into allowed enum prior to persisting (only if category is provided)
+                normalized_category_value = None
+                if new_category is not None:
+                    enum_category = map_llm_category_to_enum(new_category)
+                    normalized_category_value = enum_category.value
 
                 # Apply classification to the location row (updates state/confidence/last_verified_at)
                 await update_location_classification(

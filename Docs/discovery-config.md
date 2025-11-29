@@ -53,7 +53,60 @@ categories:
 
 ### Automotive coverage
 
-- The `car_dealer` category’s `osm_tags.any` list now includes not only car/garage shops but also `amenity=car_wash`, `amenity=vehicle_inspection`, `craft=car_repair`, `shop=tyres`, `shop=car_parts`, and `shop=motorcycle`, ensuring carwash/detailing, APK stations, tyre + parts stores, and motorcycle dealers are all ingested under the existing automotive bucket.
+- The `car_dealer` category's `osm_tags.any` list now includes not only car/garage shops but also `amenity=car_wash`, `amenity=vehicle_inspection`, `craft=car_repair`, `shop=tyres`, `shop=car_parts`, and `shop=motorcycle`, ensuring carwash/detailing, APK stations, tyre + parts stores, and motorcycle dealers are all ingested under the existing automotive bucket.
+
+## Catch-all discovery en de `other` categorie
+
+### Doel van de `other` categorie
+
+- `other` is een expliciete catch-all categorie op config-niveau.
+- Deze categorie vangt locaties op die:
+  - niet in de bestaande categorie-mapping vallen, of
+  - niche / minder courante OSM-tags gebruiken.
+
+### Huidige status (actief)
+
+- `other` is nu actief in discovery:
+  - `discovery.enabled=true`
+  - `discovery.strategy="catch_all"`
+  - `discovery.priority=1` (lage prioriteit, draait na specifieke categorieën)
+  - `discovery.max_per_cell=10` (conservatieve limiet, lager dan standaard 20)
+
+### Catch-all gedrag
+
+- Per grid/cell wordt een fallback Overpass-query uitgevoerd via `OsmPlacesService`:
+  - De query gebruikt key-only filters (`["amenity"]`, `["shop"]`, `["office"]`) via de bestaande fallback-logica in de OSM service.
+  - Dit gebeurt door `category_osm_tags=[]` (lege lijst) door te geven, wat de fallback activeert.
+- Alle gevonden locaties worden als CANDIDATE met `category="other"` opgeslagen.
+- Specifieke categorieën blijven via hun eigen `osm_tags` draaien (ongewijzigd).
+- Deduplicatie (via `place_id` + fuzzy match) voorkomt dubbele entries als een locatie ook al via een specifieke categorie is gevonden.
+
+### Placeholder `osm_tags`
+
+- `other` heeft een `osm_tags.any` met een placeholder entry:
+  - Dit is uitsluitend om de bestaande validator (`Backend/scripts/validate_osm_mapping.py`) tevreden te houden.
+  - Deze tags worden **niet gebruikt** in Overpass queries voor catch-all discovery.
+  - De catch-all branch in `discovery_bot.py` detecteert `strategy="catch_all"` en gebruikt de fallback-logica in plaats van deze placeholder tags.
+
+### Beperkingen / limieten
+
+- Catch-all gebruikt bewust een lagere `max_per_cell` (10 vs 20) om Overpass-load te beperken.
+- Er is al een circuit breaker en rate limiting in de discovery pipeline:
+  - Circuit breaker: stopt bij te veel opeenvolgende fouten of hoge error ratio
+  - Rate limiting: per-endpoint semaphore + minimum delay tussen requests
+- Catch-all draait met lage prioriteit (1), zodat specifieke categorieën eerst worden verwerkt.
+
+### Frontend gedrag
+
+- De frontend toont `other` niet in de publieke categorie-chips:
+  - `/api/v1/categories?discoverable_only=true` retourneert `other` (omdat `discovery.enabled=true`),
+  - maar de frontend filtert de sleutel `"other"` expliciet uit de categorie-lijst (`Frontend/src/api/fetchLocations.ts`).
+- Locaties met `category="other"` zijn wel zichtbaar op de kaart als ze VERIFIED zijn (via de normale visibility rules).
+
+### Scope van deze implementatie
+
+- Dit is een eerste, minimale activatie van Catch-All Discovery.
+- Verdere tuning (extra filters, exclusion van features die al onder specifieke categories vallen, metrics, etc.) komt in vervolg-stories.
 
 ## Validation tips
 

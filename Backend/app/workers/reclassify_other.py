@@ -187,7 +187,7 @@ async def process_location(
         )
         
         action = validated_classification.action.value
-        category_result = validated_classification.category.value
+        category_result = validated_classification.category.value if validated_classification.category else None
         confidence = float(validated_classification.confidence_score)
         reason = validated_classification.reason
         

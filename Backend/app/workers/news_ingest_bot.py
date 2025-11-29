@@ -2,9 +2,22 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
+from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import UUID
 
+# ---------------------------------------------------------------------------
+# Pathing zodat 'app.*' en 'services.*' werken
+# ---------------------------------------------------------------------------
+THIS_FILE = Path(__file__).resolve()
+APP_DIR = THIS_FILE.parent.parent           # .../Backend/app
+BACKEND_DIR = APP_DIR.parent                # .../Backend
+
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))    # .../Backend
+
+# --- Uniform logging ---
 from app.core.logging import configure_logging, get_logger
 from app.core.request_id import with_run_id
 from services.news_ingest_service import ingest_all_sources

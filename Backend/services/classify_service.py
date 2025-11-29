@@ -63,7 +63,10 @@ JSON_SCHEMA = {
     "type": "object",
     "properties": {
         "action": {"type": "string", "enum": ["keep", "ignore"]},
-        "category": {"type": ["string", "null"]},
+        "category": {
+            "type": ["string", "null"],
+            "description": "Required when action='keep'. Optional (may be null or omitted) when action='ignore'."
+        },
         "confidence_score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
         "reason": {"type": "string"}
     },

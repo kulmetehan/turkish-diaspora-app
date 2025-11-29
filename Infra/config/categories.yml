@@ -246,4 +246,22 @@ categories:
       enabled: true
       priority: 5
 
+  other:
+    label: "overig"
+    description: "Catch-all categorie voor locaties die niet in andere categorieën passen of nog geen eigen categorie hebben."
+    google_types:
+      - "establishment"  # Legacy / placeholder, not used in code
+    osm_tags:
+      any:
+        # Placeholder om de validator tevreden te houden; niet gebruikt in queries voor catch-all.
+        - { _placeholder: "true" }
+    aliases:
+      - "other"
+      - "overig"
+    discovery:
+      enabled: true
+      priority: 1
+      strategy: "catch_all"
+      max_per_cell: 10
+
 # Einde van bestand

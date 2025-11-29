@@ -510,6 +510,138 @@ class DiscoveryBot:
                 logger.info("discovery_category_disabled", category=cat_key)
                 continue
 
+            # Catch-all pad voor 'other' (en eventuele toekomstige catch-all categorieën)
+            strategy = discovery_cfg.get("strategy")
+            if strategy == "catch_all":
+                # Bepaal een conservatieve max_results per cell voor catch-all
+                # Gebruik discovery-config als die er is, anders val terug op een harde limiet
+                max_per_cell_cfg = discovery_cfg.get("max_per_cell")
+                try:
+                    max_per_cell = int(max_per_cell_cfg) if max_per_cell_cfg is not None else 10
+                except (TypeError, ValueError):
+                    max_per_cell = 10
+
+                print(f"\n[DiscoveryBot] === {cat_key} (catch-all) ===  (max_per_cell={max_per_cell})")
+                processed_cells = 0
+
+                for i, (lat, lng) in enumerate(points, start=1):
+                    # Check circuit breaker - stop making Overpass calls if error storm detected
+                    if circuit_breaker_triggered:
+                        print(f"[DiscoveryBot] Circuit breaker active: skipping remaining Overpass calls. Processing already-found results.")
+                        break
+                    
+                    # Check safety timeout
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time > safety_timeout_s:
+                        print(f"[DiscoveryBot] Safety timeout bereikt ({elapsed_time:.1f}s). Stoppen om GitHub Actions timeout te voorkomen.")
+                        return aggregated_counters
+                    
+                    if self.cfg.max_cells_per_category > 0 and processed_cells >= self.cfg.max_cells_per_category:
+                        print(f"[DiscoveryBot] Max cellen voor {cat_key} bereikt: {processed_cells}")
+                        break
+
+                    # Track Overpass call attempt
+                    overpass_calls_total += 1
+                    overpass_call_failed = False
+                    
+                    try:
+                        # Use catch-all helper for this cell
+                        catch_all_candidates = await self._discover_catch_all_for_cell(
+                            lat=lat,
+                            lng=lng,
+                            max_results=max_per_cell,
+                        )
+                    except Exception as e:
+                        import traceback
+                        tb = traceback.format_exc(limit=5)
+                        print(f"[DiscoveryBot] {cat_key} @({lat:.5f},{lng:.5f}) catch-all error: {type(e).__name__}: {e}")
+                        print(f"[DiscoveryBot] Traceback: {tb}")
+                        catch_all_candidates = []
+                        overpass_call_failed = True
+                    
+                    # Track failures for circuit breaker
+                    if overpass_call_failed:
+                        overpass_calls_failed += 1
+                        consecutive_failures += 1
+                    else:
+                        consecutive_failures = 0  # Reset on success
+                    
+                    # Check circuit breaker thresholds
+                    if overpass_calls_total > 0:
+                        error_ratio = overpass_calls_failed / overpass_calls_total
+                        
+                        if consecutive_failures >= DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES:
+                            circuit_breaker_triggered = True
+                            logger.warning(
+                                "discovery_circuit_breaker_triggered",
+                                reason="consecutive_failures",
+                                consecutive_failures=consecutive_failures,
+                                threshold=DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES,
+                                total_calls=overpass_calls_total,
+                                failed_calls=overpass_calls_failed
+                            )
+                            print(f"[DiscoveryBot] CIRCUIT BREAKER TRIGGERED: {consecutive_failures} consecutive Overpass failures (threshold: {DISCOVERY_MAX_CONSECUTIVE_OVERPASS_FAILURES})")
+                            print(f"[DiscoveryBot] Stopping Overpass calls to avoid overloading public servers. Processing already-found results.")
+                        elif error_ratio >= DISCOVERY_MAX_OVERPASS_ERROR_RATIO:
+                            circuit_breaker_triggered = True
+                            logger.warning(
+                                "discovery_circuit_breaker_triggered",
+                                reason="error_ratio",
+                                error_ratio=error_ratio,
+                                threshold=DISCOVERY_MAX_OVERPASS_ERROR_RATIO,
+                                total_calls=overpass_calls_total,
+                                failed_calls=overpass_calls_failed
+                            )
+                            print(f"[DiscoveryBot] CIRCUIT BREAKER TRIGGERED: Overpass error ratio {error_ratio:.1%} exceeds threshold {DISCOVERY_MAX_OVERPASS_ERROR_RATIO:.1%}")
+                            print(f"[DiscoveryBot] Stopping Overpass calls to avoid overloading public servers. Processing already-found results.")
+
+                    # Filter out duplicates using seen set (same as regular categories)
+                    batch: List[Dict[str, Any]] = []
+                    for p in catch_all_candidates or []:
+                        pid = p.get("place_id")
+                        if not pid or pid in seen:
+                            continue
+                        seen.add(pid)
+                        batch.append(p)
+
+                    if batch:
+                        try:
+                            counters = await insert_candidates(batch)
+                            # Aggregate counters
+                            for key in aggregated_counters:
+                                aggregated_counters[key] += counters.get(key, 0)
+                            total_inserted += counters.get("inserted", 0)
+                            if counters.get("inserted", 0) > 0:
+                                print(f"[DiscoveryBot] Catch-all Insert: batch={len(batch)} inserted={counters.get('inserted', 0)} total={total_inserted}")
+                        except Exception as e:
+                            print(f"[DiscoveryBot] Catch-all Insert fout (batch={len(batch)}): {e}")
+                            aggregated_counters["failed"] += len(batch)
+
+                    processed_cells += 1
+
+                    # Progress reporting every 10 cells (more frequent)
+                    if i % 10 == 0:
+                        elapsed_time = time.time() - start_time
+                        print(f"[DiscoveryBot] {cat_key} (catch-all): {i}/{len(points)} cellen, totaal ingevoegd={total_inserted}, elapsed={elapsed_time:.1f}s")
+
+                    if total_units > 0:
+                        completed_units += 1
+                        await self._report_progress(completed_units, total_units)
+
+                    if self.cfg.max_total_inserts > 0 and total_inserted >= self.cfg.max_total_inserts:
+                        print(f"[DiscoveryBot] Max totaal inserts bereikt: {total_inserted}. Stoppen.")
+                        return aggregated_counters
+
+                    if self.cfg.inter_call_sleep_s:
+                        await asyncio.sleep(self.cfg.inter_call_sleep_s)
+                
+                # If circuit breaker triggered, break from outer category loop too
+                if circuit_breaker_triggered:
+                    break
+                
+                # Skip normal osm_tags processing for catch-all categories
+                continue
+
             # Get OSM tags for this category
             osm_tags_raw = cat_def.get("osm_tags")
             if not osm_tags_raw:
@@ -662,6 +794,44 @@ class DiscoveryBot:
         if percent != self._worker_last_progress:
             await update_worker_run_progress(self.worker_run_id, percent)
             self._worker_last_progress = percent
+
+    async def _discover_catch_all_for_cell(
+        self,
+        lat: float,
+        lng: float,
+        max_results: int,
+    ) -> List[Dict[str, Any]]:
+        """
+        Run a generic fallback Overpass query for this cell and return raw rows
+        that can be mapped to location candidates with category='other'.
+
+        This uses the existing fallback behaviour in OsmPlacesService by passing
+        category_osm_tags=None, which triggers the fallback filters.
+        """
+        try:
+            # Use OSM service with subdivision, passing empty list to trigger fallback
+            places = await self.osm_service.search_nearby_with_subdivision(
+                lat=lat,
+                lng=lng,
+                radius=self.cfg.nearby_radius_m,
+                included_types=["other"],
+                max_results=max_results,
+                language=self.cfg.language,
+                category_osm_tags=[]  # Empty list triggers fallback in osm_service
+            )
+        except Exception as e:
+            import traceback
+            tb = traceback.format_exc(limit=5)
+            print(f"[DiscoveryBot] catch-all @({lat:.5f},{lng:.5f}) OSM error: {type(e).__name__}: {e}")
+            print(f"[DiscoveryBot] Traceback: {tb}")
+            places = []
+        
+        # Map the raw OSM places to internal candidate dicts with category="other"
+        candidates: List[Dict[str, Any]] = []
+        for p in places or []:
+            candidates.append(map_place_to_row(p, "other"))
+        
+        return candidates
 
 
 # ---------------------------------------------------------------------------

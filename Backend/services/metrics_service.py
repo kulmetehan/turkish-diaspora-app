@@ -11,6 +11,7 @@ import yaml
 from services.db_service import fetch, fetchrow
 from services.ai_config_service import get_ai_config, initialize_ai_config
 from services.news_feed_rules import FeedThresholds, FeedType, is_in_feed, thresholds_from_config
+from app.config import settings
 from app.models.metrics import (
     CategoryHealth,
     CategoryHealthResponse,
@@ -76,6 +77,19 @@ CATEGORY_HEALTH_DEGRADED_COVERAGE_THRESHOLD = 10.0
 CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD = 20.0
 CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD = 15.0
 CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD = 25.0
+
+# Minimum sample sizes before applying strict thresholds
+# Prevents false positives on sparse data
+CATEGORY_HEALTH_MIN_OVERPASS_FOUND = 10
+CATEGORY_HEALTH_MIN_CLASSIFICATIONS = 5
+
+# Early-stage thresholds (when sample size is low)
+# Used for categories with insufficient data for mature thresholds
+CATEGORY_HEALTH_EARLY_CRITICAL_COVERAGE = 2.0
+CATEGORY_HEALTH_EARLY_DEGRADED_COVERAGE = 5.0
+CATEGORY_HEALTH_EARLY_WARNING_COVERAGE = 10.0
+CATEGORY_HEALTH_EARLY_DEGRADED_PRECISION = 10.0
+CATEGORY_HEALTH_EARLY_WARNING_PRECISION = 20.0
 
 logger = get_logger()
 
@@ -564,18 +578,24 @@ async def _city_progress(city_key: str) -> Optional[CityProgressData]:
 
     # Weekly growth: compare VERIFIED in current week vs prior week based on last_verified_at
     # Apply same shared filter to weekly growth query
+    # Use COALESCE to ensure NULL values become 0 for cities with no verification data
     sql_weekly = f"""
         SELECT
-          SUM(CASE WHEN last_verified_at >= date_trunc('week', NOW()) THEN 1 ELSE 0 END)::int AS cur,
-          SUM(CASE WHEN last_verified_at < date_trunc('week', NOW())
+          COALESCE(SUM(CASE WHEN last_verified_at >= date_trunc('week', NOW()) THEN 1 ELSE 0 END), 0)::int AS cur,
+          COALESCE(SUM(CASE WHEN last_verified_at < date_trunc('week', NOW())
                     AND last_verified_at >= date_trunc('week', NOW()) - INTERVAL '7 days'
-                   THEN 1 ELSE 0 END)::int AS prev
+                   THEN 1 ELSE 0 END), 0)::int AS prev
         FROM locations
         WHERE {verified_filter_sql}
         """
     rows2 = await fetch(sql_weekly, *verified_params)
-    cur = int(dict(rows2[0]).get("cur", 0)) if rows2 else 0
-    prev = int(dict(rows2[0]).get("prev", 0)) if rows2 else 0
+    # Python fallback safety-net: ensure None values become 0 before int() conversion
+    row_dict = dict(rows2[0]) if rows2 else {}
+    cur_raw = row_dict.get("cur")
+    prev_raw = row_dict.get("prev")
+    # Explicit None checks before int() conversion
+    cur = int(cur_raw) if cur_raw is not None else 0
+    prev = int(prev_raw) if prev_raw is not None else 0
     growth = 0.0
     if prev > 0:
         growth = (float(cur - prev) / float(prev)) * 100.0
@@ -1822,30 +1842,56 @@ def _compute_category_health_status(cat: CategoryHealth) -> str:
     
     Returns: "healthy", "warning", "degraded", "critical", or "no_data"
     """
-    # no_data: no Overpass data in window
-    if cat.overpass_found == 0:
+    # no_data: truly no activity (no Overpass data, no inserts, no classifications)
+    # This ensures categories with inserts or classifications show status even if
+    # Overpass data is missing (e.g., due to sparse discovery runs)
+    if (cat.overpass_found == 0 and 
+        cat.inserted_locations_last_7d == 0 and 
+        cat.ai_classifications_last_7d == 0):
         return "no_data"
     
+    # Determine if category is in early stage (insufficient data for mature thresholds)
+    is_early_stage = (cat.overpass_found < CATEGORY_HEALTH_MIN_OVERPASS_FOUND or
+                      cat.ai_classifications_last_7d < CATEGORY_HEALTH_MIN_CLASSIFICATIONS)
+    
+    # If truly no data, return "no_data"
+    if is_early_stage and cat.inserted_locations_last_7d == 0 and cat.ai_classifications_last_7d == 0:
+        return "no_data"
+    
+    # Select thresholds based on stage
+    if is_early_stage:
+        critical_coverage_threshold = CATEGORY_HEALTH_EARLY_CRITICAL_COVERAGE
+        degraded_coverage_threshold = CATEGORY_HEALTH_EARLY_DEGRADED_COVERAGE
+        warning_coverage_threshold = CATEGORY_HEALTH_EARLY_WARNING_COVERAGE
+        degraded_precision_threshold = CATEGORY_HEALTH_EARLY_DEGRADED_PRECISION
+        warning_precision_threshold = CATEGORY_HEALTH_EARLY_WARNING_PRECISION
+    else:
+        critical_coverage_threshold = CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD
+        degraded_coverage_threshold = CATEGORY_HEALTH_DEGRADED_COVERAGE_THRESHOLD
+        warning_coverage_threshold = CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD
+        degraded_precision_threshold = CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD
+        warning_precision_threshold = CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD
+    
     # critical: very low Turkish coverage AND no inserts AND (no classifications OR all ignored)
-    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD and
+    if (cat.turkish_coverage_ratio_pct < critical_coverage_threshold and
         cat.inserted_locations_last_7d == 0 and
         (cat.ai_classifications_last_7d == 0 or cat.ai_action_keep == 0)):
         return "critical"
     
     # degraded: low Turkish coverage OR no inserts OR very low AI precision
-    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_DEGRADED_COVERAGE_THRESHOLD or
+    if (cat.turkish_coverage_ratio_pct < degraded_coverage_threshold or
         cat.inserted_locations_last_7d == 0 or
-        cat.ai_precision_pct < CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD):
+        cat.ai_precision_pct < degraded_precision_threshold):
         return "degraded"
     
     # warning: moderate Turkish coverage OR moderate AI precision (but not degraded)
-    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD or
-        cat.ai_precision_pct < CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD):
+    if (cat.turkish_coverage_ratio_pct < warning_coverage_threshold or
+        cat.ai_precision_pct < warning_precision_threshold):
         return "warning"
     
     # healthy: good Turkish coverage and good AI precision
-    if (cat.turkish_coverage_ratio_pct >= CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD and
-        cat.ai_precision_pct >= CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD and
+    if (cat.turkish_coverage_ratio_pct >= warning_coverage_threshold and
+        cat.ai_precision_pct >= warning_precision_threshold and
         cat.inserted_locations_last_7d > 0):
         return "healthy"
     
@@ -1856,7 +1902,7 @@ def _compute_category_health_status(cat: CategoryHealth) -> str:
 async def category_health_metrics() -> CategoryHealthResponse:
     """
     Returns category-level health metrics over recent time windows:
-    - Overpass calls & zero-result ratio per category (last 72h)
+    - Overpass calls & zero-result ratio per category (last 7 days)
     - Insert counts in last 7 days per category
     - Classification stats per category (keep/ignore)
     - Promotions to VERIFIED per category (last 7d)
@@ -1867,11 +1913,13 @@ async def category_health_metrics() -> CategoryHealthResponse:
     discoverable_cats = get_discoverable_categories()
     category_keys = [cat.key for cat in discoverable_cats]
     
+    overpass_window_hours = settings.CATEGORY_HEALTH_OVERPASS_WINDOW_HOURS
+    
     if not category_keys:
         return CategoryHealthResponse(
             categories={},
             time_windows={
-                "overpass_window_hours": 72,
+                "overpass_window_hours": overpass_window_hours,
                 "inserts_window_days": 7,
                 "classifications_window_days": 7,
                 "promotions_window_days": 7,
@@ -1906,9 +1954,10 @@ async def category_health_metrics() -> CategoryHealthResponse:
             status="no_data",
         )
     
-    # Query 1: Overpass calls (last 72 hours)
+    # Query 1: Overpass calls (configurable window, default 7 days)
     # Use LATERAL join to expand category_set, then filter by category_keys
     # This avoids "set-returning functions are not allowed in WHERE" error
+    overpass_window_hours = settings.CATEGORY_HEALTH_OVERPASS_WINDOW_HOURS
     try:
         sql_overpass = """
             SELECT 
@@ -1919,10 +1968,11 @@ async def category_health_metrics() -> CategoryHealthResponse:
                 SUM(oc.found)::int AS total_found
             FROM overpass_calls oc
             CROSS JOIN LATERAL unnest(oc.category_set) AS cat
-            WHERE oc.ts >= now() - interval '72 hours'
+            WHERE oc.ts >= now() - (($2::int || ' hours')::interval)
                 AND cat = ANY($1::text[])
             GROUP BY cat
         """
+        overpass_rows = await fetch(sql_overpass, category_keys, overpass_window_hours)
         overpass_rows = await fetch(sql_overpass, category_keys)
     except Exception as e:
         logger.warning("category_health_overpass_query_failed", error=str(e), error_type=type(e).__name__)
@@ -2051,8 +2101,12 @@ async def category_health_metrics() -> CategoryHealthResponse:
     # Compute new metrics: Turkish coverage ratio and AI precision
     for cat_key, cat in result.items():
         # Turkish coverage ratio: (inserted / overpass_found) * 100
+        # Capped at 100% to handle edge cases where window alignment artifacts
+        # might cause ratio to exceed 100% (e.g., if inserts window includes
+        # locations from before Overpass window start)
         if cat.overpass_found > 0:
-            cat.turkish_coverage_ratio_pct = round((cat.inserted_locations_last_7d / cat.overpass_found) * 100.0, 2)
+            ratio = (cat.inserted_locations_last_7d / cat.overpass_found) * 100.0
+            cat.turkish_coverage_ratio_pct = round(min(ratio, 100.0), 2)
         else:
             cat.turkish_coverage_ratio_pct = 0.0
         
@@ -2082,7 +2136,7 @@ async def category_health_metrics() -> CategoryHealthResponse:
     return CategoryHealthResponse(
         categories=result,
         time_windows={
-            "overpass_window_hours": 72,
+            "overpass_window_hours": overpass_window_hours,
             "inserts_window_days": 7,
             "classifications_window_days": 7,
             "promotions_window_days": 7,
