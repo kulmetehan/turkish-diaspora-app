@@ -1856,7 +1856,7 @@ def _compute_category_health_status(cat: CategoryHealth) -> str:
 async def category_health_metrics() -> CategoryHealthResponse:
     """
     Returns category-level health metrics over recent time windows:
-    - Overpass calls & zero-result ratio per category (last 72h)
+    - Overpass calls & zero-result ratio per category (last 7 days)
     - Insert counts in last 7 days per category
     - Classification stats per category (keep/ignore)
     - Promotions to VERIFIED per category (last 7d)
@@ -1906,7 +1906,7 @@ async def category_health_metrics() -> CategoryHealthResponse:
             status="no_data",
         )
     
-    # Query 1: Overpass calls (last 72 hours)
+    # Query 1: Overpass calls (last 7 days)
     # Use LATERAL join to expand category_set, then filter by category_keys
     # This avoids "set-returning functions are not allowed in WHERE" error
     try:
@@ -1919,7 +1919,7 @@ async def category_health_metrics() -> CategoryHealthResponse:
                 SUM(oc.found)::int AS total_found
             FROM overpass_calls oc
             CROSS JOIN LATERAL unnest(oc.category_set) AS cat
-            WHERE oc.ts >= now() - interval '72 hours'
+            WHERE oc.ts >= now() - interval '7 days'
                 AND cat = ANY($1::text[])
             GROUP BY cat
         """
@@ -2082,7 +2082,7 @@ async def category_health_metrics() -> CategoryHealthResponse:
     return CategoryHealthResponse(
         categories=result,
         time_windows={
-            "overpass_window_hours": 72,
+            "overpass_window_hours": 168,
             "inserts_window_days": 7,
             "classifications_window_days": 7,
             "promotions_window_days": 7,
