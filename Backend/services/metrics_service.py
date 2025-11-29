@@ -2051,8 +2051,12 @@ async def category_health_metrics() -> CategoryHealthResponse:
     # Compute new metrics: Turkish coverage ratio and AI precision
     for cat_key, cat in result.items():
         # Turkish coverage ratio: (inserted / overpass_found) * 100
+        # Capped at 100% to handle edge cases where window alignment artifacts
+        # might cause ratio to exceed 100% (e.g., if inserts window includes
+        # locations from before Overpass window start)
         if cat.overpass_found > 0:
-            cat.turkish_coverage_ratio_pct = round((cat.inserted_locations_last_7d / cat.overpass_found) * 100.0, 2)
+            ratio = (cat.inserted_locations_last_7d / cat.overpass_found) * 100.0
+            cat.turkish_coverage_ratio_pct = round(min(ratio, 100.0), 2)
         else:
             cat.turkish_coverage_ratio_pct = 0.0
         
