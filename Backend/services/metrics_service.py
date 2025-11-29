@@ -11,6 +11,7 @@ import yaml
 from services.db_service import fetch, fetchrow
 from services.ai_config_service import get_ai_config, initialize_ai_config
 from services.news_feed_rules import FeedThresholds, FeedType, is_in_feed, thresholds_from_config
+from app.config import settings
 from app.models.metrics import (
     CategoryHealth,
     CategoryHealthResponse,
@@ -1906,11 +1907,13 @@ async def category_health_metrics() -> CategoryHealthResponse:
     discoverable_cats = get_discoverable_categories()
     category_keys = [cat.key for cat in discoverable_cats]
     
+    overpass_window_hours = settings.CATEGORY_HEALTH_OVERPASS_WINDOW_HOURS
+    
     if not category_keys:
         return CategoryHealthResponse(
             categories={},
             time_windows={
-                "overpass_window_hours": 72,
+                "overpass_window_hours": overpass_window_hours,
                 "inserts_window_days": 7,
                 "classifications_window_days": 7,
                 "promotions_window_days": 7,
@@ -1945,9 +1948,10 @@ async def category_health_metrics() -> CategoryHealthResponse:
             status="no_data",
         )
     
-    # Query 1: Overpass calls (last 7 days)
+    # Query 1: Overpass calls (configurable window, default 7 days)
     # Use LATERAL join to expand category_set, then filter by category_keys
     # This avoids "set-returning functions are not allowed in WHERE" error
+    overpass_window_hours = settings.CATEGORY_HEALTH_OVERPASS_WINDOW_HOURS
     try:
         sql_overpass = """
             SELECT 
@@ -1958,10 +1962,11 @@ async def category_health_metrics() -> CategoryHealthResponse:
                 SUM(oc.found)::int AS total_found
             FROM overpass_calls oc
             CROSS JOIN LATERAL unnest(oc.category_set) AS cat
-            WHERE oc.ts >= now() - interval '7 days'
+            WHERE oc.ts >= now() - (($2::int || ' hours')::interval)
                 AND cat = ANY($1::text[])
             GROUP BY cat
         """
+        overpass_rows = await fetch(sql_overpass, category_keys, overpass_window_hours)
         overpass_rows = await fetch(sql_overpass, category_keys)
     except Exception as e:
         logger.warning("category_health_overpass_query_failed", error=str(e), error_type=type(e).__name__)
@@ -2125,7 +2130,7 @@ async def category_health_metrics() -> CategoryHealthResponse:
     return CategoryHealthResponse(
         categories=result,
         time_windows={
-            "overpass_window_hours": 168,
+            "overpass_window_hours": overpass_window_hours,
             "inserts_window_days": 7,
             "classifications_window_days": 7,
             "promotions_window_days": 7,

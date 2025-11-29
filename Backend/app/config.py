@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     )
     ALLOWED_ADMIN_EMAILS: List[EmailStr] = Field(default_factory=list)
 
+    # ---- Category Health Metrics ----
+    CATEGORY_HEALTH_OVERPASS_WINDOW_HOURS: int = 168  # Default: 7 days
+
     # Pydantic v2 configuratie
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),          # absoluut pad
