@@ -77,6 +77,11 @@ CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD = 20.0
 CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD = 15.0
 CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD = 25.0
 
+# Minimum sample sizes before applying strict thresholds
+# Prevents false positives on sparse data
+CATEGORY_HEALTH_MIN_OVERPASS_FOUND = 10
+CATEGORY_HEALTH_MIN_CLASSIFICATIONS = 5
+
 logger = get_logger()
 
 
@@ -1828,6 +1833,15 @@ def _compute_category_health_status(cat: CategoryHealth) -> str:
     if (cat.overpass_found == 0 and 
         cat.inserted_locations_last_7d == 0 and 
         cat.ai_classifications_last_7d == 0):
+        return "no_data"
+    
+    # Insufficient data: return "warning" instead of applying strict thresholds
+    # Prevents false positives on sparse data (e.g., early-stage categories)
+    if (cat.overpass_found < CATEGORY_HEALTH_MIN_OVERPASS_FOUND or
+        cat.ai_classifications_last_7d < CATEGORY_HEALTH_MIN_CLASSIFICATIONS):
+        # Still have some data, but not enough for reliable thresholds
+        if cat.inserted_locations_last_7d > 0 or cat.ai_classifications_last_7d > 0:
+            return "warning"  # Partial data, not "no_data"
         return "no_data"
     
     # critical: very low Turkish coverage AND no inserts AND (no classifications OR all ignored)
