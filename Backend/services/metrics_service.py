@@ -1822,8 +1822,12 @@ def _compute_category_health_status(cat: CategoryHealth) -> str:
     
     Returns: "healthy", "warning", "degraded", "critical", or "no_data"
     """
-    # no_data: no Overpass data in window
-    if cat.overpass_found == 0:
+    # no_data: truly no activity (no Overpass data, no inserts, no classifications)
+    # This ensures categories with inserts or classifications show status even if
+    # Overpass data is missing (e.g., due to sparse discovery runs)
+    if (cat.overpass_found == 0 and 
+        cat.inserted_locations_last_7d == 0 and 
+        cat.ai_classifications_last_7d == 0):
         return "no_data"
     
     # critical: very low Turkish coverage AND no inserts AND (no classifications OR all ignored)
