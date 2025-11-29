@@ -212,6 +212,10 @@ function CategoryHealthTable({ categoryHealth, categoryOptions }: { categoryHeal
             <div className="text-sm text-muted-foreground">
                 Time windows: Overpass {categoryHealth.timeWindows.overpassWindowHours}h,
                 Inserts/Classifications/Promotions {categoryHealth.timeWindows.insertsWindowDays}d
+                <span className="ml-2 text-xs">
+                    (Turkish coverage compares {categoryHealth.timeWindows.insertsWindowDays}d inserts 
+                    to {categoryHealth.timeWindows.overpassWindowHours}h Overpass finds)
+                </span>
             </div>
             <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -223,7 +227,7 @@ function CategoryHealthTable({ categoryHealth, categoryOptions }: { categoryHeal
                             <th className="text-right p-2">
                                 <SortButton field="turkishCoverage">Turkish Coverage %</SortButton>
                             </th>
-                            <th className="text-right p-2">Overpass Calls (72h)</th>
+                            <th className="text-right p-2">Overpass Calls ({categoryHealth.timeWindows.overpassWindowHours}h)</th>
                             <th className="text-right p-2">
                                 <SortButton field="inserted">Inserted (7d)</SortButton>
                             </th>
