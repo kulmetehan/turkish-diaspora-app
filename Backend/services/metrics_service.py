@@ -82,6 +82,14 @@ CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD = 25.0
 CATEGORY_HEALTH_MIN_OVERPASS_FOUND = 10
 CATEGORY_HEALTH_MIN_CLASSIFICATIONS = 5
 
+# Early-stage thresholds (when sample size is low)
+# Used for categories with insufficient data for mature thresholds
+CATEGORY_HEALTH_EARLY_CRITICAL_COVERAGE = 2.0
+CATEGORY_HEALTH_EARLY_DEGRADED_COVERAGE = 5.0
+CATEGORY_HEALTH_EARLY_WARNING_COVERAGE = 10.0
+CATEGORY_HEALTH_EARLY_DEGRADED_PRECISION = 10.0
+CATEGORY_HEALTH_EARLY_WARNING_PRECISION = 20.0
+
 logger = get_logger()
 
 
@@ -1835,35 +1843,48 @@ def _compute_category_health_status(cat: CategoryHealth) -> str:
         cat.ai_classifications_last_7d == 0):
         return "no_data"
     
-    # Insufficient data: return "warning" instead of applying strict thresholds
-    # Prevents false positives on sparse data (e.g., early-stage categories)
-    if (cat.overpass_found < CATEGORY_HEALTH_MIN_OVERPASS_FOUND or
-        cat.ai_classifications_last_7d < CATEGORY_HEALTH_MIN_CLASSIFICATIONS):
-        # Still have some data, but not enough for reliable thresholds
-        if cat.inserted_locations_last_7d > 0 or cat.ai_classifications_last_7d > 0:
-            return "warning"  # Partial data, not "no_data"
+    # Determine if category is in early stage (insufficient data for mature thresholds)
+    is_early_stage = (cat.overpass_found < CATEGORY_HEALTH_MIN_OVERPASS_FOUND or
+                      cat.ai_classifications_last_7d < CATEGORY_HEALTH_MIN_CLASSIFICATIONS)
+    
+    # If truly no data, return "no_data"
+    if is_early_stage and cat.inserted_locations_last_7d == 0 and cat.ai_classifications_last_7d == 0:
         return "no_data"
     
+    # Select thresholds based on stage
+    if is_early_stage:
+        critical_coverage_threshold = CATEGORY_HEALTH_EARLY_CRITICAL_COVERAGE
+        degraded_coverage_threshold = CATEGORY_HEALTH_EARLY_DEGRADED_COVERAGE
+        warning_coverage_threshold = CATEGORY_HEALTH_EARLY_WARNING_COVERAGE
+        degraded_precision_threshold = CATEGORY_HEALTH_EARLY_DEGRADED_PRECISION
+        warning_precision_threshold = CATEGORY_HEALTH_EARLY_WARNING_PRECISION
+    else:
+        critical_coverage_threshold = CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD
+        degraded_coverage_threshold = CATEGORY_HEALTH_DEGRADED_COVERAGE_THRESHOLD
+        warning_coverage_threshold = CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD
+        degraded_precision_threshold = CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD
+        warning_precision_threshold = CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD
+    
     # critical: very low Turkish coverage AND no inserts AND (no classifications OR all ignored)
-    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_CRITICAL_COVERAGE_THRESHOLD and
+    if (cat.turkish_coverage_ratio_pct < critical_coverage_threshold and
         cat.inserted_locations_last_7d == 0 and
         (cat.ai_classifications_last_7d == 0 or cat.ai_action_keep == 0)):
         return "critical"
     
     # degraded: low Turkish coverage OR no inserts OR very low AI precision
-    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_DEGRADED_COVERAGE_THRESHOLD or
+    if (cat.turkish_coverage_ratio_pct < degraded_coverage_threshold or
         cat.inserted_locations_last_7d == 0 or
-        cat.ai_precision_pct < CATEGORY_HEALTH_DEGRADED_PRECISION_THRESHOLD):
+        cat.ai_precision_pct < degraded_precision_threshold):
         return "degraded"
     
     # warning: moderate Turkish coverage OR moderate AI precision (but not degraded)
-    if (cat.turkish_coverage_ratio_pct < CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD or
-        cat.ai_precision_pct < CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD):
+    if (cat.turkish_coverage_ratio_pct < warning_coverage_threshold or
+        cat.ai_precision_pct < warning_precision_threshold):
         return "warning"
     
     # healthy: good Turkish coverage and good AI precision
-    if (cat.turkish_coverage_ratio_pct >= CATEGORY_HEALTH_WARNING_COVERAGE_THRESHOLD and
-        cat.ai_precision_pct >= CATEGORY_HEALTH_WARNING_PRECISION_THRESHOLD and
+    if (cat.turkish_coverage_ratio_pct >= warning_coverage_threshold and
+        cat.ai_precision_pct >= warning_precision_threshold and
         cat.inserted_locations_last_7d > 0):
         return "healthy"
     
