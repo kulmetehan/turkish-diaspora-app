@@ -578,18 +578,23 @@ async def _city_progress(city_key: str) -> Optional[CityProgressData]:
 
     # Weekly growth: compare VERIFIED in current week vs prior week based on last_verified_at
     # Apply same shared filter to weekly growth query
+    # Use COALESCE to ensure NULL values become 0 for cities with no verification data
     sql_weekly = f"""
         SELECT
-          SUM(CASE WHEN last_verified_at >= date_trunc('week', NOW()) THEN 1 ELSE 0 END)::int AS cur,
-          SUM(CASE WHEN last_verified_at < date_trunc('week', NOW())
+          COALESCE(SUM(CASE WHEN last_verified_at >= date_trunc('week', NOW()) THEN 1 ELSE 0 END), 0)::int AS cur,
+          COALESCE(SUM(CASE WHEN last_verified_at < date_trunc('week', NOW())
                     AND last_verified_at >= date_trunc('week', NOW()) - INTERVAL '7 days'
-                   THEN 1 ELSE 0 END)::int AS prev
+                   THEN 1 ELSE 0 END), 0)::int AS prev
         FROM locations
         WHERE {verified_filter_sql}
         """
     rows2 = await fetch(sql_weekly, *verified_params)
-    cur = int(dict(rows2[0]).get("cur", 0)) if rows2 else 0
-    prev = int(dict(rows2[0]).get("prev", 0)) if rows2 else 0
+    # Python fallback safety-net: ensure None values become 0 before int() conversion
+    row_dict = dict(rows2[0]) if rows2 else {}
+    cur_raw = row_dict.get("cur") or 0
+    prev_raw = row_dict.get("prev") or 0
+    cur = int(cur_raw)
+    prev = int(prev_raw)
     growth = 0.0
     if prev > 0:
         growth = (float(cur - prev) / float(prev)) * 100.0
