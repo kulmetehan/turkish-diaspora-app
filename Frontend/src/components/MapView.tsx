@@ -210,13 +210,12 @@ function usePopupController(
       current.visible = false;
       current.id = null;
       current.lngLat = null;
-      defer(() => {
-        try {
-          current.root.render(null);
-        } catch {
-          /* ignore */
-        }
-      });
+      // IMPORTANT: make this synchronous to avoid race conditions
+      try {
+        current.root.render(null);
+      } catch {
+        /* ignore */
+      }
     });
   }, [destroyedRef, mapRef]);
 
@@ -1156,11 +1155,11 @@ export default function MapView({
         return;
       }
       onHighlight?.(String(location.id));
-      hidePopup();
       if (!centerOnSelect) {
         switchPopupToLocation(location);
         return;
       }
+      hidePopup();
       const success = panToLocation(location, {
         minZoom: 15,
         duration: 420,
