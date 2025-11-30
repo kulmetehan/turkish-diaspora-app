@@ -52,7 +52,14 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
             if (layersReady.current) return;
 
             ensureBaseLayers(map);
-            layersReady.current = true;
+            // Verify layers were created (defensive check)
+            if (map.getLayer(L_CLUSTER) && map.getLayer(L_POINT)) {
+                layersReady.current = true;
+            } else {
+                console.warn("[MarkerLayer] Some marker layers failed to initialize");
+                // Still mark as ready to avoid blocking, but log warning
+                layersReady.current = true;
+            }
         }
 
         if (!hasStyleObject(map)) {
@@ -89,6 +96,9 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
         if (handlersReady.current) return;
 
         const onClusterClick = (e: any) => {
+            // Defensive: check if cluster layer exists before querying
+            if (!map.getLayer(L_CLUSTER)) return;
+            
             const feats = map.queryRenderedFeatures(e.point, {
                 layers: [L_CLUSTER],
             }) as MapboxGeoJSONFeature[] | undefined;
@@ -108,6 +118,9 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
         };
 
         const onPointClick = (e: any) => {
+            // Defensive: check if point layer exists before querying
+            if (!map.getLayer(L_POINT)) return;
+            
             const feats = map.queryRenderedFeatures(e.point, {
                 layers: [L_POINT],
             }) as MapboxGeoJSONFeature[] | undefined;
@@ -119,8 +132,25 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
 
         const onMouseMove = (e: any) => {
             try {
+                // Defensive: check if layers exist before querying to avoid console spam
+                // If layers are not present yet (e.g. cluster layer failed to init),
+                // don't query features
+                const hasClusterLayer = !!map.getLayer(L_CLUSTER);
+                const hasPointLayer = !!map.getLayer(L_POINT);
+
+                if (!hasClusterLayer && !hasPointLayer) {
+                    return;
+                }
+
+                const queryLayers = [
+                    ...(hasClusterLayer ? [L_CLUSTER] : []),
+                    ...(hasPointLayer ? [L_POINT] : []),
+                ];
+
+                if (queryLayers.length === 0) return;
+
                 const feats = map.queryRenderedFeatures(e.point, {
-                    layers: [L_POINT, L_CLUSTER, L_CLUSTER_COUNT],
+                    layers: queryLayers,
                 }) as any[];
                 const hit = Array.isArray(feats) && feats.length > 0;
                 map.getCanvas().style.cursor = hit ? "pointer" : "";

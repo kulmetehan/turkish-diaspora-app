@@ -8,7 +8,7 @@ import type { FeatureCollection, Point } from "geojson";
 import type { LocationMarker } from "@/api/fetchLocations";
 import MapControls from "@/components/MapControls";
 import { restoreCamera, storeCamera } from "@/components/mapCameraCache";
-import { MARKER_POINT_OUTER_RADIUS, MarkerLayerIds } from "@/components/markerLayerUtils";
+import { MARKER_POINT_OUTER_RADIUS, MarkerLayerIds, registerClusterSprites, ensureBaseLayers } from "@/components/markerLayerUtils";
 import PreviewTooltip from "@/components/PreviewTooltip";
 import { cn } from "@/lib/ui/cn";
 import { CONFIG, CLUSTER_CONFIG } from "@/lib/config";
@@ -567,31 +567,35 @@ export default function MapView({
 
     if (!safeHasLayer(map, USER_LOCATION_ACCURACY_LAYER_ID)) {
       try {
-        map.addLayer(
-          {
-            id: USER_LOCATION_ACCURACY_LAYER_ID,
-            type: "circle",
-            source: USER_LOCATION_SOURCE_ID,
-            filter: ["==", ["geometry-type"], "Point"],
-            paint: {
-              "circle-radius": [
-                "interpolate",
-                ["linear"],
-                ["zoom"],
-                10,
-                userLocationPaintRef.current.z10,
-                14,
-                userLocationPaintRef.current.z14,
-                18,
-                userLocationPaintRef.current.z18,
-              ],
-              "circle-color": "#38bdf8",
-              "circle-opacity": 0.18,
-              "circle-stroke-width": 0,
-            },
+        const layerConfig = {
+          id: USER_LOCATION_ACCURACY_LAYER_ID,
+          type: "circle" as const,
+          source: USER_LOCATION_SOURCE_ID,
+          filter: ["==", ["geometry-type"], "Point"] as any,
+          paint: {
+            "circle-radius": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              10,
+              userLocationPaintRef.current.z10,
+              14,
+              userLocationPaintRef.current.z14,
+              18,
+              userLocationPaintRef.current.z18,
+            ],
+            "circle-color": "#38bdf8",
+            "circle-opacity": 0.18,
+            "circle-stroke-width": 0,
           },
-          "tda-unclustered-point",
-        );
+        };
+        // Defensive: check if marker layer exists before using as beforeId
+        // Prevents race condition error when maintainLayers runs before marker layers are created
+        if (safeHasLayer(map, MarkerLayerIds.L_POINT)) {
+          map.addLayer(layerConfig, MarkerLayerIds.L_POINT);
+        } else {
+          map.addLayer(layerConfig);
+        }
         applyAccuracyPaint(map);
       } catch {
         /* ignore layering errors */
@@ -1372,8 +1376,21 @@ export default function MapView({
       }
     });
 
-    const handleLoad = () => {
+    const handleLoad = async () => {
       if (destroyedRef.current) return;
+      
+      // Register cluster sprites first (async operation)
+      // This must complete before ensureBaseLayers runs, which creates layers that reference these sprites
+      try {
+        await registerClusterSprites(map);
+      } catch (err) {
+        console.error("[MapView] Failed to register cluster sprites:", err);
+        // Don't throw - markers should work even if cluster sprites fail
+      }
+      
+      // Create base marker layers (synchronous, sprites should be ready now)
+      ensureBaseLayers(map);
+      
       setMapReady(true);
       applyPendingFocusRef.current?.();
     };
