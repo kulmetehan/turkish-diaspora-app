@@ -271,6 +271,14 @@ class AIValidationError(ValueError):
         self.payload = payload
 
 
+class AIQuotaExceededError(RuntimeError):
+    """Raised when OpenAI API returns 429 with insufficient_quota code.
+    
+    This indicates the API key has exceeded its quota and should not be retried.
+    """
+    pass
+
+
 def validate_classification(data: Dict[str, Any]) -> AIClassification:
     try:
         return TA_CLASSIFICATION.validate_python(data, by_name=True)

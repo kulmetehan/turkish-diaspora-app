@@ -12,6 +12,7 @@ from openai import OpenAI  # pip install openai>=2
 from pydantic import BaseModel, ValidationError
 
 from app.config import settings, require_openai
+from app.models.ai import AIQuotaExceededError
 from services.db_service import ai_log  # logt naar jouw ai_logs-schema
 
 _JSON_HINT = (
@@ -62,6 +63,26 @@ def _to_jsonable(obj: Any) -> Any:
 
     # laatste redmiddel
     return str(obj)
+
+def _is_quota_exceeded_error(error: Exception) -> bool:
+    """Check if error is OpenAI 429 with insufficient_quota code."""
+    from openai import RateLimitError, APIError
+    
+    if isinstance(error, RateLimitError):
+        # Check error body for insufficient_quota code
+        if hasattr(error, "body") and isinstance(error.body, dict):
+            return error.body.get("error", {}).get("code") == "insufficient_quota"
+        # Fallback: check error message
+        error_str = str(error).lower()
+        return "insufficient_quota" in error_str or "quota" in error_str
+    
+    if isinstance(error, APIError):
+        # Check for 429 status with quota code
+        if getattr(error, "status_code", None) == 429:
+            if hasattr(error, "body") and isinstance(error.body, dict):
+                return error.body.get("error", {}).get("code") == "insufficient_quota"
+    
+    return False
 
 class OpenAIService:
     """
@@ -165,6 +186,10 @@ class OpenAIService:
                 continue
 
             except Exception as e:
+                # Check for OpenAI quota exceeded (429 with insufficient_quota)
+                if _is_quota_exceeded_error(e):
+                    raise AIQuotaExceededError(f"OpenAI API quota exceeded: {e}") from e
+                
                 last_err = e
                 wait = 0.9 * (2 ** attempt)
                 time.sleep(wait)

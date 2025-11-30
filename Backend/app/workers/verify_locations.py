@@ -67,6 +67,7 @@ def _parse_worker_run_id(value: str) -> UUID:
 from services.classify_service import ClassifyService
 from services.ai_validation import validate_classification_payload
 from services.audit_service import audit_service
+from app.models.ai import AIQuotaExceededError
 
 # ---------------------------------------------------------------------------
 # Worker Logic
@@ -230,6 +231,9 @@ async def process_location(
                 }
             )
 
+    except AIQuotaExceededError:
+        # Re-raise quota errors to stop the run early in run_verification
+        raise
     except Exception as e:
         result["error"] = str(e)
         logger.error("process_location_error", location_id=location_id, error=str(e))
@@ -332,6 +336,36 @@ async def run_verification(
                 print(f"[ERROR] id={result['id']} name={result['name']!r} "
                       f"-> {result['error']}")
             await report_progress(idx)
+    except AIQuotaExceededError as quota_error:
+        # Quota exceeded - stop early with clear logging
+        logger.error(
+            "verify_locations_quota_exceeded",
+            worker_run_id=str(worker_run_id) if worker_run_id else None,
+            processed_count=len(results),
+            total_candidates=total_candidates,
+            error=str(quota_error),
+        )
+        print("\n[VerifyLocationsBot] ❌ STOPPED: OpenAI quota exceeded")
+        print(f"  Processed {len(results)}/{total_candidates} locations before stopping")
+        
+        if worker_run_id:
+            progress_snapshot = last_progress if last_progress >= 0 else 0
+            await finish_worker_run(
+                worker_run_id,
+                "failed_quota",  # New status
+                progress_snapshot,
+                {
+                    "total_processed": len(results),
+                    "promoted": promoted,
+                    "skipped": skipped,
+                    "errors": errors,
+                    "quota_exceeded": True,
+                },
+                f"OpenAI quota exceeded: {quota_error}",
+            )
+        
+        # Re-raise so main_async can also log it
+        raise
     except Exception as exc:
         if worker_run_id:
             progress_snapshot = last_progress if last_progress >= 0 else 0

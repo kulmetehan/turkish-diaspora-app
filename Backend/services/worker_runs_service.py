@@ -110,7 +110,12 @@ async def finish_worker_run(
     """
     Finalize a worker run with final status, progress, counters, and optional error message.
     
-    Status should be 'finished' for success or 'failed' for errors.
+    Valid status values:
+    - 'pending' - Initial state
+    - 'running' - Active execution
+    - 'finished' - Successful completion
+    - 'failed' - General failure
+    - 'failed_quota' - OpenAI quota exceeded
     """
     # Convert counters to JSON string, or use empty JSON object if None
     if counters is not None:
