@@ -115,3 +115,4 @@ Common Mapbox hosted styles you can use:
 - `Frontend/src/lib/map/mapbox.ts` — Map initialization
 
 
+
