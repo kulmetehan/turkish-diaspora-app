@@ -478,6 +478,7 @@ function HomePage() {
         }}
         focusId={pendingFocusId}
         onFocusConsumed={handleFocusConsumed}
+        centerOnSelect={false}
         onViewportChange={(bbox) => {
           setViewportBbox(bbox);
         }}

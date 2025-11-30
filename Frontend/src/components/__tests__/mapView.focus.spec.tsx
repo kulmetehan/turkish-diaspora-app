@@ -921,5 +921,104 @@ describe("MapView focus handling", () => {
     expect(easeToSpy).not.toHaveBeenCalled();
     expect(PopupMock.instances.every((popup) => popup.added === false)).toBe(true);
   });
+
+  it("does not move camera when selecting marker with centerOnSelect=false", async () => {
+    await act(async () => {
+      root.render(
+        <MapView
+          locations={SAMPLE}
+          highlightedId={null}
+          detailId={null}
+          focusId={null}
+          centerOnSelect={false}
+          onHighlight={highlightSpy}
+          onOpenDetail={openDetailSpy}
+          onFocusConsumed={focusConsumedSpy}
+        />,
+      );
+    });
+    await flush();
+
+    const mapInstance = mapboxMocks.MapMock.instances[mapboxMocks.MapMock.instances.length - 1]!;
+    easeToSpy.mockClear();
+    highlightSpy.mockClear();
+
+    const markerLayerProps = markerLayerCapture.current;
+    expect(markerLayerProps).toBeTruthy();
+
+    await act(async () => {
+      markerLayerProps?.onSelect?.("1");
+      await flush();
+    });
+
+    await flush();
+
+    expect(easeToSpy).not.toHaveBeenCalled();
+    expect(highlightSpy).toHaveBeenCalledWith("1");
+    const popupInstance = PopupMock.instances.find((popup) => popup.added);
+    expect(popupInstance).toBeTruthy();
+    expect(popupInstance?.lngLat).toEqual([SAMPLE[0].lng, SAMPLE[0].lat]);
+  });
+
+  it("does not move camera when focusing with centerOnSelect=false", async () => {
+    const header = document.createElement("div");
+    header.dataset.header = "true";
+    Object.defineProperty(header, "offsetHeight", { value: 80, configurable: true });
+    document.body.appendChild(header);
+
+    await act(async () => {
+      root.render(
+        <MapView
+          locations={SAMPLE}
+          highlightedId={null}
+          detailId={null}
+          focusId="1"
+          centerOnSelect={false}
+          onHighlight={highlightSpy}
+          onOpenDetail={openDetailSpy}
+          onFocusConsumed={focusConsumedSpy}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    await flush();
+    const mapInstance = mapboxMocks.MapMock.instances[mapboxMocks.MapMock.instances.length - 1]!;
+    await act(async () => {
+      mapInstance.trigger("moveend");
+    });
+    await flush();
+
+    expect(easeToSpy).not.toHaveBeenCalled();
+    expect(highlightSpy).toHaveBeenCalledWith("1");
+    expect(focusConsumedSpy).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      root.render(
+        <MapView
+          locations={SAMPLE}
+          highlightedId="1"
+          detailId={null}
+          focusId={null}
+          centerOnSelect={false}
+          onHighlight={highlightSpy}
+          onOpenDetail={openDetailSpy}
+          onFocusConsumed={focusConsumedSpy}
+        />,
+      );
+    });
+
+    await flush();
+    await act(async () => {
+      mapInstance.trigger("moveend");
+    });
+    await flush();
+
+    const popupInstance = PopupMock.instances.find((popup) => popup.added);
+    expect(popupInstance).toBeTruthy();
+    expect(popupInstance?.lngLat).toEqual([SAMPLE[0].lng, SAMPLE[0].lat]);
+
+    header.remove();
+  });
 });
 
