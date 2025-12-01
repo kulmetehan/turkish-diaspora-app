@@ -359,7 +359,6 @@ export default function MapTab() {
         <Filters
             search={filters.search}
             category={filters.category}
-            onlyTurkish={filters.onlyTurkish}
             loading={loading}
             categoryOptions={categoryOptions}
             suggestions={suggestions}
@@ -385,7 +384,7 @@ export default function MapTab() {
 
     const listViewDesktop = (
         <div
-            className="flex h-full w-full flex-col gap-4 overflow-hidden px-4 py-5 text-foreground focus:outline-none"
+            className="flex h-full w-full flex-col gap-3 overflow-hidden px-4 py-4 text-foreground focus:outline-none"
             role="region"
             aria-labelledby={listHeadingId}
             data-view="list"
@@ -420,7 +419,7 @@ export default function MapTab() {
 
     const listViewMobile = (
         <div
-            className="flex h-full w-full flex-col gap-4 overflow-hidden px-4 py-5 text-foreground focus:outline-none"
+            className="flex h-full w-full flex-col gap-3 overflow-hidden px-4 py-4 text-foreground focus:outline-none"
             role="region"
             aria-labelledby={listHeadingId}
             data-view="list"

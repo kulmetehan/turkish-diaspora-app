@@ -162,7 +162,7 @@ export default function LocationList({
             }}
             role="button"
             className={cn(
-              "px-4 py-3 transition-all duration-200 ease-out text-foreground",
+              "px-4 py-2 transition-all duration-200 ease-out text-foreground",
               "hover:bg-surface-muted hover:text-foreground",
               active
                 ? "bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_20px_35px_rgba(0,0,0,0.45)] ring-1 ring-brand-white/60"
@@ -170,9 +170,9 @@ export default function LocationList({
             )}
             onClick={() => onSelect?.(l.id)}
           >
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-2">
               <div className="font-medium">{l.name}</div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {onShowOnMap && (
                   <button
                     type="button"

@@ -21,7 +21,6 @@ export type MapCamera = {
 export type MapFilters = {
     search: string;
     category: string | null;
-    onlyTurkish: boolean;
 };
 
 export interface MapNavigationState {
@@ -29,7 +28,7 @@ export interface MapNavigationState {
     camera: MapCamera | null;
     /** Currently selected location id. */
     selectedLocationId: string | null;
-    /** Active filters (search, category, onlyTurkish). */
+    /** Active filters (search, category). */
     filters: MapFilters;
     /** Scroll position of the location list. */
     listScrollTop: number;
@@ -79,7 +78,6 @@ let state: NavigationState = {
         filters: {
             search: "",
             category: "all",
-            onlyTurkish: true,
         },
         listScrollTop: 0,
     },

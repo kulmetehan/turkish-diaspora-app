@@ -15,7 +15,6 @@ type CategoryOption = { key: string; label: string };
 type Props = {
   search: string;
   category: string;
-  onlyTurkish: boolean;
   loading?: boolean;
   categoryOptions?: CategoryOption[];
   suggestions?: string[];
@@ -25,7 +24,6 @@ type Props = {
   onChange: (patch: Partial<{
     search: string;
     category: string;
-    onlyTurkish: boolean;
   }>) => void;
 };
 
@@ -48,7 +46,6 @@ const FALLBACK_CATEGORIES: CategoryOption[] = [
 export default function Filters({
   search,
   category,
-  onlyTurkish,
   loading,
   categoryOptions,
   suggestions,
@@ -125,26 +122,6 @@ export default function Filters({
           onSelect={(key) => onChange({ category: key })}
         />
       ) : null}
-
-      <div className="flex items-center gap-2 pt-2">
-        <button
-          type="button"
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-all duration-200",
-            onlyTurkish
-              ? "border-transparent bg-primary text-primary-foreground shadow-soft"
-              : "border-border bg-card text-foreground hover:bg-surface-muted",
-          )}
-          onClick={() => onChange({ onlyTurkish: !onlyTurkish })}
-        >
-          <Icon name={onlyTurkish ? "ShieldCheck" : "Users"} className="h-4 w-4" />
-          Alleen Turks
-        </button>
-
-        {loading ? (
-          <span className="text-xs text-muted-foreground">Laden…</span>
-        ) : null}
-      </div>
     </div>
   );
 }
