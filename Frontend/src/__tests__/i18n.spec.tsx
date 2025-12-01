@@ -55,7 +55,6 @@ describe("i18n singleton", () => {
         <Filters
           search=""
           category="all"
-          onlyTurkish
           onChange={() => undefined}
           categoryOptions={categoryOptions.slice().reverse()}
         />,

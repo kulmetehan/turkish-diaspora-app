@@ -24,7 +24,6 @@ describe("navigation store", () => {
                 filters: {
                     search: "",
                     category: "all",
-                    onlyTurkish: true,
                 },
                 listScrollTop: 0,
             });
@@ -64,7 +63,6 @@ describe("navigation store", () => {
             expect(mapState.filters).toEqual({
                 search: "",
                 category: "all",
-                onlyTurkish: true,
             });
         });
 
@@ -73,7 +71,6 @@ describe("navigation store", () => {
                 filters: {
                     search: "test",
                     category: "restaurant",
-                    onlyTurkish: false,
                 },
             });
 
@@ -81,7 +78,6 @@ describe("navigation store", () => {
             expect(mapState.filters).toEqual({
                 search: "test",
                 category: "restaurant",
-                onlyTurkish: false,
             });
             expect(mapState.camera).toBeNull();
         });
@@ -110,7 +106,6 @@ describe("navigation store", () => {
             expect(mapState.filters).toEqual({
                 search: "",
                 category: "all",
-                onlyTurkish: true,
             });
         });
     });
