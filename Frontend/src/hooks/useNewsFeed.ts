@@ -118,6 +118,29 @@ export function useNewsFeed({
         }
       }
 
+      // Guard: prevent API calls for local/origin feeds without cities
+      if (feed === "local" && (!citiesNl || citiesNl.length === 0)) {
+        setError("Selecteer eerst een stad voor de lokale feed");
+        setIsLoading(false);
+        setIsLoadingMore(false);
+        setIsReloading(false);
+        setItems([]);
+        setTotal(null);
+        setOffset(0);
+        return;
+      }
+
+      if (feed === "origin" && (!citiesTr || citiesTr.length === 0)) {
+        setError("Selecteer eerst een stad voor de herkomst feed");
+        setIsLoading(false);
+        setIsLoadingMore(false);
+        setIsReloading(false);
+        setItems([]);
+        setTotal(null);
+        setOffset(0);
+        return;
+      }
+
       if (append) {
         setIsLoadingMore(true);
       } else if (options?.preserveItems) {

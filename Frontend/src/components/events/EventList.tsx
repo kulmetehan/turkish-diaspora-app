@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import type { EventItem } from "@/api/events";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +20,8 @@ type EventListProps = {
   onLoadMore?: () => void;
   onRetry?: () => void;
   className?: string;
+  scrollTop?: number; // Scroll position to restore
+  onScrollPositionChange?: (scrollTop: number) => void; // Callback when scroll position changes
 };
 
 function EventListSkeleton() {
@@ -47,7 +51,57 @@ export function EventList({
   onLoadMore,
   onRetry,
   className,
+  scrollTop = 0,
+  onScrollPositionChange,
 }: EventListProps) {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRestoredRef = useRef(false);
+  const scrollThrottleRef = useRef<number | null>(null);
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    if (scrollRestoredRef.current || !scrollContainerRef.current || isLoading || events.length === 0) return;
+
+    if (scrollTop > 0) {
+      // Use requestAnimationFrame to ensure content is rendered
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current && !scrollRestoredRef.current) {
+          scrollContainerRef.current.scrollTo({ top: scrollTop, behavior: "auto" });
+          scrollRestoredRef.current = true;
+        }
+      });
+    } else {
+      scrollRestoredRef.current = true;
+    }
+  }, [scrollTop, isLoading, events.length]);
+
+  // Handle scroll position changes (throttled)
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !onScrollPositionChange) return;
+
+    const handleScroll = () => {
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+      }
+
+      scrollThrottleRef.current = window.requestAnimationFrame(() => {
+        if (container) {
+          onScrollPositionChange(container.scrollTop);
+        }
+      });
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+        scrollThrottleRef.current = null;
+      }
+    };
+  }, [onScrollPositionChange]);
   if (isLoading && !events.length) {
     return <EventListSkeleton />;
   }
@@ -76,6 +130,7 @@ export function EventList({
   return (
     <div className={cn("space-y-3", className)}>
       <div
+        ref={scrollContainerRef}
         className={cn(
           "rounded-2xl border border-border/80 bg-card divide-y divide-border/80 shadow-soft",
           "overflow-auto",

@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import type { EventItem } from "@/api/events";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EventDetailOverlay } from "@/components/events/EventDetailOverlay";
 import { EventList } from "@/components/events/EventList";
 import { EventMapView } from "@/components/events/EventMapView";
 import { eventHasCoordinates } from "@/components/events/eventFormatters";
+import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEventsFeed } from "@/hooks/useEventsFeed";
 import { cn } from "@/lib/ui/cn";
-import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
+import { navigationActions, useEventsNavigation } from "@/state/navigation";
 
 export default function EventsPage() {
   const {
@@ -20,9 +21,12 @@ export default function EventsPage() {
     loadMore,
     reload,
   } = useEventsFeed({ pageSize: 20 });
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [detailId, setDetailId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
+
+  // Use navigation store for events state
+  const eventsNavigation = useEventsNavigation();
+  const selectedId = eventsNavigation.selectedId;
+  const detailId = eventsNavigation.detailId;
+  const viewMode = eventsNavigation.viewMode;
 
   const detailEvent = useMemo(
     () => items.find((event) => event.id === detailId) ?? null,
@@ -32,24 +36,23 @@ export default function EventsPage() {
   useEffect(() => {
     if (selectedId === null) return;
     if (!items.some((event) => event.id === selectedId)) {
-      setSelectedId(null);
+      navigationActions.setEvents({ selectedId: null });
     }
   }, [items, selectedId]);
 
   useEffect(() => {
     if (detailId === null) return;
     if (!items.some((event) => event.id === detailId)) {
-      setDetailId(null);
+      navigationActions.setEvents({ detailId: null });
     }
   }, [items, detailId]);
 
   const handleSelect = useCallback((id: number | null) => {
-    setSelectedId(id);
+    navigationActions.setEvents({ selectedId: id });
   }, []);
 
   const handleOpenDetail = useCallback((id: number) => {
-    setSelectedId(id);
-    setDetailId(id);
+    navigationActions.setEvents({ selectedId: id, detailId: id });
   }, []);
 
   const handleShowOnMap = useCallback(
@@ -57,11 +60,22 @@ export default function EventsPage() {
       if (!eventHasCoordinates(event)) {
         return;
       }
-      setSelectedId(event.id);
-      setViewMode("map");
+      navigationActions.setEvents({ selectedId: event.id, viewMode: "map" });
     },
     [],
   );
+
+  const handleViewModeChange = useCallback((mode: "list" | "map") => {
+    navigationActions.setEvents({ viewMode: mode });
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    navigationActions.setEvents({ detailId: null });
+  }, []);
+
+  const handleScrollPositionChange = useCallback((scrollTop: number) => {
+    navigationActions.setEvents({ scrollTop });
+  }, []);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 text-foreground">
@@ -80,7 +94,7 @@ export default function EventsPage() {
           value={viewMode}
           onValueChange={(value) => {
             if (value === "map" || value === "list") {
-              setViewMode(value);
+              handleViewModeChange(value);
             }
           }}
         >
@@ -116,6 +130,8 @@ export default function EventsPage() {
           hasMore={hasMore}
           onLoadMore={loadMore}
           onRetry={reload}
+          scrollTop={eventsNavigation.scrollTop}
+          onScrollPositionChange={handleScrollPositionChange}
         />
       ) : (
         <EventMapView
@@ -130,7 +146,7 @@ export default function EventsPage() {
       <EventDetailOverlay
         event={detailEvent}
         open={Boolean(detailEvent)}
-        onClose={() => setDetailId(null)}
+        onClose={handleCloseDetail}
       />
     </div>
   );
