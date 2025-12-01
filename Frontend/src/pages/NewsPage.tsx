@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import type { NewsItem } from "@/api/news";
+import { AppViewportShell, PageShell } from "@/components/layout";
 import { NewsCategoryFilterBar } from "@/components/news/NewsCategoryFilterBar";
 import { NewsCityModal } from "@/components/news/NewsCityModal";
 import { NewsFeedTabs } from "@/components/news/NewsFeedTabs";
@@ -166,16 +167,15 @@ export default function NewsPage() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 text-foreground">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold text-foreground">Nieuws voor jou</h1>
-        <p className="text-sm text-muted-foreground">
-          Artikelen geselecteerd op relevantie voor de Turkse diaspora.
-        </p>
-      </header>
-      <section className="rounded-3xl border border-border bg-surface-raised p-4 shadow-soft">
-        <NewsFeedTabs value={feed} onChange={handleFeedChange} />
-      </section>
+    <AppViewportShell variant="content">
+      <PageShell
+        title="Nieuws voor jou"
+        subtitle="Artikelen geselecteerd op relevantie voor de Turkse diaspora."
+        maxWidth="5xl"
+      >
+        <section className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+          <NewsFeedTabs value={feed} onChange={handleFeedChange} />
+        </section>
       {feed === "bookmarks" ? (
         <BookmarksSection
           bookmarks={bookmarks}
@@ -202,16 +202,17 @@ export default function NewsPage() {
           onScrollPositionChange={handleScrollPositionChange}
         />
       )}
-      <NewsCityModal
-        isOpen={isCityModalOpen}
-        options={cityOptions}
-        preferences={cityPreferences}
-        cityLabels={cityLabels}
-        onRememberCities={rememberCityLabels}
-        onSave={saveCityPreferences}
-        onClose={closeCityModal}
-      />
-    </div>
+        <NewsCityModal
+          isOpen={isCityModalOpen}
+          options={cityOptions}
+          preferences={cityPreferences}
+          cityLabels={cityLabels}
+          onRememberCities={rememberCityLabels}
+          onSave={saveCityPreferences}
+          onClose={closeCityModal}
+        />
+      </PageShell>
+    </AppViewportShell>
   );
 }
 
@@ -350,7 +351,7 @@ function StandardNewsSection({
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="rounded-3xl border border-border bg-surface-raised p-4 shadow-soft">
+      <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
           <NewsSearchBar
             value={searchQuery}
@@ -406,7 +407,7 @@ function StandardNewsSection({
       ) : null}
 
       {(feed === "local" || feed === "origin") ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-border bg-surface-raised px-4 py-3 text-xs text-muted-foreground shadow-soft">
+        <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground shadow-soft">
           <span>
             Steden:&nbsp;
             {feed === "local"

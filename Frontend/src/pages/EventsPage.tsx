@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 
 import type { EventItem } from "@/api/events";
+import { AppViewportShell, PageShell } from "@/components/layout";
 import { EventDetailOverlay } from "@/components/events/EventDetailOverlay";
 import { EventList } from "@/components/events/EventList";
 import { EventMapView } from "@/components/events/EventMapView";
@@ -78,19 +79,14 @@ export default function EventsPage() {
   }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-10 text-foreground">
-      <header className="space-y-2">
-        <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-          Turkspot Highlights
-        </p>
-        <h1 className="text-3xl font-semibold text-foreground">Events & bijeenkomsten</h1>
-        <p className="text-sm text-muted-foreground">
-          Ontdek culturele activiteiten, community meetups en zakelijke bijeenkomsten binnen de Turkse diaspora in Nederland.
-        </p>
-      </header>
-
-      <div className="rounded-3xl border border-border bg-surface-raised p-4 shadow-soft">
-        <Tabs
+    <AppViewportShell variant="content">
+      <PageShell
+        title="Events & bijeenkomsten"
+        subtitle="Ontdek culturele activiteiten, community meetups en zakelijke bijeenkomsten binnen de Turkse diaspora in Nederland."
+        maxWidth="5xl"
+      >
+        <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+          <Tabs
           value={viewMode}
           onValueChange={(value) => {
             if (value === "map" || value === "list") {
@@ -143,12 +139,13 @@ export default function EventsPage() {
         />
       )}
 
-      <EventDetailOverlay
-        event={detailEvent}
-        open={Boolean(detailEvent)}
-        onClose={handleCloseDetail}
-      />
-    </div>
+        <EventDetailOverlay
+          event={detailEvent}
+          open={Boolean(detailEvent)}
+          onClose={handleCloseDetail}
+        />
+      </PageShell>
+    </AppViewportShell>
   );
 }
 

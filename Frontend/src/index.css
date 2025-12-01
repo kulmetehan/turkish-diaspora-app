@@ -59,11 +59,17 @@ body {
   --brand-cream: 32 100% 96%;
 
   /* Surface + text tokens (light) */
-  --surface-base: 0 0% 97%;
+  /* App / map achtergrond: puur wit */
+  --background: 0 0% 100%;
+  /* Content body (AppViewportShell variant="content"): heel licht koel grijs */
+  --surface-base: 210 40% 98%;
   --surface-raised: 0 0% 98%;
+  /* Kaarten: helder wit, duidelijk boven de surface-base */
   --surface-card: 0 0% 100%;
-  --surface-muted: 220 20% 95%;
-  --surface-contrast: 221 34% 14%;
+  /* Muted surface: iets donkerder, voor footers/secondary panels */
+  --surface-muted: 210 40% 94%;
+  /* Contrast surface (bijv. headers of sterke panelen) */
+  --surface-contrast: 210 40% 92%;
   --surface-border: 220 20% 88%;
   --surface-border-strong: 220 15% 72%;
   --text-primary: 222 39% 11%;
@@ -91,7 +97,7 @@ body {
   --space-grid-gutter: 1.5rem;
 
   /* Tailwind CSS variables (light mode) */
-  --background: var(--surface-base);
+  /* --background is now defined above as pure white for map tab */
   --foreground: var(--text-primary);
   --card: var(--surface-card);
   --card-foreground: var(--text-primary);
@@ -115,11 +121,17 @@ body {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --surface-base: 230 24% 7%;
+    /* Map/background: donker grijsblauw */
+    --background: 222 47% 11%;
+    /* Content body (surface-base): heel iets lichter */
+    --surface-base: 222 47% 13%;
     --surface-raised: 228 25% 11%;
-    --surface-card: 228 27% 13%;
-    --surface-muted: 226 22% 18%;
-    --surface-contrast: 210 20% 96%;
+    /* Kaarten: nog een stap lichter */
+    --surface-card: 222 47% 17%;
+    /* Muted surface: voor footers / secondary panels */
+    --surface-muted: 222 47% 20%;
+    /* Contrast surface: wanneer een extra sterke bak nodig is */
+    --surface-contrast: 222 47% 24%;
     --surface-border: 222 22% 24%;
     --surface-border-strong: 223 32% 38%;
     --text-primary: 210 36% 96%;
@@ -139,7 +151,7 @@ body {
     --gradient-nav: linear-gradient(180deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 65%, hsl(var(--brand-red-soft)) 100%);
     --gradient-card: linear-gradient(145deg, hsl(var(--brand-red-soft) / 0.25) 0%, hsl(var(--brand-red) / 0.15) 60%, hsl(var(--brand-red-strong) / 0.28) 100%);
 
-    --background: var(--surface-base);
+    /* --background is now defined above as dark gray-blue for map tab */
     --foreground: var(--text-primary);
     --card: var(--surface-card);
     --card-foreground: var(--text-primary);
@@ -164,11 +176,17 @@ body {
 
 /* Dark mode via class (for manual theme switching) */
 .dark {
-  --surface-base: 230 24% 7%;
+  /* Map/background: donker grijsblauw */
+  --background: 222 47% 11%;
+  /* Content body (surface-base): heel iets lichter */
+  --surface-base: 222 47% 13%;
   --surface-raised: 228 25% 11%;
-  --surface-card: 228 27% 13%;
-  --surface-muted: 226 22% 18%;
-  --surface-contrast: 210 20% 96%;
+  /* Kaarten: nog een stap lichter */
+  --surface-card: 222 47% 17%;
+  /* Muted surface: voor footers / secondary panels */
+  --surface-muted: 222 47% 20%;
+  /* Contrast surface: wanneer een extra sterke bak nodig is */
+  --surface-contrast: 222 47% 24%;
   --surface-border: 222 22% 24%;
   --surface-border-strong: 223 32% 38%;
   --text-primary: 210 36% 96%;
@@ -188,7 +206,7 @@ body {
   --gradient-nav: linear-gradient(180deg, hsl(var(--brand-red-strong)) 0%, hsl(var(--brand-red)) 65%, hsl(var(--brand-red-soft)) 100%);
   --gradient-card: linear-gradient(145deg, hsl(var(--brand-red-soft) / 0.25) 0%, hsl(var(--brand-red) / 0.15) 60%, hsl(var(--brand-red-strong) / 0.28) 100%);
 
-  --background: var(--surface-base);
+  /* --background is now defined above as dark gray-blue for map tab */
   --foreground: var(--text-primary);
   --card: var(--surface-card);
   --card-foreground: var(--text-primary);
