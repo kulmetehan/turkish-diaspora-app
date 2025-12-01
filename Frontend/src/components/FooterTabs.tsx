@@ -27,6 +27,7 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
       "--footer-height": height,
       ...style,
     } as CSSProperties & { "--footer-height"?: string };
+
     return (
       <div
         ref={ref}

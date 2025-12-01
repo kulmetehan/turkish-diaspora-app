@@ -15,6 +15,8 @@ type Props = {
   isLoading?: boolean; // NEW: global loading state
   error?: string | null; // NEW: global error state
   hasActiveSearch?: boolean; // NEW: whether there's an active search/filter
+  scrollTop?: number; // Scroll position to restore
+  onScrollPositionChange?: (scrollTop: number) => void; // Callback when scroll position changes
 };
 
 export default function LocationList({
@@ -29,9 +31,13 @@ export default function LocationList({
   isLoading = false,
   error = null,
   hasActiveSearch = false,
+  scrollTop = 0,
+  onScrollPositionChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const scrollRestoredRef = useRef(false);
+  const scrollThrottleRef = useRef<number | null>(null);
 
   // Zorg dat onze refs altijd up-to-date zijn met de zichtbare lijst
   const ids = useMemo(() => locations.map((l) => l.id).join(","), [locations]);
@@ -44,9 +50,54 @@ export default function LocationList({
     }
   }, [ids, locations]);
 
-  // Auto-scroll naar geselecteerd item
+  // Restore scroll position on mount
   useEffect(() => {
-    if (!autoScrollToSelected || !selectedId) return;
+    if (scrollRestoredRef.current || !containerRef.current || isLoading || locations.length === 0) return;
+
+    if (scrollTop > 0) {
+      // Use requestAnimationFrame to ensure content is rendered
+      requestAnimationFrame(() => {
+        if (containerRef.current && !scrollRestoredRef.current) {
+          containerRef.current.scrollTo({ top: scrollTop, behavior: "auto" });
+          scrollRestoredRef.current = true;
+        }
+      });
+    } else {
+      scrollRestoredRef.current = true;
+    }
+  }, [scrollTop, isLoading, locations.length]);
+
+  // Handle scroll position changes (throttled)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onScrollPositionChange) return;
+
+    const handleScroll = () => {
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+      }
+
+      scrollThrottleRef.current = window.requestAnimationFrame(() => {
+        if (container) {
+          onScrollPositionChange(container.scrollTop);
+        }
+      });
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+        scrollThrottleRef.current = null;
+      }
+    };
+  }, [onScrollPositionChange]);
+
+  // Auto-scroll naar geselecteerd item (only after scroll restoration is done)
+  useEffect(() => {
+    if (!autoScrollToSelected || !selectedId || !scrollRestoredRef.current) return;
     const el = itemRefs.current.get(selectedId);
     const container = containerRef.current;
     if (!el || !container) return;

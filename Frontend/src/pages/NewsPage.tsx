@@ -25,6 +25,7 @@ import {
   writeNewsSearchQueryToHash,
   type NewsFeedKey,
 } from "@/lib/routing/newsFeed";
+import { navigationActions, useNewsNavigation } from "@/state/navigation";
 
 function categoriesAreEqual(a: NewsCategoryKey[], b: NewsCategoryKey[]) {
   if (a.length !== b.length) return false;
@@ -32,11 +33,43 @@ function categoriesAreEqual(a: NewsCategoryKey[], b: NewsCategoryKey[]) {
 }
 
 export default function NewsPage() {
-  const [feed, setFeed] = useState<NewsFeedKey>(() => readNewsFeedFromHash());
-  const [categories, setCategories] = useState<NewsCategoryKey[]>(() => readNewsCategoriesFromHash());
-  const [searchQuery, setSearchQuery] = useState<string>(() =>
-    readNewsSearchQueryFromHash(),
-  );
+  // Read navigation state from store
+  const newsNavigation = useNewsNavigation();
+
+  // Read hash params (for shareable URLs) - these take priority
+  const hashFeed = readNewsFeedFromHash();
+  const hashCategories = readNewsCategoriesFromHash();
+  const hashSearchQuery = readNewsSearchQueryFromHash();
+
+  // Determine if hash has meaningful values (not just defaults)
+  const hasHashFeed = hashFeed !== "nl";
+  const hasHashCategories = hashCategories.length > 0;
+  const hasHashSearch = hashSearchQuery.trim().length > 0;
+  const hasHashParams = hasHashFeed || hasHashCategories || hasHashSearch;
+
+  // Priority: hash params (if present) > store values
+  // Initialize state: if hash has values, use them (and sync to store), otherwise use store
+  const [feed, setFeed] = useState<NewsFeedKey>(() => {
+    if (hasHashParams) {
+      // Sync hash values to store
+      navigationActions.setNews({
+        feed: hashFeed,
+        categories: hashCategories,
+        searchQuery: hashSearchQuery,
+      });
+      return hashFeed;
+    }
+    return newsNavigation.feed;
+  });
+
+  const [categories, setCategories] = useState<NewsCategoryKey[]>(() => {
+    return hasHashParams ? hashCategories : newsNavigation.categories;
+  });
+
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    return hasHashParams ? hashSearchQuery : newsNavigation.searchQuery;
+  });
+
   const [trendCountry, setTrendCountry] = useState<"nl" | "tr">("nl");
 
   const { bookmarks, isBookmarked, toggleBookmark } = useNewsBookmarks();
@@ -64,17 +97,33 @@ export default function NewsPage() {
 
   useEffect(() => {
     const handleHashChange = () => {
+      const nextFeed = readNewsFeedFromHash();
+      const nextCategories = readNewsCategoriesFromHash();
+      const nextSearchQuery = readNewsSearchQueryFromHash();
+
       setFeed((current) => {
-        const next = readNewsFeedFromHash();
-        return current === next ? current : next;
+        if (current !== nextFeed) {
+          // Sync to store when hash changes
+          navigationActions.setNews({ feed: nextFeed });
+          return nextFeed;
+        }
+        return current;
       });
       setCategories((current) => {
-        const next = readNewsCategoriesFromHash();
-        return categoriesAreEqual(current, next) ? current : next;
+        if (!categoriesAreEqual(current, nextCategories)) {
+          // Sync to store when hash changes
+          navigationActions.setNews({ categories: nextCategories });
+          return nextCategories;
+        }
+        return current;
       });
       setSearchQuery((current) => {
-        const next = readNewsSearchQueryFromHash();
-        return current === next ? current : next;
+        if (current !== nextSearchQuery) {
+          // Sync to store when hash changes
+          navigationActions.setNews({ searchQuery: nextSearchQuery });
+          return nextSearchQuery;
+        }
+        return current;
       });
     };
     return subscribeToNewsFeedHashChange(handleHashChange);
@@ -82,14 +131,20 @@ export default function NewsPage() {
 
   useEffect(() => {
     writeNewsFeedToHash(feed);
+    // Also update store
+    navigationActions.setNews({ feed });
   }, [feed]);
 
   useEffect(() => {
     writeNewsCategoriesToHash(categories);
+    // Also update store
+    navigationActions.setNews({ categories });
   }, [categories]);
 
   useEffect(() => {
     writeNewsSearchQueryToHash(searchQuery);
+    // Also update store
+    navigationActions.setNews({ searchQuery });
   }, [searchQuery]);
 
   const handleFeedChange = useCallback((next: NewsFeedKey) => {
@@ -103,6 +158,11 @@ export default function NewsPage() {
   const handleClearCategories = useCallback(() => {
     clearNewsCategoriesFromHash();
     setCategories([]);
+    navigationActions.setNews({ categories: [] });
+  }, []);
+
+  const handleScrollPositionChange = useCallback((scrollTop: number) => {
+    navigationActions.setNews({ scrollTop });
   }, []);
 
   return (
@@ -138,6 +198,8 @@ export default function NewsPage() {
           onEditCities={openCityModal}
           trendCountry={trendCountry}
           onTrendCountryChange={setTrendCountry}
+          scrollTop={newsNavigation.scrollTop}
+          onScrollPositionChange={handleScrollPositionChange}
         />
       )}
       <NewsCityModal
@@ -168,6 +230,8 @@ interface StandardNewsSectionProps {
   onEditCities: () => void;
   trendCountry: "nl" | "tr";
   onTrendCountryChange: (country: "nl" | "tr") => void;
+  scrollTop: number;
+  onScrollPositionChange: (scrollTop: number) => void;
 }
 
 function StandardNewsSection({
@@ -185,6 +249,8 @@ function StandardNewsSection({
   onEditCities,
   trendCountry,
   onTrendCountryChange,
+  scrollTop,
+  onScrollPositionChange,
 }: StandardNewsSectionProps) {
   const trimmedSearch = searchQuery.trim();
   const isSearchMode = trimmedSearch.length >= 2;
@@ -366,6 +432,8 @@ function StandardNewsSection({
         isBookmarked={isBookmarked}
         toggleBookmark={toggleBookmark}
         meta={!isSearchMode ? meta : undefined}
+        scrollTop={scrollTop}
+        onScrollPositionChange={onScrollPositionChange}
       />
     </div>
   );

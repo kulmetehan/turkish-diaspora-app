@@ -11,20 +11,16 @@ import "./index.css";
 import { FooterTabs } from "@/components/FooterTabs";
 import RequireAdmin from "@/components/auth/RequireAdmin";
 import { Toaster } from "@/components/ui/toaster";
-import { initTheme } from "@/lib/theme/darkMode";
 import { initI18n } from "@/i18n";
+import { initTheme } from "@/lib/theme/darkMode";
+import LoginPage from "@/pages/LoginPage";
+import UiKit from "@/pages/UiKit";
 const AdminHomePage = React.lazy(() => import("@/pages/AdminHomePage"));
 const AdminCitiesPage = React.lazy(() => import("@/pages/AdminCitiesPage"));
 const AdminEventSourcesPage = React.lazy(() => import("@/pages/admin/AdminEventSourcesPage"));
 const AdminEventsPage = React.lazy(() => import("@/pages/AdminEventsPage"));
 const WorkersDashboardPage = React.lazy(() => import("@/pages/WorkersDashboardPage"));
 const WorkerRunDetailPage = React.lazy(() => import("@/pages/WorkerRunDetailPage"));
-import LoginPage from "@/pages/LoginPage";
-import UiKit from "@/pages/UiKit";
-import AccountPage from "@/pages/AccountPage";
-import EventsPage from "@/pages/EventsPage";
-import FeedPage from "@/pages/FeedPage";
-import NewsPage from "@/pages/NewsPage";
 
 // Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
 
@@ -48,11 +44,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/map" replace />} />
-          <Route path="/map" element={<App />} />
-          <Route path="/feed" element={<FeedPage />} />
-          <Route path="/news" element={<NewsPage />} />
-          <Route path="/events" element={<EventsPage />} />
-          <Route path="/account" element={<AccountPage />} />
+          <Route path="/map" element={<App initialTab="map" />} />
+          <Route path="/news" element={<App initialTab="news" />} />
+          <Route path="/events" element={<App initialTab="events" />} />
+          <Route path="/feed" element={<App initialTab="feed" />} />
+          <Route path="/account" element={<App initialTab="account" />} />
         </Route>
         <Route path="/ui-kit" element={<UiKit />} />
         <Route path="/login" element={<LoginPage />} />

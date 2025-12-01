@@ -1,24 +1,23 @@
 
 // src/components/MapView.tsx
+import type { FeatureCollection, Point } from "geojson";
 import mapboxgl, { Map as MapboxMap, type GeoJSONSource, type LngLatLike } from "mapbox-gl";
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { FeatureCollection, Point } from "geojson";
 
 import type { LocationMarker } from "@/api/fetchLocations";
 import MapControls from "@/components/MapControls";
-import { restoreCamera, storeCamera } from "@/components/mapCameraCache";
-import { MARKER_POINT_OUTER_RADIUS, MarkerLayerIds, registerClusterSprites, ensureBaseLayers } from "@/components/markerLayerUtils";
+import { ensureBaseLayers, MARKER_POINT_OUTER_RADIUS, MarkerLayerIds, registerClusterSprites } from "@/components/markerLayerUtils";
 import PreviewTooltip from "@/components/PreviewTooltip";
-import { cn } from "@/lib/ui/cn";
-import { CONFIG, CLUSTER_CONFIG } from "@/lib/config";
-import MarkerLayer from "./MarkerLayer";
-import { attachCategoryIconFallback, ensureCategoryIcons } from "@/lib/map/categoryIcons";
 import { useViewportContext } from "@/contexts/viewport";
 import { useInitialMapCenter } from "@/hooks/useInitialMapCenter";
-import { clearCamera } from "@/components/mapCameraCache";
+import { CLUSTER_CONFIG, CONFIG } from "@/lib/config";
 import { computeInitialUnclusteredView } from "@/lib/initialView";
+import { attachCategoryIconFallback, ensureCategoryIcons } from "@/lib/map/categoryIcons";
+import { cn } from "@/lib/ui/cn";
 import { isMobile } from "@/lib/utils";
+import { navigationActions, useActiveTab, useMapNavigation, type TabId } from "@/state/navigation";
+import MarkerLayer from "./MarkerLayer";
 
 // Zorg dat je VITE_MAPBOX_TOKEN in .env staat
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
@@ -512,6 +511,10 @@ export default function MapView({
   const initialCenterAppliedRef = useRef(false);
   const initialViewSettledRef = useRef(false);
   const initialViewAttemptedRef = useRef(false);
+  const mapNavigation = useMapNavigation();
+  const cameraRestoredRef = useRef(false);
+  const activeTab = useActiveTab();
+  const lastActiveTabRef = useRef<TabId | null>(null);
 
   const applyAccuracyPaint = useCallback(
     (targetMap: MapboxMap | null = mapRef.current) => {
@@ -681,15 +684,15 @@ export default function MapView({
       const stops =
         typeof accuracy === "number" && accuracy > 0
           ? {
-              z10: metersToPixelsAtLatitude(lat, accuracy, 10),
-              z14: metersToPixelsAtLatitude(lat, accuracy, 14),
-              z18: metersToPixelsAtLatitude(lat, accuracy, 18),
-            }
+            z10: metersToPixelsAtLatitude(lat, accuracy, 10),
+            z14: metersToPixelsAtLatitude(lat, accuracy, 14),
+            z18: metersToPixelsAtLatitude(lat, accuracy, 18),
+          }
           : { z10: 0, z14: 0, z18: 0 };
       userLocationPaintRef.current = stops;
       applyAccuracyPaint(map);
 
-    const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined;
+      const source = map.getSource(USER_LOCATION_SOURCE_ID) as GeoJSONSource | undefined;
       source?.setData(featureCollection);
     },
     [applyAccuracyPaint, clearUserLocation, destroyedRef, ensureUserLocationLayers],
@@ -727,19 +730,19 @@ export default function MapView({
   const findLocationById = useCallback((id: string | number | null | undefined) => {
     if (id == null) return null;
     const key = String(id);
-    
+
     // 1) Try currently rendered/filtered locations first
     const fromRendered = allLocationsRef.current.find(
       (loc) => String(loc.id) === key
     );
     if (fromRendered) return fromRendered;
-    
+
     // 2) Fallback to global dataset
     const fromGlobal = globalLocationsRef.current.find(
       (loc) => String(loc.id) === key
     );
     if (fromGlobal) return fromGlobal;
-    
+
     return null;
   }, []);
 
@@ -871,13 +874,13 @@ export default function MapView({
     };
 
     // Only emit initial bbox if initial view is settled or we're using fallback
-    const shouldEmitInitial = initialViewSettledRef.current || 
+    const shouldEmitInitial = initialViewSettledRef.current ||
       (initialCenterResult.status === "resolved" && initialCenterResult.source === "fallback_city");
-    
+
     if (shouldEmitInitial) {
       handle();
     }
-    
+
     map.on("moveend", handle);
 
     return () => {
@@ -892,6 +895,38 @@ export default function MapView({
       }
     };
   }, [destroyedRef, mapReady, onViewportChange, setViewport, initialCenterResult.status, initialCenterResult.source]);
+
+  // Save camera state to navigation store on moveend
+  useEffect(() => {
+    if (!mapReady || destroyedRef.current) return;
+    const map = mapRef.current;
+    if (!map) return;
+
+    const handleMoveEnd = () => {
+      try {
+        const center = map.getCenter();
+        const camera = {
+          center: center.toArray() as [number, number],
+          zoom: map.getZoom(),
+          bearing: map.getBearing(),
+          pitch: map.getPitch(),
+        };
+        navigationActions.setMap({ camera });
+      } catch {
+        // Ignore errors
+      }
+    };
+
+    map.on("moveend", handleMoveEnd);
+
+    return () => {
+      try {
+        map.off("moveend", handleMoveEnd);
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [mapReady]);
 
   useEffect(() => {
     allLocationsRef.current = locations;
@@ -1378,7 +1413,7 @@ export default function MapView({
 
     const handleLoad = async () => {
       if (destroyedRef.current) return;
-      
+
       // Register cluster sprites first (async operation)
       // This must complete before ensureBaseLayers runs, which creates layers that reference these sprites
       try {
@@ -1387,10 +1422,10 @@ export default function MapView({
         console.error("[MapView] Failed to register cluster sprites:", err);
         // Don't throw - markers should work even if cluster sprites fail
       }
-      
+
       // Create base marker layers (synchronous, sprites should be ready now)
       ensureBaseLayers(map);
-      
+
       setMapReady(true);
       applyPendingFocusRef.current?.();
     };
@@ -1436,39 +1471,66 @@ export default function MapView({
   // Handle initial center resolution and camera cache
   useEffect(() => {
     if (destroyedRef.current) return;
-    
-    // Clear camera cache proactively when geolocation is being used or resolved
+
+    // Clear camera from navigation store when geolocation is being used
     // (status === "resolving" means we're requesting geolocation, source === "geolocation" means it succeeded)
     if (initialCenterResult.source === "geolocation" || initialCenterResult.status === "resolving") {
-      clearCamera();
+      navigationActions.setMap({ camera: null });
     }
-    
+
     if (initialCenterResult.status === "resolved" && !initialCenterAppliedRef.current) {
       initialCenterAppliedRef.current = true;
     }
   }, [initialCenterResult.status, initialCenterResult.source]);
 
+  // Restore camera from navigation store on mount
   useEffect(() => {
-    if (!mapReady || destroyedRef.current) return;
+    if (!mapReady || destroyedRef.current || cameraRestoredRef.current) return;
     const map = mapRef.current;
     if (!map) return;
-    
+
     // Wait until we know what the initial center is
     if (initialCenterResult.status !== "resolved") return;
-    
-    // If geolocation is used, skip camera restore entirely
+
+    // If geolocation is used, skip camera restore (use geolocation instead)
     if (initialCenterResult.source === "geolocation") {
+      cameraRestoredRef.current = true;
       return;
     }
-    
+
     // If initial view already applied, don't override it
     if (initialViewSettledRef.current) {
+      cameraRestoredRef.current = true;
       return;
     }
-    
-    const isFocusActive = Boolean(focusId);
-    restoreCamera(map, isFocusActive);
-  }, [mapReady, focusId, initialCenterResult.status, initialCenterResult.source]);
+
+    // If focus is active, don't restore camera (focus takes priority)
+    if (focusId) {
+      return;
+    }
+
+    // Restore camera from navigation store if available
+    if (mapNavigation.camera) {
+      try {
+        map.jumpTo({
+          center: mapNavigation.camera.center,
+          zoom: mapNavigation.camera.zoom,
+          bearing: mapNavigation.camera.bearing,
+          pitch: mapNavigation.camera.pitch,
+        });
+        cameraRestoredRef.current = true;
+        // Mark initial view as settled to prevent overriding
+        initialViewSettledRef.current = true;
+        if (import.meta.env.DEV) {
+          console.debug("[MapView] Restored camera from navigation store", mapNavigation.camera);
+        }
+      } catch {
+        // Ignore errors, fall back to initial center behavior
+      }
+    } else {
+      cameraRestoredRef.current = true;
+    }
+  }, [mapReady, focusId, initialCenterResult.status, initialCenterResult.source, mapNavigation.camera]);
 
   const applyInitialView = useCallback(
     (target: { center: [number, number]; zoom: number }) => {
@@ -1516,7 +1578,7 @@ export default function MapView({
     if (initialViewSettledRef.current) return;
     if (initialCenterResult.status !== "resolved") return;
     if (locations.length === 0) return; // Wait for locations to be loaded
-    
+
     // Only check cameraBusy if we've already attempted initial view
     if (initialViewAttemptedRef.current && cameraBusyRef.current) return;
     initialViewAttemptedRef.current = true;
@@ -1692,6 +1754,30 @@ export default function MapView({
     popup.updateAnchor();
   }, [destroyedRef, detailId, highlightedId, locations, mapReady, findLocationById, hidePopup, popup, switchPopupToLocation]);
 
+  // Restore tooltip when Map tab becomes visible again
+  useEffect(() => {
+    const wasMapTab = lastActiveTabRef.current === "map";
+    const isMapTab = activeTab === "map";
+
+    // Update ref for next time
+    lastActiveTabRef.current = activeTab;
+
+    // Only restore if we're switching TO the map tab (not from it, not if already on it)
+    if (!wasMapTab && isMapTab && mapReady && !destroyedRef.current) {
+      // If there's a selected location, restore the tooltip
+      if (highlightedId && !detailId) {
+        const location = findLocationById(highlightedId);
+        if (location && typeof location.lng === "number" && typeof location.lat === "number") {
+          // Check if popup is not already showing for this location
+          if (!popup.isVisible() || popup.currentId() !== String(location.id)) {
+            switchPopupToLocation(location);
+          }
+          popup.updateAnchor();
+        }
+      }
+    }
+  }, [activeTab, mapReady, highlightedId, detailId, findLocationById, popup, switchPopupToLocation]);
+
   useEffect(() => {
     return () => {
       hidePopup();
@@ -1699,9 +1785,21 @@ export default function MapView({
         window.clearTimeout(viewportDebounceRef.current);
         viewportDebounceRef.current = null;
       }
+      // Save camera state to navigation store on unmount
       const map = mapRef.current;
       if (map) {
-        storeCamera(map);
+        try {
+          const center = map.getCenter();
+          const camera = {
+            center: center.toArray() as [number, number],
+            zoom: map.getZoom(),
+            bearing: map.getBearing(),
+            pitch: map.getPitch(),
+          };
+          navigationActions.setMap({ camera });
+        } catch {
+          // Ignore errors
+        }
       }
     };
   }, [hidePopup]);
