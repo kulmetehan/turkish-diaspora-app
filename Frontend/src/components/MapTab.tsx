@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
+import { AppViewportShell } from "@/components/layout";
 import Filters from "@/components/Filters";
 import { Icon } from "@/components/Icon";
 import LocationDetail from "@/components/LocationDetail";
@@ -504,7 +505,7 @@ export default function MapTab() {
             </div>
             <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-4 pt-[var(--top-offset)]">
                 <div className="pointer-events-auto w-full max-w-2xl" data-filters-overlay>
-                    <div className="flex flex-col gap-3 rounded-[32px] border border-border bg-card p-4 text-foreground shadow-card supports-[backdrop-filter]:backdrop-blur-2xl">
+                    <div className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-4 text-foreground shadow-card supports-[backdrop-filter]:backdrop-blur-2xl">
                         <Tabs
                             value={viewMode}
                             onValueChange={(value) => {
@@ -560,7 +561,7 @@ export default function MapTab() {
                 </div>
             </div>
             {loading && (
-                <div className="absolute top-4 right-4 z-10 rounded-2xl border border-border bg-card px-4 py-2 text-sm text-foreground shadow-soft">
+                <div className="absolute top-4 right-4 z-10 rounded-3xl border border-border bg-card px-4 py-2 text-sm text-foreground shadow-soft">
                     Locaties worden geladen…
                 </div>
             )}
@@ -569,9 +570,9 @@ export default function MapTab() {
 
     return (
         <ViewportProvider>
-            <div
+            <AppViewportShell
+                variant="map"
                 data-route-viewport
-                className="relative h-[calc(100svh-var(--footer-height))] w-full overflow-hidden bg-background"
             >
                 {viewMode === "map"
                     ? mapView
@@ -584,7 +585,7 @@ export default function MapTab() {
                         onClose={handleCloseDetail}
                     />
                 )}
-            </div>
+            </AppViewportShell>
         </ViewportProvider>
     );
 }

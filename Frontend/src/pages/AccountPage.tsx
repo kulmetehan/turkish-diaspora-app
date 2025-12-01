@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { AppViewportShell, PageShell } from "@/components/layout";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { getTheme, setTheme, type ThemeSetting } from "@/lib/theme/darkMode";
@@ -20,18 +21,16 @@ export default function AccountPage() {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold text-foreground">Account</h1>
-        <p className="text-muted-foreground">
-          Profile tools and saved places will arrive here. For now, keep exploring the map.
-        </p>
-      </header>
-
-      <section
-        aria-labelledby="appearance-heading"
-        className="rounded-3xl border border-border bg-card p-6 shadow-soft"
+    <AppViewportShell variant="content">
+      <PageShell
+        title="Account"
+        subtitle="Profile tools and saved places will arrive here. For now, keep exploring the map."
+        maxWidth="4xl"
       >
+        <section
+          aria-labelledby="appearance-heading"
+          className="rounded-3xl border border-border bg-card p-6 shadow-soft"
+        >
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <h2 id="appearance-heading" className="text-lg font-medium text-foreground">
@@ -54,7 +53,8 @@ export default function AccountPage() {
           </Button>
         </div>
       </section>
-    </div>
+      </PageShell>
+    </AppViewportShell>
   );
 }
 

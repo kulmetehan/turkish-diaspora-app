@@ -46,7 +46,7 @@ export function EventMapView({
 
   if (!markers.length) {
     return (
-      <Card className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
+      <Card className="rounded-3xl border border-border bg-card p-6 text-sm text-muted-foreground shadow-soft">
         Er zijn nog geen events met bekende kaartlocaties. Zodra coordinaten beschikbaar
         zijn tonen we ze hier. {/* Backend dependency note */}
       </Card>
@@ -57,7 +57,7 @@ export function EventMapView({
   const detailMarkerId = detailId != null ? String(detailId) : null;
 
   return (
-    <div className="relative h-[min(70vh,520px)] w-full overflow-hidden rounded-2xl border bg-card">
+    <div className="relative h-[min(70vh,520px)] w-full overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
       <MapView
         locations={markers}
         globalLocations={markers}
