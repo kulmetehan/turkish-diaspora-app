@@ -406,3 +406,115 @@ cities:
         lng_min: 4.520011846453057
         lng_max: 4.550011846453057
         apply: *rotterdam_defaults
+
+  leiden:
+    city_name: "Leiden"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 52.157284
+    center_lng: 4.493417
+    districts:
+      voorschoten:
+        lat_min: 52.110025
+        lat_max: 52.140025
+        lng_min: 4.432953
+        lng_max: 4.462953
+        apply: *rotterdam_defaults
+
+      zuid:
+        lat_min: 52.132239
+        lat_max: 52.162239
+        lng_min: 4.46057
+        lng_max: 4.49057
+        apply: *rotterdam_defaults
+
+      zoeterwoude_rijndijk:
+        lat_min: 52.124597
+        lat_max: 52.154597
+        lng_min: 4.52018
+        lng_max: 4.55018
+        apply: *rotterdam_defaults
+
+      leiderdorp:
+        lat_min: 52.142822
+        lat_max: 52.172822
+        lng_min: 4.510363
+        lng_max: 4.540363
+        apply: *rotterdam_defaults
+
+      west:
+        lat_min: 52.149203
+        lat_max: 52.179203
+        lng_min: 4.45861
+        lng_max: 4.48861
+        apply: *rotterdam_defaults
+
+      centrum:
+        lat_min: 52.142284
+        lat_max: 52.172284
+        lng_min: 4.478417
+        lng_max: 4.508417
+        apply: *rotterdam_defaults
+
+      noord:
+        lat_min: 52.164484
+        lat_max: 52.194484
+        lng_min: 4.483399
+        lng_max: 4.513399
+        apply: *rotterdam_defaults
+
+  breda:
+    city_name: "Breda"
+    country: "NL"
+    apply: *rotterdam_defaults
+    center_lat: 51.593834
+    center_lng: 4.77983
+    districts:
+      prinsenbeek:
+        lat_min: 51.584714
+        lat_max: 51.614714
+        lng_min: 4.699901
+        lng_max: 4.729901
+        apply: *rotterdam_defaults
+
+      west:
+        lat_min: 51.566265
+        lat_max: 51.596265
+        lng_min: 4.720493
+        lng_max: 4.750493
+        apply: *rotterdam_defaults
+
+      zuid:
+        lat_min: 51.563892
+        lat_max: 51.593892
+        lng_min: 4.754577
+        lng_max: 4.784577
+        apply: *rotterdam_defaults
+
+      zuidoost:
+        lat_min: 51.557996
+        lat_max: 51.587996
+        lng_min: 4.789608
+        lng_max: 4.819608
+        apply: *rotterdam_defaults
+
+      centrum:
+        lat_min: 51.578834
+        lat_max: 51.608834
+        lng_min: 4.76483
+        lng_max: 4.79483
+        apply: *rotterdam_defaults
+
+      teteringen:
+        lat_min: 51.593699
+        lat_max: 51.623699
+        lng_min: 4.802772
+        lng_max: 4.832772
+        apply: *rotterdam_defaults
+
+      noord:
+        lat_min: 51.600466
+        lat_max: 51.630466
+        lng_min: 4.754091
+        lng_max: 4.784091
+        apply: *rotterdam_defaults
