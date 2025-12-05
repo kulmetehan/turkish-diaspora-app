@@ -26,6 +26,7 @@ export interface LocationMarker {
     rating: number | null;
     confidence_score: number | null;
     is_turkish: boolean;
+    has_verified_badge?: boolean;
 }
 
 export async function fetchLocations(
@@ -94,6 +95,7 @@ export async function fetchLocations(
             rating: (typeof loc?.rating === "number" ? loc.rating : (loc?.rating ? Number(loc.rating) : null)) ?? null,
             confidence_score: Number.isFinite(conf) ? conf : null,
             is_turkish: isVisibleByHeuristic,
+            has_verified_badge: typeof loc?.has_verified_badge === "boolean" ? loc.has_verified_badge : false,
         };
     });
 }

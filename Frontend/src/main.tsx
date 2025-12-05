@@ -10,6 +10,7 @@ import "./index.css";
 
 import { FooterTabs } from "@/components/FooterTabs";
 import RequireAdmin from "@/components/auth/RequireAdmin";
+import AdminRouteWrapper from "@/components/admin/AdminRouteWrapper";
 import { Toaster } from "@/components/ui/toaster";
 import { initI18n } from "@/i18n";
 import { initTheme } from "@/lib/theme/darkMode";
@@ -21,6 +22,19 @@ const AdminEventSourcesPage = React.lazy(() => import("@/pages/admin/AdminEventS
 const AdminEventsPage = React.lazy(() => import("@/pages/AdminEventsPage"));
 const WorkersDashboardPage = React.lazy(() => import("@/pages/WorkersDashboardPage"));
 const WorkerRunDetailPage = React.lazy(() => import("@/pages/WorkerRunDetailPage"));
+const LocationsPage = React.lazy(() => import("@/pages/admin/LocationsPage"));
+const MetricsPage = React.lazy(() => import("@/pages/admin/MetricsPage"));
+const DiscoveryPage = React.lazy(() => import("@/pages/admin/DiscoveryPage"));
+const TasksPage = React.lazy(() => import("@/pages/admin/TasksPage"));
+const NewsAIPage = React.lazy(() => import("@/pages/admin/NewsAIPage"));
+const AdminAIPolicyPage = React.lazy(() => import("@/pages/AdminAIPolicyPage"));
+const PrivacyPolicyPage = React.lazy(() => import("@/pages/PrivacyPolicyPage"));
+const TermsOfServicePage = React.lazy(() => import("@/pages/TermsOfServicePage"));
+const CommunityGuidelinesPage = React.lazy(() => import("@/pages/CommunityGuidelinesPage"));
+const UserAuthPage = React.lazy(() => import("@/pages/UserAuthPage"));
+const AdminPollsPage = React.lazy(() => import("@/pages/admin/AdminPollsPage"));
+const AdminReportsPage = React.lazy(() => import("@/pages/admin/AdminReportsPage"));
+const DiasporaPulsePage = React.lazy(() => import("@/pages/DiasporaPulsePage"));
 
 // Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
 
@@ -52,47 +66,128 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </Route>
         <Route path="/ui-kit" element={<UiKit />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/privacy" element={
+          <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+            <PrivacyPolicyPage />
+          </Suspense>
+        } />
+        <Route path="/terms" element={
+          <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+            <TermsOfServicePage />
+          </Suspense>
+        } />
+        <Route path="/guidelines" element={
+          <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+            <CommunityGuidelinesPage />
+          </Suspense>
+        } />
+        <Route path="/auth" element={
+          <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+            <UserAuthPage />
+          </Suspense>
+        } />
+        <Route path="/pulse" element={
+          <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+            <DiasporaPulsePage />
+          </Suspense>
+        } />
         <Route path="/admin" element={
-          <RequireAdmin>
+          <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminHomePage />
             </Suspense>
-          </RequireAdmin>
+          </AdminRouteWrapper>
         } />
         <Route path="/admin/cities" element={
-          <RequireAdmin>
+          <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminCitiesPage />
             </Suspense>
-          </RequireAdmin>
+          </AdminRouteWrapper>
         } />
         <Route path="/admin/workers" element={
-          <RequireAdmin>
+          <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <WorkersDashboardPage />
             </Suspense>
-          </RequireAdmin>
+          </AdminRouteWrapper>
         } />
         <Route path="/admin/event-sources" element={
-          <RequireAdmin>
+          <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminEventSourcesPage />
             </Suspense>
-          </RequireAdmin>
+          </AdminRouteWrapper>
         } />
         <Route path="/admin/events" element={
-          <RequireAdmin>
+          <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminEventsPage />
             </Suspense>
-          </RequireAdmin>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/polls" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminPollsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/reports" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminReportsPage />
+            </Suspense>
+          </AdminRouteWrapper>
         } />
         <Route path="/admin/workers/runs/:runId" element={
-          <RequireAdmin>
+          <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <WorkerRunDetailPage />
             </Suspense>
-          </RequireAdmin>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/locations" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <LocationsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/metrics" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <MetricsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/discovery" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <DiscoveryPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/tasks" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <TasksPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/news-ai" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <NewsAIPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/settings/ai-policy" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminAIPolicyPage />
+            </Suspense>
+          </AdminRouteWrapper>
         } />
         {/* Catch-all naar map */}
         <Route path="*" element={<Navigate to="/map" replace />} />

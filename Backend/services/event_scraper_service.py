@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 import feedparser
 import httpx
 from dateutil import parser as date_parser
-from selectolax.parser import HTMLParser, Node
+from bs4 import BeautifulSoup
 
 from app.core.logging import get_logger
 from app.models.event_raw import EventRawCreate
@@ -190,8 +190,8 @@ class EventScraperService:
 
     def _parse_html_events(self, source: EventSource, html_text: str) -> List[EventRawCreate]:
         selectors = source.selectors
-        parser = HTMLParser(html_text)
-        nodes = parser.css(selectors["item_selector"])
+        soup = BeautifulSoup(html_text, 'html.parser')
+        nodes = soup.select(selectors["item_selector"])
         time_selector = selectors.get("time_selector")
         timezone_name = selectors.get("timezone")
         datetime_format = selectors.get("datetime_format")
@@ -346,8 +346,8 @@ class EventScraperService:
     def _parse_json_ld_events(self, source: EventSource, html_text: str) -> List[EventRawCreate]:
         selectors = source.selectors
         script_selector = selectors.get("script_selector") or DEFAULT_JSON_LD_SCRIPT
-        parser = HTMLParser(html_text)
-        nodes = parser.css(script_selector)
+        soup = BeautifulSoup(html_text, 'html.parser')
+        nodes = soup.select(script_selector)
         if not nodes:
             return []
 
@@ -367,7 +367,7 @@ class EventScraperService:
         events: List[EventRawCreate] = []
 
         for node in nodes:
-            script_text = (node.text() or "").strip()
+            script_text = (node.get_text() or "").strip()
             if not script_text:
                 continue
             try:
@@ -622,7 +622,7 @@ class EventScraperService:
         return cleaned or None
 
     @staticmethod
-    def _extract_node_value(node: Node, selector: Optional[str]) -> Optional[str]:
+    def _extract_node_value(node: Any, selector: Optional[str]) -> Optional[str]:
         if not selector:
             return None
         target = node
@@ -632,15 +632,15 @@ class EventScraperService:
             css, attr = selector.split("@", 1)
         css = css.strip()
         if css:
-            target = node.css_first(css)
+            target = node.select_one(css)
             if target is None:
                 return None
         if attr:
             attr = attr.strip()
             if attr == "text":
-                return target.text().strip()
-            return target.attributes.get(attr)
-        return target.text().strip()
+                return target.get_text(strip=True)
+            return target.get(attr)
+        return target.get_text(strip=True)
 
     @staticmethod
     def _absolutize_url(source: EventSource, url_value: Optional[str]) -> Optional[str]:

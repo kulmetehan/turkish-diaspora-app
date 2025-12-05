@@ -121,17 +121,45 @@ async def get_news(
 
     # All other feeds (DIASPORA, NL, TR, GEO) use DB-based list_news_by_feed
     try:
-        items, total = await list_news_by_feed(
+        # Get promoted news first (only for non-LOCAL/ORIGIN feeds)
+        promoted_items = []
+        if feed_enum not in (FeedType.LOCAL, FeedType.ORIGIN):
+            from services.promotion_service import get_promotion_service
+            from app.models.news_public import NewsItem
+            promotion_service = get_promotion_service()
+            promoted_posts = await promotion_service.get_active_news_promotions(limit=5)
+            
+            for post in promoted_posts:
+                # Convert promoted news to NewsItem format
+                promoted_items.append(NewsItem(
+                    id=-post["id"],  # Negative ID to distinguish from regular news
+                    title=post["title"],
+                    snippet=post["content"][:200] if len(post["content"]) > 200 else post["content"],
+                    source="Promoted",
+                    published_at=post["starts_at"],
+                    url=post.get("url") or "#",
+                    image_url=post.get("image_url"),
+                    tags=["promoted"],
+                ))
+        
+        # Get regular news
+        regular_items, total = await list_news_by_feed(
             feed_enum,
-            limit=limit,
-            offset=offset,
+            limit=limit - len(promoted_items) if len(promoted_items) < limit else limit,
+            offset=max(0, offset - len(promoted_items)) if offset > 0 else 0,
             categories=category_values,
             cities_nl=None,  # Not used for these feeds
             cities_tr=None,  # Not used for these feeds
         )
+        
+        # Combine: promoted first, then regular
+        all_items = promoted_items + regular_items
+        # Adjust total to include promoted items
+        total_with_promoted = total + len(promoted_items)
+        
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return NewsListResponse(items=items, total=total, limit=limit, offset=offset)
+    return NewsListResponse(items=all_items, total=total_with_promoted, limit=limit, offset=offset)
 
 
 @router.get("/trending", response_model=NewsListResponse)

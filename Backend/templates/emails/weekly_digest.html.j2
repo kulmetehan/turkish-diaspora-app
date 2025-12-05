@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="{{ language or 'nl' }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekoverzicht Turkspot</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e63946;
+        }
+        .header h1 {
+            color: #e63946;
+            margin: 0;
+            font-size: 24px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #e63946;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        .trending-item, .poll-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            border-left: 3px solid #e63946;
+        }
+        .trending-item h3, .poll-item h3 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        .trending-item p, .poll-item p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-item {
+            flex: 1;
+            min-width: 120px;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e63946;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #e63946;
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+        }
+        .footer a {
+            color: #e63946;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏛️ Turkspot Weekoverzicht</h1>
+            <p>Je wekelijkse update van de Turkish diaspora community</p>
+        </div>
+
+        {% if user.display_name %}
+        <p>Hoi {{ user.display_name }},</p>
+        {% endif %}
+
+        <p>Hier is je wekelijkse overzicht van wat er gebeurt op Turkspot!</p>
+
+        {% if trending_locations %}
+        <div class="section">
+            <h2 class="section-title">🔥 Trending Locaties</h2>
+            {% for location in trending_locations[:5] %}
+            <div class="trending-item">
+                <h3>{{ location.name }}</h3>
+                <p>
+                    <strong>Categorie:</strong> {{ location.category }} |
+                    <strong>Score:</strong> {{ "%.1f"|format(location.score) }}
+                </p>
+                <p>
+                    {{ location.check_ins_count }} check-ins • 
+                    {{ location.reactions_count }} reacties • 
+                    {{ location.notes_count }} notities
+                </p>
+            </div>
+            {% endfor %}
+            <a href="{{ base_url }}/#/feed" class="button">Bekijk alle trending locaties</a>
+        </div>
+        {% endif %}
+
+        {% if new_polls %}
+        <div class="section">
+            <h2 class="section-title">📊 Nieuwe Polls</h2>
+            {% for poll in new_polls[:3] %}
+            <div class="poll-item">
+                <h3>{{ poll.title }}</h3>
+                <p>{{ poll.question }}</p>
+                {% if poll.is_sponsored %}
+                <p><em>🌟 Gesponsord</em></p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            <a href="{{ base_url }}/#/feed" class="button">Bekijk alle polls</a>
+        </div>
+        {% endif %}
+
+        {% if activity %}
+        <div class="section">
+            <h2 class="section-title">📈 Jouw Activiteit Deze Week</h2>
+            <div class="stats">
+                {% if activity.check_ins %}
+                <div class="stat-item">
+                    <div class="stat-value">{{ activity.check_ins }}</div>
+                    <div class="stat-label">Check-ins</div>
+                </div>
+                {% endif %}
+                {% if activity.reactions %}
+                <div class="stat-item">
+                    <div class="stat-value">{{ activity.reactions }}</div>
+                    <div class="stat-label">Reacties</div>
+                </div>
+                {% endif %}
+                {% if activity.notes %}
+                <div class="stat-item">
+                    <div class="stat-value">{{ activity.notes }}</div>
+                    <div class="stat-label">Notities</div>
+                </div>
+                {% endif %}
+                {% if activity.unique_locations %}
+                <div class="stat-item">
+                    <div class="stat-value">{{ activity.unique_locations }}</div>
+                    <div class="stat-label">Locaties</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if gamification and gamification.total_xp %}
+        <div class="section">
+            <h2 class="section-title">🏆 Jouw Prestaties</h2>
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-value">{{ gamification.total_xp }}</div>
+                    <div class="stat-label">Totaal XP</div>
+                </div>
+                {% if gamification.current_streak_days %}
+                <div class="stat-item">
+                    <div class="stat-value">{{ gamification.current_streak_days }}</div>
+                    <div class="stat-label">Dagen Streak</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="section">
+            <a href="{{ base_url }}/#/map" class="button">Bekijk de Kaart</a>
+        </div>
+
+        <div class="footer">
+            <p>
+                Je ontvangt deze email omdat je hebt gekozen voor wekelijkse updates.
+                <br>
+                <a href="{{ unsubscribe_url }}">Wijzig je email voorkeuren</a>
+            </p>
+            <p>&copy; {{ "now"|date("%Y") }} Turkspot. Alle rechten voorbehouden.</p>
+        </div>
+    </div>
+</body>
+</html>
+
+

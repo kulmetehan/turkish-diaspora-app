@@ -141,16 +141,17 @@ async def list_locations(
     
     # Use shared filter definition for VERIFIED locations (single source of truth)
     # This ensures parity with Admin metrics verified count
-    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=bbox_tuple)
+    # Use "l" alias for locations table
+    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=bbox_tuple, alias="l")
     
     # High-confidence PENDING/CANDIDATE filter (additional to shared VERIFIED filter)
     # Apply bbox filter to pending filter as well
     pending_conditions = [
-        "state IN ('PENDING_VERIFICATION', 'CANDIDATE')",
-        "(confidence_score IS NOT NULL AND confidence_score >= 0.90)",
-        "(is_retired = false OR is_retired IS NULL)",
-        "lat IS NOT NULL",
-        "lng IS NOT NULL",
+        "l.state IN ('PENDING_VERIFICATION', 'CANDIDATE')",
+        "(l.confidence_score IS NOT NULL AND l.confidence_score >= 0.90)",
+        "(l.is_retired = false OR l.is_retired IS NULL)",
+        "l.lat IS NOT NULL",
+        "l.lng IS NOT NULL",
     ]
     
     # Add bbox filter to pending if provided
@@ -158,8 +159,8 @@ async def list_locations(
     param_num = len(verified_params) + 1
     if bbox_tuple:
         lat_min, lat_max, lng_min, lng_max = bbox_tuple
-        pending_conditions.append(f"lat BETWEEN ${param_num} AND ${param_num + 1}")
-        pending_conditions.append(f"lng BETWEEN ${param_num + 2} AND ${param_num + 3}")
+        pending_conditions.append(f"l.lat BETWEEN ${param_num} AND ${param_num + 1}")
+        pending_conditions.append(f"l.lng BETWEEN ${param_num + 2} AND ${param_num + 3}")
         pending_params = [float(lat_min), float(lat_max), float(lng_min), float(lng_max)]
         param_num += 4
     
@@ -176,18 +177,20 @@ async def list_locations(
     
     sql = f"""
         SELECT
-            id,
-            name,
-            address,
-            lat,
-            lng,
-            category,
-            rating,
-            state,
-            confidence_score
-        FROM locations
+            l.id,
+            l.name,
+            l.address,
+            l.lat,
+            l.lng,
+            l.category,
+            l.rating,
+            l.state,
+            l.confidence_score,
+            COALESCE(blc.status::text, NULL) as claim_status
+        FROM locations l
+        LEFT JOIN business_location_claims blc ON l.id = blc.location_id
         WHERE ({verified_filter_sql}) OR ({pending_filter_sql})
-        ORDER BY id DESC
+        ORDER BY l.id DESC
         LIMIT ${limit_param_num} OFFSET ${offset_param_num}
     """
     
@@ -253,6 +256,10 @@ async def list_locations(
                     r["category_label"] = " ".join([t[:1].upper() + t[1:].lower() for t in tmp.split()]) or "Overig"
                 except Exception:
                     r["category_label"] = "Overig"
+            
+            # Verified badge based on claim status
+            claim_status = r.get("claim_status")
+            r["has_verified_badge"] = (claim_status == "approved")
 
         return rows
 

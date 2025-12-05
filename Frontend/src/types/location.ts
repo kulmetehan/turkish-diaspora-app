@@ -41,6 +41,7 @@ export interface Location {
   /** Pipeline / verification */
   state?: LocationState;
   last_verified_at?: string | null; // ISO datetime if available
+  has_verified_badge?: boolean; // True if location has approved business claim
 
   /**
    * Client-side computed helper (never persisted by the API).

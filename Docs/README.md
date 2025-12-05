@@ -1,7 +1,7 @@
 ---
 title: Documentation Index
 status: active
-last_updated: 2025-11-04
+last_updated: 2025-01-XX
 scope: overview
 owners: [tda-core]
 ---
@@ -38,6 +38,21 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 - [`Docs/map-ux-upgrade.md`](./map-ux-upgrade.md) — Mapbox migration plan and UX goals.
 - [`Docs/qa/bottom-sheet-test.md`](./qa/bottom-sheet-test.md) — manual QA scenarios for the mobile bottom sheet.
 
+## Admin Interface
+
+- [`Docs/admin-auth.md`](./admin-auth.md) — admin authentication, city/district management, and manual location creation.
+- [`Docs/admin-navigation.md`](./admin-navigation.md) — modern navigation architecture with sidebar, breadcrumbs, command palette, and responsive design.
+- [`Docs/admin-city-management.md`](./admin-city-management.md) — complete guide for managing cities and districts via the admin UI.
+
+## Feature Documentation
+
+- [`Docs/push-notifications.md`](./push-notifications.md) — Push notifications implementation (Web Push API, service worker, notification workers).
+- [`Docs/business-analytics.md`](./business-analytics.md) — Business analytics dashboard for location owners (views, engagement, trending metrics).
+- [`Docs/premium-features.md`](./premium-features.md) — Premium subscription layer with Stripe integration and feature gating.
+- [`Docs/promoted-content.md`](./promoted-content.md) — Promoted locations and news posts (one-time payment via Stripe, ranking boost, promotion management).
+- [`Docs/google-business-sync.md`](./google-business-sync.md) — Google Business Profile sync integration (OAuth, data import, periodic sync).
+- [`Docs/user-groups.md`](./user-groups.md) — User groups feature (create, join, activity feeds, membership management).
+
 ## Observability & Metrics
 
 - [`Infra/monitoring/metrics_dashboard.md`](../Infra/monitoring/metrics_dashboard.md) — KPI definitions and SQL sources.
@@ -59,6 +74,8 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 ## Meta & Tracking
 
 - [`Docs/docs_inventory.md`](./docs_inventory.md) — full inventory with statuses.
+- [`Docs/NEXT_STEPS.md`](./NEXT_STEPS.md) — actionable next steps and implementation guide for continuing development.
+- [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) — overall project status and timeline.
 - [`Docs/docs_gap_analysis.md`](./docs_gap_analysis.md) — open gaps and planned updates per doc.
 - [`PROJECT_CONTEXT.md`](../PROJECT_CONTEXT.md) — historical context and architecture narrative (update pending).
 - [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) — roadmap / epic tracker (update pending).

@@ -1,4 +1,4 @@
-import { authFetch } from "@/lib/api";
+import { authFetch, API_BASE, getAdminKey } from "@/lib/api";
 
 export type AdminLocationListItem = {
     id: number;
@@ -83,6 +83,43 @@ export async function createAdminLocation(payload: AdminLocationCreateRequest): 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
     });
+}
+
+export type AdminLocationBulkImportError = {
+    row_number: number;
+    message: string;
+};
+
+export type AdminLocationBulkImportResult = {
+    rows_total: number;
+    rows_processed: number;
+    rows_created: number;
+    rows_failed: number;
+    errors: AdminLocationBulkImportError[];
+};
+
+export async function bulkImportLocations(file: File): Promise<AdminLocationBulkImportResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const adminKey = getAdminKey();
+    const url = `${API_BASE}/api/v1/admin/locations/bulk_import`;
+    
+    const response = await fetch(url, {
+        method: "POST",
+        headers: {
+            "X-Admin-Key": adminKey,
+            // Do NOT set Content-Type - browser will set it with boundary for multipart/form-data
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || "Bulk import failed");
+    }
+
+    return response.json();
 }
 
 export type BulkAction =
@@ -385,6 +422,128 @@ export async function getCities(): Promise<CityInfo[]> {
 
 // Note: getCityDistricts() is already defined in ../lib/api.ts - import from there if needed
 
+// --- City Management Types ---
+
+export interface CityReadiness {
+    city_key: string;
+    city_name: string;
+    has_districts: boolean;
+    districts_count: number;
+    verified_count: number;
+    candidate_count: number;
+    coverage_ratio: number;
+    growth_weekly: number | null;
+    readiness_status: "active" | "configured_inactive" | "config_incomplete";
+    readiness_notes: string | null;
+}
+
+export interface CitiesOverview {
+    cities: CityReadiness[];
+}
+
+export interface DistrictCreate {
+    name: string;
+    center_lat: number;
+    center_lng: number;
+}
+
+export interface DistrictUpdate {
+    name?: string;
+    center_lat?: number;
+    center_lng?: number;
+}
+
+export interface CityCreate {
+    city_name: string;
+    country?: string;
+    center_lat: number;
+    center_lng: number;
+    districts?: DistrictCreate[];
+}
+
+export interface CityUpdate {
+    city_name?: string;
+    country?: string;
+    center_lat?: number;
+    center_lng?: number;
+}
+
+export interface DistrictDetail {
+    key: string;
+    name: string;
+    center_lat: number;
+    center_lng: number;
+    bbox: {
+        lat_min: number;
+        lat_max: number;
+        lng_min: number;
+        lng_max: number;
+    };
+}
+
+export interface CityDetailResponse {
+    city_key: string;
+    city_name: string;
+    country: string;
+    center_lat: number;
+    center_lng: number;
+    districts: DistrictDetail[];
+}
+
+// --- City Management API Functions ---
+
+export async function getCitiesOverview(): Promise<CitiesOverview> {
+    return authFetch<CitiesOverview>("/api/v1/admin/cities");
+}
+
+export async function getCityDetail(cityKey: string): Promise<CityDetailResponse> {
+    return authFetch<CityDetailResponse>(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}`);
+}
+
+export async function createCity(city: CityCreate): Promise<CityReadiness> {
+    return authFetch<CityReadiness>("/api/v1/admin/cities", {
+        method: "POST",
+        body: JSON.stringify(city),
+    });
+}
+
+export async function updateCity(cityKey: string, city: CityUpdate): Promise<CityReadiness> {
+    return authFetch<CityReadiness>(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}`, {
+        method: "PUT",
+        body: JSON.stringify(city),
+    });
+}
+
+export async function deleteCity(cityKey: string): Promise<void> {
+    await authFetch(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}`, {
+        method: "DELETE",
+    });
+}
+
+export async function createDistrict(cityKey: string, district: DistrictCreate): Promise<{ ok: boolean; city_key: string; district_key: string; bbox: { lat_min: number; lat_max: number; lng_min: number; lng_max: number } }> {
+    return authFetch(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}/districts`, {
+        method: "POST",
+        body: JSON.stringify(district),
+    });
+}
+
+export async function updateDistrict(
+    cityKey: string,
+    districtKey: string,
+    district: DistrictUpdate
+): Promise<{ ok: boolean; city_key: string; district_key: string; bbox: { lat_min: number; lat_max: number; lng_min: number; lng_max: number } }> {
+    return authFetch(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}/districts/${encodeURIComponent(districtKey)}`, {
+        method: "PUT",
+        body: JSON.stringify(district),
+    });
+}
+
+export async function deleteDistrict(cityKey: string, districtKey: string): Promise<void> {
+    await authFetch(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}/districts/${encodeURIComponent(districtKey)}`, {
+        method: "DELETE",
+    });
+}
+
 // --- Worker Runs ---
 
 export interface WorkerRunListItem {
@@ -624,6 +783,139 @@ export async function toggleEventSourceStatusAdmin(id: number): Promise<{ id: nu
     return authFetch<{ id: number; status: "active" | "disabled" }>(`/api/v1/admin/event-sources/${id}/toggle-status`, {
         method: "POST",
     });
+}
+
+// ============================================================================
+// Admin Polls API
+// ============================================================================
+
+export type AdminPollOption = {
+    id: number;
+    option_text: string;
+    display_order: number;
+};
+
+export type AdminPoll = {
+    id: number;
+    title: string;
+    question: string;
+    poll_type: "single_choice" | "multi_choice";
+    options: AdminPollOption[];
+    is_sponsored: boolean;
+    starts_at: string | null;
+    ends_at: string | null;
+    targeting_city_key: string | null;
+    created_at: string;
+};
+
+export type AdminPollCreateRequest = {
+    title: string;
+    question: string;
+    poll_type: "single_choice" | "multi_choice";
+    options: Array<{ option_text: string; display_order: number }>;
+    is_sponsored?: boolean;
+    starts_at?: string | null;
+    ends_at?: string | null;
+    targeting_city_key?: string | null;
+};
+
+export type AdminPollUpdateRequest = {
+    title?: string;
+    question?: string;
+    poll_type?: "single_choice" | "multi_choice";
+    is_sponsored?: boolean;
+    starts_at?: string | null;
+    ends_at?: string | null;
+    targeting_city_key?: string | null;
+};
+
+export async function listAdminPolls(params?: {
+    limit?: number;
+    offset?: number;
+}): Promise<AdminPoll[]> {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    return authFetch<AdminPoll[]>(`/api/v1/admin/polls?${q.toString()}`);
+}
+
+export async function createAdminPoll(payload: AdminPollCreateRequest): Promise<AdminPoll> {
+    return authFetch<AdminPoll>("/api/v1/admin/polls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function updateAdminPoll(id: number, payload: AdminPollUpdateRequest): Promise<AdminPoll> {
+    return authFetch<AdminPoll>(`/api/v1/admin/polls/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteAdminPoll(id: number): Promise<{ ok: boolean; poll_id: number }> {
+    return authFetch<{ ok: boolean; poll_id: number }>(`/api/v1/admin/polls/${id}`, {
+        method: "DELETE",
+    });
+}
+
+// ============================================================================
+// Admin Reports API
+// ============================================================================
+
+export type AdminReport = {
+    id: number;
+    report_type: "location" | "note" | "reaction" | "user";
+    target_id: number;
+    reason: string;
+    details: string | null;
+    status: "pending" | "resolved" | "dismissed";
+    created_at: string;
+};
+
+export type AdminReportUpdateRequest = {
+    status: "pending" | "resolved" | "dismissed";
+    resolution_notes?: string | null;
+};
+
+export async function listAdminReports(params?: {
+    status?: "pending" | "resolved" | "dismissed";
+    report_type?: "location" | "note" | "reaction" | "user";
+    limit?: number;
+    offset?: number;
+}): Promise<AdminReport[]> {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.report_type) q.set("report_type", params.report_type);
+    q.set("limit", String(params?.limit ?? 100));
+    q.set("offset", String(params?.offset ?? 0));
+    return authFetch<AdminReport[]>(`/api/v1/reports/admin?${q.toString()}`);
+}
+
+export async function updateAdminReport(
+    id: number,
+    payload: AdminReportUpdateRequest
+): Promise<AdminReport> {
+    return authFetch<AdminReport>(`/api/v1/reports/admin/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function removeReportedContent(reportId: number): Promise<{
+    ok: boolean;
+    removed: boolean;
+    report: AdminReport;
+}> {
+    return authFetch<{ ok: boolean; removed: boolean; report: AdminReport }>(
+        `/api/v1/reports/admin/${reportId}/remove-content`,
+        {
+            method: "POST",
+        }
+    );
 }
 
 

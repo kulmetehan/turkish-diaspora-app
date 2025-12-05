@@ -72,7 +72,7 @@ export default function AdminAIPolicyPage() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold mb-2">AI Policy Configuration</h2>
+        <h1 className="text-2xl font-semibold mb-2">AI Policy Configuration</h1>
         <p className="text-sm text-muted-foreground">
           Manage confidence thresholds and freshness policies for AI workers. Changes take effect on the next worker run.
         </p>

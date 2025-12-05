@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 from typing import Any, Dict, List, Optional
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, validator
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from pydantic import BaseModel, Field, validator, ValidationError
 
 from app.deps.admin_auth import AdminUser, verify_admin_user
 from app.models.admin_locations import (
@@ -17,6 +18,8 @@ from app.models.admin_locations import (
     AdminLocationsBulkUpdateRequest,
     AdminLocationsBulkUpdateResponse,
     AdminLocationsBulkUpdateError,
+    AdminLocationBulkImportError,
+    AdminLocationBulkImportResult,
 )
 from app.core.logging import get_logger
 from app.models.categories import get_all_categories
@@ -238,17 +241,24 @@ def _normalize_evidence_urls(urls: Optional[List[Optional[str]]]) -> Optional[Li
     return cleaned or None
 
 
-@router.post("", response_model=AdminLocationDetail, status_code=201)
-async def create_admin_location(
+async def _create_location_internal(
     body: AdminLocationCreateRequest,
-    admin: AdminUser = Depends(verify_admin_user),
+    admin: AdminUser,
+    conn: Optional[asyncpg.Connection] = None,
 ) -> AdminLocationDetail:
+    """
+    Internal helper function to create a location from a request.
+    Can be called with or without an existing transaction connection.
+    """
     category = _validate_category_key(body.category)
     evidence_urls = _normalize_evidence_urls(body.evidence_urls)
     place_id = f"admin_manual/{uuid4()}"
 
     after: Optional[Dict[str, Any]] = None
-    async with run_in_transaction() as conn:
+    use_existing_conn = conn is not None
+
+    if use_existing_conn:
+        # Use provided connection (assumes transaction already started)
         insert_sql = """
             INSERT INTO locations (
                 place_id,
@@ -331,10 +341,104 @@ async def create_admin_location(
             after,
             conn=conn,
         )
+    else:
+        # Create new transaction
+        async with run_in_transaction() as new_conn:
+            insert_sql = """
+                INSERT INTO locations (
+                    place_id,
+                    source,
+                    name,
+                    address,
+                    lat,
+                    lng,
+                    category,
+                    notes,
+                    evidence_urls,
+                    state,
+                    confidence_score,
+                    first_seen_at,
+                    last_seen_at,
+                    is_retired
+                ) VALUES (
+                    $1,
+                    'ADMIN_MANUAL',
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    'CANDIDATE',
+                    NULL,
+                    NOW(),
+                    NOW(),
+                    FALSE
+                )
+                RETURNING id
+            """
+            inserted = await fetchrow_with_conn(
+                new_conn,
+                insert_sql,
+                place_id,
+                body.name.strip(),
+                body.address.strip(),
+                float(body.lat),
+                float(body.lng),
+                category,
+                body.notes.strip() if body.notes else None,
+                evidence_urls,
+            )
+            if inserted is None:
+                raise HTTPException(status_code=500, detail="failed to insert location")
+            location_id = int(inserted["id"])
+
+            reason = f"[manual add by {admin.email}]"
+            await update_location_classification(
+                id=location_id,
+                action="keep",
+                category=category,
+                confidence_score=0.9,
+                reason=reason,
+                conn=new_conn,
+            )
+
+            detail_row = await fetchrow_with_conn(
+                new_conn,
+                """
+                SELECT
+                    id, name, category, state, confidence_score, last_verified_at,
+                    address, notes, business_status, rating, user_ratings_total,
+                    is_probable_not_open_yet, is_retired
+                FROM locations
+                WHERE id = $1
+                """,
+                location_id,
+                timeout=DEFAULT_TIMEOUT_S,
+            )
+            after = dict(detail_row) if detail_row else None
+            await audit_admin_action(
+                admin.email,
+                location_id,
+                "admin_location_create",
+                None,
+                after,
+                conn=new_conn,
+            )
 
     if after is None:
         raise HTTPException(status_code=500, detail="failed to load created location")
     return AdminLocationDetail(**after)
+
+
+@router.post("", response_model=AdminLocationDetail, status_code=201)
+async def create_admin_location(
+    body: AdminLocationCreateRequest,
+    admin: AdminUser = Depends(verify_admin_user),
+) -> AdminLocationDetail:
+    """Create a single location manually via admin."""
+    return await _create_location_internal(body, admin, conn=None)
 
 
 @router.get("/{location_id}", response_model=AdminLocationDetail)
@@ -751,3 +855,176 @@ async def retire_admin_location(
         raise HTTPException(status_code=504, detail="retire operation timed out")
 
     return {"ok": True}
+
+
+MAX_BULK_IMPORT_ROWS = 5000
+REQUIRED_COLUMNS = ["name", "address", "lat", "lng", "category"]
+OPTIONAL_COLUMNS = ["notes", "evidence_urls"]
+
+
+@router.post("/bulk_import", response_model=AdminLocationBulkImportResult)
+async def bulk_import_locations(
+    file: UploadFile = File(...),
+    admin: AdminUser = Depends(verify_admin_user),
+) -> AdminLocationBulkImportResult:
+    """
+    Bulk import locations from a CSV file.
+    
+    Required columns: name, address, lat, lng, category
+    Optional columns: notes, evidence_urls (comma-separated URLs in a single cell)
+    
+    Each row is processed independently. Failed rows are collected and returned
+    without aborting the entire batch.
+    """
+    rows_total = 0
+    rows_processed = 0
+    rows_created = 0
+    rows_failed = 0
+    errors: List[AdminLocationBulkImportError] = []
+
+    try:
+        # Read file content as UTF-8
+        content = await file.read()
+        text_content = content.decode("utf-8")
+        
+        # Parse CSV
+        csv_reader = csv.DictReader(text_content.splitlines())
+        
+        # Normalize header keys (lowercase, strip whitespace)
+        if not csv_reader.fieldnames:
+            raise HTTPException(status_code=400, detail="CSV file is empty or invalid")
+        
+        normalized_headers = {h.lower().strip(): h for h in csv_reader.fieldnames}
+        normalized_fieldnames = list(normalized_headers.keys())
+        
+        # Validate required columns exist
+        missing_columns = [col for col in REQUIRED_COLUMNS if col not in normalized_fieldnames]
+        if missing_columns:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required columns: {', '.join(missing_columns)}",
+            )
+        
+        # Process rows
+        rows = list(csv_reader)
+        rows_total = len(rows)
+        
+        # Check max rows limit
+        if rows_total > MAX_BULK_IMPORT_ROWS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"CSV file exceeds maximum allowed rows ({MAX_BULK_IMPORT_ROWS}). Found {rows_total} rows.",
+            )
+        
+        # Process each row
+        for row_index, row in enumerate(rows, start=1):  # 1-based index for data rows
+            rows_processed += 1
+            try:
+                # Extract and normalize values
+                row_data: Dict[str, Any] = {}
+                
+                # Required fields
+                for col in REQUIRED_COLUMNS:
+                    original_key = normalized_headers.get(col)
+                    value = row.get(original_key, "").strip() if original_key else ""
+                    if not value:
+                        raise ValueError(f"Missing required field: {col}")
+                    row_data[col] = value
+                
+                # Optional fields
+                for col in OPTIONAL_COLUMNS:
+                    original_key = normalized_headers.get(col)
+                    if original_key and original_key in row:
+                        value = row[original_key].strip()
+                        if value:
+                            row_data[col] = value
+                
+                # Parse lat/lng as float
+                try:
+                    row_data["lat"] = float(row_data["lat"])
+                except (ValueError, TypeError):
+                    raise ValueError("lat must be numeric")
+                
+                try:
+                    row_data["lng"] = float(row_data["lng"])
+                except (ValueError, TypeError):
+                    raise ValueError("lng must be numeric")
+                
+                # Validate lat/lng ranges
+                if not (-90 <= row_data["lat"] <= 90):
+                    raise ValueError("lat must be between -90 and 90 degrees")
+                if not (-180 <= row_data["lng"] <= 180):
+                    raise ValueError("lng must be between -180 and 180 degrees")
+                
+                # Handle evidence_urls (split comma-separated string)
+                if "evidence_urls" in row_data:
+                    urls_str = row_data["evidence_urls"]
+                    if urls_str:
+                        urls_list = [url.strip() for url in urls_str.split(",") if url.strip()]
+                        row_data["evidence_urls"] = urls_list if urls_list else None
+                    else:
+                        row_data["evidence_urls"] = None
+                
+                # Create AdminLocationCreateRequest
+                try:
+                    create_request = AdminLocationCreateRequest(**row_data)
+                except ValidationError as e:
+                    # Extract first error message
+                    error_msg = str(e.errors()[0].get("msg", "Validation error"))
+                    raise ValueError(error_msg)
+                
+                # Create location using internal helper (each row in its own transaction)
+                try:
+                    await _create_location_internal(create_request, admin, conn=None)
+                    rows_created += 1
+                except HTTPException as e:
+                    # Category validation or other HTTP errors
+                    raise ValueError(e.detail)
+                except Exception as e:
+                    # DB errors or other unexpected errors
+                    error_msg = str(e)
+                    if len(error_msg) > 200:
+                        error_msg = error_msg[:200] + "..."
+                    raise ValueError(f"Database error: {error_msg}")
+                    
+            except ValueError as e:
+                rows_failed += 1
+                errors.append(
+                    AdminLocationBulkImportError(
+                        row_number=row_index,
+                        message=str(e),
+                    )
+                )
+            except Exception as e:
+                rows_failed += 1
+                error_msg = str(e)
+                if len(error_msg) > 200:
+                    error_msg = error_msg[:200] + "..."
+                errors.append(
+                    AdminLocationBulkImportError(
+                        row_number=row_index,
+                        message=f"Unexpected error: {error_msg}",
+                    )
+                )
+        
+        return AdminLocationBulkImportResult(
+            rows_total=rows_total,
+            rows_processed=rows_processed,
+            rows_created=rows_created,
+            rows_failed=rows_failed,
+            errors=errors,
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (missing columns, max rows, etc.)
+        raise
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="CSV file must be UTF-8 encoded")
+    except csv.Error as e:
+        raise HTTPException(status_code=400, detail=f"Invalid CSV file: {str(e)}")
+    except Exception as e:
+        logger.error("bulk_import_error", extra={"error": str(e), "error_type": type(e).__name__})
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process CSV file: {str(e)[:200]}",
+        )

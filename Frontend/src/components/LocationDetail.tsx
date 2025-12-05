@@ -2,6 +2,9 @@ import type { LocationMarker } from "@/api/fetchLocations";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ShareButton } from "@/components/share/ShareButton";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { ReportButton } from "@/components/report/ReportButton";
 
 type Props = {
     location: LocationMarker;
@@ -28,6 +31,22 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                     Back to List
                 </Button>
                 <div className="flex-1" />
+                <div className="flex items-center gap-2">
+                    <ReportButton
+                        reportType="location"
+                        targetId={parseInt(location.id)}
+                        targetName={location.name}
+                        size="sm"
+                    />
+                    <ShareButton
+                        location={{
+                            id: location.id,
+                            name: location.name,
+                            category: location.category_label || location.category || null,
+                        }}
+                        size="sm"
+                    />
+                </div>
             </div>
 
             {/* Location content */}
@@ -36,7 +55,10 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                     <div className="space-y-3">
                         {/* Name */}
                         <div className="flex items-start justify-between">
-                            <h2 className="text-xl font-semibold">{location.name}</h2>
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <h2 className="text-xl font-semibold">{location.name}</h2>
+                                {location.has_verified_badge && <VerifiedBadge size="md" />}
+                            </div>
                             {/* rating removed */}
                         </div>
 

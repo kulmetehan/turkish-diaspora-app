@@ -12,14 +12,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-collapsible": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-switch": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.13",
     "@supabase/supabase-js": "^2.76.1",
     "@tanstack/react-virtual": "^3.11.0",
     "axios": "^1.12.2",
     "clsx": "^2.1.1",
+    "cmdk": "^1.0.4",
+    "date-fns": "^3.0.0",
     "framer-motion": "^12.23.24",
     "leaflet": "^1.9.4",
     "lucide": "^0.546.0",

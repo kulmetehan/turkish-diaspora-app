@@ -127,3 +127,20 @@ class AdminLocationsBulkUpdateResponse(BaseModel):
     errors: List[AdminLocationsBulkUpdateError]
 
 
+class AdminLocationBulkImportError(BaseModel):
+    """Per-row error details returned for bulk import processing."""
+
+    row_number: int  # 1-based data row index (excluding header)
+    message: str
+
+
+class AdminLocationBulkImportResult(BaseModel):
+    """Response shape for bulk import operations."""
+
+    rows_total: int
+    rows_processed: int
+    rows_created: int
+    rows_failed: int
+    errors: List[AdminLocationBulkImportError]
+
+

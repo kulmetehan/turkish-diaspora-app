@@ -1,0 +1,54 @@
+🏛️ Turkspot Weekoverzicht
+Je wekelijkse update van de Turkish diaspora community
+
+{% if user.display_name %}
+Hoi {{ user.display_name }},
+{% endif %}
+
+Hier is je wekelijkse overzicht van wat er gebeurt op Turkspot!
+
+{% if trending_locations %}
+🔥 TRENDING LOCATIES
+{% for location in trending_locations[:5] %}
+- {{ location.name }} ({{ location.category }})
+  Score: {{ "%.1f"|format(location.score) }}
+  {{ location.check_ins_count }} check-ins • {{ location.reactions_count }} reacties • {{ location.notes_count }} notities
+{% endfor %}
+
+Bekijk alle trending locaties: {{ base_url }}/#/feed
+{% endif %}
+
+{% if new_polls %}
+📊 NIEUWE POLLS
+{% for poll in new_polls[:3] %}
+- {{ poll.title }}
+  {{ poll.question }}
+{% if poll.is_sponsored %}  🌟 Gesponsord{% endif %}
+{% endfor %}
+
+Bekijk alle polls: {{ base_url }}/#/feed
+{% endif %}
+
+{% if activity %}
+📈 JOUW ACTIVITEIT DEZE WEEK
+{% if activity.check_ins %}Check-ins: {{ activity.check_ins }}{% endif %}
+{% if activity.reactions %}Reacties: {{ activity.reactions }}{% endif %}
+{% if activity.notes %}Notities: {{ activity.notes }}{% endif %}
+{% if activity.unique_locations %}Unieke locaties: {{ activity.unique_locations }}{% endif %}
+{% endif %}
+
+{% if gamification and gamification.total_xp %}
+🏆 JOUW PRESTATIES
+Totaal XP: {{ gamification.total_xp }}
+{% if gamification.current_streak_days %}Huidige streak: {{ gamification.current_streak_days }} dagen{% endif %}
+{% endif %}
+
+Bekijk de kaart: {{ base_url }}/#/map
+
+---
+Je ontvangt deze email omdat je hebt gekozen voor wekelijkse updates.
+Wijzig je email voorkeuren: {{ unsubscribe_url }}
+
+© {{ "now"|date("%Y") }} Turkspot. Alle rechten voorbehouden.
+
+
