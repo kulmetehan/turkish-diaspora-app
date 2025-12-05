@@ -114,9 +114,16 @@ export function NewsCard({
 
         <div className="flex flex-1 flex-col gap-2">
           <div>
-            <h3 className="text-base font-semibold leading-tight text-foreground">
-              {item.title}
-            </h3>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="text-base font-semibold leading-tight text-foreground">
+                {item.title}
+              </h3>
+              {item.tags?.includes("promoted") && (
+                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                  Promoted
+                </span>
+              )}
+            </div>
             {item.snippet ? (
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                 {item.snippet}

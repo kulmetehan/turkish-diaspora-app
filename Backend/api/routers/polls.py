@@ -1,0 +1,295 @@
+# Backend/api/routers/polls.py
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Path
+from starlette.requests import Request
+from typing import List, Optional, Dict
+from pydantic import BaseModel
+from datetime import datetime
+
+from app.core.client_id import require_client_id, get_client_id
+from app.core.feature_flags import require_feature
+from app.deps.rate_limiting import require_rate_limit_factory
+from services.db_service import fetch, execute
+from services.xp_service import award_xp
+
+router = APIRouter(prefix="/polls", tags=["polls"])
+
+
+class PollOption(BaseModel):
+    id: int
+    option_text: str
+    display_order: int
+
+
+class PollResponse(BaseModel):
+    id: int
+    title: str
+    question: str
+    poll_type: str  # 'single_choice', 'multi_choice'
+    options: List[PollOption]
+    is_sponsored: bool
+    starts_at: datetime
+    ends_at: Optional[datetime]
+    user_has_responded: bool = False
+
+
+class PollStats(BaseModel):
+    poll_id: int
+    total_responses: int
+    option_counts: Dict[int, int]  # {option_id: count}
+    privacy_threshold_met: bool  # True if >= 10 responses
+
+
+class PollResponseCreate(BaseModel):
+    option_id: int  # For single_choice
+    # option_ids: List[int]  # For multi_choice (future)
+
+
+@router.get("", response_model=List[PollResponse])
+async def list_polls(
+    city_key: Optional[str] = Query(None, description="Filter by city"),
+    limit: int = Query(10, le=50),
+    client_id: Optional[str] = Depends(get_client_id),
+):
+    """List active polls for user/city."""
+    require_feature("polls_enabled")
+    
+    sql = """
+        SELECT p.id, p.title, p.question, p.poll_type, p.is_sponsored, 
+               p.starts_at, p.ends_at
+        FROM polls p
+        WHERE p.status = 'active'
+          AND (p.targeting_city_key IS NULL OR p.targeting_city_key = $1)
+          AND (p.starts_at <= now())
+          AND (p.ends_at IS NULL OR p.ends_at > now())
+        ORDER BY p.starts_at DESC
+        LIMIT $2
+    """
+    
+    rows = await fetch(sql, city_key, limit)
+    
+    polls = []
+    for row in rows:
+        # Get options
+        options_sql = """
+            SELECT id, option_text, display_order
+            FROM poll_options
+            WHERE poll_id = $1
+            ORDER BY display_order
+        """
+        options_rows = await fetch(options_sql, row["id"])
+        options = [
+            PollOption(
+                id=opt["id"],
+                option_text=opt["option_text"],
+                display_order=opt["display_order"],
+            )
+            for opt in options_rows
+        ]
+        
+        # Check if user has responded (using identity_key)
+        has_responded = False
+        if client_id:
+            response_check = """
+                SELECT 1 FROM poll_responses
+                WHERE poll_id = $1 AND identity_key = $2
+                LIMIT 1
+            """
+            # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
+            # Since we only have client_id here, identity_key = client_id::text
+            response_rows = await fetch(response_check, row["id"], client_id)
+            has_responded = len(response_rows) > 0
+        
+        polls.append(PollResponse(
+            id=row["id"],
+            title=row["title"],
+            question=row["question"],
+            poll_type=row["poll_type"],
+            options=options,
+            is_sponsored=row.get("is_sponsored", False),
+            starts_at=row["starts_at"],
+            ends_at=row.get("ends_at"),
+            user_has_responded=has_responded,
+        ))
+    
+    return polls
+
+
+@router.get("/{poll_id}", response_model=PollResponse)
+async def get_poll(
+    poll_id: int = Path(..., description="Poll ID"),
+    client_id: Optional[str] = Depends(get_client_id),
+):
+    """Get poll details."""
+    require_feature("polls_enabled")
+    
+    sql = """
+        SELECT id, title, question, poll_type, is_sponsored, starts_at, ends_at
+        FROM polls
+        WHERE id = $1 AND status = 'active'
+    """
+    
+    rows = await fetch(sql, poll_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Poll not found")
+    
+    row = rows[0]
+    
+    # Get options
+    options_sql = """
+        SELECT id, option_text, display_order
+        FROM poll_options
+        WHERE poll_id = $1
+        ORDER BY display_order
+    """
+    options_rows = await fetch(options_sql, poll_id)
+    options = [
+        PollOption(
+            id=opt["id"],
+            option_text=opt["option_text"],
+            display_order=opt["display_order"],
+        )
+        for opt in options_rows
+    ]
+    
+    # Check if user has responded (using identity_key)
+    has_responded = False
+    if client_id:
+        response_check = """
+            SELECT 1 FROM poll_responses
+            WHERE poll_id = $1 AND identity_key = $2
+            LIMIT 1
+        """
+        # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
+        # Since we only have client_id here, identity_key = client_id::text
+        response_rows = await fetch(response_check, poll_id, client_id)
+        has_responded = len(response_rows) > 0
+    
+    return PollResponse(
+        id=row["id"],
+        title=row["title"],
+        question=row["question"],
+        poll_type=row["poll_type"],
+        options=options,
+        is_sponsored=row.get("is_sponsored", False),
+        starts_at=row["starts_at"],
+        ends_at=row.get("ends_at"),
+        user_has_responded=has_responded,
+    )
+
+
+@router.post("/{poll_id}/responses")
+async def create_poll_response(
+    request: Request,
+    poll_id: int = Path(..., description="Poll ID"),
+    response: PollResponseCreate = ...,
+    client_id: str = Depends(require_client_id),
+    _rate_limit: None = Depends(require_rate_limit_factory("poll_response")),
+):
+    """Submit poll response."""
+    require_feature("polls_enabled")
+    
+    # Validate poll is active
+    poll_check = """
+        SELECT id, poll_type FROM polls
+        WHERE id = $1 AND status = 'active'
+          AND (starts_at <= now())
+          AND (ends_at IS NULL OR ends_at > now())
+    """
+    poll_rows = await fetch(poll_check, poll_id)
+    if not poll_rows:
+        raise HTTPException(status_code=404, detail="Poll not found or not active")
+    
+    poll_type = poll_rows[0].get("poll_type")
+    
+    # For single_choice polls, check for duplicate response using identity_key
+    if poll_type == "single_choice":
+        duplicate_check = """
+            SELECT 1 FROM poll_responses
+            WHERE poll_id = $1 AND identity_key = $2
+            LIMIT 1
+        """
+        # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
+        # Since we only have client_id here, identity_key = client_id::text
+        duplicate_rows = await fetch(duplicate_check, poll_id, client_id)
+        if duplicate_rows:
+            raise HTTPException(status_code=409, detail="Already responded to this poll")
+    
+    # Verify option belongs to poll
+    option_check = """
+        SELECT 1 FROM poll_options
+        WHERE id = $1 AND poll_id = $2
+    """
+    option_rows = await fetch(option_check, response.option_id, poll_id)
+    if not option_rows:
+        raise HTTPException(status_code=400, detail="Invalid option for this poll")
+    
+    # Insert response
+    try:
+        sql = """
+            INSERT INTO poll_responses (poll_id, option_id, client_id, created_at)
+            VALUES ($1, $2, $3, now())
+            RETURNING id
+        """
+        row = await fetch(sql, poll_id, response.option_id, client_id)
+        
+        if not row:
+            raise HTTPException(status_code=500, detail="Failed to create poll response")
+        
+        response_id = row[0]["id"]
+        
+        # Award XP (only works for authenticated users after Story 9)
+        user_id = None  # TODO: Extract from auth session when available
+        if user_id:
+            await award_xp(user_id=user_id, client_id=client_id, source="poll_response", source_id=response_id)
+        
+        return {"ok": True, "response_id": response_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create poll response: {str(e)}")
+
+
+@router.get("/{poll_id}/stats", response_model=PollStats)
+async def get_poll_stats(
+    poll_id: int = Path(..., description="Poll ID"),
+):
+    """Get aggregated poll statistics."""
+    require_feature("polls_enabled")
+    
+    # Get stats from poll_stats table (updated by worker)
+    sql = """
+        SELECT total_responses, option_counts
+        FROM poll_stats
+        WHERE poll_id = $1
+    """
+    
+    rows = await fetch(sql, poll_id)
+    
+    if not rows:
+        # Return empty stats if not yet calculated
+        return PollStats(
+            poll_id=poll_id,
+            total_responses=0,
+            option_counts={},
+            privacy_threshold_met=False,
+        )
+    
+    row = rows[0]
+    option_counts = row.get("option_counts", {}) or {}
+    
+    # Convert JSONB keys to int
+    option_counts_int = {
+        int(k): int(v) for k, v in option_counts.items()
+    }
+    
+    total = row.get("total_responses", 0) or 0
+    
+    return PollStats(
+        poll_id=poll_id,
+        total_responses=total,
+        option_counts=option_counts_int,
+        privacy_threshold_met=total >= 10,
+    )
+

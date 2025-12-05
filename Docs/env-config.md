@@ -86,6 +86,45 @@ These values control `OsmPlacesService` and `discovery_bot`. Adjust only if you 
 | `NEWS_INGEST_TIMEOUT_S` | `15` | HTTP timeout for RSS downloads. Raise cautiously if large feeds frequently time out. |
 | `NEWS_INGEST_MAX_CONCURRENCY` | `5` | Max concurrent RSS requests. Keep low to avoid hammering publishers; Render cron and GitHub Actions share the same limit. |
 
+### Push Notifications (EPIC-1.5)
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `VAPID_PRIVATE_KEY` | ✅ for push | Private key for Web Push API (generate with `pywebpush` or `web-push` CLI). |
+| `VAPID_PUBLIC_KEY` | ✅ for push | Public key for Web Push API (must match private key). |
+| `VAPID_EMAIL` | optional | Email for VAPID claims (defaults to `noreply@turkishdiaspora.app`). |
+
+### Premium Features & Stripe (EPIC-3)
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `STRIPE_SECRET_KEY` | ✅ for premium | Stripe secret key for payment processing. |
+| `STRIPE_WEBHOOK_SECRET` | ✅ for premium | Stripe webhook signing secret for verifying webhook events. |
+| `STRIPE_PRICE_ID_PREMIUM` | ✅ for premium | Stripe Price ID for Premium subscription tier. |
+| `STRIPE_PRICE_ID_PRO` | ✅ for premium | Stripe Price ID for Pro subscription tier. |
+
+### Promotion Pricing (EPIC-3)
+
+| Key | Default | Description |
+| --- | --- | --- |
+| `PROMOTION_LOCATION_TRENDING_PRICE_7D` | `5000` | Price in cents for 7-day trending promotion (€50). |
+| `PROMOTION_LOCATION_TRENDING_PRICE_14D` | `9000` | Price in cents for 14-day trending promotion (€90). |
+| `PROMOTION_LOCATION_TRENDING_PRICE_30D` | `15000` | Price in cents for 30-day trending promotion (€150). |
+| `PROMOTION_LOCATION_FEED_PRICE_7D` | `3000` | Price in cents for 7-day feed promotion (€30). |
+| `PROMOTION_LOCATION_FEED_PRICE_14D` | `5500` | Price in cents for 14-day feed promotion (€55). |
+| `PROMOTION_LOCATION_FEED_PRICE_30D` | `9000` | Price in cents for 30-day feed promotion (€90). |
+| `PROMOTION_NEWS_PRICE_7D` | `2000` | Price in cents for 7-day news promotion (€20). |
+| `PROMOTION_NEWS_PRICE_14D` | `3500` | Price in cents for 14-day news promotion (€35). |
+| `PROMOTION_NEWS_PRICE_30D` | `5500` | Price in cents for 30-day news promotion (€55). |
+
+### Google Business Sync (EPIC-3)
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `GOOGLE_CLIENT_ID` | ✅ for sync | Google OAuth 2.0 client ID for Business Profile API. |
+| `GOOGLE_CLIENT_SECRET` | ✅ for sync | Google OAuth 2.0 client secret. |
+| `GOOGLE_REDIRECT_URI` | optional | OAuth redirect URI (defaults to `http://localhost:8000/api/v1/google-business/callback`). |
+
 ## Frontend (Vite) Variables
 
 Create `Frontend/.env.development` (or `.env.production`) when you need to override defaults:

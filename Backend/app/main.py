@@ -49,8 +49,33 @@ from api.routers.admin_ai_logs import router as admin_ai_logs_router
 from api.routers.admin_events import router as admin_events_router
 from api.routers.admin_ai_config import router as admin_ai_config_router
 from api.routers.admin_tasks import router as admin_tasks_router
+from api.routers.admin_polls import router as admin_polls_router
 from api.routers.news import router as news_router
 from api.routers.events import router as events_router
+from api.routers.identity import router as identity_router
+from api.routers.check_ins import router as check_ins_router
+from api.routers.reactions import router as reactions_router
+from api.routers.notes import router as notes_router
+from api.routers.polls import router as polls_router
+from api.routers.trending import router as trending_router, trending_alt_router
+from api.routers.activity import router as activity_router
+from api.routers.gamification import router as gamification_router
+from api.routers.privacy import router as privacy_router
+from api.routers.favorites import location_favorites_router, favorites_router
+from api.routers.profiles import router as profiles_router
+from api.routers.auth import router as auth_router
+from api.routers.stats import router as stats_router
+from api.routers.referrals import router as referrals_router
+from api.routers.push import router as push_router
+from api.routers.community import router as community_router
+from api.routers.reports import router as reports_router
+from api.routers.business_accounts import router as business_accounts_router
+from api.routers.claims import router as claims_router, claims_admin_router
+from api.routers.business_analytics import router as business_analytics_router
+from api.routers.premium import router as premium_router
+from api.routers.google_business import router as google_business_router
+from api.routers.user_groups import router as user_groups_router
+from api.routers.promotions import router as promotions_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -217,8 +242,36 @@ api_v1_router.include_router(admin_ai_logs_router)
 api_v1_router.include_router(admin_events_router)
 api_v1_router.include_router(admin_ai_config_router)
 api_v1_router.include_router(admin_tasks_router)
+api_v1_router.include_router(admin_polls_router)
 api_v1_router.include_router(news_router)
 api_v1_router.include_router(events_router)
+api_v1_router.include_router(identity_router)
+api_v1_router.include_router(check_ins_router)
+api_v1_router.include_router(reactions_router)
+api_v1_router.include_router(notes_router)
+api_v1_router.include_router(polls_router)
+api_v1_router.include_router(trending_router)
+api_v1_router.include_router(trending_alt_router)  # For /trending/locations endpoint
+api_v1_router.include_router(activity_router)
+api_v1_router.include_router(gamification_router)
+api_v1_router.include_router(privacy_router)
+api_v1_router.include_router(location_favorites_router)
+api_v1_router.include_router(favorites_router)
+api_v1_router.include_router(profiles_router)
+api_v1_router.include_router(auth_router)
+api_v1_router.include_router(stats_router)
+api_v1_router.include_router(referrals_router)
+api_v1_router.include_router(push_router)
+api_v1_router.include_router(community_router)
+api_v1_router.include_router(reports_router)
+api_v1_router.include_router(business_accounts_router)
+api_v1_router.include_router(claims_router)
+api_v1_router.include_router(claims_admin_router)
+api_v1_router.include_router(business_analytics_router)
+api_v1_router.include_router(premium_router)
+api_v1_router.include_router(promotions_router)
+api_v1_router.include_router(google_business_router)
+api_v1_router.include_router(user_groups_router)
 
 # Mount the versioned API once on the app
 app.include_router(api_v1_router)
@@ -229,4 +282,4 @@ if dev_ai_router is not None:
     app.include_router(dev_ai_router)
 app.include_router(admin_router)
 
-logger.info("routers_registered", routers=["api_v1(locations,admin_auth,admin_locations,admin_misc,admin_metrics)", "dev_classify", "dev_ai", "admin"])
+logger.info("routers_registered", routers=["api_v1(locations,admin_auth,admin_locations,admin_misc,admin_metrics,identity,check_ins,reactions,notes,polls,trending,activity,gamification)", "dev_classify", "dev_ai", "admin"])

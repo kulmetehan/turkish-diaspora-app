@@ -68,6 +68,9 @@ See [`Docs/env-config.md`](./env-config.md) for the authoritative variable list 
 | Verify & surface | `app.workers.verify_locations` | Promote high-confidence records to `VERIFIED`. | `--city`/`--source` flags exist but currently informational (filters handled in SQL). |
 | Monitor | `app.workers.monitor_bot` | Refresh `next_check_at` for stale records. | Uses env-based caps (`MONITOR_MAX_PER_RUN`). |
 | Alert | `app.workers.alert_bot` | Emit alerts for error spikes, 429 bursts. | Configure webhook/channel via env vars. |
+| Push Notifications | `app.workers.push_notifications` | Send push notifications for polls, trending, activity. | Requires VAPID keys. Use `--type` to filter notification types. |
+| Google Business Sync | `app.workers.google_business_sync` | Sync location data from Google Business Profiles. | Requires Google OAuth credentials. Runs periodically for opted-in businesses. |
+| Promotion Expiry | `app.workers.promotion_expiry_worker` | Mark expired promotions as 'expired' status. | Runs daily to update promotion status. |
 
 ### CLI examples
 
@@ -98,6 +101,18 @@ python -m app.workers.monitor_bot --limit 200 --dry-run
 
 # Alert bot once-off (no webhook configured)
 python -m app.workers.alert_bot --once 1
+
+# Push notifications (all types)
+python -m app.workers.push_notifications --type all --dry-run 0
+
+# Push notifications (poll only)
+python -m app.workers.push_notifications --type poll --dry-run 0
+
+# Google Business sync
+python -m app.workers.google_business_sync --limit 50 --dry-run 0
+
+# Promotion expiry (marks expired promotions)
+python -m app.workers.promotion_expiry_worker
 ```
 
 ### Worker output cheat sheet
@@ -107,6 +122,8 @@ python -m app.workers.alert_bot --once 1
 - **Verify**: `[PROMOTE]`, `[SKIP]`, `[ERROR]` lines summarise action; audit logs persisted.
 - **Monitor**: Reports updated `next_check_at` count and skipped terminal states.
 - **Alert**: Summaries of error rate, 429 bursts, optional webhook POST status.
+- **Push Notifications**: Logs sent/failed counts per notification type, writes to `push_notification_log`.
+- **Google Business Sync**: Logs sync status per location, updates `google_business_sync` table.
 
 Refer to [`Docs/worker-runs.md`](./worker-runs.md) for run-tracking conventions and guidance on generating `worker_runs` IDs for CLI usage.
 
@@ -122,6 +139,10 @@ Refer to [`Docs/worker-runs.md`](./worker-runs.md) for run-tracking conventions 
 | `tda_cleanup.yml` | `0 4 * * *` | Housekeeping / backlog cleanup. | `DATABASE_URL`. |
 | `frontend_deploy.yml` | On `main` push | Builds + deploys GitHub Pages site. | `VITE_*` secrets, `MAPBOX` token, GH Pages deploy key. |
 | `tda_news_ingest.yml` | `*/30 * * * *` | `python -m app.workers.news_ingest_bot` | `DATABASE_URL`. |
+| `tda_weekly_digest.yml` | `0 9 * * 1` (weekly Monday 09:00 UTC) | `python -m app.workers.digest_worker --once` | `DATABASE_URL`, `SMTP_*`, `FRONTEND_URL`. |
+| `tda_push_notifications.yml` | `*/15 * * * *` (every 15 min) | `python -m app.workers.push_notifications --type all` | `DATABASE_URL`, `VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`. |
+| `tda_google_business_sync.yml` | `0 2 * * *` (daily 02:00 UTC) | `python -m app.workers.google_business_sync --limit 100` | `DATABASE_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`. |
+| `tda_promotion_expiry.yml` | `0 0 * * *` (daily 00:00 UTC) | `python -m app.workers.promotion_expiry_worker` | `DATABASE_URL`. |
 
 Render cron jobs (if configured) should mirror the same commands/secrets as above. Keep `.env.template` synchronized so Service → Worker → GitHub Actions share names. For NewsIngestBot specifically, create a Render cron task (or background worker) that runs `python -m app.workers.news_ingest_bot` with `DATABASE_URL` (and optional `NEWS_INGEST_*` overrides) in the worker environment.
 
@@ -164,6 +185,9 @@ WHERE created_at >= NOW() - INTERVAL '60 minutes';
 | Empty map frontend | Verify backend reachable at `VITE_API_BASE_URL`, ensure verification promoted enough records (run workers). |
 | Admin login fails (401/403) | Check `SUPABASE_JWT_SECRET` matches Supabase project, ensure email is in `ALLOWED_ADMIN_EMAILS`, check Supabase auth logs. |
 | Metrics endpoint 503 | Database down or credentials invalid; run the DB sanity snippet and inspect Render logs. |
+| Push notifications not delivered | Verify VAPID keys configured, check `push_notification_log` for errors, ensure service worker registered. |
+| Stripe webhook failures | Verify `STRIPE_WEBHOOK_SECRET` matches Stripe dashboard, check webhook endpoint accessibility. |
+| Google Business sync errors | Check OAuth credentials, verify token refresh logic, inspect `google_business_sync` table for error messages. |
 
 ## 7. Incident response
 

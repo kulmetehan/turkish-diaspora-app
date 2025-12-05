@@ -75,10 +75,20 @@ export default {
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
         "scale-in": { from: { transform: "scale(.98)" }, to: { transform: "scale(1)" } },
+        "collapsible-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-collapsible-content-height)" },
+        },
+        "collapsible-up": {
+          from: { height: "var(--radix-collapsible-content-height)" },
+          to: { height: "0" },
+        },
       },
       animation: {
         "fade-in": "fade-in .15s ease-out",
         "scale-in": "scale-in .15s ease-out",
+        "collapsible-down": "collapsible-down 0.2s ease-out",
+        "collapsible-up": "collapsible-up 0.2s ease-out",
       },
     },
   },

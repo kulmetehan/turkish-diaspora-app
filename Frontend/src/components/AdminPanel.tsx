@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { API_BASE, apiFetch, getAdminKey } from "@/lib/api";
+import { bulkImportLocations, type AdminLocationBulkImportResult } from "@/lib/apiAdmin";
 import { useState } from "react";
 
 type CreatePayload = {
@@ -38,6 +39,12 @@ export default function AdminPanel() {
   const [updateForm, setUpdateForm] = useState<UpdatePayload>({});
   const [result, setResult] = useState<string>("");
 
+  // Bulk import state
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkIsLoading, setBulkIsLoading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<AdminLocationBulkImportResult | null>(null);
+  const [bulkError, setBulkError] = useState<string>("");
+
   async function doCreate() {
     setResult("");
     try {
@@ -68,6 +75,30 @@ export default function AdminPanel() {
     } catch (e: any) {
       setResult(e?.message ?? String(e));
     }
+  }
+
+  async function doBulkImport() {
+    if (!bulkFile) {
+      return;
+    }
+    setBulkIsLoading(true);
+    setBulkError("");
+    setBulkResult(null);
+    try {
+      const data = await bulkImportLocations(bulkFile);
+      setBulkResult(data);
+    } catch (e: any) {
+      setBulkError(e?.message ?? String(e));
+    } finally {
+      setBulkIsLoading(false);
+    }
+  }
+
+  function handleBulkFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null;
+    setBulkFile(file);
+    setBulkResult(null);
+    setBulkError("");
   }
 
   return (
@@ -156,6 +187,67 @@ export default function AdminPanel() {
           <div className="pt-2">
             <Button onClick={doCreate}>Aanmaken</Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* BULK IMPORT */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Bulk import locations (CSV)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Upload een CSV-bestand met kolommen: <strong>name</strong>, <strong>address</strong>, <strong>lat</strong>, <strong>lng</strong>, <strong>category</strong>, <strong>notes</strong> (optioneel), <strong>evidence_urls</strong> (optioneel, komma-gescheiden).
+          </p>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>CSV Bestand</Label>
+              <Input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleBulkFileChange}
+                disabled={bulkIsLoading}
+              />
+            </div>
+            <Button
+              onClick={doBulkImport}
+              disabled={!bulkFile || bulkIsLoading}
+            >
+              {bulkIsLoading ? "Uploading..." : "Upload"}
+            </Button>
+          </div>
+
+          {bulkError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-sm text-red-800">
+              <strong>Error:</strong> {bulkError}
+            </div>
+          )}
+
+          {bulkResult && (
+            <div className="space-y-2 p-3 bg-gray-50 border rounded">
+              <div className="text-sm font-semibold">Import Resultaten:</div>
+              <div className="text-sm space-y-1">
+                <div>Total rows: {bulkResult.rows_total}</div>
+                <div>Processed: {bulkResult.rows_processed}</div>
+                <div className="text-green-600">Created: {bulkResult.rows_created}</div>
+                {bulkResult.rows_failed > 0 && (
+                  <div className="text-red-600">Failed: {bulkResult.rows_failed}</div>
+                )}
+              </div>
+              {bulkResult.errors.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-sm font-semibold text-red-600">Errors:</div>
+                  <ul className="text-sm list-disc list-inside space-y-1 mt-1">
+                    {bulkResult.errors.map((err, idx) => (
+                      <li key={idx}>
+                        Row {err.row_number}: {err.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

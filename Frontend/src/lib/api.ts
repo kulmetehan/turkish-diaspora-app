@@ -117,7 +117,7 @@ export async function apiFetch<T>(
         }
         // Network/CORS/etc.
         lastError = err;
-        
+
         // Don't retry if aborted (timeout)
         if (controller.signal.aborted) {
           break;
@@ -145,6 +145,24 @@ export async function apiFetch<T>(
 /** Admin-key uit localStorage ophalen (niet bundelen) */
 export function getAdminKey(): string {
   return localStorage.getItem("ADMIN_API_KEY") || "";
+}
+
+/**
+ * Get or create a client ID (UUID) stored in localStorage.
+ * Used for anonymous user tracking.
+ */
+export function getOrCreateClientId(): string {
+  const STORAGE_KEY = "TDA_CLIENT_ID";
+  let clientId = localStorage.getItem(STORAGE_KEY);
+
+  if (!clientId) {
+    // Generate a UUID v4
+    clientId = crypto.randomUUID?.() ||
+      `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+    localStorage.setItem(STORAGE_KEY, clientId);
+  }
+
+  return clientId;
 }
 
 export async function authFetch<T>(
@@ -404,7 +422,7 @@ export async function getDiscoveryCoverage(
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   if (category) params.set("category", category);
-  
+
   const raw = await authFetch<
     Array<{
       lat_center: number;
@@ -419,7 +437,7 @@ export async function getDiscoveryCoverage(
       last_seen_at: string | null;
     }>
   >(`/api/v1/admin/discovery/coverage?${params.toString()}`, undefined, 60000);
-  
+
   return raw.map((cell) => ({
     latCenter: cell.lat_center,
     lngCenter: cell.lng_center,
@@ -593,7 +611,7 @@ function normalizeCityProgress(raw: {
   rotterdam?: RawCityProgressData;
 }): CityProgress {
   const cities: Record<string, CityProgressData> = {};
-  
+
   // Handle new multi-city structure
   if (raw.cities) {
     for (const [cityKey, cityData] of Object.entries(raw.cities)) {
@@ -605,7 +623,7 @@ function normalizeCityProgress(raw: {
       };
     }
   }
-  
+
   // Handle backward compatibility: rotterdam as direct field
   if (raw.rotterdam && !cities.rotterdam) {
     cities.rotterdam = {
@@ -615,7 +633,7 @@ function normalizeCityProgress(raw: {
       growthWeekly: raw.rotterdam.growth_weekly,
     };
   }
-  
+
   return {
     cities,
     rotterdam: cities.rotterdam, // Backward compatibility accessor
@@ -627,36 +645,36 @@ function normalizeMetricsSnapshot(raw: RawMetricsSnapshot): MetricsSnapshot {
     cityProgress: normalizeCityProgress(raw.city_progress),
     quality: raw.quality
       ? {
-          conversionRateVerified14d: raw.quality.conversion_rate_verified_14d,
-          taskErrorRate60m: raw.quality.task_error_rate_60m,
-          google429Last60m: raw.quality.google429_last60m,
-        }
+        conversionRateVerified14d: raw.quality.conversion_rate_verified_14d,
+        taskErrorRate60m: raw.quality.task_error_rate_60m,
+        google429Last60m: raw.quality.google429_last60m,
+      }
       : null,
     discovery: raw.discovery
       ? { newCandidatesPerWeek: raw.discovery.new_candidates_per_week }
       : null,
     latency: raw.latency
       ? {
-          p50Ms: raw.latency.p50_ms,
-          avgMs: raw.latency.avg_ms,
-          maxMs: raw.latency.max_ms,
-        }
+        p50Ms: raw.latency.p50_ms,
+        avgMs: raw.latency.avg_ms,
+        maxMs: raw.latency.max_ms,
+      }
       : null,
     weeklyCandidates: raw.weekly_candidates
       ? raw.weekly_candidates.map((item) => ({
-          weekStart: item.week_start,
-          count: item.count,
-        }))
+        weekStart: item.week_start,
+        count: item.count,
+      }))
       : [],
     workers: (raw.workers ?? []).map(normalizeWorkerStatus),
     currentRuns: (raw.current_runs ?? []).map(normalizeWorkerRun),
     staleCandidates: raw.stale_candidates
       ? {
-          totalStale: raw.stale_candidates.total_stale,
-          bySource: raw.stale_candidates.by_source ?? {},
-          byCity: raw.stale_candidates.by_city ?? {},
-          daysThreshold: raw.stale_candidates.days_threshold,
-        }
+        totalStale: raw.stale_candidates.total_stale,
+        bySource: raw.stale_candidates.by_source ?? {},
+        byCity: raw.stale_candidates.by_city ?? {},
+        daysThreshold: raw.stale_candidates.days_threshold,
+      }
       : null,
   };
 }
@@ -756,4 +774,630 @@ export interface DiscoveryKPIs {
 
 export async function getDiscoveryKPIs(days: number = 30): Promise<DiscoveryKPIs> {
   return authFetch<DiscoveryKPIs>(`/api/v1/admin/discovery/kpis?days=${days}`);
+}
+
+// ============================================================================
+// Polls API (User-facing)
+// ============================================================================
+
+export interface PollOption {
+  id: number;
+  option_text: string;
+  display_order: number;
+}
+
+export interface Poll {
+  id: number;
+  title: string;
+  question: string;
+  poll_type: "single_choice" | "multi_choice";
+  options: PollOption[];
+  is_sponsored: boolean;
+  starts_at: string;
+  ends_at: string | null;
+  user_has_responded: boolean;
+}
+
+export interface PollStats {
+  poll_id: number;
+  total_responses: number;
+  option_counts: Record<number, number>;
+  privacy_threshold_met: boolean;
+}
+
+/**
+ * List active polls (optionally filtered by city).
+ */
+export async function listPolls(cityKey?: string, limit: number = 10): Promise<Poll[]> {
+  const params = new URLSearchParams();
+  if (cityKey) params.set("city_key", cityKey);
+  params.set("limit", limit.toString());
+
+  return apiFetch<Poll[]>(`/api/v1/polls?${params.toString()}`);
+}
+
+/**
+ * Get a single poll by ID.
+ */
+export async function getPoll(pollId: number): Promise<Poll> {
+  return apiFetch<Poll>(`/api/v1/polls/${pollId}`);
+}
+
+/**
+ * Submit a poll response.
+ */
+export async function submitPollResponse(pollId: number, optionId: number): Promise<{ ok: boolean; response_id: number }> {
+  const clientId = getOrCreateClientId();
+
+  return apiFetch<{ ok: boolean; response_id: number }>(
+    `/api/v1/polls/${pollId}/responses`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Client-Id": clientId,
+      },
+      body: JSON.stringify({ option_id: optionId }),
+    }
+  );
+}
+
+/**
+ * Get poll statistics (only shown if privacy threshold is met).
+ */
+export async function getPollStats(pollId: number): Promise<PollStats> {
+  return apiFetch<PollStats>(`/api/v1/polls/${pollId}/stats`);
+}
+
+// ============================================================================
+// Activity Feed API
+// ============================================================================
+
+export interface ActivityItem {
+  is_promoted?: boolean;
+  id: number;
+  activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite";
+  location_id: number | null;
+  location_name: string | null;
+  payload: Record<string, any>;
+  created_at: string;
+}
+
+/**
+ * Get activity feed for current user/client.
+ * @param limit Maximum number of items to return
+ * @param offset Number of items to skip
+ * @param activityType Optional filter by activity type (check_in, reaction, note, poll_response, favorite)
+ */
+export async function getActivityFeed(
+  limit: number = 50,
+  offset: number = 0,
+  activityType?: ActivityItem["activity_type"]
+): Promise<ActivityItem[]> {
+  const clientId = getOrCreateClientId();
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  params.set("offset", offset.toString());
+  if (activityType) {
+    params.set("activity_type", activityType);
+  }
+
+  return apiFetch<ActivityItem[]>(
+    `/api/v1/activity?${params.toString()}`,
+    {
+      headers: {
+        "X-Client-Id": clientId,
+      },
+    }
+  );
+}
+
+// ============================================================================
+// Trending Locations API
+// ============================================================================
+
+export interface TrendingLocation {
+  location_id: number;
+  name: string;
+  city_key: string;
+  category_key?: string | null;
+  score: number;
+  rank: number;
+  check_ins_count: number;
+  reactions_count: number;
+  notes_count: number;
+  has_verified_badge?: boolean;
+  is_promoted?: boolean;
+}
+
+/**
+ * Get trending locations.
+ */
+export async function getTrendingLocations(
+  cityKey?: string,
+  categoryKey?: string,
+  window: string = "24h",
+  limit: number = 20
+): Promise<TrendingLocation[]> {
+  const params = new URLSearchParams();
+  if (cityKey) params.set("city_key", cityKey);
+  if (categoryKey) params.set("category_key", categoryKey);
+  params.set("window", window);
+  params.set("limit", limit.toString());
+
+  return apiFetch<TrendingLocation[]>(`/api/v1/locations/trending?${params.toString()}`);
+}
+
+// ============================================================================
+// Reports API
+// ============================================================================
+
+export interface Report {
+  id: number;
+  report_type: "location" | "note" | "reaction" | "user";
+  target_id: number;
+  reason: string;
+  details: string | null;
+  status: "pending" | "resolved" | "dismissed";
+  created_at: string;
+}
+
+export interface ReportCreateRequest {
+  report_type: "location" | "note" | "reaction" | "user";
+  target_id: number;
+  reason: string;
+  details?: string | null;
+}
+
+/**
+ * Submit a report.
+ */
+export async function submitReport(report: ReportCreateRequest): Promise<Report> {
+  const clientId = getOrCreateClientId();
+
+  return apiFetch<Report>(
+    "/api/v1/reports",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Client-Id": clientId,
+      },
+      body: JSON.stringify(report),
+    }
+  );
+}
+
+// ============================================================================
+// Referrals API
+// ============================================================================
+
+export interface ReferralCode {
+  code: string;
+  uses_count: number;
+  created_at: string;
+}
+
+export interface ReferralStats {
+  total_referrals: number;
+  referrals_last_30d: number;
+  referral_code: string;
+}
+
+export interface ClaimReferralResponse {
+  success: boolean;
+  referrer_name: string | null;
+  message: string;
+}
+
+/**
+ * Get or create the current user's referral code.
+ */
+export async function getMyReferralCode(): Promise<ReferralCode> {
+  return authFetch<ReferralCode>("/api/v1/referrals/code");
+}
+
+/**
+ * Get referral statistics for the current user.
+ */
+export async function getReferralStats(): Promise<ReferralStats> {
+  return authFetch<ReferralStats>("/api/v1/referrals/stats");
+}
+
+/**
+ * Claim a referral code during signup.
+ */
+export async function claimReferral(code: string): Promise<ClaimReferralResponse> {
+  return authFetch<ClaimReferralResponse>(
+    "/api/v1/referrals/claim",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code: code.trim().toUpperCase() }),
+    }
+  );
+}
+
+// ============================================================================
+// Privacy Settings API
+// ============================================================================
+
+export interface PrivacySettings {
+  allow_location_tracking: boolean;
+  allow_push_notifications: boolean;
+  allow_email_digest: boolean;
+  data_retention_consent: boolean;
+  updated_at: string | null;
+}
+
+export interface PrivacySettingsUpdate {
+  allow_location_tracking?: boolean;
+  allow_push_notifications?: boolean;
+  allow_email_digest?: boolean;
+  data_retention_consent?: boolean;
+}
+
+/**
+ * Get privacy settings for current user/client.
+ */
+export async function getPrivacySettings(): Promise<PrivacySettings> {
+  const clientId = getOrCreateClientId();
+
+  return apiFetch<PrivacySettings>(
+    "/api/v1/privacy/settings",
+    {
+      headers: {
+        "X-Client-Id": clientId,
+      },
+    }
+  );
+}
+
+/**
+ * Update privacy settings (requires authentication).
+ */
+export async function updatePrivacySettings(update: PrivacySettingsUpdate): Promise<PrivacySettings> {
+  const clientId = getOrCreateClientId();
+
+  return authFetch<PrivacySettings>(
+    "/api/v1/privacy/settings",
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Client-Id": clientId,
+      },
+      body: JSON.stringify(update),
+    }
+  );
+}
+
+// ============================================================================
+// City Stats API
+// ============================================================================
+
+export interface CityStats {
+  city_key: string;
+  check_ins_count: number;
+  reactions_count: number;
+  notes_count: number;
+  favorites_count: number;
+  poll_responses_count: number;
+  trending_locations_count: number;
+  unique_locations_count: number;
+  total_activity: number;
+  window_days: number;
+}
+
+/**
+ * Get statistics for a specific city.
+ */
+export async function getCityStats(cityKey: string, windowDays: number = 7): Promise<CityStats> {
+  return apiFetch<CityStats>(
+    `/api/v1/stats/cities/${cityKey}?window_days=${windowDays}`
+  );
+}
+
+// ============================================================================
+// Business Analytics API
+// ============================================================================
+
+export interface BusinessAnalyticsOverview {
+  total_locations: number;
+  approved_locations: number;
+  total_views: number;
+  total_check_ins: number;
+  total_reactions: number;
+  total_notes: number;
+  total_favorites: number;
+  trending_locations: number;
+  period_days: number;
+}
+
+export interface LocationAnalytics {
+  location_id: number;
+  views: number;
+  check_ins: number;
+  reactions: number;
+  notes: number;
+  favorites: number;
+  trending_score: number | null;
+  is_trending: boolean;
+  period_days: number;
+}
+
+export interface EngagementMetrics {
+  total_engagement: number;
+  engagement_rate: number;
+  top_locations: Array<{ location_id: number; engagement_count: number }>;
+  activity_timeline: Array<{ date: string; count: number }>;
+}
+
+export interface TrendingMetrics {
+  trending_locations: Array<{
+    location_id: number;
+    trending_score: number;
+    created_at: string;
+  }>;
+  trending_scores: number[];
+}
+
+export async function getBusinessAnalyticsOverview(periodDays: number = 7): Promise<BusinessAnalyticsOverview> {
+  return authFetch<BusinessAnalyticsOverview>(
+    `/api/v1/business/analytics/overview?period_days=${periodDays}`
+  );
+}
+
+export async function getLocationAnalytics(locationId: number, periodDays: number = 7): Promise<LocationAnalytics> {
+  return authFetch<LocationAnalytics>(
+    `/api/v1/business/analytics/locations/${locationId}?period_days=${periodDays}`
+  );
+}
+
+export async function getEngagementMetrics(periodDays: number = 7): Promise<EngagementMetrics> {
+  return authFetch<EngagementMetrics>(
+    `/api/v1/business/analytics/engagement?period_days=${periodDays}`
+  );
+}
+
+export async function getTrendingMetrics(): Promise<TrendingMetrics> {
+  return authFetch<TrendingMetrics>("/api/v1/business/analytics/trending");
+}
+
+// ============================================================================
+// Premium Features API
+// ============================================================================
+
+export interface SubscriptionStatus {
+  tier: string;
+  status: string;
+  stripe_subscription_id: string | null;
+  current_period_end: string | null;
+  enabled_features: string[];
+}
+
+export interface FeaturesResponse {
+  tier: string;
+  features: string[];
+}
+
+export interface SubscribeRequest {
+  tier: "premium" | "pro";
+  success_url: string;
+  cancel_url: string;
+}
+
+export async function getSubscriptionStatus(): Promise<SubscriptionStatus> {
+  return authFetch<SubscriptionStatus>("/api/v1/premium/subscription");
+}
+
+export async function getFeatures(tier?: string): Promise<FeaturesResponse> {
+  const url = tier
+    ? `/api/v1/premium/features?tier=${tier}`
+    : "/api/v1/premium/features";
+  return authFetch<FeaturesResponse>(url);
+}
+
+export async function createSubscription(request: SubscribeRequest): Promise<{ session_id: string; url: string }> {
+  return authFetch<{ session_id: string; url: string }>(
+    "/api/v1/premium/subscribe",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    }
+  );
+}
+
+// ============================================================================
+// Google Business Sync API
+// ============================================================================
+
+export interface GoogleBusinessConnectResponse {
+  oauth_url: string;
+  state: string;
+}
+
+export interface GoogleBusinessSyncStatus {
+  location_id: number;
+  sync_status: string;
+  last_synced_at: string | null;
+  google_business_id: string | null;
+  sync_error: string | null;
+}
+
+export async function initiateGoogleBusinessConnect(locationId: number): Promise<GoogleBusinessConnectResponse> {
+  return authFetch<GoogleBusinessConnectResponse>(
+    `/api/v1/google-business/connect?location_id=${locationId}`,
+    { method: "POST" }
+  );
+}
+
+export async function triggerGoogleBusinessSync(locationId: number): Promise<{ success: boolean; location_id: number; synced_at: string }> {
+  return authFetch<{ success: boolean; location_id: number; synced_at: string }>(
+    `/api/v1/google-business/sync/${locationId}`,
+    { method: "POST" }
+  );
+}
+
+export async function getGoogleBusinessStatus(): Promise<{ locations: GoogleBusinessSyncStatus[] }> {
+  return authFetch<{ locations: GoogleBusinessSyncStatus[] }>("/api/v1/google-business/status");
+}
+
+// ============================================================================
+// User Groups API
+// ============================================================================
+
+export interface UserGroup {
+  id: number;
+  name: string;
+  description: string | null;
+  created_by: string;
+  is_public: boolean;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GroupMember {
+  id: number;
+  group_id: number;
+  user_id: string;
+  role: string;
+  joined_at: string;
+}
+
+export interface GroupActivity {
+  id: number;
+  actor_type: string;
+  actor_id: string | null;
+  activity_type: string;
+  location_id: number | null;
+  city_key: string | null;
+  category_key: string | null;
+  payload: Record<string, any> | null;
+  created_at: string;
+}
+
+export interface GroupCreateRequest {
+  name: string;
+  description?: string | null;
+  is_public?: boolean;
+}
+
+export async function createGroup(group: GroupCreateRequest): Promise<UserGroup> {
+  return authFetch<UserGroup>(
+    "/api/v1/groups",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(group),
+    }
+  );
+}
+
+export async function listGroups(params?: { search?: string; is_public?: boolean; limit?: number; offset?: number }): Promise<UserGroup[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.search) searchParams.set("search", params.search);
+  if (params?.is_public !== undefined) searchParams.set("is_public", String(params.is_public));
+  if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.offset) searchParams.set("offset", String(params.offset));
+
+  const url = searchParams.toString() ? `/api/v1/groups?${searchParams.toString()}` : "/api/v1/groups";
+  return authFetch<UserGroup[]>(url);
+}
+
+export async function getGroup(groupId: number): Promise<UserGroup> {
+  return authFetch<UserGroup>(`/api/v1/groups/${groupId}`);
+}
+
+export async function joinGroup(groupId: number): Promise<{ ok: boolean; message: string; membership: GroupMember }> {
+  return authFetch<{ ok: boolean; message: string; membership: GroupMember }>(
+    `/api/v1/groups/${groupId}/join`,
+    { method: "POST" }
+  );
+}
+
+export async function leaveGroup(groupId: number): Promise<void> {
+  return authFetch<void>(
+    `/api/v1/groups/${groupId}/leave`,
+    { method: "DELETE" }
+  );
+}
+
+export async function listGroupMembers(groupId: number, limit?: number, offset?: number): Promise<GroupMember[]> {
+  const params = new URLSearchParams();
+  if (limit) params.set("limit", String(limit));
+  if (offset) params.set("offset", String(offset));
+
+  const url = params.toString() ? `/api/v1/groups/${groupId}/members?${params.toString()}` : `/api/v1/groups/${groupId}/members`;
+  return authFetch<GroupMember[]>(url);
+}
+
+export async function getGroupActivity(groupId: number, limit?: number, offset?: number): Promise<GroupActivity[]> {
+  const params = new URLSearchParams();
+  if (limit) params.set("limit", String(limit));
+  if (offset) params.set("offset", String(offset));
+
+  const url = params.toString() ? `/api/v1/groups/${groupId}/activity?${params.toString()}` : `/api/v1/groups/${groupId}/activity`;
+  return authFetch<GroupActivity[]>(url);
+}
+
+// ============================================================================
+// Push Notifications API
+// ============================================================================
+
+export interface PushPreferences {
+  enabled: boolean;
+  poll_notifications: boolean;
+  trending_notifications: boolean;
+  activity_notifications: boolean;
+}
+
+export interface PushPreferencesUpdate {
+  enabled?: boolean;
+  poll_notifications?: boolean;
+  trending_notifications?: boolean;
+  activity_notifications?: boolean;
+}
+
+export interface DeviceTokenRegister {
+  token: string;
+  platform?: string;
+  user_agent?: string;
+}
+
+export async function registerDeviceToken(registration: DeviceTokenRegister): Promise<{ ok: boolean; message: string }> {
+  return authFetch<{ ok: boolean; message: string }>(
+    "/api/v1/push/register",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(registration),
+    }
+  );
+}
+
+export async function unregisterDeviceToken(token: string): Promise<{ ok: boolean; message: string }> {
+  return authFetch<{ ok: boolean; message: string }>(
+    `/api/v1/push/unregister?token=${encodeURIComponent(token)}`,
+    { method: "DELETE" }
+  );
+}
+
+export async function getPushPreferences(): Promise<PushPreferences> {
+  return authFetch<PushPreferences>("/api/v1/push/preferences");
+}
+
+export async function updatePushPreferences(update: PushPreferencesUpdate): Promise<PushPreferences> {
+  return authFetch<PushPreferences>(
+    "/api/v1/push/preferences",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(update),
+    }
+  );
 }

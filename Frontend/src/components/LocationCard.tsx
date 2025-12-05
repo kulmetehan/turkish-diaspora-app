@@ -3,6 +3,7 @@
 import type { LocationMarker } from "@/api/fetchLocations";
 import React from "react";
 import { cn } from "@/lib/ui/cn";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 type Props = {
   location: LocationMarker;
@@ -70,7 +71,10 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-base leading-tight m-0 font-semibold">{location.name}</h3>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <h3 className="text-base leading-tight m-0 font-semibold truncate">{location.name}</h3>
+          {location.has_verified_badge && <VerifiedBadge size="sm" />}
+        </div>
         <span className={badgeClass}>{statusText}</span>
       </div>
 

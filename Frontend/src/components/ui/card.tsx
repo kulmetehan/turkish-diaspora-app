@@ -13,6 +13,10 @@ export function CardTitle(props: React.HTMLAttributes<HTMLHeadingElement>) {
   const { className, ...rest } = props;
   return <h3 className={cn("text-lg font-semibold", className)} {...rest} />;
 }
+export function CardDescription(props: React.HTMLAttributes<HTMLParagraphElement>) {
+  const { className, ...rest } = props;
+  return <p className={cn("text-sm text-muted-foreground", className)} {...rest} />;
+}
 export function CardContent(props: React.HTMLAttributes<HTMLDivElement>) {
   const { className, ...rest } = props;
   return <div className={cn("p-4", className)} {...rest} />;

@@ -73,3 +73,16 @@ OSM_LOG_QUERIES=false
 # =============================================================================
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# =============================================================================
+# FEATURE FLAGS (Identity & Activity Layer)
+# =============================================================================
+# Enable/disable features for phased rollout
+# Set to "true" to enable, "false" to disable (default: false)
+FEATURE_CHECK_INS=false
+FEATURE_REACTIONS=false
+FEATURE_NOTES=false
+FEATURE_POLLS=false
+FEATURE_TRENDING=false
+FEATURE_GAMIFICATION=false
+FEATURE_BUSINESS=false
