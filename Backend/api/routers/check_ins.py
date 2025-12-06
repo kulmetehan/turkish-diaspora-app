@@ -16,10 +16,6 @@ from services.xp_service import award_xp
 router = APIRouter(prefix="/locations", tags=["check-ins"])
 
 
-class CheckInCreate(BaseModel):
-    pass  # No body needed, location_id from path
-
-
 class CheckInStats(BaseModel):
     location_id: int
     total_check_ins: int

@@ -91,3 +91,4 @@ COMMENT ON TABLE public.poll_stats IS 'Aggregated poll statistics (updated by wo
 COMMENT ON INDEX idx_poll_responses_unique_single IS 'Unique constraint: one response per user/client per poll. Application must enforce poll_type = single_choice check.';
 
 
+

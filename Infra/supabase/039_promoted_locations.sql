@@ -47,3 +47,4 @@ COMMENT ON COLUMN public.promotion_payments.promotion_type IS 'Type of promotion
 COMMENT ON COLUMN public.promotion_payments.promotion_id IS 'References promoted_locations.id or promoted_news.id depending on promotion_type';
 
 
+

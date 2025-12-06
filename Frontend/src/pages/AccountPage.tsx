@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { getTheme, setTheme, type ThemeSetting } from "@/lib/theme/darkMode";
 import { PrivacySettings } from "@/components/settings/PrivacySettings";
+import { PushNotificationSettings } from "@/components/push/PushNotificationSettings";
 import { ActivityHistory } from "@/components/activity/ActivityHistory";
 import { ReferralShare } from "@/components/referrals/ReferralShare";
 import { useUserAuth } from "@/hooks/useUserAuth";
@@ -118,6 +119,10 @@ export default function AccountPage() {
       </section>
       
       <PrivacySettings />
+      
+      <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
+        <PushNotificationSettings />
+      </section>
       
       {isAuthenticated && (
         <section

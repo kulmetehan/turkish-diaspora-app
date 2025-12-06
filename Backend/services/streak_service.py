@@ -119,3 +119,4 @@ async def update_streak(user_id: str) -> None:
         # Don't fail the request if streak update fails
 
 
+

@@ -38,3 +38,4 @@ COMMENT ON COLUMN public.reports.reason IS 'Report reason/category';
 COMMENT ON COLUMN public.reports.status IS 'Report status: pending (waiting for review), resolved (action taken), dismissed (no action needed)';
 
 
+

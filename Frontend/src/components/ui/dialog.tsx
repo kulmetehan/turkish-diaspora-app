@@ -44,11 +44,16 @@ function hasDialogTitle(children: React.ReactNode): boolean {
   });
 }
 
+type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
+  overlayClassName?: string;
+};
+
 export function DialogContent({
   className,
+  overlayClassName,
   children,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+}: DialogContentProps) {
   const fallbackTitleId = React.useId();
   const childHasTitle = hasDialogTitle(children);
 
@@ -60,13 +65,23 @@ export function DialogContent({
     contentProps["aria-labelledby"] = fallbackTitleId;
   }
 
+  // Check if custom z-index is provided (indicates nested dialog)
+  const hasCustomZIndex = className?.includes("z-[");
+
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 bg-black/40 animate-fade-in pointer-events-none data-[state=open]:pointer-events-auto data-[state=closed]:hidden z-50" />
+      <DialogPrimitive.Overlay
+        className={cn(
+          "fixed inset-0 bg-black/40 animate-fade-in pointer-events-none data-[state=open]:pointer-events-auto data-[state=closed]:hidden z-50",
+          overlayClassName
+        )}
+      />
       <DialogPrimitive.Content
         className={cn(
           "fixed left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-lg border bg-background p-6 shadow-card z-50",
-          "focus:outline-none pointer-events-none data-[state=open]:pointer-events-auto data-[state=closed]:hidden",
+          hasCustomZIndex
+            ? "focus:outline-none pointer-events-auto data-[state=closed]:hidden"
+            : "focus:outline-none pointer-events-none data-[state=open]:pointer-events-auto data-[state=closed]:hidden",
           className
         )}
         {...contentProps}

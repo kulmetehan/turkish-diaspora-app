@@ -30,31 +30,24 @@ configure_logging(service_name="seed")
 logger = get_logger()
 
 
-async def seed_cities_and_locations() -> None:
-    """Seed cities and locations if they don't exist."""
+async def seed_cities_and_locations() -> list:
+    """Get verified locations for seeding activity data."""
     logger.info("seeding_cities_and_locations")
     
-    # Get existing locations count
-    count_sql = "SELECT COUNT(*) as count FROM locations WHERE state = 'VERIFIED'"
-    rows = await fetch(count_sql)
-    existing_count = rows[0].get("count", 0) if rows else 0
-    
-    if existing_count > 0:
-        logger.info("locations_already_exist", count=existing_count)
-        return
-    
-    # Get some verified locations to use
+    # Get some verified locations to use (always fetch, even if they exist)
     locations_sql = """
-        SELECT id, name, city_key, category_key, lat, lng
+        SELECT id, name, lat, lng, category
         FROM locations
         WHERE state = 'VERIFIED'
+          AND lat IS NOT NULL
+          AND lng IS NOT NULL
         LIMIT 50
     """
     locations = await fetch(locations_sql)
     
     if not locations:
         logger.warning("no_verified_locations_found")
-        return
+        return []
     
     logger.info("found_locations", count=len(locations))
     return locations

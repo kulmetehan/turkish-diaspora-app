@@ -65,14 +65,26 @@ export async function apiFetch<T>(
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
+        // Automatically add X-Client-Id header for anonymous user tracking
+        const clientId = getOrCreateClientId();
+
+        // Merge headers correctly: start with init.headers (if it's an object), then add our defaults
+        // This ensures X-Client-Id is always included and not overwritten
+        const initHeaders = init?.headers instanceof Headers
+          ? Object.fromEntries(init.headers.entries())
+          : (init?.headers ?? {});
+
+        const headers = {
+          "Content-Type": "application/json",
+          "X-Client-Id": clientId,
+          ...initHeaders,
+        };
+
         // Use timeout controller signal (will override init.signal if provided)
         // This ensures timeout always works even if caller provides their own signal
         const res = await fetch(url, {
-          headers: {
-            "Content-Type": "application/json",
-            ...(init?.headers ?? {}),
-          },
           ...init,
+          headers,
           signal: controller.signal,
         });
         if (import.meta.env.DEV) {
@@ -890,6 +902,207 @@ export async function getActivityFeed(
       },
     }
   );
+}
+
+// ============================================================================
+// Location Interactions API (Check-ins, Reactions, Notes, Favorites)
+// ============================================================================
+
+// Check-ins
+export interface CheckInStats {
+  location_id: number;
+  total_check_ins: number;
+  check_ins_today: number;
+  unique_users_today: number;
+}
+
+/**
+ * Create a check-in for a location.
+ */
+export async function createCheckIn(locationId: number): Promise<{ ok: boolean; check_in_id: number }> {
+  return apiFetch<{ ok: boolean; check_in_id: number }>(
+    `/api/v1/locations/${locationId}/check-ins`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}), // Send empty JSON body to satisfy FastAPI
+    }
+  );
+}
+
+/**
+ * Get check-in statistics for a location.
+ */
+export async function getCheckInStats(locationId: number): Promise<CheckInStats> {
+  return apiFetch<CheckInStats>(`/api/v1/locations/${locationId}/check-ins`);
+}
+
+// Reactions
+export interface ReactionStats {
+  location_id: number;
+  reactions: Record<string, number>;
+}
+
+export type ReactionType = "fire" | "heart" | "thumbs_up" | "smile" | "star" | "flag";
+
+/**
+ * Add a reaction to a location.
+ */
+export async function createReaction(locationId: number, reactionType: ReactionType): Promise<{ ok: boolean; reaction_id: number }> {
+  return apiFetch<{ ok: boolean; reaction_id: number }>(
+    `/api/v1/locations/${locationId}/reactions`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reaction_type: reactionType }),
+    }
+  );
+}
+
+/**
+ * Remove a reaction from a location.
+ */
+export async function removeReaction(locationId: number, reactionType: ReactionType): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/api/v1/locations/${locationId}/reactions/${reactionType}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+/**
+ * Get aggregated reaction counts for a location.
+ */
+export async function getReactionStats(locationId: number): Promise<ReactionStats> {
+  return apiFetch<ReactionStats>(`/api/v1/locations/${locationId}/reactions`);
+}
+
+// Notes
+export interface NoteResponse {
+  id: number;
+  location_id: number;
+  content: string;
+  is_edited: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Create a note for a location.
+ */
+export async function createNote(locationId: number, content: string): Promise<NoteResponse> {
+  return apiFetch<NoteResponse>(
+    `/api/v1/locations/${locationId}/notes`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+    }
+  );
+}
+
+/**
+ * Get notes for a location.
+ */
+export async function getNotes(locationId: number, limit: number = 50, offset: number = 0): Promise<NoteResponse[]> {
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  params.set("offset", offset.toString());
+  return apiFetch<NoteResponse[]>(`/api/v1/locations/${locationId}/notes?${params.toString()}`);
+}
+
+/**
+ * Update a note.
+ */
+export async function updateNote(noteId: number, content: string): Promise<NoteResponse> {
+  return apiFetch<NoteResponse>(
+    `/api/v1/locations/notes/${noteId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ content }),
+    }
+  );
+}
+
+/**
+ * Delete a note.
+ */
+export async function deleteNote(noteId: number): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/api/v1/locations/notes/${noteId}`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+// Favorites
+/**
+ * Add a location to favorites.
+ */
+export async function addFavorite(locationId: number): Promise<{ ok: boolean; favorite_id: number }> {
+  return apiFetch<{ ok: boolean; favorite_id: number }>(
+    `/api/v1/locations/${locationId}/favorites`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    }
+  );
+}
+
+/**
+ * Remove a location from favorites.
+ */
+export async function removeFavorite(locationId: number): Promise<{ ok: boolean }> {
+  return apiFetch<{ ok: boolean }>(
+    `/api/v1/locations/${locationId}/favorites`,
+    {
+      method: "DELETE",
+    }
+  );
+}
+
+/**
+ * Get all favorites for current user/client.
+ */
+export interface FavoriteItem {
+  id: number;
+  location_id: number;
+  location_name: string | null;
+  location_lat: number | null;
+  location_lng: number | null;
+  created_at: string;
+}
+
+export async function getFavorites(limit: number = 50, offset: number = 0): Promise<FavoriteItem[]> {
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  params.set("offset", offset.toString());
+  return apiFetch<FavoriteItem[]>(`/api/v1/favorites?${params.toString()}`);
+}
+
+/**
+ * Check if a location is in favorites (by checking favorites list).
+ */
+export async function isFavorite(locationId: number): Promise<boolean> {
+  try {
+    const favorites = await getFavorites(100, 0);
+    return favorites.some((fav) => fav.location_id === locationId);
+  } catch {
+    return false;
+  }
 }
 
 // ============================================================================

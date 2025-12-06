@@ -7,14 +7,27 @@ import { getActivityFeed, type ActivityItem } from "@/lib/api";
 import { ActivityCard } from "./ActivityCard";
 import { toast } from "sonner";
 
+// Helper function to get Dutch label for activity type
+function getActivityTypeLabel(activityType: ActivityItem["activity_type"]): string {
+  const labels: Record<ActivityItem["activity_type"], string> = {
+    check_in: "check-in",
+    reaction: "reactie",
+    note: "notitie",
+    poll_response: "poll",
+    favorite: "favoriet",
+  };
+  return labels[activityType] || activityType;
+}
+
 interface ActivityFeedProps {
   className?: string;
+  activityType?: ActivityItem["activity_type"];
 }
 
 const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
 
-export function ActivityFeed({ className }: ActivityFeedProps) {
+export function ActivityFeed({ className, activityType }: ActivityFeedProps) {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -26,7 +39,7 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await getActivityFeed(INITIAL_LIMIT, 0);
+      const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
       setItems(data);
       setOffset(data.length);
       setHasMore(data.length >= INITIAL_LIMIT);
@@ -37,14 +50,14 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [activityType]);
 
   const loadMore = useCallback(async () => {
     if (isLoadingMore || !hasMore) return;
 
     setIsLoadingMore(true);
     try {
-      const data = await getActivityFeed(LOAD_MORE_LIMIT, offset);
+      const data = await getActivityFeed(LOAD_MORE_LIMIT, offset, activityType);
       if (data.length > 0) {
         setItems((prev) => [...prev, ...data]);
         setOffset((prev) => prev + data.length);
@@ -58,9 +71,13 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     } finally {
       setIsLoadingMore(false);
     }
-  }, [isLoadingMore, hasMore, offset]);
+  }, [isLoadingMore, hasMore, offset, activityType]);
 
   useEffect(() => {
+    // Reset state when activityType changes
+    setItems([]);
+    setOffset(0);
+    setHasMore(true);
     loadInitialData();
   }, [loadInitialData]);
 
@@ -99,9 +116,12 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
   }
 
   if (items.length === 0) {
+    const emptyMessage = activityType
+      ? `Geen ${getActivityTypeLabel(activityType)} activiteit gevonden.`
+      : "Er is nog geen activiteit. Begin met check-ins, reacties of notities!";
     return (
       <div className={cn("rounded-xl border border-border/80 bg-card p-6 text-center text-muted-foreground shadow-soft", className)}>
-        <p>Er is nog geen activiteit. Begin met check-ins, reacties of notities!</p>
+        <p>{emptyMessage}</p>
       </div>
     );
   }
@@ -130,5 +150,6 @@ export function ActivityFeed({ className }: ActivityFeedProps) {
     </div>
   );
 }
+
 
 

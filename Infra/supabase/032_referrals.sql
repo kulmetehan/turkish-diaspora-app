@@ -36,3 +36,4 @@ COMMENT ON COLUMN public.referrals.referrer_xp_awarded IS 'Whether referrer has 
 COMMENT ON COLUMN public.referrals.referred_xp_awarded IS 'Whether referred user has received welcome bonus';
 
 
+

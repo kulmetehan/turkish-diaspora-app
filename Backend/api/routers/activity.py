@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, Path
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 import math
+import json
 
 from app.core.client_id import get_client_id
 from app.core.feature_flags import require_feature
@@ -22,6 +23,20 @@ class ActivityItem(BaseModel):
     payload: dict  # Activity-specific details
     created_at: datetime
     is_promoted: bool = False
+
+
+def _parse_payload(payload: Any) -> dict:
+    """Parse payload from database (can be string or dict)."""
+    if payload is None:
+        return {}
+    if isinstance(payload, dict):
+        return payload
+    if isinstance(payload, str):
+        try:
+            return json.loads(payload) if payload else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return {}
 
 
 @router.get("", response_model=List[ActivityItem])
@@ -92,7 +107,7 @@ async def get_own_activity(
             activity_type=row["activity_type"],
             location_id=row.get("location_id"),
             location_name=row.get("location_name"),
-            payload=row.get("payload", {}) or {},
+            payload=_parse_payload(row.get("payload")),
             created_at=row["created_at"],
             is_promoted=row.get("is_promoted", False),
         )
@@ -216,7 +231,7 @@ async def get_nearby_activity(
             activity_type=row["activity_type"],
             location_id=row.get("location_id"),
             location_name=row.get("location_name"),
-            payload=row.get("payload", {}) or {},
+            payload=_parse_payload(row.get("payload")),
             created_at=row["created_at"],
             is_promoted=row.get("is_promoted", False),
         )
@@ -265,7 +280,7 @@ async def get_location_activity(
             activity_type=row["activity_type"],
             location_id=row.get("location_id"),
             location_name=row.get("location_name"),
-            payload=row.get("payload", {}) or {},
+            payload=_parse_payload(row.get("payload")),
             created_at=row["created_at"],
             is_promoted=row.get("is_promoted", False),
         )

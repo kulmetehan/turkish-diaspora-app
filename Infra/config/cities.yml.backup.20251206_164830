@@ -1,0 +1,465 @@
+version: 1
+metadata:
+  projection: WGS84 (lat/lng)
+  notes: 'Bounding boxes zijn conservatief (beetje ''ruim'') gekozen om oversampling te vermijden en toch alle relevante POI''s
+    te vangen. Voor latere iteraties kan polygon-steun worden toegevoegd.
+
+    '
+defaults: &id001
+  grid_span_km: 8
+  nearby_radius_m: 1000
+  max_per_cell_per_category: 20
+  inter_call_sleep_s: 0.15
+cities:
+  breda:
+    city_name: Breda
+    country: NL
+    apply: *id001
+    center_lat: 51.593834
+    center_lng: 4.77983
+    districts:
+      centrum:
+        lat_min: 51.578834
+        lat_max: 51.608834
+        lng_min: 4.76483
+        lng_max: 4.79483
+        apply: *id001
+      noord:
+        lat_min: 51.600466
+        lat_max: 51.630466
+        lng_min: 4.754091
+        lng_max: 4.784091
+        apply: *id001
+      prinsenbeek:
+        lat_min: 51.584714
+        lat_max: 51.614714
+        lng_min: 4.699901
+        lng_max: 4.729901
+        apply: *id001
+      teteringen:
+        lat_min: 51.593699
+        lat_max: 51.623699
+        lng_min: 4.802772
+        lng_max: 4.832772
+        apply: *id001
+      west:
+        lat_min: 51.566265
+        lat_max: 51.596265
+        lng_min: 4.720493
+        lng_max: 4.750493
+        apply: *id001
+      zuid:
+        lat_min: 51.563892
+        lat_max: 51.593892
+        lng_min: 4.754577
+        lng_max: 4.784577
+        apply: *id001
+      zuidoost:
+        lat_min: 51.557996
+        lat_max: 51.587996
+        lng_min: 4.789608
+        lng_max: 4.819608
+        apply: *id001
+  den_haag:
+    city_name: Den Haag
+    country: NL
+    apply: *id001
+    center_lat: 52.0705
+    center_lng: 4.3007
+    districts:
+      centrum:
+        lat_min: 52.065
+        lat_max: 52.09
+        lng_min: 4.29
+        lng_max: 4.335
+        apply: *id001
+      escamp:
+        lat_min: 52.03
+        lat_max: 52.06
+        lng_min: 4.255
+        lng_max: 4.305
+        apply: *id001
+      haagse_hout:
+        lat_min: 52.08
+        lat_max: 52.11
+        lng_min: 4.305
+        lng_max: 4.36
+        apply: *id001
+      laak:
+        lat_min: 52.05
+        lat_max: 52.08
+        lng_min: 4.3
+        lng_max: 4.345
+        apply: *id001
+      loosduinen:
+        lat_min: 52.035
+        lat_max: 52.07
+        lng_min: 4.205
+        lng_max: 4.265
+        apply: *id001
+      nootdorp:
+        lat_min: 52.028814568952434
+        lat_max: 52.058814568952435
+        lng_min: 4.37436985115
+        lng_max: 4.40436985115
+        apply: *id001
+      scheveningen:
+        lat_min: 52.095
+        lat_max: 52.13
+        lng_min: 4.24
+        lng_max: 4.3
+        apply: *id001
+      segbroek:
+        lat_min: 52.065
+        lat_max: 52.095
+        lng_min: 4.245
+        lng_max: 4.295
+        apply: *id001
+      ypenburg:
+        lat_min: 52.025
+        lat_max: 52.055
+        lng_min: 4.34
+        lng_max: 4.395
+        apply: *id001
+  dordrecht:
+    city_name: Dordrecht
+    country: NL
+    apply: *id001
+    center_lat: 51.813366281298144
+    center_lng: 4.668750627398341
+    districts:
+      centrum:
+        lat_min: 51.798366281298144
+        lat_max: 51.828366281298145
+        lng_min: 4.653750627398341
+        lng_max: 4.683750627398341
+        apply: *id001
+      crabbehof:
+        lat_min: 51.77499900772626
+        lat_max: 51.80499900772626
+        lng_min: 4.650360081791499
+        lng_max: 4.680360081791499
+        apply: *id001
+      dubbeldam:
+        lat_min: 51.78122518079483
+        lat_max: 51.81122518079483
+        lng_min: 4.684586257223516
+        lng_max: 4.714586257223516
+        apply: *id001
+      oud_krispijn:
+        lat_min: 51.786330001555726
+        lat_max: 51.81633000155573
+        lng_min: 4.643917509224224
+        lng_max: 4.673917509224224
+        apply: *id001
+      staart:
+        lat_min: 51.80400564477288
+        lat_max: 51.83400564477288
+        lng_min: 4.676331710662782
+        lng_max: 4.706331710662782
+        apply: *id001
+      stadspolders:
+        lat_min: 51.78745049455738
+        lat_max: 51.81745049455738
+        lng_min: 4.707135268551597
+        lng_max: 4.737135268551597
+        apply: *id001
+      sterrenburg:
+        lat_min: 51.76266864904193
+        lat_max: 51.79266864904193
+        lng_min: 4.660023943089951
+        lng_max: 4.69002394308995
+        apply: *id001
+      vogelbuurt:
+        lat_min: 51.793260004122075
+        lat_max: 51.823260004122076
+        lng_min: 4.673220994564773
+        lng_max: 4.703220994564773
+        apply: *id001
+      west:
+        lat_min: 51.77088926261991
+        lat_max: 51.80088926261991
+        lng_min: 4.618549871684094
+        lng_max: 4.648549871684094
+        apply: *id001
+  etten_leur:
+    city_name: Etten-Leur
+    country: NL
+    center_lat: 51.5692065
+    center_lng: 4.6360813
+    apply: *id001
+    districts:
+      centrum:
+        lat_min: 51.5592065
+        lat_max: 51.5792065
+        lng_min: 4.6210813
+        lng_max: 4.6510812999999995
+        apply: *id001
+  leiden:
+    city_name: Leiden
+    country: NL
+    apply: *id001
+    center_lat: 52.157284
+    center_lng: 4.493417
+    districts:
+      centrum:
+        lat_min: 52.142284
+        lat_max: 52.172284
+        lng_min: 4.478417
+        lng_max: 4.508417
+        apply: *id001
+      leiderdorp:
+        lat_min: 52.142822
+        lat_max: 52.172822
+        lng_min: 4.510363
+        lng_max: 4.540363
+        apply: *id001
+      noord:
+        lat_min: 52.164484
+        lat_max: 52.194484
+        lng_min: 4.483399
+        lng_max: 4.513399
+        apply: *id001
+      voorschoten:
+        lat_min: 52.110025
+        lat_max: 52.140025
+        lng_min: 4.432953
+        lng_max: 4.462953
+        apply: *id001
+      west:
+        lat_min: 52.149203
+        lat_max: 52.179203
+        lng_min: 4.45861
+        lng_max: 4.48861
+        apply: *id001
+      zoeterwoude_rijndijk:
+        lat_min: 52.124597
+        lat_max: 52.154597
+        lng_min: 4.52018
+        lng_max: 4.55018
+        apply: *id001
+      zuid:
+        lat_min: 52.132239
+        lat_max: 52.162239
+        lng_min: 4.46057
+        lng_max: 4.49057
+        apply: *id001
+  leidschendam_voorburg:
+    city_name: Leidschendam-Voorburg
+    country: NL
+    apply: *id001
+    center_lat: 52.080887
+    center_lng: 4.390966
+    districts:
+      de_heuvel:
+        lat_min: 52.07808473338146
+        lat_max: 52.10808473338146
+        lng_min: 4.377127093129018
+        lng_max: 4.407127093129018
+        apply: *id001
+      de_lanen:
+        lat_min: 52.04799728725214
+        lat_max: 52.07799728725214
+        lng_min: 4.380491909834332
+        lng_max: 4.410491909834332
+        apply: *id001
+      de_velden:
+        lat_min: 52.05561880306843
+        lat_max: 52.08561880306843
+        lng_min: 4.391583422654673
+        lng_max: 4.421583422654672
+        apply: *id001
+      haagoord:
+        lat_min: 52.04568578208614
+        lat_max: 52.07568578208614
+        lng_min: 4.383214453216431
+        lng_max: 4.413214453216431
+        apply: *id001
+      haagse_hout:
+        lat_min: 52.070986262417975
+        lat_max: 52.100986262417976
+        lng_min: 4.320912132363758
+        lng_max: 4.350912132363758
+        apply: *id001
+      het_loo:
+        lat_min: 52.06466594174572
+        lat_max: 52.09466594174572
+        lng_min: 4.344722479154057
+        lng_max: 4.374722479154056
+        apply: *id001
+      leidschenveen:
+        lat_min: 52.05110567455454
+        lat_max: 52.08110567455454
+        lng_min: 4.395790010743269
+        lng_max: 4.425790010743269
+        apply: *id001
+      prinsenhof:
+        lat_min: 52.08197975584516
+        lat_max: 52.11197975584516
+        lng_min: 4.390652497222915
+        lng_max: 4.420652497222915
+        apply: *id001
+  rotterdam:
+    city_name: Rotterdam
+    country: NL
+    apply: *id001
+    districts:
+      centrum:
+        lat_min: 51.915
+        lat_max: 51.935
+        lng_min: 4.45
+        lng_max: 4.495
+        apply: *id001
+      charlois:
+        lat_min: 51.86
+        lat_max: 51.905
+        lng_min: 4.44
+        lng_max: 4.53
+        apply: *id001
+      delfshaven:
+        lat_min: 51.9
+        lat_max: 51.945
+        lng_min: 4.42
+        lng_max: 4.46
+        apply: *id001
+      feijenoord:
+        lat_min: 51.885
+        lat_max: 51.92
+        lng_min: 4.48
+        lng_max: 4.55
+        apply: *id001
+      hoogvliet:
+        lat_min: 51.845
+        lat_max: 51.875
+        lng_min: 4.34
+        lng_max: 4.39
+        apply: *id001
+      ijsselmonde:
+        lat_min: 51.87
+        lat_max: 51.905
+        lng_min: 4.55
+        lng_max: 4.64
+        apply: *id001
+      kralingen_crooswijk:
+        lat_min: 51.915
+        lat_max: 51.96
+        lng_min: 4.5
+        lng_max: 4.57
+        apply: *id001
+      noord:
+        lat_min: 51.935
+        lat_max: 51.975
+        lng_min: 4.43
+        lng_max: 4.49
+        apply: *id001
+      overschie:
+        lat_min: 51.935
+        lat_max: 51.98
+        lng_min: 4.4
+        lng_max: 4.47
+        apply: *id001
+      pernis:
+        lat_min: 51.885
+        lat_max: 51.905
+        lng_min: 4.38
+        lng_max: 4.43
+        apply: *id001
+      prins_alexander:
+        lat_min: 51.945
+        lat_max: 51.99
+        lng_min: 4.55
+        lng_max: 4.65
+        apply: *id001
+  schiedam:
+    city_name: Schiedam
+    country: NL
+    apply: *id001
+    center_lat: 51.918
+    center_lng: 4.395
+    districts:
+      centrum:
+        lat_min: 51.905
+        lat_max: 51.935
+        lng_min: 4.38
+        lng_max: 4.41
+        apply: *id001
+      noord:
+        lat_min: 51.935
+        lat_max: 51.96
+        lng_min: 4.38
+        lng_max: 4.41
+        apply: *id001
+      zuid:
+        lat_min: 51.88
+        lat_max: 51.905
+        lng_min: 4.38
+        lng_max: 4.41
+        apply: *id001
+  vlaardingen:
+    city_name: Vlaardingen
+    country: NL
+    apply: *id001
+    center_lat: 51.912
+    center_lng: 4.341
+    districts:
+      centrum:
+        lat_min: 51.9
+        lat_max: 51.925
+        lng_min: 4.32
+        lng_max: 4.36
+        apply: *id001
+      oostwijk:
+        lat_min: 51.9
+        lat_max: 51.925
+        lng_min: 4.36
+        lng_max: 4.4
+        apply: *id001
+      westwijk:
+        lat_min: 51.9
+        lat_max: 51.925
+        lng_min: 4.28
+        lng_max: 4.32
+        apply: *id001
+  zoetermeer:
+    city_name: Zoetermeer
+    country: NL
+    apply: *id001
+    center_lat: 52.0603304035099
+    center_lng: 4.4925787701747675
+    districts:
+      centrum:
+        lat_min: 52.0453304035099
+        lat_max: 52.0753304035099
+        lng_min: 4.477578770174768
+        lng_max: 4.507578770174767
+        apply: *id001
+      meerzicht:
+        lat_min: 52.04176686003942
+        lat_max: 52.07176686003942
+        lng_min: 4.454602811799693
+        lng_max: 4.484602811799693
+        apply: *id001
+      oosterheem:
+        lat_min: 52.05118417921893
+        lat_max: 52.08118417921893
+        lng_min: 4.520011846453057
+        lng_max: 4.550011846453057
+        apply: *id001
+      palenstein:
+        lat_min: 52.04138503494931
+        lat_max: 52.07138503494931
+        lng_min: 4.493517047606125
+        lng_max: 4.523517047606125
+        apply: *id001
+      rokkeveen:
+        lat_min: 52.02687326318494
+        lat_max: 52.05687326318494
+        lng_min: 4.478613723254726
+        lng_max: 4.508613723254726
+        apply: *id001
+      seghwaert:
+        lat_min: 52.0510569313834
+        lat_max: 52.0810569313834
+        lng_min: 4.491447141446208
+        lng_max: 4.521447141446208
+        apply: *id001

@@ -20,3 +20,4 @@ CREATE INDEX IF NOT EXISTS idx_rate_limits_window ON public.rate_limits(window_s
 COMMENT ON TABLE public.rate_limits IS 'Rate limiting counters with sliding window (cleanup after 24h)';
 
 
+

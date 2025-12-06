@@ -99,3 +99,4 @@ COMMENT ON TABLE public.user_group_members IS 'Group membership and roles';
 COMMENT ON VIEW public.user_group_activity IS 'Activity feed filtered by group membership';
 
 
+
