@@ -30,3 +30,4 @@ export function ActivityTypeIcon({ activityType, className }: ActivityTypeIconPr
 }
 
 
+

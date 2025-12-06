@@ -254,22 +254,20 @@ export default function UserAuthPage() {
                       placeholder="Je naam"
                     />
                   </div>
-                  {referralCode && (
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-referral-code">Referral Code (optioneel)</Label>
-                      <Input
-                        id="signup-referral-code"
-                        type="text"
-                        value={referralCode}
-                        onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                        placeholder="REFCODE"
-                        className="font-mono"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Gebruik een referral code van een vriend voor een welcome bonus!
-                      </p>
-                    </div>
-                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-referral-code">Referral Code (optioneel)</Label>
+                    <Input
+                      id="signup-referral-code"
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                      placeholder="REFCODE"
+                      className="font-mono"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Gebruik een referral code van een vriend voor een welcome bonus!
+                    </p>
+                  </div>
                   <Button type="submit" disabled={loading} className="w-full">
                     {loading ? "Account aanmaken..." : "Account aanmaken"}
                   </Button>

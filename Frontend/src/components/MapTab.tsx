@@ -10,6 +10,7 @@ import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
+import NoteDialog from "@/components/location/NoteDialog";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,6 +23,8 @@ import { cn } from "@/lib/ui/cn";
 import { navigationActions, useMapNavigation } from "@/state/navigation";
 
 import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
+import { createNote, updateNote, getNotes, type NoteResponse } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function MapTab() {
     // Global locations state (viewport-independent, fetched on mount)
@@ -50,6 +53,10 @@ export default function MapTab() {
 
     // For detailId, we can store it separately since it's a UI state (overlay open/closed)
     const [detailIdLocal, setDetailIdLocal] = useState<string | null>(null);
+
+    // Note dialog state
+    const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
+    const [editingNote, setEditingNote] = useState<NoteResponse | null>(null);
 
     // Effective detailId: use local state if set, otherwise null
     const effectiveDetailId = detailIdLocal;
@@ -346,6 +353,48 @@ export default function MapTab() {
         setDetailIdLocal(null);
     };
 
+    // Note dialog handlers
+    const handleAddNote = () => {
+        setEditingNote(null);
+        setIsNoteDialogOpen(true);
+    };
+
+    const handleEditNote = (note: NoteResponse) => {
+        setEditingNote(note);
+        setIsNoteDialogOpen(true);
+    };
+
+    const handleSaveNote = async (content: string) => {
+        if (!detail) return;
+
+        try {
+            const locationId = parseInt(detail.id);
+            if (editingNote) {
+                await updateNote(editingNote.id, content);
+                toast.success("Notitie bijgewerkt");
+            } else {
+                await createNote(locationId, content);
+                toast.success("Notitie toegevoegd");
+            }
+
+            setIsNoteDialogOpen(false);
+            setEditingNote(null);
+            // Notes will be refreshed by OverlayDetailCard's useEffect when it re-renders
+        } catch (error: any) {
+            throw error;
+        }
+    };
+
+    const handleNotesRefresh = () => {
+        // Trigger a re-render of OverlayDetailCard by toggling detailId
+        // This is a workaround - ideally we'd have a proper refresh mechanism
+        if (detailIdLocal) {
+            const currentId = detailIdLocal;
+            setDetailIdLocal(null);
+            setTimeout(() => setDetailIdLocal(currentId), 0);
+        }
+    };
+
     const handleFiltersChange = (patch: Partial<typeof filters>) => {
         navigationActions.setMap({
             filters: { ...filters, ...patch }
@@ -583,6 +632,20 @@ export default function MapTab() {
                         location={detail}
                         open={Boolean(detail)}
                         onClose={handleCloseDetail}
+                        onAddNote={handleAddNote}
+                        onEditNote={handleEditNote}
+                        onNotesRefresh={handleNotesRefresh}
+                    />
+                )}
+
+                {/* Note Dialog - rendered outside OverlayDetailCard to avoid nesting issues */}
+                {detail && (
+                    <NoteDialog
+                        open={isNoteDialogOpen}
+                        onOpenChange={setIsNoteDialogOpen}
+                        onSubmit={handleSaveNote}
+                        initialContent={editingNote?.content || ""}
+                        locationName={detail.name}
                     />
                 )}
             </AppViewportShell>

@@ -75,3 +75,4 @@ async def test_create_news_promotion():
     assert promotion["price_cents"] == 2000  # Default price for 7 days
 
 
+

@@ -49,11 +49,6 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
                                 {location.category_label ?? location.category}
                             </Badge>
                         )}
-                        {location.is_turkish && (
-                            <span className="rounded-full border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-100">
-                                Turkish
-                            </span>
-                        )}
                     </div>
                 </div>
                 <button

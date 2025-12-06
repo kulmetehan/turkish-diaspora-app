@@ -79,3 +79,4 @@ async def get_current_user_optional(authorization: Optional[str] = Header(None))
     return extract_user_from_token(authorization)
 
 
+

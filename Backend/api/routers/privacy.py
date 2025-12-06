@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from datetime import datetime
 
 from app.core.client_id import get_client_id
+from app.deps.auth import get_current_user, get_current_user_optional, User
 from services.db_service import fetch
 
 router = APIRouter(prefix="/privacy", tags=["privacy"])
@@ -32,7 +33,7 @@ class PrivacySettingsUpdate(BaseModel):
 async def get_privacy_settings(
     request: Request,
     client_id: Optional[str] = Depends(get_client_id),
-    # TODO: user_id: Optional[UUID] = Depends(get_current_user_optional),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Get privacy settings for current user (authenticated) or client_id (anonymous).
@@ -40,7 +41,7 @@ async def get_privacy_settings(
     For now, only authenticated users have privacy settings stored.
     Anonymous users get default settings.
     """
-    user_id = None  # TODO: Extract from auth session when available
+    user_id = user.user_id if user else None
     
     if user_id:
         # Fetch from privacy_settings table for authenticated users
@@ -71,21 +72,12 @@ async def update_privacy_settings(
     request: Request,
     settings: PrivacySettingsUpdate,
     client_id: Optional[str] = Depends(get_client_id),
-    # TODO: user_id: Optional[UUID] = Depends(get_current_user_required),
+    user: User = Depends(get_current_user),
 ):
     """
     Update privacy settings. Requires authentication.
-    
-    For now, this endpoint will return an error if user is not authenticated.
-    In the future, we may store client_id preferences in a separate table.
     """
-    user_id = None  # TODO: Extract from auth session when available
-    
-    if not user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required to update privacy settings"
-        )
+    user_id = user.user_id
     
     # Get current settings first
     get_sql = """

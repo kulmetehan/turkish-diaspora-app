@@ -24,3 +24,4 @@ COMMENT ON TABLE public.promoted_news IS 'Promoted news posts created by busines
 COMMENT ON COLUMN public.promoted_news.status IS 'Promotion status: pending (payment pending), active (live), expired (ended), cancelled';
 
 
+

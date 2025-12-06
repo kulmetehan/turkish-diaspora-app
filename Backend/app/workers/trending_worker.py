@@ -124,7 +124,7 @@ async def calculate_trending_for_window(
             check_ins=row.get('check_ins_count', 0) or 0,
             reactions=row.get('reactions_count', 0) or 0,
             notes=row.get('notes_count', 0) or 0,
-            age_hours=row.get('oldest_age_hours', 0) or 0,
+            age_hours=float(row.get('oldest_age_hours', 0) or 0),
         )
         
         results.append({
@@ -158,9 +158,9 @@ async def update_trending_table(
     # Upsert into trending_locations
     upsert_sql = """
         INSERT INTO trending_locations 
-        (location_id, city_key, category_key, window, score, rank, check_ins_count, reactions_count, notes_count, raw_counts, updated_at)
+        (location_id, city_key, category_key, "window", score, rank, check_ins_count, reactions_count, notes_count, raw_counts, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, now())
-        ON CONFLICT (location_id, city_key, category_key, window)
+        ON CONFLICT (location_id, city_key, category_key, "window")
         DO UPDATE SET
             score = EXCLUDED.score,
             rank = EXCLUDED.rank,

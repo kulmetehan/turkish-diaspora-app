@@ -1,5 +1,6 @@
 // src/api/fetchLocations.ts
 import { getAcceptLanguageHeader } from "@/i18n";
+import { getOrCreateClientId } from "@/lib/api";
 
 export interface CategoryOption {
     key: string;
@@ -54,11 +55,15 @@ export async function fetchLocations(
     const queryString = params.toString();
     const url = `${API_BASE}/api/v1/locations${queryString ? `?${queryString}` : ""}`;
 
+    // Automatically include X-Client-Id header for anonymous user tracking
+    const clientId = getOrCreateClientId();
+
     const resp = await fetch(url, {
         method: "GET",
         headers: {
             "Accept": "application/json",
             "Accept-Language": getAcceptLanguageHeader(),
+            "X-Client-Id": clientId,
         },
         signal,
     });
@@ -114,11 +119,15 @@ export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSi
     const queryString = params.toString();
     const url = `${API_BASE}/api/v1/locations/count${queryString ? `?${queryString}` : ""}`;
 
+    // Automatically include X-Client-Id header for anonymous user tracking
+    const clientId = getOrCreateClientId();
+
     const resp = await fetch(url, {
         method: "GET",
         headers: {
             "Accept": "application/json",
             "Accept-Language": getAcceptLanguageHeader(),
+            "X-Client-Id": clientId,
         },
         signal,
     });
@@ -138,11 +147,15 @@ export async function fetchCategories(signal?: AbortSignal): Promise<CategoryOpt
     // Use new categories endpoint
     const url = `${API_BASE}/api/v1/categories`;
 
+    // Automatically include X-Client-Id header for anonymous user tracking
+    const clientId = getOrCreateClientId();
+
     const resp = await fetch(url, {
         method: "GET",
         headers: {
             "Accept": "application/json",
             "Accept-Language": getAcceptLanguageHeader(),
+            "X-Client-Id": clientId,
         },
         signal,
     });

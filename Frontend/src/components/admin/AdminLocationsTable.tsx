@@ -1,4 +1,5 @@
 import AdminAddLocationDialog from "@/components/admin/AdminAddLocationDialog";
+import BulkImportDialog from "@/components/admin/BulkImportDialog";
 import EditLocationDialog from "@/components/admin/EditLocationDialog";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
@@ -105,6 +106,7 @@ export default function AdminLocationsTable() {
     const [bulkUnretire, setBulkUnretire] = useState(false);
     const [isOptionsLoading, setIsOptionsLoading] = useState(true);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [isBulkImportDialogOpen, setIsBulkImportDialogOpen] = useState(false);
     const nav = useNavigate();
 
     const parseConfidence = (value: string): number | undefined => {
@@ -400,14 +402,25 @@ export default function AdminLocationsTable() {
         void load();
     };
 
+    const handleBulkImportCompleted = () => {
+        setOffset(0);
+        void load();
+    };
+
     return (
         <Card className="max-h-[80vh]">
             <CardContent className="p-4 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <Button onClick={() => setIsAddDialogOpen(true)}>
-                        <Icon name="Plus" className="mr-2 h-4 w-4" />
-                        Locatie toevoegen
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button onClick={() => setIsAddDialogOpen(true)}>
+                            <Icon name="Plus" className="mr-2 h-4 w-4" />
+                            Locatie toevoegen
+                        </Button>
+                        <Button variant="outline" onClick={() => setIsBulkImportDialogOpen(true)}>
+                            <Icon name="Upload" className="mr-2 h-4 w-4" />
+                            Bulk import (CSV)
+                        </Button>
+                    </div>
                     <span className="text-sm text-muted-foreground">
                         {total} resultaten
                     </span>
@@ -675,6 +688,7 @@ export default function AdminLocationsTable() {
             </CardContent>
             <EditLocationDialog id={editingId} open={editingId !== null} onOpenChange={(o) => { if (!o) setEditingId(null); }} onSaved={() => void load()} />
             <AdminAddLocationDialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen} onCreated={handleLocationCreated} />
+            <BulkImportDialog open={isBulkImportDialogOpen} onOpenChange={setIsBulkImportDialogOpen} onImported={handleBulkImportCompleted} />
         </Card>
     );
 }

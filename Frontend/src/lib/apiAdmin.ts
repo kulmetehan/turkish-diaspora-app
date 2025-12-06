@@ -1,4 +1,5 @@
 import { authFetch, API_BASE, getAdminKey } from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
 
 export type AdminLocationListItem = {
     id: number;
@@ -102,13 +103,19 @@ export async function bulkImportLocations(file: File): Promise<AdminLocationBulk
     const formData = new FormData();
     formData.append("file", file);
 
-    const adminKey = getAdminKey();
+    // Get Supabase JWT token (same as authFetch does)
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+        throw new Error("Not authenticated");
+    }
+
     const url = `${API_BASE}/api/v1/admin/locations/bulk_import`;
     
     const response = await fetch(url, {
         method: "POST",
         headers: {
-            "X-Admin-Key": adminKey,
+            Authorization: `Bearer ${token}`,
             // Do NOT set Content-Type - browser will set it with boundary for multipart/form-data
         },
         body: formData,
@@ -503,6 +510,7 @@ export async function getCityDetail(cityKey: string): Promise<CityDetailResponse
 export async function createCity(city: CityCreate): Promise<CityReadiness> {
     return authFetch<CityReadiness>("/api/v1/admin/cities", {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(city),
     });
 }
@@ -510,6 +518,7 @@ export async function createCity(city: CityCreate): Promise<CityReadiness> {
 export async function updateCity(cityKey: string, city: CityUpdate): Promise<CityReadiness> {
     return authFetch<CityReadiness>(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}`, {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(city),
     });
 }
@@ -523,6 +532,7 @@ export async function deleteCity(cityKey: string): Promise<void> {
 export async function createDistrict(cityKey: string, district: DistrictCreate): Promise<{ ok: boolean; city_key: string; district_key: string; bbox: { lat_min: number; lat_max: number; lng_min: number; lng_max: number } }> {
     return authFetch(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}/districts`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(district),
     });
 }
@@ -534,6 +544,7 @@ export async function updateDistrict(
 ): Promise<{ ok: boolean; city_key: string; district_key: string; bbox: { lat_min: number; lat_max: number; lng_min: number; lng_max: number } }> {
     return authFetch(`/api/v1/admin/cities/${encodeURIComponent(cityKey)}/districts/${encodeURIComponent(districtKey)}`, {
         method: "PUT",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(district),
     });
 }

@@ -25,6 +25,7 @@ from services.cities_config_service import (
     normalize_district_key,
     save_cities_config,
     validate_city_config,
+    get_defaults_anchor_ref,
 )
 
 logger = get_logger()
@@ -335,13 +336,16 @@ async def create_city(
                 detail=f"City with key '{city_key}' already exists",
             )
         
+        # Get the defaults anchor reference dynamically
+        anchor_ref = get_defaults_anchor_ref(config)
+        
         # Build city data structure
         city_data: Dict[str, Any] = {
             "city_name": payload.city_name,
             "country": payload.country,
             "center_lat": payload.center_lat,
             "center_lng": payload.center_lng,
-            "apply": "*rotterdam_defaults",  # Use YAML anchor reference
+            "apply": anchor_ref,  # Use dynamic anchor reference
         }
         
         # Add districts if provided
@@ -358,7 +362,7 @@ async def create_city(
                 bbox = calculate_district_bbox(district.center_lat, district.center_lng)
                 districts_dict[district_key] = {
                     **bbox,
-                    "apply": "*rotterdam_defaults",
+                    "apply": anchor_ref,  # Use dynamic anchor reference
                 }
             city_data["districts"] = districts_dict
         
@@ -525,11 +529,14 @@ async def create_district(
                 detail=f"District '{district_key}' already exists in city '{city_key}'",
             )
         
+        # Get the defaults anchor reference dynamically
+        anchor_ref = get_defaults_anchor_ref(config)
+        
         # Calculate bounding box and add district
         bbox = calculate_district_bbox(payload.center_lat, payload.center_lng)
         districts[district_key] = {
             **bbox,
-            "apply": "*rotterdam_defaults",
+            "apply": anchor_ref,  # Use dynamic anchor reference
         }
         
         # Validate updated city config

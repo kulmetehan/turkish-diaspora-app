@@ -86,3 +86,4 @@ COMMENT ON TABLE public.payment_transactions IS 'Audit trail for all payment tra
 COMMENT ON FUNCTION sync_premium_features() IS 'Automatically syncs premium features based on subscription tier';
 
 
+

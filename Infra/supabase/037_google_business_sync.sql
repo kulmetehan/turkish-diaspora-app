@@ -55,3 +55,4 @@ COMMENT ON COLUMN public.locations.google_business_id IS 'Google Business Profil
 COMMENT ON COLUMN public.locations.google_business_metadata IS 'Additional Google Business data (hours, photos, etc.)';
 
 
+

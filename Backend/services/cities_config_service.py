@@ -254,6 +254,45 @@ def get_city_key_from_coords(lat: Optional[float], lng: Optional[float]) -> Opti
         return None
 
 
+def get_defaults_anchor_ref(config: Dict[str, Any]) -> str:
+    """
+    Get the YAML anchor reference for defaults section.
+    
+    Tries to find the anchor name by:
+    1. Checking existing cities for their 'apply' value
+    2. Reading raw YAML to find anchor name
+    3. Falling back to '*id001' if no reference found
+    
+    Args:
+        config: Cities configuration dictionary
+    
+    Returns:
+        Anchor reference string (e.g., '*id001')
+    """
+    # First, try to find anchor from existing cities
+    cities = config.get("cities", {})
+    for city_data in cities.values():
+        if isinstance(city_data, dict) and "apply" in city_data:
+            apply_value = city_data["apply"]
+            if isinstance(apply_value, str) and apply_value.startswith("*"):
+                return apply_value
+    
+    # Fallback: try to read raw YAML to find anchor name
+    try:
+        from app.workers.discovery_bot import CITIES_YML
+        raw_yaml = CITIES_YML.read_text(encoding="utf-8")
+        # Look for pattern: defaults: &anchor_name
+        import re
+        match = re.search(r'defaults:\s*&(\w+)', raw_yaml)
+        if match:
+            return f"*{match.group(1)}"
+    except Exception:
+        pass
+    
+    # Final fallback
+    return "*id001"
+
+
 def save_cities_config(config: Dict[str, Any]) -> None:
     """
     Save cities configuration to YAML file with backup.
@@ -305,8 +344,11 @@ def save_cities_config(config: Dict[str, Any]) -> None:
         
         # Post-process to restore YAML anchor references
         # Replace string representation of anchor references with actual anchor syntax
-        yaml_content = yaml_content.replace('"*rotterdam_defaults"', "*rotterdam_defaults")
-        yaml_content = yaml_content.replace("'*rotterdam_defaults'", "*rotterdam_defaults")
+        # Find all anchor references in the config and ensure they're not quoted
+        import re
+        # Match any anchor reference pattern like "*id001" or "*rotterdam_defaults"
+        yaml_content = re.sub(r'"(\*\w+)"', r'\1', yaml_content)
+        yaml_content = re.sub(r"'(\*\w+)'", r'\1', yaml_content)
         
         # Ensure file directory exists
         CITIES_YML.parent.mkdir(parents=True, exist_ok=True)

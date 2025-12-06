@@ -122,3 +122,4 @@ Existing schema in `Infra/supabase/033_push_notifications.sql`:
 - Mobile app support (FCM/Expo)
 
 
+

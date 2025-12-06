@@ -46,3 +46,4 @@ COMMENT ON TABLE public.push_notification_preferences IS 'User preferences for p
 COMMENT ON TABLE public.push_notification_log IS 'Audit log for all push notifications sent';
 
 
+
