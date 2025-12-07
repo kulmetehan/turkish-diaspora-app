@@ -14,7 +14,7 @@ Documentation for the GitHub Actions workflows that automate discovery and verif
 
 | Workflow | Trigger | Purpose | Command |
 | --- | --- | --- | --- |
-| `discovery-train.yml` | Scheduled (`*/30 * * * *`) + manual | Sequential discovery orchestration | `python -m app.workers.discovery_train_bot --max-jobs 1` |
+| `discovery-train.yml` | Scheduled (`*/15 * * * *`) + manual | Sequential discovery orchestration | `python -m app.workers.discovery_train_bot --max-jobs 3` |
 | `tda_verification.yml` | Scheduled (`*/30 * * * *`) + manual | Primary verification pipeline | `python -m app.workers.verify_locations --limit 1500` |
 
 ## Deprecated Workflows

@@ -239,6 +239,57 @@ CATEGORY_NORMALIZATION_MAP = {
     "dikim atölyesi": "tailor",
     "dikim atolyesi": "tailor",
 
+    # --- EVENTS VENUE / TROUWZALEN ---
+    "events_venue": "events_venue",
+    "event venue": "events_venue",
+    "eventlocatie": "events_venue",
+    "evenementenlocatie": "events_venue",
+    "trouwzaal": "events_venue",
+    "feestzaal": "events_venue",
+    "bruiloftzaal": "events_venue",
+    # Turkish variants
+    "düğün salonu": "events_venue",
+    "dugun salonu": "events_venue",
+    "nikah salonu": "events_venue",
+    "etkinlik mekanı": "events_venue",
+    "etkinlik mekani": "events_venue",
+
+    # --- COMMUNITY CENTRE / VERENIGINGEN ---
+    "community_centre": "community_centre",
+    "community center": "community_centre",
+    "community centre": "community_centre",
+    "vereniging": "community_centre",
+    "stichting": "community_centre",
+    "gemeenschapscentrum": "community_centre",
+    "verenigingsgebouw": "community_centre",
+    "associatie": "community_centre",
+    # Turkish variants
+    "dernek": "community_centre",
+    "vakıf": "community_centre",
+    "vakif": "community_centre",
+    "cemiyet": "community_centre",
+    "toplum merkezi": "community_centre",
+
+    # --- CLINIC / MEDISCHE PRAKTIJKEN ---
+    "clinic": "clinic",
+    "kliniek": "clinic",
+    "medische praktijk": "clinic",
+    "medisch centrum": "clinic",
+    "gezondheidscentrum": "clinic",
+    "dokter": "clinic",
+    "dokterspraktijk": "clinic",
+    "huisarts": "clinic",
+    "health center": "clinic",
+    "health centre": "clinic",
+    # Turkish variants
+    "klinik": "clinic",
+    "sağlık merkezi": "clinic",
+    "saglik merkezi": "clinic",
+    "doktor": "clinic",
+    "hekim": "clinic",
+    "sağlık ocağı": "clinic",
+    "saglik ocagi": "clinic",
+
     # fallback
     "other": "other",
 }

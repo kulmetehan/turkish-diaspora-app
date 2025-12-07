@@ -246,6 +246,69 @@ categories:
       enabled: true
       priority: 5
 
+  events_venue:
+    label: "trouwzaal"
+    description: "Trouwzalen en eventlocaties voor bruiloften en feesten."
+    google_types:
+      - "event_venue"
+    osm_tags:
+      any:
+        - { amenity: "events_venue" }
+    aliases:
+      - "trouwzaal"
+      - "feestzaal"
+      - "eventlocatie"
+      - "evenementenlocatie"
+      - "düğün salonu"      # TR
+      - "dugun salonu"       # TR
+      - "nikah salonu"       # TR
+    discovery:
+      enabled: true
+      priority: 5
+
+  community_centre:
+    label: "vereniging"
+    description: "Verenigingen, stichtingen en gemeenschapscentra."
+    google_types:
+      - "community_center"
+    osm_tags:
+      any:
+        - { amenity: "community_centre" }
+        - { office: "association" }
+    aliases:
+      - "vereniging"
+      - "stichting"
+      - "gemeenschapscentrum"
+      - "dernek"             # TR
+      - "vakıf"              # TR
+      - "vakif"              # TR
+      - "cemiyet"            # TR
+    discovery:
+      enabled: true
+      priority: 5
+
+  clinic:
+    label: "medische praktijk"
+    description: "Medische praktijken, klinieken en gezondheidscentra."
+    google_types:
+      - "doctor"
+      - "health"
+    osm_tags:
+      any:
+        - { amenity: "clinic" }
+    aliases:
+      - "kliniek"
+      - "medische praktijk"
+      - "dokter"
+      - "gezondheidscentrum"
+      - "klinik"             # TR
+      - "sağlık merkezi"      # TR
+      - "saglik merkezi"      # TR
+      - "doktor"              # TR
+    discovery:
+      enabled: true
+      priority: 5
+
   other:
     label: "overig"
     description: "Catch-all categorie voor locaties die niet in andere categorieën passen of nog geen eigen categorie hebben."

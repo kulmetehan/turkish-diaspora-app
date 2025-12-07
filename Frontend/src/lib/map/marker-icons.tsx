@@ -25,6 +25,9 @@ import {
   Needle,
   Plane,
   Sandwich,
+  Calendar,
+  Users,
+  HeartPulse,
   type LucideIcon,
 } from "lucide-react";
 
@@ -62,6 +65,12 @@ function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
       return Plane;
     case "fast_food":
       return Sandwich;
+    case "events_venue":
+      return Calendar;
+    case "community_centre":
+      return Users;
+    case "clinic":
+      return HeartPulse;
     default:
       return MapPin; // fallback
   }

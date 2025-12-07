@@ -41,6 +41,9 @@ const FALLBACK_CATEGORIES: CategoryOption[] = [
   { key: "car_dealer", label: "Autodealer" },
   { key: "insurance", label: "Verzekering" },
   { key: "tailor", label: "Kleermaker" },
+  { key: "events_venue", label: "Trouwzaal" },
+  { key: "community_centre", label: "Vereniging" },
+  { key: "clinic", label: "Medische Praktijk" },
 ];
 
 export default function Filters({

@@ -208,6 +208,19 @@ cities:
         lng_min: 4.6210813
         lng_max: 4.6510812999999995
         apply: *id001
+  hellevoetsluis:
+    city_name: Hellevoetsluis
+    country: NL
+    center_lat: 51.833921
+    center_lng: 4.1436739
+    apply: *id001
+    districts:
+      centrum:
+        lat_min: 51.823921
+        lat_max: 51.843920999999995
+        lng_min: 4.1286739
+        lng_max: 4.158673899999999
+        apply: *id001
   leiden:
     city_name: Leiden
     country: NL

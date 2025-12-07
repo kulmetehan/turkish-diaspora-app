@@ -35,6 +35,9 @@ class Category(str, Enum):
     car_dealer = "car_dealer"
     insurance = "insurance"
     tailor = "tailor"
+    events_venue = "events_venue"
+    community_centre = "community_centre"
+    clinic = "clinic"
     other = "other"
 
 

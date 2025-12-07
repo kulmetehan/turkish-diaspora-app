@@ -42,6 +42,9 @@ const LUCIDE_ALIAS_MAP: Record<string, string> = {
   "map-pin": "MapPin",
   plane: "Plane",
   sandwich: "Sandwich",
+  calendar: "Calendar",
+  users: "Users",
+  "heart-pulse": "HeartPulse",
 };
 
 function resolveLucideName(name: string): string {
@@ -74,6 +77,9 @@ const RAW_CATEGORY_CONFIG = [
   { key: "tailor", lucide: "needle" },
   { key: "travel_agency", lucide: "plane" },
   { key: "fast_food", lucide: "sandwich" },
+  { key: "events_venue", lucide: "calendar" },
+  { key: "community_centre", lucide: "users" },
+  { key: "clinic", lucide: "heart-pulse" },
   { key: FALLBACK_KEY, lucide: "map-pin" },
 ] as const;
 
