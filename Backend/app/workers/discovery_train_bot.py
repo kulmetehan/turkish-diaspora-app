@@ -189,8 +189,9 @@ async def main_async() -> None:
                     jobs_failed += 1
                 
                 # Small delay between jobs to respect rate limits
+                # Note: OSM service already enforces 8s minimum delay per endpoint
                 if jobs_processed < max_jobs:
-                    await asyncio.sleep(2.0)  # 2 second delay between jobs
+                    await asyncio.sleep(1.0)  # 1 second delay between jobs
         
         except Exception as e:
             logger.error("train_worker_failed", error=str(e), exc_info=e)

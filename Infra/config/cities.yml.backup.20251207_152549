@@ -11,6 +11,19 @@ defaults: &id001
   max_per_cell_per_category: 20
   inter_call_sleep_s: 0.15
 cities:
+  bergen_op_zoom:
+    city_name: Bergen op Zoom
+    country: NL
+    center_lat: 51.4944756
+    center_lng: 4.2871541
+    apply: *id001
+    districts:
+      centrum:
+        lat_min: 51.4844756
+        lat_max: 51.5044756
+        lng_min: 4.272154100000001
+        lng_max: 4.3021541
+        apply: *id001
   breda:
     city_name: Breda
     country: NL
@@ -195,6 +208,12 @@ cities:
         lng_min: 4.6210813
         lng_max: 4.6510812999999995
         apply: *id001
+  hellevoetsluis:
+    city_name: Hellevoetsluis
+    country: NL
+    center_lat: 51.833921
+    center_lng: 4.1436739
+    apply: *id001
   leiden:
     city_name: Leiden
     country: NL
@@ -298,6 +317,19 @@ cities:
         lat_max: 52.11197975584516
         lng_min: 4.390652497222915
         lng_max: 4.420652497222915
+        apply: *id001
+  roosendaal:
+    city_name: Roosendaal
+    country: NL
+    center_lat: 51.533148
+    center_lng: 4.456128
+    apply: *id001
+    districts:
+      centrum:
+        lat_min: 51.523148400000004
+        lat_max: 51.5431484
+        lng_min: 4.441127600000001
+        lng_max: 4.4711276
         apply: *id001
   rotterdam:
     city_name: Rotterdam

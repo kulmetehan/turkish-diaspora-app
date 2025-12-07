@@ -32,6 +32,9 @@ const CATEGORY_ICON_MAP: Record<string, IconProps["name"]> = {
   car_dealer: "CarFront",
   insurance: "ShieldCheck",
   tailor: "Needle",
+  events_venue: "Calendar",
+  community_centre: "Users",
+  clinic: "HeartPulse",
   other: "Store",
 };
 

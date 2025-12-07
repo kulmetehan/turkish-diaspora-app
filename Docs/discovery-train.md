@@ -136,15 +136,15 @@ python -m app.workers.discovery_bot --job-id <uuid>
 
 The Discovery Train is automated via `.github/workflows/discovery-train.yml`:
 
-- **Trigger**: Cron every 30 minutes (`*/30 * * * *`) + manual dispatch
-- **Command**: `python -m app.workers.discovery_train_bot --max-jobs 1`
+- **Trigger**: Cron every 15 minutes (`*/15 * * * *`) + manual dispatch
+- **Command**: `python -m app.workers.discovery_train_bot --max-jobs 3`
 - **Concurrency**: Single instance (prevents parallel runs)
 - **Timeout**: 30 minutes
 
 **To adjust frequency**: Edit the cron schedule in `discovery-train.yml`:
 ```yaml
 schedule:
-  - cron: "*/30 * * * *"    # Change to desired frequency
+  - cron: "*/15 * * * *"    # Change to desired frequency
 ```
 
 **To process multiple jobs per run**: Change `--max-jobs` parameter:
@@ -157,9 +157,9 @@ run: |
 
 If using Render instead of GitHub Actions, add to Render cron job:
 ```
-*/30 * * * * python -m app.workers.discovery_train_bot
+*/15 * * * * python -m app.workers.discovery_train_bot --max-jobs 3
 ```
-(Runs every 30 minutes, processes 1 job per run)
+(Runs every 15 minutes, processes 3 jobs per run)
 
 ### Manual Orchestration
 
@@ -240,8 +240,8 @@ Discovery Train worker runs are tracked in `worker_runs` table:
 
 1. **Enqueue jobs in batches**: Don't enqueue thousands of jobs at once
 2. **Monitor queue size**: Keep pending jobs < 1000 to avoid long wait times
-3. **Use appropriate --max-jobs**: For cron, use 1. For manual runs, use 5-10
-4. **Respect rate limits**: Discovery Train includes 2-second delay between jobs
+3. **Use appropriate --max-jobs**: For cron, use 3 (default). For manual runs, use 5-10
+4. **Respect rate limits**: Discovery Train includes 1-second delay between jobs (OSM service enforces 8s minimum delay per endpoint)
 5. **Clean up failed jobs**: Periodically review and retry or remove failed jobs
 
 ## Troubleshooting

@@ -11,14 +11,14 @@ name: Discovery Train
 # - Single instance prevents concurrent execution conflicts
 # - Gracefully handles empty queue (exits successfully if no pending jobs)
 #
-# Frequency: Every 30 minutes (processes 1 job per run by default)
+# Frequency: Every 15 minutes (processes 3 jobs per run by default)
 # To adjust: Change cron schedule or add --max-jobs N parameter
 #
 # See Docs/discovery-train.md for full documentation.
 
 on:
   schedule:
-    - cron: "*/30 * * * *"    # every 30 minutes
+    - cron: "*/15 * * * *"    # every 15 minutes
   workflow_dispatch:
 
 permissions:
@@ -76,9 +76,9 @@ jobs:
           OVERPASS_TIMEOUT_S: "30"
           DISCOVERY_MAX_RESULTS: "25"
         run: |
-          # Run Discovery Train (processes 1 job per invocation by default)
+          # Run Discovery Train (processes 3 jobs per invocation by default)
           # If no pending jobs exist, exits gracefully (not an error)
-          python -m app.workers.discovery_train_bot --max-jobs 1
+          python -m app.workers.discovery_train_bot --max-jobs 3
 
 
 

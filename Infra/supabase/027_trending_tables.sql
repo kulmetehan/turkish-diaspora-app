@@ -44,3 +44,5 @@ COMMENT ON TABLE public.trending_locations_history IS 'Daily snapshots of trendi
 
 
 
+
+
