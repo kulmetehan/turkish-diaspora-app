@@ -868,7 +868,7 @@ export async function getPollStats(pollId: number): Promise<PollStats> {
 export interface ActivityItem {
   is_promoted?: boolean;
   id: number;
-  activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite";
+  activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite" | "bulletin_post";
   location_id: number | null;
   location_name: string | null;
   payload: Record<string, any>;

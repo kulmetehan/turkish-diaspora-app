@@ -17,7 +17,7 @@ router = APIRouter(prefix="/activity", tags=["activity"])
 
 class ActivityItem(BaseModel):
     id: int
-    activity_type: str  # 'check_in', 'reaction', 'note', 'poll_response', 'favorite'
+    activity_type: str  # 'check_in', 'reaction', 'note', 'poll_response', 'favorite', 'bulletin_post'
     location_id: Optional[int]
     location_name: Optional[str]
     payload: dict  # Activity-specific details
@@ -60,7 +60,7 @@ async def get_own_activity(
     
     if activity_type:
         # Validate activity_type
-        valid_types = ["check_in", "reaction", "note", "poll_response", "favorite"]
+        valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post"]
         if activity_type not in valid_types:
             from fastapi import HTTPException
             raise HTTPException(

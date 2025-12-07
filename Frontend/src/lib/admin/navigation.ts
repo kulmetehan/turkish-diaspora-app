@@ -146,6 +146,13 @@ export const adminNavigation: NavGroup[] = [
         path: "/admin/reports",
         group: "moderation",
       },
+      {
+        id: "bulletin",
+        label: "Bulletin Moderation",
+        icon: "MessageSquare",
+        path: "/admin/bulletin",
+        group: "moderation",
+      },
     ],
   },
   {

@@ -15,6 +15,7 @@ function getActivityTypeLabel(activityType: ActivityItem["activity_type"]): stri
     note: "notitie",
     poll_response: "poll",
     favorite: "favoriet",
+    bulletin_post: "advertentie",
   };
   return labels[activityType] || activityType;
 }

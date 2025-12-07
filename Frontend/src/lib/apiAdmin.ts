@@ -929,4 +929,43 @@ export async function removeReportedContent(reportId: number): Promise<{
     );
 }
 
+// ============================================================================
+// Admin Bulletin API
+// ============================================================================
+
+export type AdminBulletinPost = {
+    id: number;
+    title: string;
+    description?: string;
+    category: string;
+    city?: string;
+    moderation_status: string;
+    moderation_result?: {
+        decision: string;
+        reason: string;
+        details?: string;
+    };
+    created_at: string;
+    creator_type: string;
+    view_count: number;
+    contact_count: number;
+};
+
+export async function getBulletinReviewQueue(status?: string): Promise<AdminBulletinPost[]> {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    return authFetch<AdminBulletinPost[]>(`/api/v1/admin/bulletin/review-queue?${params.toString()}`);
+}
+
+export async function moderateBulletinPost(
+    postId: number,
+    action: "approve" | "reject",
+    reason?: string
+): Promise<{ ok: boolean; message: string }> {
+    return authFetch<{ ok: boolean; message: string }>(`/api/v1/admin/bulletin/posts/${postId}/moderate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reason }),
+    });
+}
 

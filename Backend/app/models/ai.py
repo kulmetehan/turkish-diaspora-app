@@ -279,6 +279,62 @@ class AIQuotaExceededError(RuntimeError):
     pass
 
 
+# =========================
+# Bulletin Board Moderation
+# =========================
+
+class ModerationDecision(str, Enum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    REQUIRES_REVIEW = "requires_review"
+
+
+class ModerationReason(str, Enum):
+    # Rejection reasons
+    OFFENSIVE = "offensive"
+    SPAM = "spam"
+    MISLEADING = "misleading"
+    ILLEGAL = "illegal"
+    WRONG_CATEGORY = "wrong_category"
+    IRRELEVANT = "irrelevant"
+    
+    # Review reasons
+    BORDERLINE = "borderline"
+    UNCERTAIN_CONTEXT = "uncertain_context"
+    
+    # Approval
+    CLEAN = "clean"
+
+
+class ContentModerationResult(BaseModel):
+    """AI moderation result for bulletin posts."""
+    decision: ModerationDecision
+    confidence_score: float = Field(..., ge=0.0, le=1.0)
+    reason: ModerationReason
+    details: Optional[str] = None  # Human-readable explanation
+    flags: List[str] = Field(default_factory=list)  # e.g. ["profanity_detected", "commercial_spam"]
+    suggested_category: Optional[str] = None  # If wrong category detected
+
+    @field_validator("confidence_score", mode="before")
+    @classmethod
+    def _coerce_and_clip_conf(cls, v: Any) -> float:
+        try:
+            f = float(v)
+        except Exception:
+            raise PydanticCustomError("confidence_invalid", "confidence_score must be float in [0,1]")
+        return _clip01(f) or 0.0
+
+
+TA_MODERATION = TypeAdapter(ContentModerationResult)
+
+
+def validate_moderation(data: Dict[str, Any]) -> ContentModerationResult:
+    try:
+        return TA_MODERATION.validate_python(data, by_name=True)
+    except ValidationError as e:
+        raise AIValidationError(f"moderation invalid: {e}", payload=data)
+
+
 def validate_classification(data: Dict[str, Any]) -> AIClassification:
     try:
         return TA_CLASSIFICATION.validate_python(data, by_name=True)

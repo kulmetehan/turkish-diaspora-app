@@ -1,5 +1,5 @@
 // Frontend/src/components/feed/ActivityTypeIcon.tsx
-import { CheckCircle, Heart, MessageSquare, Vote, Star } from "lucide-react";
+import { CheckCircle, Heart, MessageSquare, Vote, Star, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import type { ActivityItem } from "@/lib/api";
 
@@ -24,6 +24,8 @@ export function ActivityTypeIcon({ activityType, className }: ActivityTypeIconPr
       return <Vote {...iconProps} className={cn(iconProps.className, "text-purple-500")} />;
     case "favorite":
       return <Star {...iconProps} className={cn(iconProps.className, "text-yellow-500")} />;
+    case "bulletin_post":
+      return <ClipboardList {...iconProps} className={cn(iconProps.className, "text-orange-500")} />;
     default:
       return <CheckCircle {...iconProps} />;
   }
