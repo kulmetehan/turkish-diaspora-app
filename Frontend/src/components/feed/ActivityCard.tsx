@@ -70,6 +70,9 @@ function getActivityMessage(item: ActivityItem): string {
       return `heeft gestemd op een poll`;
     case "favorite":
       return `heeft ${locationName} toegevoegd aan favorieten`;
+    case "bulletin_post":
+      const title = (item.payload?.title as string) || "";
+      return `heeft een advertentie geplaatst: "${title}"`;
     default:
       return `heeft activiteit op ${locationName}`;
   }
@@ -81,13 +84,15 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
   const activityMessage = useMemo(() => getActivityMessage(item), [item]);
 
   const handleClick = () => {
-    if (item.location_id) {
+    if (item.activity_type === "bulletin_post") {
+      navigate(`/#/feed?tab=bulletin&post=${item.payload?.bulletin_post_id || ''}`);
+    } else if (item.location_id) {
       navigate(`/#/locations/${item.location_id}`);
     }
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
-    if ((event.key === "Enter" || event.key === " ") && item.location_id) {
+    if ((event.key === "Enter" || event.key === " ") && (item.location_id || item.activity_type === "bulletin_post")) {
       event.preventDefault();
       handleClick();
     }
@@ -95,11 +100,13 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
 
   return (
     <div
-      role={item.location_id ? "button" : undefined}
-      tabIndex={item.location_id ? 0 : undefined}
-      aria-label={item.location_id ? `Ga naar locatie: ${item.location_name}` : undefined}
-      onClick={item.location_id ? handleClick : undefined}
-      onKeyDown={item.location_id ? handleKeyDown : undefined}
+      role={item.location_id || item.activity_type === "bulletin_post" ? "button" : undefined}
+      tabIndex={item.location_id || item.activity_type === "bulletin_post" ? 0 : undefined}
+      aria-label={item.activity_type === "bulletin_post" 
+        ? `Ga naar advertentie: ${item.payload?.title || ''}` 
+        : (item.location_id ? `Ga naar locatie: ${item.location_name}` : undefined)}
+      onClick={item.location_id || item.activity_type === "bulletin_post" ? handleClick : undefined}
+      onKeyDown={item.location_id || item.activity_type === "bulletin_post" ? handleKeyDown : undefined}
       className={cn(
         "flex items-start gap-3 rounded-xl border border-border/80 bg-card p-4 shadow-soft transition-all",
         item.location_id

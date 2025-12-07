@@ -34,6 +34,7 @@ const CommunityGuidelinesPage = React.lazy(() => import("@/pages/CommunityGuidel
 const UserAuthPage = React.lazy(() => import("@/pages/UserAuthPage"));
 const AdminPollsPage = React.lazy(() => import("@/pages/admin/AdminPollsPage"));
 const AdminReportsPage = React.lazy(() => import("@/pages/admin/AdminReportsPage"));
+const AdminBulletinModeration = React.lazy(() => import("@/pages/admin/AdminBulletinModeration"));
 const DiasporaPulsePage = React.lazy(() => import("@/pages/DiasporaPulsePage"));
 
 // Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
@@ -137,6 +138,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminReportsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/bulletin" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminBulletinModeration />
             </Suspense>
           </AdminRouteWrapper>
         } />

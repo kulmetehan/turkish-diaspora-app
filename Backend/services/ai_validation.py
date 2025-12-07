@@ -4,8 +4,8 @@ from typing import Any, Dict
 import structlog
 
 from app.models.ai import (
-    AIClassification, AIEnrichment, AIVerificationResult,
-    validate_classification, validate_enrichment, validate_verification,
+    AIClassification, AIEnrichment, AIVerificationResult, ContentModerationResult,
+    validate_classification, validate_enrichment, validate_verification, validate_moderation,
     AIValidationError,
 )
 
@@ -43,4 +43,13 @@ def validate_verification_payload(data: Dict[str, Any]) -> AIVerificationResult:
         return parsed
     except AIValidationError as e:
         _log_result("verification", False, data, e)
+        raise
+
+def validate_moderation_payload(data: Dict[str, Any]) -> ContentModerationResult:
+    try:
+        parsed = validate_moderation(data)
+        _log_result("moderation", True, data)
+        return parsed
+    except AIValidationError as e:
+        _log_result("moderation", False, data, e)
         raise

@@ -390,6 +390,111 @@ async def process_poll_responses(limit: int) -> int:
     return processed
 
 
+async def process_bulletin_posts(limit: int) -> int:
+    """Process unprocessed bulletin posts into activity_stream."""
+    sql = f"""
+        SELECT 
+            bp.id,
+            bp.created_by_user_id,
+            bp.created_by_business_id,
+            bp.creator_type,
+            bp.title,
+            bp.category,
+            bp.city,
+            bp.linked_location_id,
+            bp.created_at,
+            l.lat,
+            l.lng,
+            l.category as location_category
+        FROM bulletin_posts bp
+        LEFT JOIN locations l ON bp.linked_location_id = l.id
+        WHERE bp.processed_in_activity_stream = false
+          AND bp.status = 'active'
+          AND bp.moderation_status = 'approved'
+          AND bp.created_at <= now() - interval '{PROCESSING_DELAY_SECONDS} seconds'
+        ORDER BY bp.created_at ASC
+        LIMIT $1
+    """
+    
+    rows = await fetch(sql, limit)
+    if not rows:
+        return 0
+    
+    processed = 0
+    for row in rows:
+        # Determine actor info
+        if row.get('creator_type') == 'user' and row.get('created_by_user_id'):
+            actor_type = 'user'
+            actor_id = row.get('created_by_user_id')
+            client_id = row.get('created_by_user_id')  # Fallback for traceability
+        elif row.get('creator_type') == 'business' and row.get('created_by_business_id'):
+            actor_type = 'business'
+            # Convert BIGINT business_id to string for actor_id (UUID column accepts text)
+            # Store as string representation since actor_id is UUID type
+            actor_id = str(row.get('created_by_business_id'))
+            client_id = None  # Businesses don't have client_id
+        else:
+            # Fallback: treat as anonymous/client
+            actor_type = 'client'
+            actor_id = None
+            client_id = None
+        
+        # Derive city_key from bulletin post city or linked location
+        city_key = None
+        if row.get('city'):
+            # Use bulletin post city directly if available
+            city_key = row.get('city').lower().replace(' ', '_') if row.get('city') else None
+        elif row.get('lat') and row.get('lng'):
+            # Fallback to deriving from coordinates
+            lat = float(row.get('lat')) if row.get('lat') is not None else None
+            lng = float(row.get('lng')) if row.get('lng') is not None else None
+            city_key = get_city_key_from_coords(lat, lng) if lat and lng else None
+        
+        # Use location category if available, otherwise None
+        category_key = row.get('location_category')
+        
+        # Build payload with bulletin post details
+        payload = json.dumps({
+            "bulletin_post_id": row['id'],
+            "title": row.get('title', '')[:100],  # Truncate for payload
+            "category": row.get('category'),
+            "city": row.get('city'),
+        })
+        
+        insert_sql = """
+            INSERT INTO activity_stream 
+            (actor_type, actor_id, client_id, activity_type, location_id, city_key, category_key, payload, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        """
+        
+        try:
+            await execute(
+                insert_sql,
+                actor_type,
+                actor_id,
+                client_id,
+                'bulletin_post',
+                row.get('linked_location_id'),  # Can be NULL
+                city_key,
+                category_key,
+                payload,
+                row['created_at'],
+            )
+            
+            # Mark as processed
+            mark_sql = """
+                UPDATE bulletin_posts
+                SET processed_in_activity_stream = true
+                WHERE id = $1
+            """
+            await execute(mark_sql, row['id'])
+            processed += 1
+        except Exception as e:
+            logger.error("failed_to_process_bulletin_post", bulletin_post_id=row['id'], error=str(e))
+    
+    return processed
+
+
 async def run_once(rebuild: bool = False) -> Dict[str, Any]:
     """Run one iteration of the activity stream ingest worker."""
     run_id = None
@@ -406,6 +511,7 @@ async def run_once(rebuild: bool = False) -> Dict[str, Any]:
             'notes': 0,
             'favorites': 0,
             'poll_responses': 0,
+            'bulletin_posts': 0,
         }
         
         if rebuild:
@@ -417,6 +523,7 @@ async def run_once(rebuild: bool = False) -> Dict[str, Any]:
             stats['notes'] = await process_notes(BATCH_SIZE * 10)
             stats['favorites'] = await process_favorites(BATCH_SIZE * 10)
             stats['poll_responses'] = await process_poll_responses(BATCH_SIZE * 10)
+            stats['bulletin_posts'] = await process_bulletin_posts(BATCH_SIZE * 10)
         else:
             # Process each canonical table
             stats['check_ins'] = await process_check_ins(BATCH_SIZE)
@@ -424,6 +531,7 @@ async def run_once(rebuild: bool = False) -> Dict[str, Any]:
             stats['notes'] = await process_notes(BATCH_SIZE)
             stats['favorites'] = await process_favorites(BATCH_SIZE)
             stats['poll_responses'] = await process_poll_responses(BATCH_SIZE)
+            stats['bulletin_posts'] = await process_bulletin_posts(BATCH_SIZE)
         
         total = sum(stats.values())
         logger.info("activity_stream_ingest_complete", **stats, total=total)

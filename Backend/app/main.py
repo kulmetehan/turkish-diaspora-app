@@ -50,6 +50,7 @@ from api.routers.admin_events import router as admin_events_router
 from api.routers.admin_ai_config import router as admin_ai_config_router
 from api.routers.admin_tasks import router as admin_tasks_router
 from api.routers.admin_polls import router as admin_polls_router
+from api.routers.admin_bulletin import router as admin_bulletin_router
 from api.routers.news import router as news_router
 from api.routers.events import router as events_router
 from api.routers.identity import router as identity_router
@@ -76,6 +77,7 @@ from api.routers.premium import router as premium_router
 from api.routers.google_business import router as google_business_router
 from api.routers.user_groups import router as user_groups_router
 from api.routers.promotions import router as promotions_router
+from api.routers.bulletin import router as bulletin_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -243,6 +245,7 @@ api_v1_router.include_router(admin_events_router)
 api_v1_router.include_router(admin_ai_config_router)
 api_v1_router.include_router(admin_tasks_router)
 api_v1_router.include_router(admin_polls_router)
+api_v1_router.include_router(admin_bulletin_router)
 api_v1_router.include_router(news_router)
 api_v1_router.include_router(events_router)
 api_v1_router.include_router(identity_router)
@@ -272,6 +275,7 @@ api_v1_router.include_router(premium_router)
 api_v1_router.include_router(promotions_router)
 api_v1_router.include_router(google_business_router)
 api_v1_router.include_router(user_groups_router)
+api_v1_router.include_router(bulletin_router)
 
 # Mount the versioned API once on the app
 app.include_router(api_v1_router)
