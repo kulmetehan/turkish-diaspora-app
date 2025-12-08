@@ -757,7 +757,14 @@ export async function getCategoryHealthMetrics(): Promise<CategoryHealthResponse
 }
 
 export async function getMetricsSnapshot(): Promise<MetricsSnapshot> {
-  const raw = await authFetch<RawMetricsSnapshot>("/api/v1/admin/metrics/snapshot");
+  // Use longer timeout (120 seconds) for metrics snapshot due to complex queries
+  // This endpoint aggregates data from multiple tables and can take longer,
+  // especially during active discovery runs
+  const raw = await authFetch<RawMetricsSnapshot>(
+    "/api/v1/admin/metrics/snapshot",
+    undefined,
+    120000 // 120 seconds timeout
+  );
   return normalizeMetricsSnapshot(raw);
 }
 
