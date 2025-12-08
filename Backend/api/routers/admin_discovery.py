@@ -11,7 +11,6 @@ from pydantic import BaseModel
 from app.core.logging import get_logger
 from app.deps.admin_auth import verify_admin_user, AdminUser
 from app.workers.discovery_bot import (
-    load_cities_config,
     generate_grid_points,
     meters_to_lat_deg,
     meters_to_lng_deg,
@@ -142,7 +141,7 @@ async def _fetch_grid_data(
     """
     cities = cities_cfg.get("cities", {})
     if city not in cities:
-        raise ValueError(f"City '{city}' not found in cities.yml")
+        raise ValueError(f"City '{city}' not found in cities_config table")
     
     city_def = cities[city]
     defaults = cities_cfg.get("defaults", {})
@@ -336,7 +335,7 @@ async def _fetch_coverage_data(
     """
     cities = cities_cfg.get("cities", {})
     if city not in cities:
-        raise ValueError(f"City '{city}' not found in cities.yml")
+        raise ValueError(f"City '{city}' not found in cities_config table")
     
     city_def = cities[city]
     defaults = cities_cfg.get("defaults", {})
@@ -602,7 +601,7 @@ async def _fetch_locations_coverage(
 
 @router.get("/grid", response_model=List[GridCell])
 async def get_discovery_grid(
-    city: str = Query(default="rotterdam", description="City key from cities.yml"),
+    city: str = Query(default="rotterdam", description="City key from cities_config table"),
     district: Optional[str] = Query(default=None, description="Optional district key"),
     category: Optional[str] = Query(default=None, description="Optional category filter"),
     admin: AdminUser = Depends(verify_admin_user),
@@ -653,7 +652,7 @@ async def get_discovery_grid(
 
 @router.get("/coverage", response_model=List[DiscoveryCoverageCell])
 async def get_discovery_coverage(
-    city: str = Query(..., description="City key from cities.yml"),
+    city: str = Query(..., description="City key from cities_config table"),
     district: Optional[str] = Query(None, description="Optional district key"),
     from_: Optional[datetime] = Query(None, alias="from", description="Start date (ISO format)"),
     to: Optional[datetime] = Query(None, description="End date (ISO format)"),
@@ -705,7 +704,7 @@ async def get_discovery_coverage(
 
 @router.get("/summary")
 async def get_discovery_summary(
-    city: str = Query(..., description="City key from cities.yml"),
+    city: str = Query(..., description="City key from cities_config table"),
     district: Optional[str] = Query(None, description="Optional district key"),
     from_: Optional[datetime] = Query(None, alias="from", description="Start date (ISO format)"),
     to: Optional[datetime] = Query(None, description="End date (ISO format)"),
@@ -739,7 +738,7 @@ async def get_discovery_summary(
 
 @router.get("/districts")
 async def get_city_districts(
-    city: str = Query(..., description="City key from cities.yml"),
+    city: str = Query(..., description="City key from cities_config table"),
     admin: AdminUser = Depends(verify_admin_user),
 ) -> Dict[str, List[str]]:
     """
