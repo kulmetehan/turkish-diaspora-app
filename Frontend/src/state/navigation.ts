@@ -83,7 +83,7 @@ let state: NavigationState = {
     },
     news: {
         feed: "nl",
-        categories: [],
+        categories: ["general"],
         searchQuery: "",
         scrollTop: 0,
     },
@@ -199,7 +199,7 @@ export function __resetNavigationState() {
         },
         news: {
             feed: "nl",
-            categories: [],
+            categories: ["general"],
             searchQuery: "",
             scrollTop: 0,
         },

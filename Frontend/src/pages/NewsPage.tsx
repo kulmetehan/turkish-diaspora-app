@@ -64,7 +64,16 @@ export default function NewsPage() {
   });
 
   const [categories, setCategories] = useState<NewsCategoryKey[]>(() => {
-    return hasHashParams ? hashCategories : newsNavigation.categories;
+    if (hasHashParams) {
+      return hashCategories;
+    }
+    // Default to "general" for NL/TR feeds if no categories are set
+    const storeCategories = newsNavigation.categories;
+    const currentFeed = hasHashParams ? hashFeed : newsNavigation.feed;
+    if (storeCategories.length === 0 && (currentFeed === "nl" || currentFeed === "tr")) {
+      return ["general"];
+    }
+    return storeCategories;
   });
 
   const [searchQuery, setSearchQuery] = useState<string>(() => {
@@ -135,6 +144,18 @@ export default function NewsPage() {
     // Also update store
     navigationActions.setNews({ feed });
   }, [feed]);
+
+  // Sync default "general" category to hash and store on mount if needed
+  useEffect(() => {
+    const initialFeed = hasHashParams ? hashFeed : newsNavigation.feed;
+    const initialCategories = hasHashParams ? hashCategories : newsNavigation.categories;
+    if (!hasHashParams && (initialFeed === "nl" || initialFeed === "tr") && initialCategories.length === 0) {
+      const defaultCategories: NewsCategoryKey[] = ["general"];
+      setCategories(defaultCategories);
+      writeNewsCategoriesToHash(defaultCategories);
+      navigationActions.setNews({ categories: defaultCategories });
+    }
+  }, []); // Only run on mount
 
   useEffect(() => {
     writeNewsCategoriesToHash(categories);
