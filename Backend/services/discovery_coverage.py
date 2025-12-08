@@ -115,18 +115,21 @@ async def get_city_grid_coverage(
     Returns:
         List of CoverageGridCell objects, one per grid cell
     """
-    # Load cities config
+    # Load cities config from database
     try:
-        cities_cfg = load_cities_config()
+        from services.cities_db_service import load_cities_config_from_db
+        cities_cfg = await load_cities_config_from_db()
     except Exception as e:
-        logger.error("failed_to_load_cities_config", error=str(e))
+        logger.error("failed_to_load_cities_config_from_db", error=str(e))
         raise ValueError(f"Failed to load cities configuration: {e}")
     
     cities = cities_cfg.get("cities", {})
     if city not in cities:
-        raise ValueError(f"City '{city}' not found in cities.yml")
+        raise ValueError(f"City '{city}' not found")
     
     city_def = cities[city]
+    # Load defaults from YAML (still using YAML for defaults)
+    # defaults are included in cities_cfg from load_cities_config_from_db
     defaults = cities_cfg.get("defaults", {})
     
     # Get grid parameters
