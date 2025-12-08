@@ -1022,11 +1022,11 @@ async def run_discovery_job(
     Pure function to run discovery for a single (city, district?, category) job.
     
     This function is used by both the CLI and the Discovery Train worker.
-    It resolves bbox/center from cities.yml, uses categories.yml for discovery params,
-    and returns counters dict.
+    It resolves bbox/center from database (cities_config/districts_config),
+    uses categories.yml for discovery params, and returns counters dict.
     
     Args:
-        city_key: City key from cities.yml
+        city_key: City key from cities_config table
         district_key: Optional district key (None for city-level jobs)
         category: Category key from categories.yml
         worker_run_id: Optional worker_run UUID for progress tracking
@@ -1042,17 +1042,20 @@ async def run_discovery_job(
     disc_def = defaults.get("discovery") or {}
     yaml_lang = defaults.get("language")
     
-    # Resolve center/bbox from cities.yml
-    cities = load_cities_config()
-    city_def = (cities.get("cities") or {}).get(city_key)
+    # Resolve center/bbox from database (async - direct call since we're in async context)
+    from services.cities_db_service import load_cities_config_from_db
+    cities_config = await load_cities_config_from_db()
+    cities = cities_config.get("cities", {})
+    city_def = cities.get(city_key)
+    
     if not city_def:
-        raise ValueError(f"City '{city_key}' not found in cities.yml")
+        raise ValueError(f"City '{city_key}' not found in cities_config table")
     
     if district_key:
         # District-level job
         districts = city_def.get("districts", {})
         if not districts or district_key not in districts:
-            raise ValueError(f"District '{district_key}' not found for city '{city_key}'")
+            raise ValueError(f"District '{district_key}' not found for city '{city_key}' in districts_config table")
         d = districts[district_key]
         lat_min, lat_max, lng_min, lng_max = resolve_district_bbox(city_key, district_key, d)
         center_lat = (lat_min + lat_max) / 2.0
