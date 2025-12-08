@@ -12,6 +12,7 @@ import yaml
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Any
+from app.core.logging import get_logger
 
 # Path resolution
 THIS_FILE = Path(__file__).resolve()
@@ -96,13 +97,102 @@ def _load_categories_config() -> Dict[str, Any]:
 
 
 def _load_category_metadata() -> Dict[str, CategoryMetadata]:
-    """Load and parse category metadata from YAML."""
+    """Load and parse category metadata - database first, fallback to YAML."""
     global _CATEGORY_METADATA
     
     if _CATEGORY_METADATA is not None:
         return _CATEGORY_METADATA
     
+    # Try database first
+    try:
+        from services.categories_db_service import load_categories_config_from_db
+        import asyncio
+        
+        # Check if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, we can't use run_until_complete
+            # Fall through to YAML
+            logger = get_logger()
+            logger.debug("load_category_metadata_in_async_context_using_yaml_fallback")
+        except RuntimeError:
+            # No running loop, safe to create one
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # Try loading from database
+            try:
+                db_config = loop.run_until_complete(load_categories_config_from_db())
+                categories = db_config.get("categories", {})
+                
+                # Only use database if it has categories
+                if categories:
+                    logger = get_logger()
+                    logger.debug("load_category_metadata_loaded_from_database", category_count=len(categories))
+                    metadata = _parse_from_db_config(categories)
+                    _CATEGORY_METADATA = metadata
+                    return metadata
+                else:
+                    logger = get_logger()
+                    logger.warning("load_category_metadata_database_empty_falling_back_to_yaml")
+            except Exception as e:
+                logger = get_logger()
+                logger.warning(
+                    "load_category_metadata_database_load_failed",
+                    error=str(e),
+                    exc_info=e
+                )
+    except ImportError:
+        # categories_db_service not available, fall through to YAML
+        logger = get_logger()
+        logger.debug("load_category_metadata_service_not_available_using_yaml")
+    except Exception as e:
+        logger = get_logger()
+        logger.warning(
+            "load_category_metadata_database_error_falling_back_to_yaml",
+            error=str(e),
+            exc_info=e
+        )
+    
+    # Fallback to YAML
     categories_yaml = _load_categories_config()
+    metadata = _parse_from_yaml(categories_yaml)
+    
+    logger = get_logger()
+    logger.debug("load_category_metadata_loaded_from_yaml")
+    _CATEGORY_METADATA = metadata
+    return metadata
+
+
+def _parse_from_db_config(categories: Dict[str, Any]) -> Dict[str, CategoryMetadata]:
+    """Parse category metadata from database config structure."""
+    metadata: Dict[str, CategoryMetadata] = {}
+    
+    for key, cat_def in categories.items():
+        if not isinstance(cat_def, dict):
+            continue
+        
+        discovery_cfg = cat_def.get("discovery", {})
+        
+        metadata[key] = CategoryMetadata(
+            key=key,
+            label=cat_def.get("label", key),
+            description=cat_def.get("description", ""),
+            aliases=cat_def.get("aliases", []),
+            google_types=cat_def.get("google_types", []),
+            osm_tags=cat_def.get("osm_tags"),
+            discovery_enabled=discovery_cfg.get("enabled", True),
+            discovery_priority=discovery_cfg.get("priority", 0),
+        )
+    
+    return metadata
+
+
+def _parse_from_yaml(categories_yaml: Dict[str, Any]) -> Dict[str, CategoryMetadata]:
+    """Parse category metadata from YAML structure."""
     metadata: Dict[str, CategoryMetadata] = {}
     
     for key, cat_def in categories_yaml.items():
@@ -122,7 +212,6 @@ def _load_category_metadata() -> Dict[str, CategoryMetadata]:
             discovery_priority=discovery_cfg.get("priority", 0),
         )
     
-    _CATEGORY_METADATA = metadata
     return metadata
 
 
