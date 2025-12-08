@@ -55,6 +55,30 @@ sources:
     license: "nu-rss"
     redistribution_allowed: true
     robots_policy: "follow"
+  - key: "nu_sport"
+    name: "NU.nl – Sport"
+    url: "https://www.nu.nl/rss/Sport"
+    language: "nl"
+    category: "nl_national_sport"
+    license: "nu-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "nu_economie"
+    name: "NU.nl – Economie"
+    url: "https://www.nu.nl/rss/Economie"
+    language: "nl"
+    category: "nl_national_economie"
+    license: "nu-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "nu_cultuur"
+    name: "NU.nl – Cultuur"
+    url: "https://www.nu.nl/rss/entertainment"
+    language: "nl"
+    category: "nl_national_cultuur"
+    license: "nu-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
 
   # TR Commercial (Habertürk)
   - key: "haberturk_headlines"
@@ -93,9 +117,33 @@ sources:
   # TR Public (TRT Haber)
   - key: "trt_headlines"
     name: "TRT Haber – Son Dakika"
-    url: "https://www.trthaber.com/rss/sondakika.rss"
+    url: "https://www.trthaber.com/sondakika_articles.rss"
     language: "tr"
     category: "tr_national"
+    license: "trt-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "trt_sport"
+    name: "TRT Haber – Sport"
+    url: "https://www.trthaber.com/spor_articles.rss"
+    language: "tr"
+    category: "tr_national_sport"
+    license: "trt-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "trt_economie"
+    name: "TRT Haber – Economie"
+    url: "https://www.trthaber.com/ekonomi_articles.rss"
+    language: "tr"
+    category: "tr_national_economie"
+    license: "trt-rss"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "trt_magazin"
+    name: "TRT Haber – Kültür Sanat"
+    url: "https://www.trthaber.com/kultur_sanat_articles.rss"
+    language: "tr"
+    category: "tr_national_magazin"
     license: "trt-rss"
     redistribution_allowed: true
     robots_policy: "follow"

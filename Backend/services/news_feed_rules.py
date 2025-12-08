@@ -29,6 +29,9 @@ NL_PRIORITY_SOURCE_KEYS = {
     "nos_sport",
     "nos_magazin",
     "nu_headlines",
+    "nu_sport",
+    "nu_economie",
+    "nu_cultuur",
 }
 TR_PRIORITY_SOURCE_KEYS = {
     "haberturk_headlines",
@@ -36,6 +39,9 @@ TR_PRIORITY_SOURCE_KEYS = {
     "haberturk_sport",
     "haberturk_magazin",
     "trt_headlines",
+    "trt_sport",
+    "trt_economie",
+    "trt_magazin",
 }
 # Note: We intentionally do NOT maintain hard allowlists (NL_ALLOWED_SOURCE_KEYS / TR_ALLOWED_SOURCE_KEYS)
 # that block all other sources. Priority keys (NOS/NU, TRT/Habertürk) are treated more leniently
@@ -288,10 +294,16 @@ def _get_nl_source_keys() -> List[str]:
         "https://feeds.nos.nl/nosnieuwseconomie",
         "https://feeds.nos.nl/nossportalgemeen",
         "https://feeds.nos.nl/nosnieuwscultuurenmedia",
-        # NU.nl alias
+        # NU.nl aliases
         "nu_headlines",
-        # NU.nl URL
+        "nu_sport",
+        "nu_economie",
+        "nu_cultuur",
+        # NU.nl URLs
         "https://www.nu.nl/rss/algemeen",
+        "https://www.nu.nl/rss/Sport",
+        "https://www.nu.nl/rss/Economie",
+        "https://www.nu.nl/rss/entertainment",
     ])
 
 
@@ -302,10 +314,16 @@ def _get_tr_source_keys() -> List[str]:
     All values are lowercase for case-insensitive matching.
     """
     return _lowered([
-        # TRT alias
+        # TRT aliases
         "trt_headlines",
-        # TRT URL
-        "https://www.trthaber.com/rss/sondakika.rss",
+        "trt_sport",
+        "trt_economie",
+        "trt_magazin",
+        # TRT URLs
+        "https://www.trthaber.com/sondakika_articles.rss",
+        "https://www.trthaber.com/spor_articles.rss",
+        "https://www.trthaber.com/ekonomi_articles.rss",
+        "https://www.trthaber.com/kultur_sanat_articles.rss",
         # Habertürk aliases
         "haberturk_headlines",
         "haberturk_economie",
