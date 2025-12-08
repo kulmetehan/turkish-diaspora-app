@@ -299,8 +299,8 @@ def _get_nl_source_keys() -> List[str]:
         "nu_sport",
         "nu_economie",
         "nu_cultuur",
-        # NU.nl URLs
-        "https://www.nu.nl/rss/algemeen",
+        # NU.nl URLs (must match exactly with news_sources.yml)
+        "https://www.nu.nl/rss/Algemeen",
         "https://www.nu.nl/rss/Sport",
         "https://www.nu.nl/rss/Economie",
         "https://www.nu.nl/rss/entertainment",
