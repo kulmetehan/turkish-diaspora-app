@@ -12,7 +12,7 @@ Complete guide for managing cities and districts through the admin interface, re
 
 ## Overview
 
-The City Management interface (`#/admin/cities`) allows authenticated admins to configure discovery grids for cities and districts through a user-friendly web interface. All changes are written directly to `Infra/config/cities.yml` with automatic backups, eliminating the need for manual file editing.
+The City Management interface (`#/admin/cities`) allows authenticated admins to configure discovery grids for cities and districts through a user-friendly web interface. All changes are written directly to the database (`cities_config` and `districts_config` tables), making them immediately available to Discovery Train and other services without requiring git commits.
 
 ### Key Features
 

@@ -8,7 +8,7 @@ owners: [tda-core]
 
 # City Grid Definitions
 
-Describes how `Infra/config/cities.yml` encodes discovery grids for Rotterdam (and future cities) and how `discovery_bot` consumes them. Cities and districts can be managed via the admin UI (`#/admin/cities`) or through manual YAML editing.
+Describes how cities and districts are configured for discovery. Cities and districts are stored in the database (`cities_config` and `districts_config` tables) and managed via the admin UI (`#/admin/cities`). The YAML file (`Infra/config/cities.yml`) is kept as backup/reference but is no longer the primary source of truth.
 
 ## YAML structure (`Infra/config/cities.yml`)
 
@@ -44,7 +44,7 @@ Cities and districts can be managed through the admin interface at `#/admin/citi
 - **Full CRUD operations**: Create, read, update, and delete cities and districts
 - **Automatic validation**: Coordinates are validated (6 decimal precision) and must be within valid WGS84 ranges
 - **Automatic bounding box calculation**: When adding districts, bounding boxes are automatically calculated from center coordinates (±0.015 degrees)
-- **Direct YAML writing**: Changes are written directly to `Infra/config/cities.yml` with automatic backups
+- **Database storage**: Changes are written directly to database tables (`cities_config` and `districts_config`) making them immediately available to all services including GitHub Actions
 - **District management**: View all districts for each city in an expandable section with edit/delete functionality
 - **Coordinate precision**: Input fields support 6 decimal precision for accurate coordinate entry
 

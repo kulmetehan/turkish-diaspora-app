@@ -23,9 +23,16 @@ from services.cities_config_service import (
     load_cities_config as load_config,
     normalize_city_key,
     normalize_district_key,
-    save_cities_config,
     validate_city_config,
     get_defaults_anchor_ref,
+)
+from services.cities_db_service import (
+    load_cities_config_from_db,
+    get_city_from_db,
+    save_city_to_db,
+    save_district_to_db,
+    delete_city_from_db,
+    delete_district_from_db,
 )
 
 logger = get_logger()
@@ -94,7 +101,12 @@ async def get_cities_overview(
     - Readiness status (active, configured_inactive, config_incomplete)
     """
     try:
-        cfg = load_cities_config()
+        # Load from database first
+        try:
+            cfg = await load_cities_config_from_db()
+        except Exception as e:
+            logger.warning("failed_to_load_cities_from_db_falling_back_to_yaml", error=str(e))
+            cfg = load_cities_config()
         cities_def = cfg.get("cities", {})
         
         if not cities_def:
@@ -263,8 +275,10 @@ async def get_city_detail(
         ) from e
 
 
-async def _get_city_readiness(city_key: str, city_data: Dict[str, Any]) -> CityReadiness:
+async def _get_city_readiness(city_key: str, city_data: Optional[Dict[str, Any]] = None) -> CityReadiness:
     """Helper to create CityReadiness from city config and metrics."""
+    if city_data is None:
+        city_data = await get_city_from_db(city_key) or {}
     city_name = city_data.get("city_name", city_key.title())
     districts = city_data.get("districts", {})
     has_districts = bool(districts) and isinstance(districts, dict)
@@ -324,19 +338,22 @@ async def create_city(
     The city key is automatically generated from the city name (lowercase, underscores).
     """
     try:
-        config = load_config()
-        cities = config.get("cities", {})
-        
         # Generate city key from name
         city_key = normalize_city_key(payload.city_name)
         
-        if city_key in cities:
+        # Check if city already exists in database
+        existing_city = await get_city_from_db(city_key)
+        if existing_city:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"City with key '{city_key}' already exists",
             )
         
-        # Get the defaults anchor reference dynamically
+        # Get the defaults anchor reference dynamically (from YAML)
+        try:
+            config = await load_cities_config_from_db()
+        except Exception:
+            config = load_config()
         anchor_ref = get_defaults_anchor_ref(config)
         
         # Build city data structure
@@ -369,10 +386,8 @@ async def create_city(
         # Validate city config
         validate_city_config(city_key, city_data)
         
-        # Add to config and save
-        cities[city_key] = city_data
-        config["cities"] = cities
-        save_cities_config(config)
+        # Save to database
+        await save_city_to_db(city_key, city_data)
         
         logger.info(
             "city_created",
@@ -382,8 +397,10 @@ async def create_city(
             admin=admin.email,
         )
         
+        # Load city data for readiness (already saved to DB)
+        city_data_for_readiness = await get_city_from_db(city_key) or city_data
         # Return city readiness
-        return await _get_city_readiness(city_key, city_data)
+        return await _get_city_readiness(city_key, city_data_for_readiness)
         
     except HTTPException:
         raise
@@ -408,16 +425,13 @@ async def update_city(
 ) -> CityReadiness:
     """Update an existing city's properties."""
     try:
-        config = load_config()
-        cities = config.get("cities", {})
-        
-        if city_key not in cities:
+        # Load existing city from database
+        city_data = await get_city_from_db(city_key)
+        if not city_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"City '{city_key}' not found",
             )
-        
-        city_data = cities[city_key].copy()
         
         # Update fields if provided
         if payload.city_name is not None:
@@ -432,10 +446,8 @@ async def update_city(
         # Validate updated config
         validate_city_config(city_key, city_data)
         
-        # Save
-        cities[city_key] = city_data
-        config["cities"] = cities
-        save_cities_config(config)
+        # Save to database
+        await save_city_to_db(city_key, city_data)
         
         logger.info(
             "city_updated",
@@ -443,7 +455,9 @@ async def update_city(
             admin=admin.email,
         )
         
-        return await _get_city_readiness(city_key, city_data)
+        # Load updated city data for readiness
+        updated_city_data = await get_city_from_db(city_key) or city_data
+        return await _get_city_readiness(city_key, updated_city_data)
         
     except HTTPException:
         raise
@@ -467,19 +481,16 @@ async def delete_city(
 ) -> None:
     """Delete a city and all its districts."""
     try:
-        config = load_config()
-        cities = config.get("cities", {})
-        
-        if city_key not in cities:
+        # Check if city exists
+        city_data = await get_city_from_db(city_key)
+        if not city_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"City '{city_key}' not found",
             )
         
-        # Remove city
-        del cities[city_key]
-        config["cities"] = cities
-        save_cities_config(config)
+        # Delete from database (CASCADE will remove districts)
+        await delete_city_from_db(city_key)
         
         logger.info(
             "city_deleted",
@@ -505,22 +516,16 @@ async def create_district(
 ) -> Dict[str, Any]:
     """Add a new district to an existing city."""
     try:
-        config = load_config()
-        cities = config.get("cities", {})
-        
-        if city_key not in cities:
+        # Check if city exists
+        city_data = await get_city_from_db(city_key)
+        if not city_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"City '{city_key}' not found",
             )
         
-        city_data = cities[city_key]
-        
-        # Initialize districts if missing
-        if "districts" not in city_data:
-            city_data["districts"] = {}
-        
-        districts = city_data["districts"]
+        # Check if district already exists
+        districts = city_data.get("districts", {})
         district_key = normalize_district_key(payload.name)
         
         if district_key in districts:
@@ -529,23 +534,22 @@ async def create_district(
                 detail=f"District '{district_key}' already exists in city '{city_key}'",
             )
         
-        # Get the defaults anchor reference dynamically
+        # Get the defaults anchor reference dynamically (from YAML)
+        try:
+            config = await load_cities_config_from_db()
+        except Exception:
+            config = load_config()
         anchor_ref = get_defaults_anchor_ref(config)
         
-        # Calculate bounding box and add district
+        # Calculate bounding box
         bbox = calculate_district_bbox(payload.center_lat, payload.center_lng)
-        districts[district_key] = {
+        district_data = {
             **bbox,
             "apply": anchor_ref,  # Use dynamic anchor reference
         }
         
-        # Validate updated city config
-        validate_city_config(city_key, city_data)
-        
-        # Save
-        cities[city_key] = city_data
-        config["cities"] = cities
-        save_cities_config(config)
+        # Save district to database
+        await save_district_to_db(city_key, district_key, district_data)
         
         logger.info(
             "district_created",
@@ -585,18 +589,16 @@ async def update_district(
 ) -> Dict[str, Any]:
     """Update an existing district."""
     try:
-        config = load_config()
-        cities = config.get("cities", {})
-        
-        if city_key not in cities:
+        # Check if city exists
+        city_data = await get_city_from_db(city_key)
+        if not city_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"City '{city_key}' not found",
             )
         
-        city_data = cities[city_key]
+        # Check if district exists
         districts = city_data.get("districts", {})
-        
         if district_key not in districts:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -614,41 +616,36 @@ async def update_district(
             bbox = calculate_district_bbox(center_lat, center_lng)
             district_data.update(bbox)
         
-        # Update district data
-        districts[district_key] = district_data
-        
-        # If name changed, we need to rename the key
+        # If name changed, we need to rename the key (delete old, create new)
+        final_district_key = district_key
         if payload.name and payload.name.strip():
             new_key = normalize_district_key(payload.name)
-            if new_key != district_key and new_key in districts:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"District key '{new_key}' already exists",
-                )
             if new_key != district_key:
-                districts[new_key] = district_data
-                del districts[district_key]
-                district_key = new_key
+                # Check if new key already exists
+                city_check = await get_city_from_db(city_key)
+                if city_check and new_key in city_check.get("districts", {}):
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"District key '{new_key}' already exists",
+                    )
+                # Delete old district
+                await delete_district_from_db(city_key, district_key)
+                final_district_key = new_key
         
-        # Validate
-        validate_city_config(city_key, city_data)
-        
-        # Save
-        cities[city_key] = city_data
-        config["cities"] = cities
-        save_cities_config(config)
+        # Save updated district to database
+        await save_district_to_db(city_key, final_district_key, district_data)
         
         logger.info(
             "district_updated",
             city_key=city_key,
-            district_key=district_key,
+            district_key=final_district_key,
             admin=admin.email,
         )
         
         return {
             "ok": True,
             "city_key": city_key,
-            "district_key": district_key,
+            "district_key": final_district_key,
             "bbox": {
                 "lat_min": district_data["lat_min"],
                 "lat_max": district_data["lat_max"],
@@ -680,35 +677,24 @@ async def delete_district(
 ) -> None:
     """Delete a district from a city."""
     try:
-        config = load_config()
-        cities = config.get("cities", {})
-        
-        if city_key not in cities:
+        # Check if city exists
+        city_data = await get_city_from_db(city_key)
+        if not city_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"City '{city_key}' not found",
             )
         
-        city_data = cities[city_key]
+        # Check if district exists
         districts = city_data.get("districts", {})
-        
         if district_key not in districts:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"District '{district_key}' not found in city '{city_key}'",
             )
         
-        # Remove district
-        del districts[district_key]
-        
-        # If no districts left, remove districts key
-        if not districts:
-            city_data.pop("districts", None)
-        
-        # Save
-        cities[city_key] = city_data
-        config["cities"] = cities
-        save_cities_config(config)
+        # Delete district from database
+        await delete_district_from_db(city_key, district_key)
         
         logger.info(
             "district_deleted",

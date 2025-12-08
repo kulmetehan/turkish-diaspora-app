@@ -41,3 +41,4 @@ COMMENT ON COLUMN public.reports.status IS 'Report status: pending (waiting for 
 
 
 
+

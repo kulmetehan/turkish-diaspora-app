@@ -80,11 +80,65 @@ def load_categories_config() -> Dict[str, Any]:
     return data
 
 def load_cities_config() -> Dict[str, Any]:
+    """
+    Load cities configuration - database first, fallback to YAML.
+    
+    Tries to load from database first. If database is empty or fails,
+    falls back to YAML file for backwards compatibility.
+    """
+    # Try database first
+    try:
+        from services.cities_db_service import load_cities_config_from_db
+        import asyncio
+        
+        # Check if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, we can't use run_until_complete
+            # Fall through to YAML
+            logger.debug("load_cities_config_in_async_context_using_yaml_fallback")
+        except RuntimeError:
+            # No running loop, safe to create one
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            # Try loading from database
+            try:
+                db_config = loop.run_until_complete(load_cities_config_from_db())
+                cities = db_config.get("cities", {})
+                
+                # Only use database if it has cities
+                if cities:
+                    logger.debug("load_cities_config_loaded_from_database", city_count=len(cities))
+                    return db_config
+                else:
+                    logger.warning("load_cities_config_database_empty_falling_back_to_yaml")
+            except Exception as e:
+                logger.warning(
+                    "load_cities_config_database_load_failed",
+                    error=str(e),
+                    exc_info=e
+                )
+    except ImportError:
+        # cities_db_service not available, fall through to YAML
+        logger.debug("load_cities_config_service_not_available_using_yaml")
+    except Exception as e:
+        logger.warning(
+            "load_cities_config_database_error_falling_back_to_yaml",
+            error=str(e),
+            exc_info=e
+        )
+    
+    # Fallback to YAML
     if not CITIES_YML.exists():
         raise FileNotFoundError(f"Config niet gevonden: {CITIES_YML}")
     data = yaml.safe_load(CITIES_YML.read_text(encoding="utf-8"))
     if not isinstance(data, dict) or "cities" not in data:
         raise ValueError("cities.yml is ongeldig: mist 'cities' root-key.")
+    logger.debug("load_cities_config_loaded_from_yaml")
     return data
 
 # ---------------------------------------------------------------------------

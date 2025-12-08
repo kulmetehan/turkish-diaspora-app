@@ -189,7 +189,7 @@ pending → running → finished
 
 To add a new city (e.g., Den Haag) to the Discovery Train:
 
-1. **Add to `cities.yml`** with districts (see `Docs/metrics-multi-city.md`)
+1. **Add via Admin UI** (`#/admin/cities`) - cities are stored in database and immediately available to Discovery Train
 2. **Enqueue jobs**:
    ```bash
    python -m scripts.enqueue_discovery_jobs --city den_haag

@@ -198,7 +198,12 @@ def cleanup_old_backups(file_path: Path) -> None:
 
 
 def load_cities_config() -> Dict[str, Any]:
-    """Load cities configuration from YAML file."""
+    """
+    Load cities configuration - database first, fallback to YAML.
+    
+    This is a wrapper around discovery_bot.load_cities_config() which
+    implements database-first loading with YAML fallback.
+    """
     from app.workers.discovery_bot import load_cities_config as _load
     
     return _load()
