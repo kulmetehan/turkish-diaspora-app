@@ -78,3 +78,4 @@ async def test_create_news_promotion():
 
 
 
+

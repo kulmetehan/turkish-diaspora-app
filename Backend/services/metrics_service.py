@@ -315,9 +315,10 @@ async def _stale_candidates_metrics(days: int = 7) -> Dict[str, Any]:
         count = int(rec.get("count") or 0)
         by_source[source] = count
     
-    # Compute by city (using bbox from cities.yml)
+    # Compute by city (using bbox from database, fallback to YAML)
     by_city: Dict[str, int] = {}
     try:
+        # load_cities_config() is already database-first (updated in Step 3)
         cities_config = load_cities_config()
         cities = cities_config.get("cities", {})
         
@@ -1586,9 +1587,10 @@ async def generate_metrics_snapshot() -> MetricsSnapshot:
     weekly = await _weekly_candidates_series(8)
     latest_count = weekly[-1].count if weekly else 0
 
-    # City progress - load all cities from cities.yml
+    # City progress - load all cities from database (fallback to YAML)
     city_progress_dict: Dict[str, CityProgressData] = {}
     try:
+        # load_cities_config() is already database-first (updated in Step 3)
         cities_config = load_cities_config()
         cities = cities_config.get("cities", {})
         

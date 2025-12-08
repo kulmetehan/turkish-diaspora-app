@@ -96,23 +96,33 @@ async def enqueue_jobs(
     await init_db_pool()
     
     # If districts is None, create city-level job (district_key = NULL)
-    # If districts is empty list, load all districts from cities.yml
+    # If districts is empty list, load all districts from database
     if districts is not None and len(districts) == 0:
         try:
-            from app.workers.discovery_bot import load_cities_config
-            cities_config = load_cities_config()
-            city_def = (cities_config.get("cities") or {}).get(city_key)
-            if city_def and isinstance(city_def, dict):
-                districts_dict = city_def.get("districts", {})
-                if districts_dict:
-                    districts = list(districts_dict.keys())
-                else:
-                    districts = None  # No districts, create city-level job
+            from services.cities_db_service import get_districts_for_city
+            districts_dict = await get_districts_for_city(city_key)
+            if districts_dict:
+                districts = list(districts_dict.keys())
             else:
-                districts = None
+                districts = None  # No districts, create city-level job
         except Exception as e:
             logger.warning("failed_to_load_districts_for_enqueue", city_key=city_key, error=str(e))
-            districts = None
+            # Fallback to YAML for backwards compatibility
+            try:
+                from app.workers.discovery_bot import load_cities_config
+                cities_config = load_cities_config()
+                city_def = (cities_config.get("cities") or {}).get(city_key)
+                if city_def and isinstance(city_def, dict):
+                    districts_dict = city_def.get("districts", {})
+                    if districts_dict:
+                        districts = list(districts_dict.keys())
+                    else:
+                        districts = None
+                else:
+                    districts = None
+            except Exception as e2:
+                logger.warning("failed_to_load_districts_from_yaml_fallback", city_key=city_key, error=str(e2))
+                districts = None
     
     job_ids: List[UUID] = []
     

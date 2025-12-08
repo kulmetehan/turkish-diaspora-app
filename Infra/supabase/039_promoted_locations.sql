@@ -50,3 +50,4 @@ COMMENT ON COLUMN public.promotion_payments.promotion_id IS 'References promoted
 
 
 
+

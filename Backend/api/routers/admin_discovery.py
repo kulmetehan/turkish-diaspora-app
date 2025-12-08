@@ -778,12 +778,13 @@ async def get_cities(
     admin: AdminUser = Depends(verify_admin_user),
 ) -> CitiesResponse:
     """
-    Get list of all cities from cities.yml.
+    Get list of all cities from database.
     
     Returns list of cities with their names, keys, and whether they have districts.
     """
     try:
-        cities_cfg = load_cities_config()
+        from services.cities_db_service import load_cities_config_from_db
+        cities_cfg = await load_cities_config_from_db()
         cities = cities_cfg.get("cities", {})
         
         city_list: List[CityInfo] = []
@@ -906,20 +907,17 @@ async def enqueue_discovery_jobs(
     """
     from services.discovery_jobs_service import enqueue_jobs
     from app.models.categories import get_discoverable_categories, get_all_categories
-    from app.workers.discovery_bot import load_cities_config
+    from services.cities_db_service import get_city_from_db
     
-    # Load cities config
+    # Load city from database
     try:
-        cities_config = load_cities_config()
-        cities = cities_config.get("cities", {})
-        
-        if body.city_key not in cities:
+        city_def = await get_city_from_db(body.city_key)
+        if not city_def:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"City '{body.city_key}' not found in cities.yml"
+                detail=f"City '{body.city_key}' not found in database"
             )
         
-        city_def = cities[body.city_key]
         city_districts = city_def.get("districts", {})
     except Exception as e:
         logger.error("failed_to_load_cities_for_enqueue", error=str(e))
