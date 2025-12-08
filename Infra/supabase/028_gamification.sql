@@ -65,3 +65,4 @@ COMMENT ON TABLE public.user_badges IS 'Badges earned by users';
 
 
 
+

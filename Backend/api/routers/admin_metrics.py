@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncpg
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Tuple
 from fastapi import APIRouter, HTTPException
 
 from app.models.metrics import (
@@ -24,10 +26,36 @@ router = APIRouter(
     tags=["admin-metrics"],
 )
 
+# Simple in-memory cache for metrics snapshot
+# Cache for 30 seconds to reduce database load while keeping data reasonably fresh
+_metrics_cache: Optional[Tuple[datetime, MetricsSnapshot]] = None
+_METRICS_CACHE_TTL = timedelta(seconds=30)
+
 
 @router.get("/snapshot", response_model=MetricsSnapshot)
 async def get_metrics_snapshot() -> MetricsSnapshot:
-    return await generate_metrics_snapshot()
+    """
+    Get metrics snapshot with 30-second caching to reduce database load.
+    
+    The cache helps prevent slow query issues when multiple admin users
+    access the dashboard simultaneously, especially during active discovery runs.
+    """
+    global _metrics_cache
+    
+    # Check cache
+    now = datetime.now(timezone.utc)
+    if _metrics_cache is not None:
+        cached_time, cached_snapshot = _metrics_cache
+        if now - cached_time < _METRICS_CACHE_TTL:
+            return cached_snapshot
+    
+    # Generate fresh snapshot
+    snapshot = await generate_metrics_snapshot()
+    
+    # Update cache
+    _metrics_cache = (now, snapshot)
+    
+    return snapshot
 
 
 @router.get("/categories", response_model=CategoryHealthResponse)
