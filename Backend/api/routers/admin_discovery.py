@@ -748,17 +748,20 @@ async def get_city_districts(
     Returns dictionary with 'districts' key containing list of district names.
     """
     try:
-        cities_cfg = load_cities_config()
+        from services.cities_db_service import get_city_from_db
+        
+        # Load from database directly (async)
+        city_data = await get_city_from_db(city)
+        if not city_data:
+            raise HTTPException(status_code=404, detail=f"City '{city}' not found")
+        
+        districts = list(city_data.get("districts", {}).keys())
+        return {"districts": districts}
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error("failed_to_load_cities_config", error=str(e))
+        logger.error("failed_to_load_cities_from_db", city=city, error=str(e))
         raise HTTPException(status_code=500, detail="Failed to load cities configuration")
-    
-    city_def = cities_cfg.get("cities", {}).get(city)
-    if not city_def:
-        raise HTTPException(status_code=404, detail=f"City '{city}' not found")
-    
-    districts = list(city_def.get("districts", {}).keys())
-    return {"districts": districts}
 
 
 class CityInfo(BaseModel):

@@ -25,6 +25,7 @@ def _distance_sq(a_lat: float, a_lng: float, b_lat: float, b_lng: float) -> floa
 
 
 def _compute_city_bbox(city_key: str) -> Optional[Tuple[float, float, float, float]]:
+    """Sync version - deprecated, use _compute_city_bbox_async() in async context."""
     cfg = load_cities_config()
     cities = cfg.get("cities", {})
     city_def = cities.get(city_key)
@@ -50,10 +51,38 @@ def _compute_city_bbox(city_key: str) -> Optional[Tuple[float, float, float, flo
     return (min(lat_mins), max(lat_maxs), min(lng_mins), max(lng_maxs))
 
 
+async def _compute_city_bbox_async(city_key: str) -> Optional[Tuple[float, float, float, float]]:
+    """Async version using database."""
+    from services.cities_db_service import get_city_from_db
+    city_data = await get_city_from_db(city_key)
+    if not city_data:
+        return None
+    districts = city_data.get("districts", {})
+    if not districts:
+        return None
+    lat_mins: List[float] = []
+    lat_maxs: List[float] = []
+    lng_mins: List[float] = []
+    lng_maxs: List[float] = []
+    for district_data in districts.values():
+        if isinstance(district_data, dict):
+            if "lat_min" in district_data and "lat_max" in district_data:
+                lat_mins.append(float(district_data["lat_min"]))
+                lat_maxs.append(float(district_data["lat_max"]))
+            if "lng_min" in district_data and "lng_max" in district_data:
+                lng_mins.append(float(district_data["lng_min"]))
+                lng_maxs.append(float(district_data["lng_max"]))
+    if not lat_mins or not lat_maxs or not lng_mins or not lng_maxs:
+        return None
+    return (min(lat_mins), max(lat_maxs), min(lng_mins), max(lng_maxs))
+
+
 def _build_grid_points(city: str, district: Optional[str]) -> Tuple[List[GridPoint], Tuple[float, float, float, float], int]:
     """
     Build grid points using the same logic as admin_discovery grid endpoints.
     Returns (grid_points, city_bbox, nearby_radius_m).
+    
+    DEPRECATED: Use _build_grid_points_async() in async context.
     """
     cfg = load_cities_config()
     cities = cfg.get("cities", {})
@@ -74,6 +103,73 @@ def _build_grid_points(city: str, district: Optional[str]) -> Tuple[List[GridPoi
         districts_to_process.append((district, districts[district]))
     else:
         for dist_name, dist_data in city_def.get("districts", {}).items():
+            districts_to_process.append((dist_name, dist_data))
+
+    all_grid_points: List[GridPoint] = []
+    city_lat_min = float("inf")
+    city_lat_max = float("-inf")
+    city_lng_min = float("inf")
+    city_lng_max = float("-inf")
+
+    for dist_name, dist_data in districts_to_process:
+        lat_min = float(dist_data.get("lat_min"))
+        lat_max = float(dist_data.get("lat_max"))
+        lng_min = float(dist_data.get("lng_min"))
+        lng_max = float(dist_data.get("lng_max"))
+
+        city_lat_min = min(city_lat_min, lat_min)
+        city_lat_max = max(city_lat_max, lat_max)
+        city_lng_min = min(city_lng_min, lng_min)
+        city_lng_max = max(city_lng_max, lng_max)
+
+        center_lat = (lat_min + lat_max) / 2.0
+        center_lng = (lng_min + lng_max) / 2.0
+
+        lat_span_km = deg_lat_to_m(abs(lat_max - lat_min)) / 1000.0
+        lng_span_km = deg_lng_to_m(abs(lng_max - lng_min), center_lat) / 1000.0
+        actual_span_km = max(lat_span_km, lng_span_km)
+        grid_span_km = float(dist_data.get("grid_span_km", actual_span_km or grid_span_km_default))
+
+        grid_points = generate_grid_points(center_lat, center_lng, grid_span_km, cell_spacing_m)
+        for lat_center, lng_center in grid_points:
+            lat_rounded = round(lat_center, 4)
+            lng_rounded = round(lng_center, 4)
+            cell_id = f"{lat_rounded}_{lng_rounded}_{nearby_radius_m}"
+            all_grid_points.append((lat_center, lng_center, cell_id, dist_name))
+
+    if not all_grid_points:
+        return [], (0.0, 0.0, 0.0, 0.0), nearby_radius_m
+
+    bbox = (city_lat_min, city_lat_max, city_lng_min, city_lng_max)
+    return all_grid_points, bbox, nearby_radius_m
+
+
+async def _build_grid_points_async(city: str, district: Optional[str]) -> Tuple[List[GridPoint], Tuple[float, float, float, float], int]:
+    """
+    Build grid points using database (async version).
+    Returns (grid_points, city_bbox, nearby_radius_m).
+    """
+    from services.cities_db_service import get_city_from_db, _load_defaults_from_yaml
+    
+    city_data = await get_city_from_db(city)
+    if not city_data:
+        raise ValueError(f"City '{city}' not found")
+    
+    # Load defaults from YAML (still using YAML for defaults)
+    defaults = _load_defaults_from_yaml()
+
+    grid_span_km_default = float(defaults.get("grid_span_km", 8))
+    nearby_radius_m = int(defaults.get("nearby_radius_m", 1000))
+    cell_spacing_m = max(100, int(nearby_radius_m * 0.75))
+
+    districts_to_process: List[tuple[str, Dict[str, Any]]] = []
+    if district:
+        districts = city_data.get("districts", {})
+        if district not in districts:
+            raise ValueError(f"District '{district}' not found for city '{city}'")
+        districts_to_process.append((district, districts[district]))
+    else:
+        for dist_name, dist_data in city_data.get("districts", {}).items():
             districts_to_process.append((dist_name, dist_data))
 
     all_grid_points: List[GridPoint] = []
@@ -269,7 +365,7 @@ async def get_city_coverage_summary(
     Args:
         category: Optional category filter. If provided, filters both overpass_calls and locations by category.
     """
-    grid_points, city_bbox, _ = _build_grid_points(city, district)
+    grid_points, city_bbox, _ = await _build_grid_points_async(city, district)
     # cells list to preserve ordering/coords/districts
     cell_index: Dict[str, Tuple[float, float, str]] = {
         cell_id: (lat, lng, dist) for (lat, lng, cell_id, dist) in grid_points

@@ -218,10 +218,10 @@ async def run_trending_calculation(
     if city_key:
         cities = [city_key]
     else:
-        # For now, use known cities from config
+        # Load cities from database (async)
         # In future, we could query activity_stream for distinct city_key values
-        from services.cities_config_service import load_cities_config
-        config = load_cities_config()
+        from services.cities_db_service import load_cities_config_from_db
+        config = await load_cities_config_from_db()
         cities = list(config.get("cities", {}).keys())
     
     stats = {
