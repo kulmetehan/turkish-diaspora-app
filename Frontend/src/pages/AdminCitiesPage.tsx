@@ -261,12 +261,23 @@ export default function AdminCitiesPage() {
         center_lat: values.center_lat,
         center_lng: values.center_lng,
       };
-      await updateDistrict(editingDistrict.cityKey, editingDistrict.key, payload);
+      const response = await updateDistrict(editingDistrict.cityKey, editingDistrict.key, payload);
       toast.success("District updated successfully");
       setDistrictDialogOpen(false);
+      
+      // Always invalidate cache - key might have changed
       invalidateCityCache(editingDistrict.cityKey);
-      setEditingDistrict(null);
-      await loadCities();
+      
+      // If key changed, need to refresh everything
+      if (response.district_key !== editingDistrict.key) {
+        // Key changed - reset editing district state
+        setEditingDistrict(null);
+        // Reload cities to get updated counts
+        await loadCities();
+      } else {
+        // Key didn't change, just reset editing state
+        setEditingDistrict(null);
+      }
     } catch (err: any) {
       toast.error(err?.message || "Failed to update district");
       throw err;

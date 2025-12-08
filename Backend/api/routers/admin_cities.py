@@ -202,16 +202,27 @@ async def get_city_detail(
     - List of all districts with keys, names, center coordinates, and bounding boxes
     """
     try:
-        config = load_config()
-        cities = config.get("cities", {})
-        
-        if city_key not in cities:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"City '{city_key}' not found",
-            )
-        
-        city_data = cities[city_key]
+        # Load from database first
+        try:
+            city_data = await get_city_from_db(city_key)
+            if not city_data:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"City '{city_key}' not found",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning("failed_to_load_city_from_db_falling_back_to_yaml", city_key=city_key, error=str(e))
+            # Fallback to YAML for backwards compatibility
+            config = load_config()
+            cities = config.get("cities", {})
+            if city_key not in cities:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"City '{city_key}' not found",
+                )
+            city_data = cities[city_key]
         
         # Extract city info
         city_name = city_data.get("city_name", city_key.title())
@@ -666,6 +677,72 @@ async def update_district(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update district: {str(e)}",
+        ) from e
+
+
+@router.get("/{city_key}/districts/{district_key}", response_model=DistrictDetail)
+async def get_district_detail(
+    city_key: str = Path(..., description="City key"),
+    district_key: str = Path(..., description="District key"),
+    admin: AdminUser = Depends(verify_admin_user),
+) -> DistrictDetail:
+    """
+    Get details for a specific district.
+    
+    Returns district configuration with key, name, center coordinates, and bounding box.
+    """
+    try:
+        # Check if city exists
+        city_data = await get_city_from_db(city_key)
+        if not city_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"City '{city_key}' not found",
+            )
+        
+        # Check if district exists
+        districts = city_data.get("districts", {})
+        if district_key not in districts:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"District '{district_key}' not found in city '{city_key}'",
+            )
+        
+        district_data = districts[district_key]
+        
+        # Get bounding box
+        bbox = {
+            "lat_min": float(district_data.get("lat_min", 0.0)),
+            "lat_max": float(district_data.get("lat_max", 0.0)),
+            "lng_min": float(district_data.get("lng_min", 0.0)),
+            "lng_max": float(district_data.get("lng_max", 0.0)),
+        }
+        
+        # Calculate center from bbox if not explicitly provided
+        if "center_lat" in district_data and "center_lng" in district_data:
+            district_center_lat = float(district_data["center_lat"])
+            district_center_lng = float(district_data["center_lng"])
+        else:
+            district_center_lat, district_center_lng = calculate_center_from_bbox(bbox)
+        
+        # District name: try to derive from key (capitalize words)
+        district_name = district_key.replace("_", " ").replace("-", " ").title()
+        
+        return DistrictDetail(
+            key=district_key,
+            name=district_name,
+            center_lat=district_center_lat,
+            center_lng=district_center_lng,
+            bbox=bbox,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("failed_to_load_district_detail", city_key=city_key, district_key=district_key, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to load district details: {str(e)}",
         ) from e
 
 
