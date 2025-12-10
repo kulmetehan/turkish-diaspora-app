@@ -180,3 +180,36 @@ sources:
     redistribution_allowed: true
     robots_policy: "follow"
 
+  # Turkish-Dutch News Sites (Scraping Sources)
+  # These sites don't provide RSS feeds, so we scrape them with AI extraction
+  - key: "scrape_turksemedia_nl"
+    name: "Turkse Media"
+    url: "https://turksemedia.nl/"
+    language: "nl"
+    category: "nl_national"
+    region: "NL"
+    refresh_minutes: 720  # 12 hours (2x per day)
+    license: "unknown"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "scrape_dejongeturken"
+    name: "De Jonge Turken"
+    url: "https://www.dejongeturken.com/"
+    language: "nl"
+    category: "nl_national"
+    region: "NL"
+    refresh_minutes: 720  # 12 hours (2x per day)
+    license: "unknown"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "scrape_platformdergisi"
+    name: "Platform Dergisi"
+    url: "https://www.platformdergisi.com/"
+    language: "nl"
+    category: "nl_national"
+    region: "NL"
+    refresh_minutes: 720  # 12 hours (2x per day)
+    license: "unknown"
+    redistribution_allowed: true
+    robots_policy: "follow"
+

@@ -1,15 +1,16 @@
 import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/ui/cn";
 import {
   NL_CATEGORIES,
   TR_CATEGORIES,
   type NewsCategoryKey,
 } from "@/lib/routing/newsCategories";
 import type { NewsFeedKey } from "@/lib/routing/newsFeed";
+import { cn } from "@/lib/ui/cn";
 
 const CATEGORY_LABELS: Record<NewsCategoryKey, string> = {
+  turks_nieuws: "Turks Nieuws",
   general: "Algemeen",
   sport: "Sport",
   economie: "Economie",
@@ -129,6 +130,7 @@ export function NewsCategoryFilterBar({
     </div>
   );
 }
+
 
 
 

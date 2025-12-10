@@ -135,18 +135,34 @@ def _score_column_for_feed(feed: FeedType) -> str:
 def normalize_category_filters(
     values: Sequence[str] | None,
     feed: FeedType,
-) -> List[str]:
-    """Map UI category keys to RSS category strings."""
-    if not values:
-        return []
+) -> Tuple[List[str], bool]:
+    """
+    Map UI category keys to RSS category strings.
     
+    Returns:
+        Tuple of (normalized_categories, include_scraping_sources)
+        where include_scraping_sources is True if "turks_nieuws" is selected
+    """
+    if not values:
+        return [], False
+    
+    include_scraping = False
     if feed == FeedType.NL:
         category_map = {
+            "turks_nieuws": "nl_national",  # Maps to nl_national but triggers scraping filter
             "general": "nl_national",
             "sport": "nl_national_sport",
             "economie": "nl_national_economie",
             "cultuur": "nl_national_cultuur",
         }
+        # Check if turks_nieuws is in the selected categories
+        for raw_value in values:
+            if isinstance(raw_value, str):
+                parts = raw_value.split(",")
+                for part in parts:
+                    if part.strip().lower() == "turks_nieuws":
+                        include_scraping = True
+                        break
     elif feed == FeedType.TR:
         category_map = {
             "general": "tr_national",
@@ -155,7 +171,7 @@ def normalize_category_filters(
             "magazin": "tr_national_magazin",
         }
     else:
-        return []  # Categories only for NL/TR
+        return [], False  # Categories only for NL/TR
     
     normalized = []
     for raw_value in values:
@@ -164,11 +180,14 @@ def normalize_category_filters(
         parts = raw_value.split(",")
         for part in parts:
             candidate = part.strip().lower()
+            # Skip turks_nieuws from category mapping (handled separately via scraping filter)
+            if candidate == "turks_nieuws":
+                continue
             mapped = category_map.get(candidate)
             if mapped:
                 normalized.append(mapped)
     
-    return normalized
+    return normalized, include_scraping
 
 
 def _normalize_city_filters(values: Sequence[str] | None) -> List[str]:
@@ -208,7 +227,7 @@ async def list_news_by_feed(
     cities_nl: Sequence[str] | None = None,
     cities_tr: Sequence[str] | None = None,
 ) -> Tuple[List[NewsItem], int]:
-    normalized_categories = normalize_category_filters(categories, feed)
+    normalized_categories, include_scraping = normalize_category_filters(categories, feed)
     thresholds = await _load_feed_thresholds()
     feed_sql_template, named_params = build_feed_filter(
         feed,
@@ -229,13 +248,27 @@ async def list_news_by_feed(
         order_clause = "relevance_score DESC, published_at DESC"
 
     where_params: List[Any] = [*feed_args]
-    if normalized_categories:
-        category_placeholder = f"${next_index}"
-        next_index += 1
-        where_clause += f"""
-            AND LOWER(COALESCE(category, '')) = ANY({category_placeholder})
-        """
-        where_params.append(normalized_categories)
+    
+    # Handle category filtering
+    # Note: build_feed_filter already includes scraping sources in source_key filter,
+    # but we need to handle category filtering separately for scraping vs RSS sources
+    if normalized_categories or include_scraping:
+        # Add RSS category filter if we have normalized categories
+        if normalized_categories:
+            category_placeholder = f"${next_index}"
+            next_index += 1
+            where_params.append(normalized_categories)
+            
+            # Add scraping sources filter if turks_nieuws is selected
+            if include_scraping:
+                # Combine: RSS sources with normalized_categories OR scraping sources with nl_national
+                where_clause += f" AND ((LOWER(COALESCE(source_key, '')) NOT LIKE 'scrape_%' AND LOWER(COALESCE(category, '')) = ANY({category_placeholder})) OR (LOWER(COALESCE(source_key, '')) LIKE 'scrape_%' AND LOWER(COALESCE(category, '')) = 'nl_national'))"
+            else:
+                # Only RSS categories (exclude scraping sources)
+                where_clause += f" AND (LOWER(COALESCE(source_key, '')) NOT LIKE 'scrape_%' AND LOWER(COALESCE(category, '')) = ANY({category_placeholder}))"
+        elif include_scraping:
+            # Only scraping sources with nl_national category
+            where_clause += f" AND (LOWER(COALESCE(source_key, '')) LIKE 'scrape_%' AND LOWER(COALESCE(category, '')) = 'nl_national')"
 
     # Note: LOCAL and ORIGIN feeds are now handled via Google News service in the router,
     # so we don't need location_context matching here anymore

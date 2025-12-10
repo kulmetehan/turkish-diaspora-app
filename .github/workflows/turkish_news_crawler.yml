@@ -1,0 +1,106 @@
+name: Turkish News Crawler
+
+# Turkish News Crawler - Scrapes Turkish-Dutch news websites
+# 
+# This workflow runs the two-stage pipeline for Turkish news scraping:
+# 1. turkish_news_scraper_bot: Fetches raw HTML from news sites
+# 2. news_ai_extractor_bot: Extracts articles using AI
+#
+# Frequency: 2x per day (08:00 and 20:00 UTC)
+# This ensures fresh content while respecting rate limits
+
+on:
+  schedule:
+    - cron: "0 8 * * *"   # 08:00 UTC daily
+    - cron: "0 20 * * *"  # 20:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "turkish-news-crawler"
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Turkish News Scraper
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PYTHONUNBUFFERED: "1"
+          PYTHONPATH: .
+        run: |
+          python -m app.workers.turkish_news_scraper_bot
+
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: scrape
+    defaults:
+      run:
+        working-directory: Backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run News AI Extractor
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PYTHONUNBUFFERED: "1"
+          PYTHONPATH: .
+        run: |
+          python -m app.workers.news_ai_extractor_bot --limit 20
+

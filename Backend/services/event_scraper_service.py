@@ -18,6 +18,7 @@ from bs4 import BeautifulSoup
 from app.core.logging import get_logger
 from app.models.event_raw import EventRawCreate
 from app.models.event_sources import EventSource
+from services.base_scraper_service import BaseScraperService
 from services.event_raw_service import insert_many_event_raw
 
 logger = get_logger()
@@ -49,7 +50,7 @@ class EventScraperResult:
     skipped: bool = False
 
 
-class EventScraperService:
+class EventScraperService(BaseScraperService):
     def __init__(
         self,
         *,
@@ -57,23 +58,12 @@ class EventScraperService:
         max_concurrency: int = 5,
         max_retries: int = 2,
     ) -> None:
-        self.timeout_s = timeout_s
-        self.max_concurrency = max(1, max_concurrency)
-        self.max_retries = max(0, max_retries)
-        self._client: Optional[httpx.AsyncClient] = None
-        self._sem = asyncio.Semaphore(self.max_concurrency)
-
-    async def __aenter__(self) -> "EventScraperService":
-        self._client = httpx.AsyncClient(
-            timeout=self.timeout_s,
-            headers={"User-Agent": "tda-event-scraper/1.0"},
-            follow_redirects=True,
+        super().__init__(
+            user_agent="tda-event-scraper/1.0",
+            timeout_s=timeout_s,
+            max_concurrency=max_concurrency,
+            max_retries=max_retries,
         )
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb) -> None:
-        if self._client:
-            await self._client.aclose()
 
     def should_fetch(self, source: EventSource) -> bool:
         """
@@ -103,7 +93,7 @@ class EventScraperService:
 
         url = source.list_url or source.base_url
         try:
-            response = await self._fetch(url)
+            response = await self.fetch(url)
         except Exception as exc:
             logger.warning(
                 "event_scraper_fetch_failed",
@@ -149,28 +139,6 @@ class EventScraperService:
             inserted=inserted,
             errors=0,
         )
-
-    async def _fetch(self, url: str) -> httpx.Response:
-        if self._client is None:
-            raise RuntimeError("EventScraperService HTTP client not initialized")
-        attempt = 0
-        delay = 1.0
-        last_exc: Optional[Exception] = None
-        while attempt <= self.max_retries:
-            try:
-                async with self._sem:
-                    response = await self._client.get(url)
-                response.raise_for_status()
-                return response
-            except Exception as exc:
-                last_exc = exc
-                attempt += 1
-                if attempt > self.max_retries:
-                    break
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, 10)
-        assert last_exc is not None
-        raise last_exc
 
     def _parse_response(self, source: EventSource, response: httpx.Response) -> List[EventRawCreate]:
         fmt = source.selectors.get("format", "html")
