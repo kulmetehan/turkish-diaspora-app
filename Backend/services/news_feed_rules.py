@@ -163,11 +163,13 @@ def build_feed_filter(
     if feed == FeedType.NL:
         # Simple filter: no AI score dependency, just language/category/source matching
         # Supports both alias and URL-based source_key values
+        # Also includes scraping sources (source_key LIKE 'scrape_%')
         nl_sources = _get_nl_source_keys()
         base_sql = (
             "published_at IS NOT NULL "
             "AND LOWER(COALESCE(language, '')) = 'nl' "
-            "AND LOWER(COALESCE(source_key, '')) = ANY(%(nl_sources)s)"
+            "AND (LOWER(COALESCE(source_key, '')) = ANY(%(nl_sources)s) "
+            "     OR LOWER(COALESCE(source_key, '')) LIKE 'scrape_%')"
         )
         
         if categories:
@@ -281,6 +283,7 @@ def _get_nl_source_keys() -> List[str]:
     """
     Returns list of source_key values (both alias and URL forms) for NL sources.
     Includes NOS variants, NU.nl, and optionally AD Rotterdam.
+    Also includes scraping sources for Turkish-Dutch news.
     All values are lowercase for case-insensitive matching.
     """
     return _lowered([
@@ -304,6 +307,10 @@ def _get_nl_source_keys() -> List[str]:
         "https://www.nu.nl/rss/Sport",
         "https://www.nu.nl/rss/Economie",
         "https://www.nu.nl/rss/entertainment",
+        # Scraping sources (Turkish-Dutch news)
+        "scrape_turksemedia_nl",
+        "scrape_dejongeturken",
+        "scrape_platformdergisi",
     ])
 
 

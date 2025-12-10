@@ -1,6 +1,6 @@
 const CATEGORIES_KEY = "categories";
 
-export const NL_CATEGORIES = ["general", "sport", "economie", "cultuur"] as const;
+export const NL_CATEGORIES = ["turks_nieuws", "general", "sport", "economie", "cultuur"] as const;
 export const TR_CATEGORIES = ["general", "sport", "economie", "magazin"] as const;
 
 export type NewsCategoryKey = 
@@ -100,6 +100,7 @@ export function subscribeToNewsCategoriesHashChange(callback: () => void): () =>
   window.addEventListener("hashchange", callback);
   return () => window.removeEventListener("hashchange", callback);
 }
+
 
 
 
