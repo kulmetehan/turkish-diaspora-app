@@ -20,11 +20,15 @@ def _build_system_prompt() -> str:
         '  "language_code": one of ["nl","tr","en","other"],\n'
         '  "category_key": one of [' + categories + '],\n'
         '  "summary": short natural-language summary (<=1000 chars),\n'
-        '  "confidence_score": float between 0 and 1\n'
+        '  "confidence_score": float between 0 and 1,\n'
+        '  "extracted_location_text": optional location string extracted from title/description/venue if location_text is missing or empty (max 500 chars). Extract city, venue, or address if mentioned. Return null if no location found.\n'
         "}\n"
         "Language detection must be based on the event title/description.\n"
         "category_key should describe the event purpose (community, religion, culture, business, education, sports, other).\n"
-        "If unsure, choose 'other'.\n"
+        "If location_text is missing or empty, try to extract location info from title/description/venue.\n"
+        "extracted_location_text should contain a city name (Rotterdam, Amsterdam, etc.), venue name, or address if found in the event data.\n"
+        "Only extract location if location_text is missing or empty. If location_text exists, set extracted_location_text to null.\n"
+        "If unsure, choose 'other' for category_key.\n"
         "Never invent details—use only provided data."
     )
 

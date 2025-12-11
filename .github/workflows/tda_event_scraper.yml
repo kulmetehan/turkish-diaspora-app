@@ -1,8 +1,11 @@
+# DEPRECATED: This workflow is deprecated in favor of tda_event_pipeline.yml
+# The new pipeline workflow runs all 4 steps (scraper → normalization → enrichment → geocoding) automatically.
+# This workflow is kept for backward compatibility and manual runs only.
+# Schedule has been removed - use tda_event_pipeline.yml for automated runs.
 name: TDA Event Scraper
 
 on:
-  schedule:
-    - cron: "*/30 * * * *"
+  # Schedule removed - use tda_event_pipeline.yml for automated runs
   workflow_dispatch:
 
 permissions:

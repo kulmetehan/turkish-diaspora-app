@@ -379,11 +379,44 @@ async def apply_event_enrichment(
     category_key: Optional[str],
     summary_ai: Optional[str],
     confidence_score: Optional[float],
+    extracted_location_text: Optional[str] = None,
     enriched_by: str = "event_enrichment_bot",
 ) -> None:
     """
     Persist AI enrichment output and mark the row as enriched.
+    If location_text is missing but extracted_location_text exists, update both event_raw and events_candidate.
     """
+    # Check if we need to update location_text
+    if extracted_location_text and extracted_location_text.strip():
+        # Check current location_text
+        from services.db_service import fetchrow as db_fetchrow
+        current = await db_fetchrow(
+            "SELECT location_text FROM event_raw WHERE id = $1",
+            event_id,
+        )
+        if not current or not current.get("location_text"):
+            # Update location_text in event_raw
+            location_value = extracted_location_text.strip()
+            await execute(
+                """
+                UPDATE event_raw
+                SET location_text = $2
+                WHERE id = $1
+                """,
+                event_id,
+                location_value,
+            )
+            # Also update in events_candidate if it exists
+            await execute(
+                """
+                UPDATE events_candidate
+                SET location_text = $2
+                WHERE event_raw_id = $1 AND (location_text IS NULL OR location_text = '')
+                """,
+                event_id,
+                location_value,
+            )
+
     await execute(
         """
         UPDATE event_raw

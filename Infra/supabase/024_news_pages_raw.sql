@@ -29,3 +29,4 @@ COMMENT ON COLUMN public.news_pages_raw.news_source_key IS 'Source key identifie
 COMMENT ON COLUMN public.news_pages_raw.content_hash IS 'sha1 hash of news_source_key + page_url + response_body for dedupe.';
 COMMENT ON COLUMN public.news_pages_raw.processing_state IS 'pending|extracted|error_fetch|error_extract';
 
+

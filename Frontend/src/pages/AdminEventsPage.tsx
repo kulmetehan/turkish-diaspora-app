@@ -2,22 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { AdminEventsTable } from "@/components/admin/AdminEventsTable";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useAdminEventSources } from "@/hooks/useAdminEventSources";
 import {
+    flushAllEventsAdmin,
+    getEventCandidateDuplicatesAdmin,
     listEventCandidatesAdmin,
     publishEventCandidateAdmin,
     rejectEventCandidateAdmin,
+    verifyEventCandidateAdmin,
     type AdminEventCandidate,
     type AdminEventDuplicateCluster,
-    getEventCandidateDuplicatesAdmin,
-    verifyEventCandidateAdmin,
 } from "@/lib/apiAdmin";
-import { useAdminEventSources } from "@/hooks/useAdminEventSources";
 
 const STATE_FILTERS = [
     { value: "ALL", label: "All states" },
@@ -48,6 +49,8 @@ export default function AdminEventsPage() {
     const [duplicatesDialogOpen, setDuplicatesDialogOpen] = useState<boolean>(false);
     const [duplicateCluster, setDuplicateCluster] = useState<AdminEventDuplicateCluster | null>(null);
     const [duplicatesLoading, setDuplicatesLoading] = useState<boolean>(false);
+    const [flushDialogOpen, setFlushDialogOpen] = useState<boolean>(false);
+    const [flushing, setFlushing] = useState<boolean>(false);
     const { sources } = useAdminEventSources();
 
     const selectedSourceLabel = useMemo(() => {
@@ -157,16 +160,38 @@ export default function AdminEventsPage() {
         }
     };
 
+    const handleFlush = async () => {
+        setFlushing(true);
+        try {
+            const result = await flushAllEventsAdmin(true);
+            toast.success(result.message || "Events flushed successfully");
+            setFlushDialogOpen(false);
+            await refetch();
+        } catch (err: any) {
+            toast.error(err?.message || "Failed to flush events");
+        } finally {
+            setFlushing(false);
+        }
+    };
+
     const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const currentPage = Math.floor(offset / PAGE_SIZE) + 1;
 
     return (
         <div className="p-6 space-y-6">
-            <div>
-                <h1 className="text-2xl font-semibold">Events Dashboard</h1>
-                <p className="text-sm text-muted-foreground">
-                    Review candidate events and promote them through the verification workflow.
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-semibold">Events Dashboard</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Review candidate events and promote them through the verification workflow.
+                    </p>
+                </div>
+                <Button
+                    variant="destructive"
+                    onClick={() => setFlushDialogOpen(true)}
+                >
+                    Flush All Events
+                </Button>
             </div>
 
             <Card className="rounded-2xl shadow-sm">
@@ -284,6 +309,35 @@ export default function AdminEventsPage() {
                     Next
                 </Button>
             </div>
+
+            <Dialog open={flushDialogOpen} onOpenChange={setFlushDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Flush All Events</DialogTitle>
+                        <DialogDescription>
+                            This will delete all events from the database (events_candidate and event_raw tables).
+                            The events_public view will automatically be empty. Event sources will be reset so
+                            the scraper can run immediately. This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setFlushDialogOpen(false)}
+                            disabled={flushing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleFlush}
+                            disabled={flushing}
+                        >
+                            {flushing ? "Flushing..." : "Confirm Flush"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={duplicatesDialogOpen} onOpenChange={resetDuplicatesDialog}>
                 <DialogContent className="max-w-2xl">

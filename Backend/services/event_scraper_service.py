@@ -20,6 +20,7 @@ from app.models.event_raw import EventRawCreate
 from app.models.event_sources import EventSource
 from services.base_scraper_service import BaseScraperService
 from services.event_raw_service import insert_many_event_raw
+from services.event_location_validator import EventLocationValidator
 
 logger = get_logger()
 
@@ -57,6 +58,7 @@ class EventScraperService(BaseScraperService):
         timeout_s: int = 15,
         max_concurrency: int = 5,
         max_retries: int = 2,
+        enable_ai_validation: bool = False,
     ) -> None:
         super().__init__(
             user_agent="tda-event-scraper/1.0",
@@ -64,6 +66,8 @@ class EventScraperService(BaseScraperService):
             max_concurrency=max_concurrency,
             max_retries=max_retries,
         )
+        # Optional AI validator for edge cases (disabled by default to avoid costs)
+        self._location_validator = EventLocationValidator() if enable_ai_validation else None
 
     def should_fetch(self, source: EventSource) -> bool:
         """
@@ -195,20 +199,20 @@ class EventScraperService(BaseScraperService):
                 "time_text": time_text,
                 "start_text": start_text,
             }
-            events.append(
-                self._build_event_raw(
-                    source=source,
-                    detected_format="html",
-                    title=title,
-                    event_url=full_url,
-                    start_at=start_at,
-                    description=description,
-                    location_text=location_text,
-                    venue=venue,
-                    image_url=image_url,
-                    raw_payload=payload,
-                )
+            event_raw = self._build_event_raw(
+                source=source,
+                detected_format="html",
+                title=title,
+                event_url=full_url,
+                start_at=start_at,
+                description=description,
+                location_text=location_text,
+                venue=venue,
+                image_url=image_url,
+                raw_payload=payload,
             )
+            if event_raw:
+                events.append(event_raw)
         return events
 
     def _parse_rss_events(self, source: EventSource, feed_text: str) -> List[EventRawCreate]:
@@ -242,20 +246,20 @@ class EventScraperService(BaseScraperService):
                 locale=locale_hint,
                 timezone_name=timezone_name,
             )
-            events.append(
-                self._build_event_raw(
-                    source=source,
-                    detected_format="rss",
-                    title=str(title),
-                    event_url=str(url_value) if url_value else None,
-                    start_at=start_at,
-                    description=str(description) if description else None,
-                    location_text=None,
-                    venue=None,
-                    image_url=None,
-                    raw_payload=entry_dict,
-                )
+            event_raw = self._build_event_raw(
+                source=source,
+                detected_format="rss",
+                title=str(title),
+                event_url=str(url_value) if url_value else None,
+                start_at=start_at,
+                description=str(description) if description else None,
+                location_text=None,
+                venue=None,
+                image_url=None,
+                raw_payload=entry_dict,
             )
+            if event_raw:
+                events.append(event_raw)
         return events
 
     def _parse_json_events(self, source: EventSource, payload: Any) -> List[EventRawCreate]:
@@ -295,20 +299,20 @@ class EventScraperService(BaseScraperService):
                 locale=locale_hint,
                 timezone_name=timezone_name,
             )
-            events.append(
-                self._build_event_raw(
-                    source=source,
-                    detected_format="json",
-                    title=title.strip(),
-                    event_url=str(url_value).strip() if isinstance(url_value, str) else None,
-                    start_at=start_at,
-                    description=str(description).strip() if isinstance(description, str) else None,
-                    location_text=str(location_text).strip() if isinstance(location_text, str) else None,
-                    venue=str(venue).strip() if isinstance(venue, str) else None,
-                    image_url=str(image_url).strip() if isinstance(image_url, str) else None,
-                    raw_payload=item,
-                )
+            event_raw = self._build_event_raw(
+                source=source,
+                detected_format="json",
+                title=title.strip(),
+                event_url=str(url_value).strip() if isinstance(url_value, str) else None,
+                start_at=start_at,
+                description=str(description).strip() if isinstance(description, str) else None,
+                location_text=str(location_text).strip() if isinstance(location_text, str) else None,
+                venue=str(venue).strip() if isinstance(venue, str) else None,
+                image_url=str(image_url).strip() if isinstance(image_url, str) else None,
+                raw_payload=item,
             )
+            if event_raw:
+                events.append(event_raw)
         return events
 
     def _parse_json_ld_events(self, source: EventSource, html_text: str) -> List[EventRawCreate]:
@@ -392,21 +396,105 @@ class EventScraperService(BaseScraperService):
                     locale=locale_hint,
                     timezone_name=timezone_name,
                 )
-                events.append(
-                    self._build_event_raw(
-                        source=source,
-                        detected_format="json",
-                        title=title,
-                        event_url=event_url,
-                        start_at=start_at,
-                        description=self._stringify_value(description_value),
-                        location_text=self._stringify_value(location_value),
-                        venue=None,
-                        image_url=image_url,
-                        raw_payload=item,
-                    )
+                event_raw = self._build_event_raw(
+                    source=source,
+                    detected_format="json",
+                    title=title,
+                    event_url=event_url,
+                    start_at=start_at,
+                    description=self._stringify_value(description_value),
+                    location_text=self._stringify_value(location_value),
+                    venue=None,
+                    image_url=image_url,
+                    raw_payload=item,
                 )
+                if event_raw:
+                    events.append(event_raw)
         return events
+
+    def _is_location_relevant(
+        self,
+        location_text: Optional[str],
+        title: Optional[str] = None,
+    ) -> bool:
+        """
+        Check if event location is relevant (Netherlands, Belgium, Germany, Europe).
+        Blocks events from America and other distant regions.
+
+        Args:
+            location_text: Location text from event
+            title: Event title (for context)
+
+        Returns:
+            True if location is relevant, False if blocked
+        """
+        # Quick text-based blocking
+        blocked_keywords = {
+            "united states", "usa", "america", "canada", "mexico",
+            "lodi", "new jersey", "new york", "california", "texas"
+        }
+
+        # Check title for blocked keywords
+        if title:
+            title_lower = title.lower()
+            if any(blocked in title_lower for blocked in blocked_keywords):
+                logger.info(
+                    "event_scraper_location_blocked_title",
+                    title=title,
+                    location=location_text
+                )
+                return False
+
+        if not location_text:
+            # No location info - allow but flag for review
+            return True
+
+        location_lower = location_text.lower()
+
+        # Block if contains blocked country/region names
+        if any(blocked in location_lower for blocked in blocked_keywords):
+            logger.info(
+                "event_scraper_location_blocked",
+                location=location_text,
+                title=title
+            )
+            return False
+
+        # Allow if contains allowed country names
+        allowed_countries = {
+            "netherlands", "nederland", "belgium", "belgië", "belgie",
+            "germany", "duitsland", "europa", "europe"
+        }
+        if any(allowed in location_lower for allowed in allowed_countries):
+            return True
+
+        # Allow if contains Dutch city names
+        dutch_cities = {
+            "rotterdam", "amsterdam", "den haag", "utrecht", "eindhoven",
+            "groningen", "tilburg", "almere", "breda", "nijmegen",
+            "haarlem", "enschede", "arnhem", "zaanstad", "amersfoort"
+        }
+        if any(city in location_lower for city in dutch_cities):
+            return True
+
+        # Optional: AI validation for edge cases (only if enabled)
+        if self._location_validator:
+            try:
+                is_relevant, _ = self._location_validator.validate_location(
+                    location_text, title
+                )
+                return is_relevant
+            except Exception as e:
+                logger.warning(
+                    "event_scraper_ai_validation_failed",
+                    location=location_text,
+                    error=str(e)
+                )
+                # If AI fails, default to allowing (can be reviewed later)
+                return True
+
+        # Default: allow but could be improved with geocoding
+        return True
 
     def _build_event_raw(
         self,
@@ -421,7 +509,12 @@ class EventScraperService(BaseScraperService):
         venue: Optional[str],
         image_url: Optional[str],
         raw_payload: Dict[str, Any],
-    ) -> EventRawCreate:
+    ) -> Optional[EventRawCreate]:
+        # Check location relevance before creating event
+        if not self._is_location_relevant(location_text, title):
+            # Event is blocked - return None to skip
+            return None
+
         ingest_hash = self._compute_ingest_hash(
             source_id=source.id,
             event_url=event_url,

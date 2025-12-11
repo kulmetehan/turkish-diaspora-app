@@ -54,7 +54,7 @@ async def run_enrichment(
     await init_db_pool()
     run_id = worker_run_id or await start_worker_run(bot="event_enrichment", city=None, category=None)
     await mark_worker_run_running(run_id)
-    counters: Dict[str, int] = {"total": 0, "enriched": 0, "errors": 0}
+    counters: Dict[str, int] = {"total": 0, "enriched": 0, "errors": 0, "locations_extracted": 0}
     progress = 5
     await update_worker_run_progress(run_id, progress)
 
@@ -80,14 +80,18 @@ async def run_enrichment(
                     category_key=result.category_key,
                     summary_ai=result.summary,
                     confidence_score=result.confidence_score,
+                    extracted_location_text=result.extracted_location_text,
                 )
                 counters["enriched"] += 1
+                if result.extracted_location_text:
+                    counters["locations_extracted"] += 1
                 logger.info(
                     "event_enrichment_success",
                     event_id=event.id,
                     category=result.category_key,
                     language=result.language_code,
                     confidence=result.confidence_score,
+                    location_extracted=bool(result.extracted_location_text),
                     meta=meta,
                 )
             except Exception as exc:

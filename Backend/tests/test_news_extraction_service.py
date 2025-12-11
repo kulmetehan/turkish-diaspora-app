@@ -100,3 +100,4 @@ def test_extract_news_multiple_articles():
     assert len(payload.articles) == 3
     assert payload.articles[0].title == "Article 0"
 
+

@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { EventItem } from "@/api/events";
-import { AppViewportShell, PageShell } from "@/components/layout";
+import { EventDateRangePicker } from "@/components/events/EventDateRangePicker";
 import { EventDetailOverlay } from "@/components/events/EventDetailOverlay";
 import { EventList } from "@/components/events/EventList";
 import { EventMapView } from "@/components/events/EventMapView";
 import { eventHasCoordinates } from "@/components/events/eventFormatters";
+import { AppViewportShell, PageShell } from "@/components/layout";
 import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEventsFeed } from "@/hooks/useEventsFeed";
@@ -13,6 +14,9 @@ import { cn } from "@/lib/ui/cn";
 import { navigationActions, useEventsNavigation } from "@/state/navigation";
 
 export default function EventsPage() {
+  const [dateFrom, setDateFrom] = useState<string | null>(null);
+  const [dateTo, setDateTo] = useState<string | null>(null);
+
   const {
     items,
     isLoading,
@@ -21,7 +25,7 @@ export default function EventsPage() {
     hasMore,
     loadMore,
     reload,
-  } = useEventsFeed({ pageSize: 20 });
+  } = useEventsFeed({ pageSize: 20, dateFrom, dateTo });
 
   // Use navigation store for events state
   const eventsNavigation = useEventsNavigation();
@@ -85,59 +89,67 @@ export default function EventsPage() {
         subtitle="Ontdek culturele activiteiten, community meetups en zakelijke bijeenkomsten binnen de Turkse diaspora in Nederland."
         maxWidth="5xl"
       >
-        <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
-          <Tabs
-          value={viewMode}
-          onValueChange={(value) => {
-            if (value === "map" || value === "list") {
-              handleViewModeChange(value);
-            }
-          }}
-        >
-          <TabsList className={cn(surfaceTabsList, "grid w-full grid-cols-2 bg-card")}>
-            <TabsTrigger
-              value="list"
-              data-view="list"
-              className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
+        <div className="space-y-4">
+          <EventDateRangePicker
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
+          />
+          <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
+            <Tabs
+              value={viewMode}
+              onValueChange={(value) => {
+                if (value === "map" || value === "list") {
+                  handleViewModeChange(value);
+                }
+              }}
             >
-              Lijst
-            </TabsTrigger>
-            <TabsTrigger
-              value="map"
-              data-view="map"
-              className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
-            >
-              Kaart
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+              <TabsList className={cn(surfaceTabsList, "grid w-full grid-cols-2 bg-card")}>
+                <TabsTrigger
+                  value="list"
+                  data-view="list"
+                  className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
+                >
+                  Lijst
+                </TabsTrigger>
+                <TabsTrigger
+                  value="map"
+                  data-view="map"
+                  className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
+                >
+                  Kaart
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </div>
 
-      {viewMode === "list" ? (
-        <EventList
-          events={items}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-          onSelectDetail={handleOpenDetail}
-          onShowOnMap={handleShowOnMap}
-          isLoading={isLoading}
-          isLoadingMore={isLoadingMore}
-          error={error}
-          hasMore={hasMore}
-          onLoadMore={loadMore}
-          onRetry={reload}
-          scrollTop={eventsNavigation.scrollTop}
-          onScrollPositionChange={handleScrollPositionChange}
-        />
-      ) : (
-        <EventMapView
-          events={items}
-          selectedId={selectedId}
-          detailId={detailId}
-          onSelect={handleSelect}
-          onOpenDetail={handleOpenDetail}
-        />
-      )}
+        {viewMode === "list" ? (
+          <EventList
+            events={items}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onSelectDetail={handleOpenDetail}
+            onShowOnMap={handleShowOnMap}
+            isLoading={isLoading}
+            isLoadingMore={isLoadingMore}
+            error={error}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            onRetry={reload}
+            scrollTop={eventsNavigation.scrollTop}
+            onScrollPositionChange={handleScrollPositionChange}
+          />
+        ) : (
+          <EventMapView
+            events={items}
+            selectedId={selectedId}
+            detailId={detailId}
+            onSelect={handleSelect}
+            onOpenDetail={handleOpenDetail}
+          />
+        )}
 
         <EventDetailOverlay
           event={detailEvent}

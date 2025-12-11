@@ -63,3 +63,4 @@ class ExtractedNewsPayload(BaseModel):
         description="List of extracted news articles",
     )
 
+
