@@ -82,16 +82,17 @@ class NominatimService:
         self,
         location_text: str,
         country_codes: Optional[list[str]] = None
-    ) -> Optional[Tuple[float, float]]:
+    ) -> Optional[Tuple[float, float, Optional[str]]]:
         """
-        Geocode location text to (lat, lng).
+        Geocode location text to (lat, lng, country).
 
         Args:
             location_text: Address or location name
             country_codes: Preferred countries (e.g., ["nl", "be", "de"])
 
         Returns:
-            (lat, lng) tuple or None if geocoding fails or location is blocked
+            (lat, lng, country) tuple or None if geocoding fails or location is blocked
+            country is lowercase (e.g., "netherlands", "belgium") or None
         """
         if not location_text or not location_text.strip():
             return None
@@ -153,7 +154,7 @@ class NominatimService:
                 lng=lng,
                 country=country
             )
-            return (lat, lng)
+            return (lat, lng, country or None)
 
         except httpx.HTTPStatusError as e:
             logger.warning(

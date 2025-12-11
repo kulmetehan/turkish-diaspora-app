@@ -113,16 +113,17 @@ async def run_geocoding(
                     )
 
                     if coords:
-                        lat, lng = coords
+                        lat, lng, country = coords
                         await execute(
                             """
                             UPDATE events_candidate
-                            SET lat = $1, lng = $2
+                            SET lat = $1, lng = $2, country = $4
                             WHERE id = $3
                             """,
                             lat,
                             lng,
                             event_id,
+                            country,  # Can be None
                         )
                         counters["geocoded"] += 1
                         logger.info(
@@ -131,6 +132,7 @@ async def run_geocoding(
                             location=location_text,
                             lat=lat,
                             lng=lng,
+                            country=country,
                         )
                     else:
                         counters["blocked"] += 1
