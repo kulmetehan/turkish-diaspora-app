@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from app.core.logging import get_logger
 from app.deps.admin_auth import AdminUser, verify_admin_user
@@ -13,7 +14,7 @@ from app.models.admin_events import (
     AdminEventDuplicateCluster,
 )
 from app.models.event_candidate import EVENT_CANDIDATE_STATES
-from services.db_service import fetch, fetchrow
+from services.db_service import fetch, fetchrow, execute
 from services.event_candidate_service import (
     EventCandidateRecord,
     list_event_candidates,
@@ -292,5 +293,101 @@ async def get_event_candidate_duplicates(
         canonical=_record_to_candidate_item(canonical),
         duplicates=[_record_to_candidate_item(record) for record in duplicates],
     )
+
+
+class EventFlushResponse(BaseModel):
+    truncated_candidates: int
+    truncated_raw: int
+    sources_reset: int
+    message: str
+
+
+@router.post("/flush", response_model=EventFlushResponse)
+async def flush_all_events(
+    reset_sources: bool = Query(
+        default=True,
+        description="Reset event source timestamps so scraper can run immediately",
+    ),
+    admin: AdminUser = Depends(verify_admin_user),
+) -> EventFlushResponse:
+    """
+    Flush all events from the database to allow re-scraping with updated flow.
+    
+    This endpoint:
+    1. TRUNCATE events_candidate (leegt de genormaliseerde events)
+    2. TRUNCATE event_raw (leegt de raw events)
+    3. Optionally resets event_sources timestamps (last_run_at, last_success_at)
+    
+    Note: events_public is een VIEW, die wordt automatisch leeg als de onderliggende
+    tabellen leeg zijn. We hoeven die niet expliciet te legen.
+    
+    Use this when you want to re-scrape all events with an updated scraper flow.
+    """
+    try:
+        # Get counts before truncation
+        candidates_count_row = await fetchrow(
+            "SELECT COUNT(*)::int AS count FROM events_candidate"
+        )
+        raw_count_row = await fetchrow(
+            "SELECT COUNT(*)::int AS count FROM event_raw"
+        )
+        
+        candidates_count = int(candidates_count_row["count"]) if candidates_count_row else 0
+        raw_count = int(raw_count_row["count"]) if raw_count_row else 0
+        
+        # TRUNCATE is sneller en netter dan DELETE
+        # Volgorde: eerst events_candidate (afhankelijk), dan event_raw (parent)
+        await execute("TRUNCATE TABLE events_candidate RESTART IDENTITY CASCADE")
+        await execute("TRUNCATE TABLE event_raw RESTART IDENTITY CASCADE")
+        
+        # Optionally reset event source timestamps
+        sources_reset = 0
+        if reset_sources:
+            await execute(
+                """
+                UPDATE event_sources
+                SET last_run_at = NULL,
+                    last_success_at = NULL,
+                    last_error_at = NULL,
+                    last_error = NULL
+                WHERE status = 'active'
+                """
+            )
+            # Get count of active sources
+            sources_count_row = await fetchrow(
+                "SELECT COUNT(*)::int AS count FROM event_sources WHERE status = 'active'"
+            )
+            sources_reset = int(sources_count_row["count"]) if sources_count_row else 0
+        
+        logger.info(
+            "admin_events_flush_completed",
+            truncated_candidates=candidates_count,
+            truncated_raw=raw_count,
+            sources_reset=sources_reset,
+            admin=admin.email,
+        )
+        
+        message = (
+            f"Flushed {candidates_count} candidates and {raw_count} raw events. "
+            f"{sources_reset} event sources reset." if reset_sources
+            else f"Flushed {candidates_count} candidates and {raw_count} raw events."
+        )
+        
+        return EventFlushResponse(
+            truncated_candidates=candidates_count,
+            truncated_raw=raw_count,
+            sources_reset=sources_reset,
+            message=message,
+        )
+    except (asyncpg.PostgresError, asyncpg.InterfaceError) as exc:
+        logger.error(
+            "admin_events_flush_failed",
+            error=str(exc),
+            admin=admin.email,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to flush events: {str(exc)}",
+        ) from exc
 
 

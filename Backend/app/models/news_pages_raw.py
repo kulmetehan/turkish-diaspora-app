@@ -90,3 +90,4 @@ class NewsPageRaw(NewsPageRawBase):
     fetched_at: datetime
     created_at: datetime
 
+

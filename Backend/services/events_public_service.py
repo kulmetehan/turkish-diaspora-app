@@ -16,6 +16,14 @@ def _date_end(dt: date) -> datetime:
 
 
 def _row_to_event_item(row: Any) -> EventItem:
+    # Handle lat/lng conversion from Decimal to float
+    lat = row.get("lat")
+    lng = row.get("lng")
+    if lat is not None:
+        lat = float(lat)
+    if lng is not None:
+        lng = float(lng)
+    
     return EventItem(
         id=int(row["id"]),
         title=str(row["title"]),
@@ -29,6 +37,8 @@ def _row_to_event_item(row: Any) -> EventItem:
         source_key=str(row["source_key"]),
         summary_ai=row.get("summary_ai"),
         updated_at=row["updated_at"],
+        lat=lat,
+        lng=lng,
     )
 
 
@@ -85,7 +95,9 @@ async def list_public_events(
             url,
             source_key,
             summary_ai,
-            updated_at
+            updated_at,
+            lat,
+            lng
         FROM events_public ep
         WHERE {where_clause}
         ORDER BY start_time_utc ASC, id ASC

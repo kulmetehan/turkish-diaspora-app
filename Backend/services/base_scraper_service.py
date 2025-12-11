@@ -108,3 +108,4 @@ class BaseScraperService:
         response = await self.fetch(url)
         return response.text
 
+

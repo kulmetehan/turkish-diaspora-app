@@ -1,0 +1,165 @@
+name: TDA Event Pipeline
+
+# Complete event processing pipeline: scraper → normalization → enrichment → geocoding
+# Runs every 72 hours (3 days) to process events through the full pipeline automatically.
+# All 4 steps run in sequence without manual intervention.
+on:
+  schedule:
+    - cron: "0 0 */3 * *"  # Every 3 days at midnight (72 hours)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "tda-event-pipeline"
+  cancel-in-progress: false
+
+jobs:
+  event-scraper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run EventScraperBot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONPATH: .
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -m app.workers.event_scraper_bot
+
+  event-normalization:
+    needs: event-scraper
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run EventNormalizationBot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONPATH: .
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -m app.workers.event_normalization_bot --limit 100
+
+  event-enrichment:
+    needs: event-normalization
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run EventEnrichmentBot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PYTHONPATH: .
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -m app.workers.event_enrichment_bot --limit 50
+
+  event-geocoding:
+    needs: event-enrichment
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run EventGeocodingBot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONPATH: .
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -m app.workers.event_geocoding_bot --limit 50

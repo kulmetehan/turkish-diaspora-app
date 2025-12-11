@@ -1,4 +1,4 @@
-import { authFetch, API_BASE, getAdminKey } from "@/lib/api";
+import { API_BASE, authFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
 
 export type AdminLocationListItem = {
@@ -111,7 +111,7 @@ export async function bulkImportLocations(file: File): Promise<AdminLocationBulk
     }
 
     const url = `${API_BASE}/api/v1/admin/locations/bulk_import`;
-    
+
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -338,6 +338,20 @@ export async function publishEventCandidateAdmin(id: number): Promise<AdminEvent
 export async function rejectEventCandidateAdmin(id: number): Promise<AdminEventCandidate> {
     return authFetch<AdminEventCandidate>(
         `/api/v1/admin/events/candidates/${id}/reject`,
+        { method: "POST" },
+    );
+}
+
+export type EventFlushResponse = {
+    truncated_candidates: number;
+    truncated_raw: number;
+    sources_reset: number;
+    message: string;
+};
+
+export async function flushAllEventsAdmin(resetSources: boolean = true): Promise<EventFlushResponse> {
+    return authFetch<EventFlushResponse>(
+        `/api/v1/admin/events/flush?reset_sources=${resetSources}`,
         { method: "POST" },
     );
 }

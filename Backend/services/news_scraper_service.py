@@ -169,3 +169,4 @@ class NewsScraperService(BaseScraperService):
                 inserted += 1
         return inserted
 
+

@@ -21,6 +21,8 @@ class EventItem(BaseModel):
     source_key: str
     summary_ai: Optional[str] = None
     updated_at: datetime
+    lat: Optional[float] = None
+    lng: Optional[float] = None
 
 
 class EventsListResponse(BaseModel):

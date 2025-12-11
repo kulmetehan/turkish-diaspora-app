@@ -19,6 +19,11 @@ class EventEnrichmentResult(BaseModel):
     category_key: str = Field(..., min_length=1, description="Canonical event category key.")
     summary: str = Field(..., min_length=1, max_length=1000, description="Short natural-language summary.")
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Overall confidence 0..1.")
+    extracted_location_text: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Location extracted from title/description/venue if location_text was missing or empty.",
+    )
 
     @field_validator("language_code", mode="before")
     @classmethod
@@ -39,6 +44,14 @@ class EventEnrichmentResult(BaseModel):
     @classmethod
     def _trim_summary(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("extracted_location_text", mode="before")
+    @classmethod
+    def _normalize_extracted_location(cls, value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        normalized = value.strip()
+        return normalized if normalized else None
 
 
 

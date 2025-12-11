@@ -117,3 +117,4 @@ class NewsExtractionService:
         )
         return parsed, meta
 
+

@@ -6,6 +6,8 @@ export interface UseEventsFeedOptions {
   pageSize?: number;
   city?: string;
   categories?: string[];
+  dateFrom?: string | null;
+  dateTo?: string | null;
 }
 
 export interface UseEventsFeedResult {
@@ -44,6 +46,8 @@ export function useEventsFeed({
   pageSize = 20,
   city,
   categories,
+  dateFrom,
+  dateTo,
 }: UseEventsFeedOptions = {}): UseEventsFeedResult {
   const [items, setItems] = useState<EventItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -91,6 +95,8 @@ export function useEventsFeed({
           offset: nextOffset,
           city: normalizedCity,
           categories: normalizedCategories,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
           signal: controller.signal,
         });
 
@@ -121,7 +127,7 @@ export function useEventsFeed({
         }
       }
     },
-    [normalizedCategories, normalizedCity, pageSize],
+    [normalizedCategories, normalizedCity, pageSize, dateFrom, dateTo],
   );
 
   useEffect(() => {

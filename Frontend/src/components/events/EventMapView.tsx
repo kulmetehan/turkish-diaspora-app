@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { EventItem } from "@/api/events";
 import type { LocationMarker } from "@/api/fetchLocations";
 import MapView from "@/components/MapView";
+import { ViewportProvider } from "@/contexts/viewport";
 import { Card } from "@/components/ui/card";
 import { eventHasCoordinates, formatCategoryLabel } from "./eventFormatters";
 
@@ -57,33 +58,35 @@ export function EventMapView({
   const detailMarkerId = detailId != null ? String(detailId) : null;
 
   return (
-    <div className="relative h-[min(70vh,520px)] w-full overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
-      <MapView
-        locations={markers}
-        globalLocations={markers}
-        highlightedId={highlightedId}
-        detailId={detailMarkerId}
-        onHighlight={(id) => {
-          if (!onSelect) return;
-          if (id == null) {
-            onSelect(null);
-            return;
-          }
-          const numericId = Number(id);
-          onSelect(Number.isNaN(numericId) ? null : numericId);
-        }}
-        onOpenDetail={(id) => {
-          if (!onOpenDetail) return;
-          const numericId = Number(id);
-          if (Number.isNaN(numericId)) return;
-          onOpenDetail(numericId);
-        }}
-        onMapClick={() => {
-          onSelect?.(null);
-        }}
-        centerOnSelect
-      />
-    </div>
+    <ViewportProvider>
+      <div className="relative h-[min(70vh,520px)] w-full overflow-hidden rounded-3xl border border-border bg-card shadow-soft">
+        <MapView
+          locations={markers}
+          globalLocations={markers}
+          highlightedId={highlightedId}
+          detailId={detailMarkerId}
+          onHighlight={(id) => {
+            if (!onSelect) return;
+            if (id == null) {
+              onSelect(null);
+              return;
+            }
+            const numericId = Number(id);
+            onSelect(Number.isNaN(numericId) ? null : numericId);
+          }}
+          onOpenDetail={(id) => {
+            if (!onOpenDetail) return;
+            const numericId = Number(id);
+            if (Number.isNaN(numericId)) return;
+            onOpenDetail(numericId);
+          }}
+          onMapClick={() => {
+            onSelect?.(null);
+          }}
+          centerOnSelect
+        />
+      </div>
+    </ViewportProvider>
   );
 }
 

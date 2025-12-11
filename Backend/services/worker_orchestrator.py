@@ -82,6 +82,8 @@ async def start_worker_run(
             await _run_event_enrichment(run_id)
         elif bot == "event_normalization":
             await _run_event_normalization(run_id)
+        elif bot == "event_geocoding":
+            await _run_event_geocoding(run_id)
         else:
             raise ValueError(f"Unknown bot: {bot}")
             
@@ -313,5 +315,16 @@ async def _run_event_normalization(run_id: UUID) -> None:
     logger.info("starting_event_normalization_bot", run_id=str(run_id))
 
     argv = ["event_normalization_bot", "--worker-run-id", str(run_id)]
+    with mock_sys_argv(argv):
+        await main_async()
+
+
+async def _run_event_geocoding(run_id: UUID) -> None:
+    """Run event_geocoding_bot via CLI-compatible entrypoint."""
+    from app.workers.event_geocoding_bot import main_async
+
+    logger.info("starting_event_geocoding_bot", run_id=str(run_id))
+
+    argv = ["event_geocoding_bot", "--worker-run-id", str(run_id)]
     with mock_sys_argv(argv):
         await main_async()
