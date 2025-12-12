@@ -20,6 +20,83 @@ configure_logging(service_name="worker")
 logger = get_logger().bind(worker="event_geocoding_bot")
 
 
+def _detect_city_from_location(location_text: str) -> Optional[str]:
+    """
+    Detect city_key from location_text using text matching.
+    Returns city_key (e.g., 'rotterdam', 'amsterdam', 'antwerpen') or None.
+    """
+    if not location_text:
+        return None
+    
+    location_lower = location_text.lower()
+    
+    # Map common city names to city_keys
+    city_patterns = {
+        'rotterdam': ['rotterdam'],
+        'amsterdam': ['amsterdam'],
+        'den_haag': ['den haag', 'the hague', "'s-gravenhage", 's-gravenhage'],
+        'utrecht': ['utrecht'],
+        'eindhoven': ['eindhoven'],
+        'groningen': ['groningen'],
+        'tilburg': ['tilburg'],
+        'almere': ['almere'],
+        'breda': ['breda'],
+        'nijmegen': ['nijmegen'],
+        'enschede': ['enschede'],
+        'haarlem': ['haarlem'],
+        'arnhem': ['arnhem'],
+        'zaanstad': ['zaanstad'],
+        'amersfoort': ['amersfoort'],
+        'apeldoorn': ['apeldoorn'],
+        'antwerpen': ['antwerpen', 'antwerp'],
+        'brussel': ['brussel', 'brussels', 'bruxelles'],
+        'gent': ['gent', 'ghent'],
+    }
+    
+    for city_key, patterns in city_patterns.items():
+        for pattern in patterns:
+            if pattern in location_lower:
+                return city_key
+    
+    return None
+
+
+def _should_block_location(location_text: str) -> bool:
+    """
+    Check if location should be blocked due to invalid patterns.
+    Blocks locations like "Washington, Netherlands", "Berlin, Netherlands", etc.
+    """
+    if not location_text:
+        return False
+    
+    location_lower = location_text.lower()
+    
+    # Block US cities with "Netherlands" suffix
+    us_cities = ['washington', 'houston', 'lodi', 'new york', 'los angeles', 'chicago']
+    for city in us_cities:
+        if city in location_lower and 'netherlands' in location_lower:
+            return True
+    
+    # Block German cities with "Netherlands" suffix
+    german_cities = ['berlin', 'münchen', 'munchen', 'köln', 'koln', 'hamburg', 'frankfurt']
+    for city in german_cities:
+        if city in location_lower and 'netherlands' in location_lower:
+            return True
+    
+    # Block standalone US cities without context (likely errors)
+    # Only block if it's just the city name or city + generic suffix
+    standalone_blocked = ['washington', 'houston', 'lodi']
+    for city in standalone_blocked:
+        # Check if location is just the city name or city + comma + something generic
+        if location_lower.strip() == city:
+            return True
+        # Block if it's "City, Netherlands" pattern
+        if location_lower.startswith(city) and ', netherlands' in location_lower:
+            return True
+    
+    return False
+
+
 def _parse_worker_run_id(value: str) -> UUID:
     try:
         return UUID(value)
@@ -88,21 +165,35 @@ async def run_geocoding(
                 event_id = int(event_row["id"])
                 location_text = event_row.get("location_text")
                 title = event_row.get("title")
-                city_key = event_row.get("city_key")
+                source_city_key = event_row.get("city_key")
 
                 if not location_text:
                     counters["no_location"] += 1
                     continue
 
                 try:
-                    # Geocode with country preference based on city_key or default to NL/BE/DE
+                    # FIRST: Check if location should be blocked
+                    if _should_block_location(location_text):
+                        logger.info(
+                            "event_geocoding_blocked_invalid_location",
+                            event_id=event_id,
+                            location=location_text,
+                            title=title,
+                        )
+                        counters["blocked"] += 1
+                        continue
+
+                    # SECOND: Try to detect city from location_text
+                    detected_city = _detect_city_from_location(location_text)
+                    city_key = detected_city or source_city_key
+                    
+                    # Geocode with country preference based on detected/source city_key
                     country_codes = ["nl", "be", "de"]
                     if city_key:
-                        # Map city_key to country code if possible
                         city_lower = city_key.lower()
-                        if "amsterdam" in city_lower or "rotterdam" in city_lower:
+                        if "amsterdam" in city_lower or "rotterdam" in city_lower or "den_haag" in city_lower:
                             country_codes = ["nl"]
-                        elif "brussel" in city_lower or "antwerpen" in city_lower:
+                        elif "brussel" in city_lower or "antwerpen" in city_lower or "gent" in city_lower:
                             country_codes = ["be"]
                         elif "berlin" in city_lower or "hamburg" in city_lower:
                             country_codes = ["de"]
@@ -114,6 +205,18 @@ async def run_geocoding(
 
                     if coords:
                         lat, lng, country = coords
+                        
+                        # Block if country is not Netherlands, Belgium, or Germany
+                        if country and country not in ["netherlands", "belgium", "germany"]:
+                            logger.info(
+                                "event_geocoding_blocked_wrong_country",
+                                event_id=event_id,
+                                location=location_text,
+                                country=country,
+                            )
+                            counters["blocked"] += 1
+                            continue
+                        
                         await execute(
                             """
                             UPDATE events_candidate
@@ -123,13 +226,15 @@ async def run_geocoding(
                             lat,
                             lng,
                             event_id,
-                            country,  # Can be None
+                            country,
                         )
                         counters["geocoded"] += 1
                         logger.info(
                             "event_geocoding_success",
                             event_id=event_id,
                             location=location_text,
+                            detected_city=detected_city,
+                            source_city=source_city_key,
                             lat=lat,
                             lng=lng,
                             country=country,
