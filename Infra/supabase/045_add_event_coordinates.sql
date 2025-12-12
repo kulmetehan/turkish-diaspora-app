@@ -59,12 +59,10 @@ WHERE er.processing_state = 'enriched'
     -- Explicitly Netherlands
     ec.country = 'netherlands'
     OR
-    -- Fallback: if country is NULL but coordinates are within Netherlands bbox
-    (ec.country IS NULL 
-     AND ec.lat IS NOT NULL 
-     AND ec.lng IS NOT NULL
-     AND ec.lat BETWEEN 50.7 AND 53.7
-     AND ec.lng BETWEEN 3.2 AND 7.2)
+    -- Temporary: allow events without country until they are geocoded
+    -- This ensures existing events are still visible until geocoding bot runs
+    -- After geocoding, events with country = 'belgium' etc. will be automatically filtered out
+    ec.country IS NULL
   );
 
 COMMENT ON COLUMN public.event_raw.lat IS 'Latitude coordinate from geocoding (NULL if not geocoded yet)';
