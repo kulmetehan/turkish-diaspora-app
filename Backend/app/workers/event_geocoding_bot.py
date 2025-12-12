@@ -65,11 +65,13 @@ def _should_block_location(location_text: str) -> bool:
     """
     Check if location should be blocked due to invalid patterns.
     Blocks locations like "Washington, Netherlands", "Berlin, Netherlands", etc.
+    Also blocks standalone foreign cities (German, UK, Austrian, Swiss, US).
+    Matches SQL function is_location_blocked() logic.
     """
     if not location_text:
         return False
     
-    location_lower = location_text.lower()
+    location_lower = location_text.lower().strip()
     
     # Block US cities with "Netherlands" suffix
     us_cities = ['washington', 'houston', 'lodi', 'new york', 'los angeles', 'chicago']
@@ -84,15 +86,31 @@ def _should_block_location(location_text: str) -> bool:
             return True
     
     # Block standalone US cities without context (likely errors)
-    # Only block if it's just the city name or city + generic suffix
-    standalone_blocked = ['washington', 'houston', 'lodi']
-    for city in standalone_blocked:
-        # Check if location is just the city name or city + comma + something generic
-        if location_lower.strip() == city:
+    standalone_us = ['washington', 'houston', 'lodi']
+    for city in standalone_us:
+        if location_lower == city:
             return True
-        # Block if it's "City, Netherlands" pattern
         if location_lower.startswith(city) and ', netherlands' in location_lower:
             return True
+    
+    # Block standalone German cities (without Netherlands suffix, but still foreign)
+    standalone_german = ['berlin', 'münchen', 'munchen', 'köln', 'koln', 'hamburg', 
+                         'frankfurt', 'stuttgart', 'düsseldorf', 'dusseldorf', 'offenbach', 
+                         'mannheim', 'hannover', 'bochum', 'nürnberg', 'nurnberg']
+    if location_lower in standalone_german:
+        return True
+    
+    # Block UK cities
+    if location_lower == 'london':
+        return True
+    
+    # Block Austrian cities
+    if location_lower in ('vienna', 'wien'):
+        return True
+    
+    # Block Swiss cities
+    if location_lower in ('zürich', 'zurich'):
+        return True
     
     return False
 
