@@ -5,6 +5,8 @@ import asyncio
 from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
+import httpx
+
 from app.core.logging import configure_logging, get_logger
 from app.core.request_id import with_run_id
 from app.models.event_pages_raw import EventPageRaw
@@ -17,8 +19,9 @@ from services.event_pages_raw_service import (
     fetch_pending_event_pages,
     update_event_page_processing_state,
 )
-from services.event_raw_service import insert_event_raw
+from services.event_raw_service import insert_event_raw, update_event_raw_from_detail_page
 from services.event_sources_service import get_event_source
+from services.db_service import fetchrow
 from services.worker_runs_service import (
     finish_worker_run,
     mark_worker_run_running,
@@ -96,13 +99,139 @@ async def _get_source_cached(
 def _dedupe_events(events: Sequence[ExtractedEvent]) -> List[ExtractedEvent]:
     seen: Dict[Tuple[str, str, str], ExtractedEvent] = {}
     for event in events:
+        # Handle None start_at for dedupe key
+        start_at_str = event.start_at.isoformat() if event.start_at else ""
         key = (
             event.title.strip().lower(),
-            event.start_at.isoformat(),
+            start_at_str,
             (event.event_url or "").strip().lower(),
         )
         seen[key] = event
     return list(seen.values())
+
+
+async def _fetch_and_extract_detail_page(
+    event_url: str,
+    *,
+    extraction_service: EventExtractionService,
+    source: EventSource,
+    event_raw_id: Optional[int] = None,
+) -> Optional[ExtractedEvent]:
+    """
+    Fetch a detail page and extract event data from it.
+    Returns the extracted event or None if extraction fails.
+    """
+    try:
+        # Normalize URL: convert relative to absolute if needed
+        absolute_url = event_url
+        if event_url and not event_url.startswith(("http://", "https://")):
+            from urllib.parse import urljoin
+            base_url = source.base_url or source.list_url or ""
+            if base_url:
+                base_url = base_url.rstrip("/")
+                if not event_url.startswith("/"):
+                    event_url = "/" + event_url
+                absolute_url = urljoin(base_url, event_url)
+            else:
+                logger.warning(
+                    "event_detail_page_relative_url_no_base",
+                    event_url=event_url,
+                    event_raw_id=event_raw_id,
+                )
+                return None
+
+        timeout = httpx.Timeout(15.0)
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            headers={"User-Agent": "tda-event-detail-extractor/1.0"},
+            follow_redirects=True,
+        ) as client:
+            response = await client.get(absolute_url)
+            response.raise_for_status()
+            html = response.text
+
+            # Extract event data from detail page
+            payload, _meta = extraction_service.extract_events_from_html(
+                html=html,
+                source_key=source.key,
+                page_url=absolute_url,
+                event_source_id=source.id,
+            )
+
+            # Take the first event (detail pages usually have one event)
+            if payload.events:
+                return payload.events[0]
+            return None
+
+    except Exception as exc:
+        logger.warning(
+            "event_detail_page_extraction_failed",
+            event_url=event_url,
+            event_raw_id=event_raw_id,
+            error=str(exc),
+        )
+        return None
+
+
+async def _enrich_events_with_detail_pages(
+    events: List[ExtractedEvent],
+    *,
+    extraction_service: EventExtractionService,
+    source: EventSource,
+    counters: Dict[str, int],
+    event_raw_ids: Dict[Tuple[str, str], int],  # Maps (title_lower, event_url_lower) -> event_raw_id
+) -> None:
+    """
+    For events that have event_url but missing start_at, fetch detail pages
+    and extract missing data, then update the corresponding event_raw records.
+    """
+    for event in events:
+        # Check if event has URL but missing start_at
+        if event.event_url and not event.start_at:
+            counters["detail_pages_fetched"] = counters.get("detail_pages_fetched", 0) + 1
+
+            # Fetch and extract from detail page
+            detail_event = await _fetch_and_extract_detail_page(
+                event.event_url,
+                extraction_service=extraction_service,
+                source=source,
+            )
+
+            if detail_event and detail_event.start_at:
+                # Find the corresponding event_raw_id
+                key = (event.title.strip().lower(), event.event_url.strip().lower())
+                event_raw_id = event_raw_ids.get(key)
+
+                if event_raw_id:
+                    # Update event_raw with data from detail page
+                    raw_payload_updates = {
+                        "detail_page_extracted": True,
+                        "detail_page_url": event.event_url,
+                        "detail_page_extracted_event": detail_event.model_dump(mode="json"),
+                    }
+
+                    await update_event_raw_from_detail_page(
+                        event_raw_id,
+                        start_at=detail_event.start_at,
+                        end_at=detail_event.end_at,
+                        description=detail_event.description or event.description,
+                        location_text=detail_event.location_text or event.location_text,
+                        venue=detail_event.venue or event.venue,
+                        image_url=detail_event.image_url or event.image_url,
+                        raw_payload_updates=raw_payload_updates,
+                    )
+
+                    counters["detail_pages_success"] = counters.get("detail_pages_success", 0) + 1
+                    logger.info(
+                        "event_enriched_from_detail_page",
+                        event_raw_id=event_raw_id,
+                        event_url=event.event_url,
+                        start_at=detail_event.start_at.isoformat() if detail_event.start_at else None,
+                    )
+                else:
+                    counters["detail_pages_no_event_raw_id"] = counters.get("detail_pages_no_event_raw_id", 0) + 1
+            else:
+                counters["detail_pages_no_start_at"] = counters.get("detail_pages_no_start_at", 0) + 1
 
 
 async def _process_page(
@@ -167,6 +296,9 @@ async def _process_page(
     counters["events_extracted_total"] += len(deduped)
     new_events = 0
 
+    # Map to track event_raw_id by (title_lower, event_url_lower) for detail page enrichment
+    event_raw_ids: Dict[Tuple[str, str], int] = {}
+
     for event in deduped:
         ingest_hash = EventScraperService._compute_ingest_hash(
             source_id=page.event_source_id,
@@ -200,8 +332,41 @@ async def _process_page(
         if inserted_id is not None:
             new_events += 1
             counters["events_created_new"] += 1
+            # Track event_raw_id for detail page enrichment
+            if event.event_url:
+                key = (event.title.strip().lower(), event.event_url.strip().lower())
+                event_raw_ids[key] = inserted_id
         else:
             counters["events_skipped_existing"] += 1
+            # For existing events, we might still want to enrich if start_at is missing
+            # Fetch the existing event_raw_id
+            if event.event_url and not event.start_at:
+                existing = await fetchrow(
+                    """
+                    SELECT id FROM event_raw
+                    WHERE event_source_id = $1
+                      AND event_url = $2
+                      AND title = $3
+                      AND start_at IS NULL
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    page.event_source_id,
+                    event.event_url,
+                    event.title,
+                )
+                if existing:
+                    key = (event.title.strip().lower(), event.event_url.strip().lower())
+                    event_raw_ids[key] = existing["id"]
+
+    # Enrich events with detail pages if needed
+    await _enrich_events_with_detail_pages(
+        deduped,
+        extraction_service=extraction_service,
+        source=source,
+        counters=counters,
+        event_raw_ids=event_raw_ids,
+    )
 
     await update_event_page_processing_state(page.id, state="extracted", errors=None)
     counters["pages_processed"] += 1
@@ -232,6 +397,10 @@ async def run_extractor(
         "events_extracted_total": 0,
         "events_created_new": 0,
         "events_skipped_existing": 0,
+        "detail_pages_fetched": 0,
+        "detail_pages_success": 0,
+        "detail_pages_no_start_at": 0,
+        "detail_pages_no_event_raw_id": 0,
     }
 
     try:

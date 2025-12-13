@@ -28,7 +28,10 @@ def _build_system_prompt() -> str:
         "If multiple events are present, include each one. "
         "Copy location_text exactly as stated in the HTML (city + optional region or country). "
         "Never translate or infer a different country; only include a country when it appears in the source text. "
-        "Do not append 'Netherlands' or any country unless it is explicitly written in the HTML."
+        "Do not append 'Netherlands' or any country unless it is explicitly written in the HTML.\n"
+        "IMPORTANT: For start_at, always try to extract the actual event time (hour and minute) from the page. "
+        "Only use midnight (00:00) if the page explicitly shows no time or only a date. "
+        "Look for time patterns like '20:00', '8 PM', '20u', 'acht uur', time ranges, or opening times mentioned in the event details."
     )
 
 
