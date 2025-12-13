@@ -29,6 +29,14 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 - [`Docs/ai-schemas.md`](./ai-schemas.md) — AI payload schemas, validation helpers.
 - [`Backend/OSM_Discovery_Report_Rotterdam_Production.md`](../Backend/OSM_Discovery_Report_Rotterdam_Production.md) — example production rollout report.
 
+### Events Pipeline
+
+- [`Docs/events/ES-0.2-event-scraper-framework.md`](./events/ES-0.2-event-scraper-framework.md) — event scraping framework and selectors.
+- [`Docs/events/ES-0.3-normalization.md`](./events/ES-0.3-normalization.md) — event normalization pipeline.
+- [`Docs/events/ES-0.4-ai-enrichment.md`](./events/ES-0.4-ai-enrichment.md) — AI enrichment for events.
+- [`Docs/events/ES-0.10-event-geocoding.md`](./events/ES-0.10-event-geocoding.md) — event geocoding with Nominatim and fallback strategy.
+- [`Docs/events/ES-0.6-event-api.md`](./events/ES-0.6-event-api.md) — public event API endpoint.
+
 ## Frontend & User Experience
 
 - [`Frontend/README.md`](../Frontend/README.md) — frontend architecture, npm scripts, deployment notes (needs update).

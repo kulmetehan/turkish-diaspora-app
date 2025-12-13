@@ -12,6 +12,34 @@ from services.db_service import execute, fetch, fetchrow
 logger = get_logger()
 
 
+def _sanitize_null_bytes(text: Optional[str]) -> Optional[str]:
+    """
+    Remove null bytes (\x00 and \u0000) from a string.
+    PostgreSQL TEXT type cannot handle null bytes.
+    """
+    if text is None:
+        return None
+    if not isinstance(text, str):
+        return text
+    return text.replace("\x00", "").replace("\u0000", "")
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """
+    Recursively sanitize all string values in a dictionary/list structure
+    by removing null bytes. This ensures data is safe for PostgreSQL JSONB storage.
+    """
+    if obj is None:
+        return None
+    if isinstance(obj, str):
+        return _sanitize_null_bytes(obj)
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_json(item) for item in obj]
+    return obj
+
+
 @dataclass
 class EventRawRecord:
     id: int
@@ -110,10 +138,23 @@ async def insert_event_raw(event: EventRawCreate) -> Optional[int]:
     """
     Insert a raw event row. Returns the inserted ID or None when deduped.
     """
-    raw_payload_json = json.dumps(event.raw_payload, ensure_ascii=False)
+    # Sanitize all string fields before inserting
+    sanitized_title = _sanitize_null_bytes(event.title)
+    sanitized_description = _sanitize_null_bytes(event.description)
+    sanitized_location_text = _sanitize_null_bytes(event.location_text)
+    sanitized_venue = _sanitize_null_bytes(event.venue)
+    sanitized_event_url = _sanitize_null_bytes(event.event_url)
+    sanitized_image_url = _sanitize_null_bytes(event.image_url)
+    sanitized_detected_format = _sanitize_null_bytes(event.detected_format)
+    
+    # Sanitize JSON payloads
+    sanitized_raw_payload = _sanitize_for_json(event.raw_payload) if event.raw_payload else {}
+    sanitized_processing_errors = _sanitize_for_json(event.processing_errors) if event.processing_errors else None
+    
+    raw_payload_json = json.dumps(sanitized_raw_payload, ensure_ascii=False)
     processing_errors_json = (
-        json.dumps(event.processing_errors, ensure_ascii=False)
-        if event.processing_errors is not None
+        json.dumps(sanitized_processing_errors, ensure_ascii=False)
+        if sanitized_processing_errors is not None
         else None
     )
     row = await fetchrow(
@@ -142,15 +183,15 @@ async def insert_event_raw(event: EventRawCreate) -> Optional[int]:
         RETURNING id
         """,
         event.event_source_id,
-        event.title,
-        event.description,
-        event.location_text,
-        event.venue,
-        event.event_url,
-        event.image_url,
+        sanitized_title,
+        sanitized_description,
+        sanitized_location_text,
+        sanitized_venue,
+        sanitized_event_url,
+        sanitized_image_url,
         event.start_at,
         event.end_at,
-        event.detected_format,
+        sanitized_detected_format,
         event.ingest_hash,
         raw_payload_json,
         event.processing_state,
@@ -357,7 +398,9 @@ async def update_event_raw_processing_state(
     """
     Update processing_state + optional processing_errors payload for a row.
     """
-    errors_json = json.dumps(errors, ensure_ascii=False) if errors is not None else None
+    # Sanitize errors dict before serializing
+    sanitized_errors = _sanitize_for_json(errors) if errors is not None else None
+    errors_json = json.dumps(sanitized_errors, ensure_ascii=False) if sanitized_errors is not None else None
     await execute(
         """
         UPDATE event_raw
@@ -386,8 +429,14 @@ async def apply_event_enrichment(
     Persist AI enrichment output and mark the row as enriched.
     If location_text is missing but extracted_location_text exists, update both event_raw and events_candidate.
     """
+    # Sanitize all string fields
+    sanitized_language_code = _sanitize_null_bytes(language_code)
+    sanitized_category_key = _sanitize_null_bytes(category_key)
+    sanitized_summary_ai = _sanitize_null_bytes(summary_ai)
+    sanitized_extracted_location_text = _sanitize_null_bytes(extracted_location_text)
+    
     # Check if we need to update location_text
-    if extracted_location_text and extracted_location_text.strip():
+    if sanitized_extracted_location_text and sanitized_extracted_location_text.strip():
         # Check current location_text
         from services.db_service import fetchrow as db_fetchrow
         current = await db_fetchrow(
@@ -396,7 +445,7 @@ async def apply_event_enrichment(
         )
         if not current or not current.get("location_text"):
             # Update location_text in event_raw
-            location_value = extracted_location_text.strip()
+            location_value = sanitized_extracted_location_text.strip()
             await execute(
                 """
                 UPDATE event_raw
@@ -431,9 +480,9 @@ async def apply_event_enrichment(
         WHERE id = $1
         """,
         int(event_id),
-        language_code,
-        category_key,
-        summary_ai,
+        sanitized_language_code,
+        sanitized_category_key,
+        sanitized_summary_ai,
         confidence_score,
         enriched_by,
     )
@@ -448,7 +497,9 @@ async def mark_event_enrichment_error(
     """
     Record enrichment failure metadata and mark the row for review/retry.
     """
-    error_json = json.dumps(error or {}, ensure_ascii=False)
+    # Sanitize error dict before serializing
+    sanitized_error = _sanitize_for_json(error) if error else {}
+    error_json = json.dumps(sanitized_error, ensure_ascii=False)
     await execute(
         """
         UPDATE event_raw
@@ -480,6 +531,12 @@ async def update_event_raw_from_detail_page(
     Only updates fields that are provided (not None).
     Updates raw_payload by merging raw_payload_updates if provided.
     """
+    # Sanitize all string fields before updating
+    sanitized_description = _sanitize_null_bytes(description)
+    sanitized_location_text = _sanitize_null_bytes(location_text)
+    sanitized_venue = _sanitize_null_bytes(venue)
+    sanitized_image_url = _sanitize_null_bytes(image_url)
+    
     updates: List[str] = []
     params: List[Any] = [event_raw_id]
     param_num = 2
@@ -494,27 +551,30 @@ async def update_event_raw_from_detail_page(
         params.append(end_at)
         param_num += 1
 
-    if description is not None:
+    if sanitized_description is not None:
         updates.append(f"description = ${param_num}")
-        params.append(description)
+        params.append(sanitized_description)
         param_num += 1
 
-    if location_text is not None:
+    if sanitized_location_text is not None:
         updates.append(f"location_text = ${param_num}")
-        params.append(location_text)
+        params.append(sanitized_location_text)
         param_num += 1
 
-    if venue is not None:
+    if sanitized_venue is not None:
         updates.append(f"venue = ${param_num}")
-        params.append(venue)
+        params.append(sanitized_venue)
         param_num += 1
 
-    if image_url is not None:
+    if sanitized_image_url is not None:
         updates.append(f"image_url = ${param_num}")
-        params.append(image_url)
+        params.append(sanitized_image_url)
         param_num += 1
 
     if raw_payload_updates:
+        # Sanitize raw_payload_updates before merging
+        sanitized_raw_payload_updates = _sanitize_for_json(raw_payload_updates)
+        
         # Fetch current raw_payload, merge updates, then update
         current = await fetchrow(
             "SELECT raw_payload FROM event_raw WHERE id = $1",
@@ -530,13 +590,16 @@ async def update_event_raw_from_detail_page(
             if not isinstance(current_payload, dict):
                 current_payload = {}
 
-            merged_payload = {**current_payload, **raw_payload_updates}
+            merged_payload = {**current_payload, **sanitized_raw_payload_updates}
             updates.append(f"raw_payload = CAST(${param_num}::text AS JSONB)")
             params.append(json.dumps(merged_payload, ensure_ascii=False))
             param_num += 1
 
     if not updates:
         return  # Nothing to update
+
+    # Track if location_text was updated
+    location_text_updated = sanitized_location_text is not None
 
     # Reset processing_state to 'pending' so normalization bot will reprocess this event
     updates.append("processing_state = 'pending'")
@@ -548,10 +611,23 @@ async def update_event_raw_from_detail_page(
     """
     await execute(sql, *params)
 
+    # Also update events_candidate.location_text if location_text was updated
+    if location_text_updated and sanitized_location_text:
+        await execute(
+            """
+            UPDATE events_candidate
+            SET location_text = $2
+            WHERE event_raw_id = $1 AND (location_text IS NULL OR location_text = '')
+            """,
+            event_raw_id,
+            sanitized_location_text,
+        )
+
     logger.info(
         "event_raw_updated_from_detail_page",
         event_raw_id=event_raw_id,
         fields_updated=len(updates),
+        location_text_updated=location_text_updated,
     )
 
 

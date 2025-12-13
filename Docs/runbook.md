@@ -71,6 +71,7 @@ See [`Docs/env-config.md`](./env-config.md) for the authoritative variable list 
 | Push Notifications | `app.workers.push_notifications` | Send push notifications for polls, trending, activity. | Requires VAPID keys. Use `--type` to filter notification types. |
 | Google Business Sync | `app.workers.google_business_sync` | Sync location data from Google Business Profiles. | Requires Google OAuth credentials. Runs periodically for opted-in businesses. |
 | Promotion Expiry | `app.workers.promotion_expiry_worker` | Mark expired promotions as 'expired' status. | Runs daily to update promotion status. |
+| Event Geocoding | `app.workers.event_geocoding_bot` | Geocode event locations to lat/lng coordinates. | Uses Nominatim API with fallback strategy. See [`Docs/events/ES-0.10-event-geocoding.md`](./events/ES-0.10-event-geocoding.md). |
 
 ### CLI examples
 
@@ -113,6 +114,9 @@ python -m app.workers.google_business_sync --limit 50 --dry-run 0
 
 # Promotion expiry (marks expired promotions)
 python -m app.workers.promotion_expiry_worker
+
+# Event geocoding (geocode event locations to lat/lng)
+python -m app.workers.event_geocoding_bot --limit 50
 ```
 
 ### Worker output cheat sheet
@@ -124,6 +128,7 @@ python -m app.workers.promotion_expiry_worker
 - **Alert**: Summaries of error rate, 429 bursts, optional webhook POST status.
 - **Push Notifications**: Logs sent/failed counts per notification type, writes to `push_notification_log`.
 - **Google Business Sync**: Logs sync status per location, updates `google_business_sync` table.
+- **Event Geocoding**: Logs `event_geocoding_success`/`event_geocoding_failed` with coordinates and country, updates `events_candidate` with `lat`/`lng`/`country`.
 
 Refer to [`Docs/worker-runs.md`](./worker-runs.md) for run-tracking conventions and guidance on generating `worker_runs` IDs for CLI usage.
 

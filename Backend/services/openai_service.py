@@ -84,6 +84,15 @@ def _is_quota_exceeded_error(error: Exception) -> bool:
     
     return False
 
+def _sanitize_null_bytes(text: str) -> str:
+    """
+    Remove null bytes (\x00 and \u0000) from a string.
+    PostgreSQL TEXT type cannot handle null bytes.
+    """
+    if not isinstance(text, str):
+        return text
+    return text.replace("\x00", "").replace("\u0000", "")
+
 class OpenAIService:
     """
     JSON-gedwongen AI-service met Pydantic-validatie en logging naar ai_logs.
@@ -139,6 +148,7 @@ class OpenAIService:
                     timeout=self.timeout_s,
                 )
                 raw_text = completion.choices[0].message.content or ""
+                raw_text = _sanitize_null_bytes(raw_text)
                 usage = getattr(completion, "usage", None)
                 usage_plain = _to_jsonable(usage)
 

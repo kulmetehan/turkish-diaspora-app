@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 from typing import Optional, Tuple
 
@@ -158,6 +159,67 @@ def _validate_city_country(location_text: str, country: str) -> Optional[str]:
     return None
 
 
+def _simplify_address_for_geocoding(location_text: str) -> list[str]:
+    """
+    Generate simplified versions of an address for fallback geocoding attempts.
+    Removes venue/room names and keeps only the essential address parts.
+    
+    Returns a list of simplified addresses to try, from most specific to least specific.
+    """
+    if not location_text:
+        return []
+    
+    # Common venue/room name patterns to remove
+    venue_patterns = [
+        r',\s*(Grote|Kleine|Rode|Blauwe|Groene)\s+Zaal[,\s]*',  # "Grote Zaal", "Rode Zaal"
+        r',\s*[A-Z][a-z]+\s+Zaal[,\s]*',  # Any "X Zaal"
+        r'\s*\|\s*[^,]+',  # Remove parts after "|" (e.g., "IKON | ANTWERPEN, IKON" -> "ANTWERPEN")
+    ]
+    
+    simplified = location_text.strip()
+    
+    # Remove venue/room names
+    for pattern in venue_patterns:
+        simplified = re.sub(pattern, ', ', simplified, flags=re.IGNORECASE)
+    
+    # Clean up multiple commas/spaces
+    simplified = re.sub(r',\s*,+', ', ', simplified)
+    simplified = re.sub(r'\s+', ' ', simplified).strip()
+    
+    # Generate fallback versions
+    versions = [location_text.strip()]  # Original first
+    
+    if simplified != location_text.strip():
+        versions.append(simplified)
+    
+    # Try to extract street address + postcode + city
+    # Pattern: "Street, Postcode City" or "Street Number, Postcode City"
+    postcode_match = re.search(r'(\d{4}\s*[A-Z]{2})', simplified, re.IGNORECASE)
+    if postcode_match:
+        postcode = postcode_match.group(1)
+        # Get everything before the postcode (street address)
+        parts = simplified.split(postcode)
+        if len(parts) >= 2:
+            street_part = parts[0].strip().rstrip(',').strip()
+            city_part = parts[1].strip()
+            # Try: "Street, Postcode City"
+            if street_part and city_part:
+                versions.append(f"{street_part}, {postcode} {city_part}")
+            # Try: "Postcode City"
+            if city_part:
+                versions.append(f"{postcode} {city_part}")
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_versions = []
+    for v in versions:
+        if v and v not in seen:
+            seen.add(v)
+            unique_versions.append(v)
+    
+    return unique_versions
+
+
 class NominatimService:
     """
     Geocoding service using OSM's Nominatim API.
@@ -197,29 +259,19 @@ class NominatimService:
                 await asyncio.sleep(sleep_time)
             _nominatim_last_request = time.time()
 
-    async def geocode(
+    async def _geocode_single(
         self,
-        location_text: str,
+        query: str,
         country_codes: Optional[list[str]] = None
-    ) -> Optional[Tuple[float, float, Optional[str]]]:
+    ) -> Optional[Tuple[float, float, Optional[str], str]]:
         """
-        Geocode location text to (lat, lng, country).
-
-        Args:
-            location_text: Address or location name
-            country_codes: Preferred countries (e.g., ["nl", "be", "de"])
-
-        Returns:
-            (lat, lng, country) tuple or None if geocoding fails or location is blocked
-            country is lowercase English (e.g., "netherlands", "belgium") or None
+        Internal method to geocode a single query string.
+        Returns (lat, lng, country, display_name) or None.
         """
-        if not location_text or not location_text.strip():
-            return None
-
         await self._enforce_rate_limit()
 
         params = {
-            "q": location_text.strip(),
+            "q": query.strip(),
             "format": "json",
             "limit": 1,
             "addressdetails": 1,
@@ -237,22 +289,16 @@ class NominatimService:
             data = response.json()
 
             if not data or len(data) == 0:
-                logger.debug("geocoding_no_results", location=location_text)
                 return None
 
             result = data[0]
             lat = float(result.get("lat", 0))
             lng = float(result.get("lon", 0))
+            display_name = result.get("display_name", "")
 
             # Validate coordinates are in Europe
             if not (EUROPE_LAT_MIN <= lat <= EUROPE_LAT_MAX and
                     EUROPE_LNG_MIN <= lng <= EUROPE_LNG_MAX):
-                logger.warning(
-                    "geocoding_out_of_bounds",
-                    location=location_text,
-                    lat=lat,
-                    lng=lng
-                )
                 return None
 
             # Extract country from address details and normalize to English
@@ -263,36 +309,87 @@ class NominatimService:
             country = _normalize_country(country_raw)
             
             # Validate known cities against expected country
-            corrected_country = _validate_city_country(location_text, country)
+            corrected_country = _validate_city_country(query, country)
             if corrected_country:
                 country = corrected_country
             
             # Block if in blocked list
             if country and any(blocked in country for blocked in BLOCKED_COUNTRIES):
-                logger.info(
-                    "geocoding_blocked_country",
-                    location=location_text,
-                    country=country
-                )
                 return None
 
-            logger.debug(
-                "geocoding_success",
-                location=location_text,
-                lat=lat,
-                lng=lng,
-                country=country
-            )
-            return (lat, lng, country or None)
+            return (lat, lng, country or None, display_name)
 
-        except httpx.HTTPStatusError as e:
-            logger.warning(
-                "geocoding_http_error",
-                location=location_text,
-                status_code=e.response.status_code,
-                error=str(e)
-            )
+        except httpx.HTTPStatusError:
             return None
-        except Exception as e:
-            logger.warning("geocoding_failed", location=location_text, error=str(e))
+        except Exception:
             return None
+
+    async def geocode(
+        self,
+        location_text: str,
+        country_codes: Optional[list[str]] = None
+    ) -> Optional[Tuple[float, float, Optional[str]]]:
+        """
+        Geocode location text to (lat, lng, country).
+        Tries multiple simplified versions if the original query fails.
+
+        Args:
+            location_text: Address or location name
+            country_codes: Preferred countries (e.g., ["nl", "be", "de"])
+
+        Returns:
+            (lat, lng, country) tuple or None if geocoding fails or location is blocked
+            country is lowercase English (e.g., "netherlands", "belgium") or None
+        """
+        if not location_text or not location_text.strip():
+            return None
+
+        # Generate simplified versions to try
+        versions_to_try = _simplify_address_for_geocoding(location_text)
+        
+        for attempt, query in enumerate(versions_to_try):
+            result = await self._geocode_single(query, country_codes)
+            
+            if result:
+                lat, lng, country, display_name = result
+                
+                # Log success (with attempt info if not first try)
+                if attempt > 0:
+                    logger.info(
+                        "geocoding_success_with_fallback",
+                        original_location=location_text,
+                        successful_query=query,
+                        attempt=attempt + 1,
+                        lat=lat,
+                        lng=lng,
+                        country=country,
+                        display_name=display_name
+                    )
+                else:
+                    logger.debug(
+                        "geocoding_success",
+                        location=location_text,
+                        lat=lat,
+                        lng=lng,
+                        country=country
+                    )
+                
+                return (lat, lng, country)
+            else:
+                # Log why this attempt failed (only for first attempt to avoid spam)
+                if attempt == 0:
+                    logger.warning(
+                        "geocoding_no_results",
+                        location=location_text,
+                        query=query,
+                        will_try_fallback=len(versions_to_try) > 1
+                    )
+        
+        # All attempts failed
+        logger.warning(
+            "geocoding_all_attempts_failed",
+            location=location_text,
+            attempts=len(versions_to_try),
+            queries_tried=versions_to_try
+        )
+        return None

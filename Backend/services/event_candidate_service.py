@@ -14,6 +14,18 @@ from services.db_service import execute, fetch, fetchrow
 
 logger = get_logger()
 
+
+def _sanitize_null_bytes(text: Optional[str]) -> Optional[str]:
+    """
+    Remove null bytes (\x00 and \u0000) from a string.
+    PostgreSQL TEXT type cannot handle null bytes.
+    """
+    if text is None:
+        return None
+    if not isinstance(text, str):
+        return text
+    return text.replace("\x00", "").replace("\u0000", "")
+
 ALLOWED_STATE_TRANSITIONS = {
     "candidate": {"verified", "published", "rejected"},
     "verified": {"published", "rejected"},
@@ -91,6 +103,13 @@ async def insert_event_candidate(candidate: EventCandidateCreate) -> Optional[in
     """
     Insert a normalized event candidate. Returns new ID or None if deduped.
     """
+    # Sanitize all string fields before inserting
+    sanitized_title = _sanitize_null_bytes(candidate.title)
+    sanitized_description = _sanitize_null_bytes(candidate.description)
+    sanitized_location_text = _sanitize_null_bytes(candidate.location_text)
+    sanitized_url = _sanitize_null_bytes(candidate.url)
+    sanitized_source_key = _sanitize_null_bytes(candidate.source_key)
+    
     row = await fetchrow(
         """
         INSERT INTO events_candidate (
@@ -114,13 +133,13 @@ async def insert_event_candidate(candidate: EventCandidateCreate) -> Optional[in
         """,
         candidate.event_source_id,
         candidate.event_raw_id,
-        candidate.title,
-        candidate.description,
+        sanitized_title,
+        sanitized_description,
         candidate.start_time_utc,
         candidate.end_time_utc,
-        candidate.location_text,
-        candidate.url,
-        candidate.source_key,
+        sanitized_location_text,
+        sanitized_url,
+        sanitized_source_key,
         candidate.ingest_hash,
         candidate.state,
     )
