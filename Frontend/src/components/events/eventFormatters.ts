@@ -88,12 +88,35 @@ export function formatCategoryLabel(categoryKey?: string | null): string {
 }
 
 export function eventHasCoordinates(event: Pick<EventItem, "lat" | "lng">): boolean {
-  return (
-    typeof event.lat === "number" &&
-    Number.isFinite(event.lat) &&
-    typeof event.lng === "number" &&
-    Number.isFinite(event.lng)
+  // More robust check: handle null, undefined, and ensure they're finite numbers
+  const lat = event.lat;
+  const lng = event.lng;
+
+  if (lat == null || lng == null) {
+    if (process.env.NODE_ENV === 'development' && (lat != null || lng != null)) {
+      console.debug(`[eventHasCoordinates] Missing coordinate: lat=${lat}, lng=${lng}`);
+    }
+    return false;
+  }
+
+  // Convert to number if it's a string (defensive)
+  const latNum = typeof lat === 'string' ? parseFloat(lat) : lat;
+  const lngNum = typeof lng === 'string' ? parseFloat(lng) : lng;
+
+  const isValid = (
+    typeof latNum === "number" &&
+    Number.isFinite(latNum) &&
+    typeof lngNum === "number" &&
+    Number.isFinite(lngNum) &&
+    !Number.isNaN(latNum) &&
+    !Number.isNaN(lngNum)
   );
+
+  if (process.env.NODE_ENV === 'development' && !isValid && (lat != null || lng != null)) {
+    console.debug(`[eventHasCoordinates] Invalid coordinates: lat=${lat} (${typeof lat}) -> ${latNum} (${typeof latNum}), lng=${lng} (${typeof lng}) -> ${lngNum} (${typeof lngNum})`);
+  }
+
+  return isValid;
 }
 
 

@@ -222,6 +222,8 @@ async def run_geocoding(
                             "event_geocoding_failed",
                             event_id=event_id,
                             location=location_text,
+                            normalized_location=normalized_location,
+                            reason="Nominatim returned None (no results, out of bounds, or blocked)",
                         )
                 except Exception as exc:
                     counters["errors"] += 1

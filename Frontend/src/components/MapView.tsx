@@ -36,6 +36,7 @@ type Props = {
   onFocusConsumed?: () => void;
   centerOnSelect?: boolean;
   onSuppressNextViewportFetch?: () => void;
+  initialCenterOverride?: { lng: number; lat: number; zoom?: number } | null; // Override initial center (e.g., for events)
 };
 
 const TOOLTIP_POINTER_HEIGHT = MARKER_POINT_OUTER_RADIUS;
@@ -486,6 +487,7 @@ export default function MapView({
   onFocusConsumed,
   centerOnSelect = true,
   onSuppressNextViewportFetch,
+  initialCenterOverride,
 }: Props) {
   const { setViewport } = useViewportContext();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1586,11 +1588,28 @@ export default function MapView({
     const map = mapRef.current;
     if (!map) return;
 
+    const mobile = isMobile();
+
+    // If initialCenterOverride is provided, use it directly (e.g., for events)
+    // This doesn't require the source to be ready, so check it first
+    if (initialCenterOverride &&
+      Number.isFinite(initialCenterOverride.lng) &&
+      Number.isFinite(initialCenterOverride.lat)) {
+      const overrideZoom = initialCenterOverride.zoom ?? (mobile ? CLUSTER_CONFIG.MOBILE_MAX_ZOOM : CLUSTER_CONFIG.MAX_ZOOM);
+      applyInitialView({
+        center: [initialCenterOverride.lng, initialCenterOverride.lat],
+        zoom: overrideZoom,
+      });
+      if (import.meta.env.DEV) {
+        console.debug("[MapView] Using initialCenterOverride:", initialCenterOverride);
+      }
+      return;
+    }
+
     // Check if marker layer is ready (source exists and has data)
     const source = map.getSource(MarkerLayerIds.SRC_ID);
     if (!source) return;
 
-    const mobile = isMobile();
     const initialCenter: [number, number] = [
       initialCenterResult.initialCenter.lng,
       initialCenterResult.initialCenter.lat,
@@ -1645,7 +1664,7 @@ export default function MapView({
 
     // Not a cluster or expansion zoom not available - apply directly
     applyInitialView(target);
-  }, [mapReady, locations.length, initialCenterResult.status, initialCenterResult.initialCenter, initialCenterResult.initialZoom, applyInitialView]);
+  }, [mapReady, locations.length, initialCenterResult.status, initialCenterResult.initialCenter, initialCenterResult.initialZoom, initialCenterOverride, applyInitialView]);
 
   useEffect(() => {
     if (!focusId) {

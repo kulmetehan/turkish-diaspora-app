@@ -212,6 +212,30 @@ async def execute_with_conn(
 # --------------------------------------------------------------------
 # AI log helper
 # --------------------------------------------------------------------
+def _sanitize_null_bytes(text: str) -> str:
+    """
+    Remove null bytes (\x00 and \u0000) from a string.
+    PostgreSQL TEXT type cannot handle null bytes.
+    """
+    if not isinstance(text, str):
+        return text
+    return text.replace("\x00", "").replace("\u0000", "")
+
+def _sanitize_for_db(obj: Any) -> Any:
+    """
+    Recursively sanitize all string values in a dictionary/list structure
+    by removing null bytes. This ensures data is safe for PostgreSQL JSONB storage.
+    """
+    if obj is None:
+        return None
+    if isinstance(obj, str):
+        return _sanitize_null_bytes(obj)
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_db(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_for_db(item) for item in obj]
+    return obj
+
 async def ai_log(
     *,
     location_id: Optional[int],
@@ -258,18 +282,24 @@ async def ai_log(
             """
         )
 
+        # Sanitize all data before JSON serialization to prevent null byte errors
+        sanitized_prompt = _sanitize_for_db(prompt) if prompt is not None else None
+        sanitized_raw_response = _sanitize_for_db(raw_response) if raw_response is not None else None
+        sanitized_validated_output = _sanitize_for_db(validated_output) if validated_output is not None else None
+        sanitized_error_message = _sanitize_null_bytes(error_message) if error_message is not None else None
+
         await execute(
             sql,
             location_id,
             news_id,
             event_raw_id,
             action_type,
-            json.dumps(prompt, ensure_ascii=False) if prompt is not None else None,
-            json.dumps(raw_response, ensure_ascii=False) if raw_response is not None else None,
-            json.dumps(validated_output, ensure_ascii=False) if validated_output is not None else None,
+            json.dumps(sanitized_prompt, ensure_ascii=False) if sanitized_prompt is not None else None,
+            json.dumps(sanitized_raw_response, ensure_ascii=False) if sanitized_raw_response is not None else None,
+            json.dumps(sanitized_validated_output, ensure_ascii=False) if sanitized_validated_output is not None else None,
             model_used,
             is_success,
-            error_message,
+            sanitized_error_message,
         )
     except Exception as e:
         logger.warning("ai_log failed", exc_info=e)

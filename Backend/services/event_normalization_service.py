@@ -13,6 +13,18 @@ _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
 
 
+def _sanitize_null_bytes(text: Optional[str]) -> Optional[str]:
+    """
+    Remove null bytes (\x00 and \u0000) from a string.
+    PostgreSQL TEXT type cannot handle null bytes.
+    """
+    if text is None:
+        return None
+    if not isinstance(text, str):
+        return text
+    return text.replace("\x00", "").replace("\u0000", "")
+
+
 class EventNormalizationError(Exception):
     """
     Raised when an EventRaw record cannot be normalized into a candidate row.
@@ -81,15 +93,38 @@ def _resolve_description(raw: EventRaw) -> Optional[str]:
 
 
 def _resolve_location(raw: EventRaw) -> Optional[str]:
+    """
+    Resolve location_text for events_candidate.
+    Priority: use location_text if it already contains venue info, otherwise combine venue + location_text.
+    Prevents duplication (e.g., "Theater Zuidplein, Rotterdam" + "Theater Zuidplein" should not become
+    "Theater Zuidplein, Rotterdam, Theater Zuidplein").
+    """
+    location_text_cleaned = _clean_text(raw.location_text)
+    venue_cleaned = _clean_text(raw.venue)
+    
+    # If location_text already contains the venue name, use location_text as-is
+    if location_text_cleaned and venue_cleaned:
+        location_lower = location_text_cleaned.lower()
+        venue_lower = venue_cleaned.lower()
+        # Check if venue name is already in location_text (case-insensitive)
+        if venue_lower in location_lower:
+            return location_text_cleaned
+    
+    # Otherwise, combine venue and location_text intelligently
     parts = []
-    for candidate in (raw.location_text, raw.venue):
-        cleaned = _clean_text(candidate)
-        if cleaned and cleaned not in parts:
-            parts.append(cleaned)
+    if venue_cleaned:
+        parts.append(venue_cleaned)
+    if location_text_cleaned and location_text_cleaned not in parts:
+        # Only add location_text if it's different from venue
+        if not venue_cleaned or venue_cleaned.lower() not in location_text_cleaned.lower():
+            parts.append(location_text_cleaned)
+    
+    # Fallback to raw_payload if nothing found
     if not parts and isinstance(raw.raw_payload, dict):
         extra_location = _clean_text(raw.raw_payload.get("location") or raw.raw_payload.get("venue"))
         if extra_location:
             parts.append(extra_location)
+    
     if not parts:
         return None
     return ", ".join(parts)
@@ -133,16 +168,23 @@ def normalize_event(raw: EventRaw, source: EventSource) -> EventCandidateCreate:
 
     source_key = source.key if source and source.key else str(raw.event_source_id)
 
+    # Sanitize all string fields before creating EventCandidateCreate
+    sanitized_title = _sanitize_null_bytes(title)
+    sanitized_description = _sanitize_null_bytes(description)
+    sanitized_location_text = _sanitize_null_bytes(location_text)
+    sanitized_url = _sanitize_null_bytes(url)
+    sanitized_source_key = _sanitize_null_bytes(source_key)
+
     return EventCandidateCreate(
         event_source_id=raw.event_source_id,
         event_raw_id=raw.id,
-        title=title,
-        description=description,
+        title=sanitized_title,
+        description=sanitized_description,
         start_time_utc=start_time_utc,
         end_time_utc=end_time_utc,
-        location_text=location_text,
-        url=url,
-        source_key=source_key,
+        location_text=sanitized_location_text,
+        url=sanitized_url,
+        source_key=sanitized_source_key,
         ingest_hash=raw.ingest_hash,
         state="candidate",
     )

@@ -110,6 +110,79 @@ def _dedupe_events(events: Sequence[ExtractedEvent]) -> List[ExtractedEvent]:
     return list(seen.values())
 
 
+def _is_location_only_city_name(location_text: Optional[str]) -> bool:
+    """
+    Check if location_text contains only a city name (no full address).
+    A full address typically contains:
+    - Street name + number (digits)
+    - Postal code (4 digits + 2 letters in NL, or similar patterns)
+    - Venue name + address combination
+    """
+    if not location_text:
+        return False
+    
+    location = location_text.strip()
+    
+    # If it contains digits, it's likely an address (street number or postal code)
+    if any(char.isdigit() for char in location):
+        return False
+    
+    # If it contains common address indicators
+    address_indicators = [
+        'straat', 'street', 'weg', 'laan', 'plein', 'square', 'boulevard',
+        'avenue', 'dreef', 'kade', 'quay', 'hof', 'court', 'park', 'park',
+        'road', 'drive', 'lane', 'place', 'plaza'
+    ]
+    location_lower = location.lower()
+    if any(indicator in location_lower for indicator in address_indicators):
+        return False
+    
+    # If it contains a comma, it might be "venue, address" or "address, city"
+    if ',' in location:
+        return False
+    
+    # If it's very short (likely just a city name)
+    # Most city names are 3-20 characters, but addresses are longer
+    if len(location) < 30 and not any(char.isdigit() for char in location):
+        # Check if it looks like a single word or simple city name
+        words = location.split()
+        if len(words) <= 3:  # "Rotterdam", "New York", "Den Haag"
+            return True
+    
+    return False
+
+
+def _is_location_better_than_current(
+    current_location: Optional[str],
+    new_location: Optional[str],
+) -> bool:
+    """
+    Check if new_location is better (more complete) than current_location.
+    A location is better if:
+    - It contains a full address (street + number + postal code) vs just city name
+    - It contains venue information
+    """
+    if not new_location:
+        return False
+    
+    if not current_location:
+        return True
+    
+    # If current is only a city name and new has more info, it's better
+    if _is_location_only_city_name(current_location):
+        if not _is_location_only_city_name(new_location):
+            return True
+        # Both are city names, prefer the one with more info
+        if len(new_location) > len(current_location):
+            return True
+    
+    # If new location has digits (address/postal code) and current doesn't
+    if any(char.isdigit() for char in new_location) and not any(char.isdigit() for char in current_location):
+        return True
+    
+    return False
+
+
 async def _fetch_and_extract_detail_page(
     event_url: str,
     *,
@@ -182,56 +255,108 @@ async def _enrich_events_with_detail_pages(
     event_raw_ids: Dict[Tuple[str, str], int],  # Maps (title_lower, event_url_lower) -> event_raw_id
 ) -> None:
     """
-    For events that have event_url but missing start_at, fetch detail pages
-    and extract missing data, then update the corresponding event_raw records.
+    For events that have event_url, fetch detail pages if:
+    - Missing start_at
+    - Missing location_text OR location_text is only a city name
+    - Missing venue
+    Then extract missing data and update the corresponding event_raw records.
     """
     for event in events:
-        # Check if event has URL but missing start_at
-        if event.event_url and not event.start_at:
-            counters["detail_pages_fetched"] = counters.get("detail_pages_fetched", 0) + 1
+        if not event.event_url:
+            continue
+        
+        # Check if we need to fetch detail page
+        needs_start_at = not event.start_at
+        needs_location = not event.location_text or _is_location_only_city_name(event.location_text)
+        needs_venue = not event.venue
+        
+        needs_enrichment = needs_start_at or needs_location or needs_venue
+        
+        if not needs_enrichment:
+            continue
+            
+        counters["detail_pages_fetched"] = counters.get("detail_pages_fetched", 0) + 1
 
-            # Fetch and extract from detail page
-            detail_event = await _fetch_and_extract_detail_page(
-                event.event_url,
-                extraction_service=extraction_service,
-                source=source,
-            )
+        # Fetch and extract from detail page
+        detail_event = await _fetch_and_extract_detail_page(
+            event.event_url,
+            extraction_service=extraction_service,
+            source=source,
+        )
 
-            if detail_event and detail_event.start_at:
-                # Find the corresponding event_raw_id
-                key = (event.title.strip().lower(), event.event_url.strip().lower())
-                event_raw_id = event_raw_ids.get(key)
+        if not detail_event:
+            counters["detail_pages_no_data"] = counters.get("detail_pages_no_data", 0) + 1
+            continue
 
-                if event_raw_id:
-                    # Update event_raw with data from detail page
-                    raw_payload_updates = {
-                        "detail_page_extracted": True,
-                        "detail_page_url": event.event_url,
-                        "detail_page_extracted_event": detail_event.model_dump(mode="json"),
-                    }
+        # Find the corresponding event_raw_id
+        key = (event.title.strip().lower(), event.event_url.strip().lower())
+        event_raw_id = event_raw_ids.get(key)
 
-                    await update_event_raw_from_detail_page(
-                        event_raw_id,
-                        start_at=detail_event.start_at,
-                        end_at=detail_event.end_at,
-                        description=detail_event.description or event.description,
-                        location_text=detail_event.location_text or event.location_text,
-                        venue=detail_event.venue or event.venue,
-                        image_url=detail_event.image_url or event.image_url,
-                        raw_payload_updates=raw_payload_updates,
-                    )
+        if not event_raw_id:
+            counters["detail_pages_no_event_raw_id"] = counters.get("detail_pages_no_event_raw_id", 0) + 1
+            continue
 
-                    counters["detail_pages_success"] = counters.get("detail_pages_success", 0) + 1
-                    logger.info(
-                        "event_enriched_from_detail_page",
-                        event_raw_id=event_raw_id,
-                        event_url=event.event_url,
-                        start_at=detail_event.start_at.isoformat() if detail_event.start_at else None,
-                    )
-                else:
-                    counters["detail_pages_no_event_raw_id"] = counters.get("detail_pages_no_event_raw_id", 0) + 1
-            else:
+        # Determine what we need to update
+        update_start_at = needs_start_at and detail_event.start_at
+        update_location = (
+            needs_location and detail_event.location_text and
+            _is_location_better_than_current(event.location_text, detail_event.location_text)
+        ) or (not event.location_text and detail_event.location_text)
+        update_venue = needs_venue and detail_event.venue
+        
+        # Also update location if detail page has a better location (even if current exists)
+        if not update_location and event.location_text and detail_event.location_text:
+            if _is_location_better_than_current(event.location_text, detail_event.location_text):
+                update_location = True
+        
+        if not update_start_at and not update_location and not update_venue:
+            # Detail page didn't provide the missing data
+            if needs_start_at:
                 counters["detail_pages_no_start_at"] = counters.get("detail_pages_no_start_at", 0) + 1
+            if needs_location:
+                counters["detail_pages_no_location_text"] = counters.get("detail_pages_no_location_text", 0) + 1
+            if needs_venue:
+                counters["detail_pages_no_venue"] = counters.get("detail_pages_no_venue", 0) + 1
+            continue
+
+        # Update event_raw with data from detail page
+        raw_payload_updates = {
+            "detail_page_extracted": True,
+            "detail_page_url": event.event_url,
+            "detail_page_extracted_event": detail_event.model_dump(mode="json"),
+        }
+
+        # Determine final values to use
+        final_location_text = (
+            detail_event.location_text if update_location else event.location_text
+        )
+        final_venue = (
+            detail_event.venue if update_venue else event.venue
+        )
+
+        await update_event_raw_from_detail_page(
+            event_raw_id,
+            start_at=detail_event.start_at if update_start_at else None,
+            end_at=detail_event.end_at if update_start_at else None,
+            description=detail_event.description or event.description,
+            location_text=final_location_text,
+            venue=final_venue,
+            image_url=detail_event.image_url or event.image_url,
+            raw_payload_updates=raw_payload_updates,
+        )
+
+        counters["detail_pages_success"] = counters.get("detail_pages_success", 0) + 1
+        logger.info(
+            "event_enriched_from_detail_page",
+            event_raw_id=event_raw_id,
+            event_url=event.event_url,
+            start_at=detail_event.start_at.isoformat() if detail_event.start_at else None,
+            location_text=final_location_text,
+            venue=final_venue,
+            updated_start_at=update_start_at,
+            updated_location_text=update_location,
+            updated_venue=update_venue,
+        )
 
 
 async def _process_page(
@@ -338,16 +463,16 @@ async def _process_page(
                 event_raw_ids[key] = inserted_id
         else:
             counters["events_skipped_existing"] += 1
-            # For existing events, we might still want to enrich if start_at is missing
+            # For existing events, we might still want to enrich if start_at, location_text is missing/only city, or venue is missing
             # Fetch the existing event_raw_id
-            if event.event_url and not event.start_at:
+            if event.event_url and (not event.start_at or not event.location_text or _is_location_only_city_name(event.location_text) or not event.venue):
                 existing = await fetchrow(
                     """
                     SELECT id FROM event_raw
                     WHERE event_source_id = $1
                       AND event_url = $2
                       AND title = $3
-                      AND start_at IS NULL
+                      AND (start_at IS NULL OR location_text IS NULL OR location_text = '' OR venue IS NULL)
                     ORDER BY created_at DESC
                     LIMIT 1
                     """,
@@ -400,6 +525,9 @@ async def run_extractor(
         "detail_pages_fetched": 0,
         "detail_pages_success": 0,
         "detail_pages_no_start_at": 0,
+        "detail_pages_no_location_text": 0,
+        "detail_pages_no_venue": 0,
+        "detail_pages_no_data": 0,
         "detail_pages_no_event_raw_id": 0,
     }
 
