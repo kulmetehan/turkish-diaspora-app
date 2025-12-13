@@ -464,3 +464,94 @@ async def mark_event_enrichment_error(
     )
 
 
+async def update_event_raw_from_detail_page(
+    event_raw_id: int,
+    *,
+    start_at: Optional[datetime] = None,
+    end_at: Optional[datetime] = None,
+    description: Optional[str] = None,
+    location_text: Optional[str] = None,
+    venue: Optional[str] = None,
+    image_url: Optional[str] = None,
+    raw_payload_updates: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Update event_raw record with data extracted from detail page.
+    Only updates fields that are provided (not None).
+    Updates raw_payload by merging raw_payload_updates if provided.
+    """
+    updates: List[str] = []
+    params: List[Any] = [event_raw_id]
+    param_num = 2
+
+    if start_at is not None:
+        updates.append(f"start_at = ${param_num}")
+        params.append(start_at)
+        param_num += 1
+
+    if end_at is not None:
+        updates.append(f"end_at = ${param_num}")
+        params.append(end_at)
+        param_num += 1
+
+    if description is not None:
+        updates.append(f"description = ${param_num}")
+        params.append(description)
+        param_num += 1
+
+    if location_text is not None:
+        updates.append(f"location_text = ${param_num}")
+        params.append(location_text)
+        param_num += 1
+
+    if venue is not None:
+        updates.append(f"venue = ${param_num}")
+        params.append(venue)
+        param_num += 1
+
+    if image_url is not None:
+        updates.append(f"image_url = ${param_num}")
+        params.append(image_url)
+        param_num += 1
+
+    if raw_payload_updates:
+        # Fetch current raw_payload, merge updates, then update
+        current = await fetchrow(
+            "SELECT raw_payload FROM event_raw WHERE id = $1",
+            event_raw_id,
+        )
+        if current:
+            current_payload = current.get("raw_payload") or {}
+            if isinstance(current_payload, str):
+                try:
+                    current_payload = json.loads(current_payload)
+                except ValueError:
+                    current_payload = {}
+            if not isinstance(current_payload, dict):
+                current_payload = {}
+
+            merged_payload = {**current_payload, **raw_payload_updates}
+            updates.append(f"raw_payload = CAST(${param_num}::text AS JSONB)")
+            params.append(json.dumps(merged_payload, ensure_ascii=False))
+            param_num += 1
+
+    if not updates:
+        return  # Nothing to update
+
+    # Reset processing_state to 'pending' so normalization bot will reprocess this event
+    updates.append("processing_state = 'pending'")
+    
+    sql = f"""
+        UPDATE event_raw
+        SET {', '.join(updates)}
+        WHERE id = $1
+    """
+    await execute(sql, *params)
+
+    logger.info(
+        "event_raw_updated_from_detail_page",
+        event_raw_id=event_raw_id,
+        fields_updated=len(updates),
+    )
+
+

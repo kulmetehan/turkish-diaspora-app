@@ -20,6 +20,41 @@ configure_logging(service_name="worker")
 logger = get_logger().bind(worker="event_geocoding_bot")
 
 
+def _normalize_location_text(location_text: str) -> str:
+    """
+    Normalize location_text by removing incorrect country suffixes.
+
+    Examples:
+    - "Hannover Netherlands" -> "Hannover"
+    - "Stuttgart Netherlands" -> "Stuttgart"
+    - "Offenbach Netherlands" -> "Offenbach"
+    """
+    if not location_text:
+        return location_text
+
+    location_lower = location_text.lower().strip()
+
+    # List of known foreign cities that should NOT have "Netherlands" suffix
+    foreign_cities = [
+        "hannover", "stuttgart", "offenbach", "berlin", "düsseldorf", "dusseldorf",
+        "köln", "koln", "hamburg", "münchen", "munich", "london", "vienna", "wien",
+        "zürich", "zurich", "antwerpen", "antwerp", "brussel", "brussels",
+        "heusden-zolder", "heusden zolder"
+    ]
+
+    # Check if location_text contains a foreign city name
+    for city in foreign_cities:
+        if city in location_lower:
+            # Remove common incorrect suffixes
+            normalized = location_text
+            for suffix in [" netherlands", ", netherlands"]:
+                if normalized.lower().endswith(suffix.lower()):
+                    normalized = normalized[:-len(suffix)].strip()
+            return normalized
+
+    return location_text
+
+
 def _detect_city_from_location(location_text: str) -> Optional[str]:
     """
     Detect city_key from location_text using text matching.
@@ -59,60 +94,6 @@ def _detect_city_from_location(location_text: str) -> Optional[str]:
                 return city_key
     
     return None
-
-
-def _should_block_location(location_text: str) -> bool:
-    """
-    Check if location should be blocked due to invalid patterns.
-    Blocks locations like "Washington, Netherlands", "Berlin, Netherlands", etc.
-    Also blocks standalone foreign cities (German, UK, Austrian, Swiss, US).
-    Matches SQL function is_location_blocked() logic.
-    """
-    if not location_text:
-        return False
-    
-    location_lower = location_text.lower().strip()
-    
-    # Block US cities with "Netherlands" suffix
-    us_cities = ['washington', 'houston', 'lodi', 'new york', 'los angeles', 'chicago']
-    for city in us_cities:
-        if city in location_lower and 'netherlands' in location_lower:
-            return True
-    
-    # Block German cities with "Netherlands" suffix
-    german_cities = ['berlin', 'münchen', 'munchen', 'köln', 'koln', 'hamburg', 'frankfurt']
-    for city in german_cities:
-        if city in location_lower and 'netherlands' in location_lower:
-            return True
-    
-    # Block standalone US cities without context (likely errors)
-    standalone_us = ['washington', 'houston', 'lodi']
-    for city in standalone_us:
-        if location_lower == city:
-            return True
-        if location_lower.startswith(city) and ', netherlands' in location_lower:
-            return True
-    
-    # Block standalone German cities (without Netherlands suffix, but still foreign)
-    standalone_german = ['berlin', 'münchen', 'munchen', 'köln', 'koln', 'hamburg', 
-                         'frankfurt', 'stuttgart', 'düsseldorf', 'dusseldorf', 'offenbach', 
-                         'mannheim', 'hannover', 'bochum', 'nürnberg', 'nurnberg']
-    if location_lower in standalone_german:
-        return True
-    
-    # Block UK cities
-    if location_lower == 'london':
-        return True
-    
-    # Block Austrian cities
-    if location_lower in ('vienna', 'wien'):
-        return True
-    
-    # Block Swiss cities
-    if location_lower in ('zürich', 'zurich'):
-        return True
-    
-    return False
 
 
 def _parse_worker_run_id(value: str) -> UUID:
@@ -190,51 +171,27 @@ async def run_geocoding(
                     continue
 
                 try:
-                    # FIRST: Check if location should be blocked
-                    if _should_block_location(location_text):
-                        logger.info(
-                            "event_geocoding_blocked_invalid_location",
-                            event_id=event_id,
-                            location=location_text,
-                            title=title,
-                        )
-                        counters["blocked"] += 1
-                        continue
-
-                    # SECOND: Try to detect city from location_text
+                    # Normalize location_text to remove incorrect country suffixes
+                    normalized_location = _normalize_location_text(location_text)
+                    
+                    # Try to detect city from location_text (for logging purposes)
                     detected_city = _detect_city_from_location(location_text)
                     city_key = detected_city or source_city_key
                     
-                    # Geocode with country preference based on detected/source city_key
-                    country_codes = ["nl", "be", "de"]
-                    if city_key:
-                        city_lower = city_key.lower()
-                        if "amsterdam" in city_lower or "rotterdam" in city_lower or "den_haag" in city_lower:
-                            country_codes = ["nl"]
-                        elif "brussel" in city_lower or "antwerpen" in city_lower or "gent" in city_lower:
-                            country_codes = ["be"]
-                        elif "berlin" in city_lower or "hamburg" in city_lower:
-                            country_codes = ["de"]
-
+                    # CRITICAL FIX: Geocode WITHOUT country_codes first to get accurate results
+                    # Using country_codes forces Nominatim to only search within those countries,
+                    # which can lead to wrong matches (e.g., "Vienna" → Netherlands, "London" → Germany)
+                    # By searching worldwide first, we get the correct country, then filter by country
                     coords = await geocoder.geocode(
-                        location_text,
-                        country_codes=country_codes,
+                        normalized_location,  # Use normalized location
+                        country_codes=None,  # Search worldwide first - this ensures accurate country detection
                     )
 
                     if coords:
                         lat, lng, country = coords
                         
-                        # Block if country is not Netherlands, Belgium, or Germany
-                        if country and country not in ["netherlands", "belgium", "germany"]:
-                            logger.info(
-                                "event_geocoding_blocked_wrong_country",
-                                event_id=event_id,
-                                location=location_text,
-                                country=country,
-                            )
-                            counters["blocked"] += 1
-                            continue
-                        
+                        # Always save geocoding results, even for foreign countries
+                        # The events_public view will filter by country = 'netherlands'
                         await execute(
                             """
                             UPDATE events_candidate
@@ -258,9 +215,11 @@ async def run_geocoding(
                             country=country,
                         )
                     else:
-                        counters["blocked"] += 1
-                        logger.info(
-                            "event_geocoding_blocked",
+                        # If geocoding fails, log but don't block
+                        # The event will remain without coordinates and won't appear in events_public
+                        counters["errors"] += 1
+                        logger.warning(
+                            "event_geocoding_failed",
                             event_id=event_id,
                             location=location_text,
                         )

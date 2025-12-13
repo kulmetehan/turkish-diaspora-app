@@ -33,19 +33,49 @@ export function formatEventDateRange(
   });
 
   const dateLabel = dateFormatter.format(start);
+
+  // Format the time first to check if it's "00:00" in local time
+  // This catches placeholder times that would show as "00:00" to the user
   const timeStart = timeFormatter.format(start);
+  const startIsMidnight = timeStart === "00:00";
+
   if (end && isValidDate(end)) {
     const sameDay =
       start.getUTCFullYear() === end.getUTCFullYear() &&
       start.getUTCMonth() === end.getUTCMonth() &&
       start.getUTCDate() === end.getUTCDate();
+
     const timeEnd = timeFormatter.format(end);
+    const endIsMidnight = timeEnd === "00:00";
+
+    // If both times are midnight, only show date
+    if (startIsMidnight && endIsMidnight) {
+      return dateLabel;
+    }
+
+    // If only start is midnight, show date without start time
+    if (startIsMidnight) {
+      return `${dateLabel} – ${timeEnd}`;
+    }
+
+    // If only end is midnight, show date with start time
+    if (endIsMidnight) {
+      return `${dateLabel} · ${timeStart}`;
+    }
+
+    // Both times are valid
     if (sameDay) {
       return `${dateLabel} · ${timeStart} – ${timeEnd}`;
     }
     const endDateLabel = dateFormatter.format(end);
     return `${dateLabel} ${timeStart} – ${endDateLabel} ${timeEnd}`;
   }
+
+  // No end time, check if start is midnight
+  if (startIsMidnight) {
+    return dateLabel;
+  }
+
   return `${dateLabel} · ${timeStart}`;
 }
 
