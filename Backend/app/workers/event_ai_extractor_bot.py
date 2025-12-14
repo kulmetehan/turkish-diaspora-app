@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from datetime import datetime
 from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
@@ -183,6 +184,20 @@ def _is_location_better_than_current(
     return False
 
 
+def _is_start_at_only_date(start_at: Optional[datetime]) -> bool:
+    """
+    Check if start_at contains only a date without a specific time.
+    Returns True if start_at is None, or if it has time 00:00:00 (midnight),
+    indicating that only the date was extracted, not the actual event time.
+    """
+    if not start_at:
+        return True
+    
+    # Check if the time component is midnight (00:00:00)
+    # This indicates that only the date was extracted, not the actual event time
+    return start_at.hour == 0 and start_at.minute == 0 and start_at.second == 0
+
+
 async def _fetch_and_extract_detail_page(
     event_url: str,
     *,
@@ -256,7 +271,7 @@ async def _enrich_events_with_detail_pages(
 ) -> None:
     """
     For events that have event_url, fetch detail pages if:
-    - Missing start_at
+    - Missing start_at OR start_at is only a date (without time)
     - Missing location_text OR location_text is only a city name
     - Missing venue
     Then extract missing data and update the corresponding event_raw records.
@@ -266,7 +281,8 @@ async def _enrich_events_with_detail_pages(
             continue
         
         # Check if we need to fetch detail page
-        needs_start_at = not event.start_at
+        # Also check if start_at is only a date (without time component)
+        needs_start_at = not event.start_at or _is_start_at_only_date(event.start_at)
         needs_location = not event.location_text or _is_location_only_city_name(event.location_text)
         needs_venue = not event.venue
         
@@ -465,7 +481,7 @@ async def _process_page(
             counters["events_skipped_existing"] += 1
             # For existing events, we might still want to enrich if start_at, location_text is missing/only city, or venue is missing
             # Fetch the existing event_raw_id
-            if event.event_url and (not event.start_at or not event.location_text or _is_location_only_city_name(event.location_text) or not event.venue):
+            if event.event_url and (_is_start_at_only_date(event.start_at) or not event.location_text or _is_location_only_city_name(event.location_text) or not event.venue):
                 existing = await fetchrow(
                     """
                     SELECT id FROM event_raw
