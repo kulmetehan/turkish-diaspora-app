@@ -13,6 +13,19 @@ function humanizeKey(value?: string | null): string {
     .join(" ");
 }
 
+/**
+ * Formats event date range for display.
+ * 
+ * NOTE: Event times are currently hidden in the UI because the AI extraction
+ * of event times from detail pages is not yet reliable enough. The backend
+ * still extracts and stores start_time_utc and end_time_utc, but only dates
+ * are shown to users. Once the extraction improves, this function can be
+ * updated to show times again.
+ * 
+ * @param startIso - ISO string of start date/time
+ * @param endIso - ISO string of end date/time (optional)
+ * @returns Formatted date string (e.g., "Mon 15 Jan" or "Mon 15 Jan – Tue 16 Jan")
+ */
 export function formatEventDateRange(
   startIso?: string | null,
   endIso?: string | null,
@@ -27,56 +40,27 @@ export function formatEventDateRange(
     day: "numeric",
     month: "short",
   });
-  const timeFormatter = new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 
   const dateLabel = dateFormatter.format(start);
 
-  // Format the time first to check if it's "00:00" in local time
-  // This catches placeholder times that would show as "00:00" to the user
-  const timeStart = timeFormatter.format(start);
-  const startIsMidnight = timeStart === "00:00";
-
+  // Temporarily hide event times - only show dates
+  // The backend still extracts and stores times, but they're not reliable enough yet
+  // to display to users. Once AI extraction from detail pages improves, we can
+  // re-enable time display here.
   if (end && isValidDate(end)) {
     const sameDay =
       start.getUTCFullYear() === end.getUTCFullYear() &&
       start.getUTCMonth() === end.getUTCMonth() &&
       start.getUTCDate() === end.getUTCDate();
 
-    const timeEnd = timeFormatter.format(end);
-    const endIsMidnight = timeEnd === "00:00";
-
-    // If both times are midnight, only show date
-    if (startIsMidnight && endIsMidnight) {
+    if (sameDay) {
       return dateLabel;
     }
-
-    // If only start is midnight, show date without start time
-    if (startIsMidnight) {
-      return `${dateLabel} – ${timeEnd}`;
-    }
-
-    // If only end is midnight, show date with start time
-    if (endIsMidnight) {
-      return `${dateLabel} · ${timeStart}`;
-    }
-
-    // Both times are valid
-    if (sameDay) {
-      return `${dateLabel} · ${timeStart} – ${timeEnd}`;
-    }
     const endDateLabel = dateFormatter.format(end);
-    return `${dateLabel} ${timeStart} – ${endDateLabel} ${timeEnd}`;
+    return `${dateLabel} – ${endDateLabel}`;
   }
 
-  // No end time, check if start is midnight
-  if (startIsMidnight) {
-    return dateLabel;
-  }
-
-  return `${dateLabel} · ${timeStart}`;
+  return dateLabel;
 }
 
 export function formatCityLabel(cityKey?: string | null): string {

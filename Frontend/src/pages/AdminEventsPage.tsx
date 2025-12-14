@@ -356,7 +356,7 @@ export default function AdminEventsPage() {
                                         Source: {duplicateCluster.canonical.source_name || duplicateCluster.canonical.source_key}
                                     </div>
                                     <div className="text-xs text-muted-foreground">
-                                        Start: {new Date(duplicateCluster.canonical.start_time_utc).toLocaleString()}
+                                        Start: {new Date(duplicateCluster.canonical.start_time_utc).toLocaleDateString()}
                                     </div>
                                     {duplicateCluster.canonical.location_text && (
                                         <div className="text-xs text-muted-foreground">
@@ -380,7 +380,7 @@ export default function AdminEventsPage() {
                                                     Source: {dup.source_name || dup.source_key}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">
-                                                    Start: {new Date(dup.start_time_utc).toLocaleString()}
+                                                    Start: {new Date(dup.start_time_utc).toLocaleDateString()}
                                                 </div>
                                                 {dup.location_text && (
                                                     <div className="text-xs text-muted-foreground">
