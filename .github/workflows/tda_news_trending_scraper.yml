@@ -1,22 +1,23 @@
-name: TDA Trending (every 5 minutes, hourly full)
+name: TDA News Trending Scraper
 
+# Scrapes X trending topics from trends24.in hourly
+# Runs every hour to keep trending topics up-to-date
 on:
   schedule:
-    - cron: "*/5 * * * *"  # Every 5 minutes
-    - cron: "0 * * * *"     # Every hour (full recalculation)
+    - cron: "0 * * * *"  # Every hour at minute 0
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: "tda-trending"
+  group: "tda-news-trending-scraper"
   cancel-in-progress: false
 
 jobs:
-  trending:
+  trending-scraper:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: Backend
@@ -42,28 +43,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Trending Worker
+      - name: Run Trending Scraper Worker
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           PYTHONUNBUFFERED: "1"
           PYTHONPATH: .
-        run: >
-          python -m app.workers.trending_worker --once
-          # Note: Full recalculation happens on hourly schedule (cron: "0 * * * *")
-          # For manual full recalculation, use: --full
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        run: |
+          python -m app.workers.news_trending_scraper_worker --once

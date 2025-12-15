@@ -133,13 +133,28 @@ export function NewsList({
 
   // Show unavailable message for trending when meta.unavailable_reason is set
   if (!items.length && meta?.unavailable_reason) {
+    const reason = meta.unavailable_reason;
+    let title = "Trending tijdelijk niet beschikbaar (X API)";
+    let message = "De trending onderwerpen zijn momenteel niet beschikbaar. Probeer het later opnieuw.";
+
+    if (reason === "x_trending_unavailable_not_enrolled") {
+      title = "X API Access Level Vereist";
+      message = "Het trends endpoint is niet beschikbaar voor gratis X Developer accounts. Je hebt minimaal een Basic tier account nodig (€100/maand) om trending topics op te halen. Upgrade je account in de X Developer Portal of gebruik een alternatieve bron voor trending topics.";
+    } else if (reason === "x_trending_unavailable_forbidden") {
+      title = "X API Toegang Geweigerd";
+      message = "De X API heeft toegang geweigerd. Controleer of je App gekoppeld is aan een Project en of de Bearer Token correct is.";
+    } else if (reason === "x_trending_unavailable_unauthorized") {
+      title = "X API Authenticatie Mislukt";
+      message = "De Bearer Token is ongeldig of verlopen. Genereer een nieuwe token in de X Developer Portal.";
+    }
+
     return (
       <div className="rounded-2xl border border-border/80 bg-card p-6 text-center text-muted-foreground shadow-soft">
         <p className="text-base font-medium text-foreground">
-          Trending tijdelijk niet beschikbaar (X API)
+          {title}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          De trending onderwerpen zijn momenteel niet beschikbaar. Probeer het later opnieuw.
+          {message}
         </p>
       </div>
     );
