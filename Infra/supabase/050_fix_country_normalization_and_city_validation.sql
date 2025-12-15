@@ -24,3 +24,7 @@ WHERE country IS NOT NULL
   );
 
 COMMENT ON TABLE events_candidate IS 'Event candidates with normalized country values. Multi-language country names are normalized to English (e.g., "switzerland", "belgium", "united kingdom"). Known cities are validated against expected countries.';
+
+
+
+

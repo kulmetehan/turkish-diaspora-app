@@ -90,3 +90,7 @@ WHERE ec.event_source_id = (SELECT id FROM event_sources WHERE key = 'sahmeran_e
   AND ec.location_text IS NOT NULL
 ORDER BY ec.created_at DESC
 LIMIT 30;
+
+
+
+

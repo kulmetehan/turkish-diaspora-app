@@ -61,3 +61,7 @@ If needed, to re-enable time display:
 1. Restore the original time formatting logic in `formatEventDateRange()`
 2. Restore `toLocaleString()` in `AdminEventsPage.tsx` (currently uses `toLocaleDateString()`)
 3. Update or remove this documentation
+
+
+
+

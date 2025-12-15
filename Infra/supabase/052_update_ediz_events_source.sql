@@ -23,3 +23,7 @@ BEGIN
 END $$;
 
 COMMENT ON TABLE public.event_sources IS 'Updated ediz_events to point to ediz.nl (2025-01-XX)';
+
+
+
+

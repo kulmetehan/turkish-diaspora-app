@@ -71,3 +71,7 @@ async def test_base_scraper_retry_exhausted(httpx_mock):
             await service.fetch("https://example.com")
 
 
+
+
+
+
