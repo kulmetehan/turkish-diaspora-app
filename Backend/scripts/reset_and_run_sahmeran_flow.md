@@ -255,3 +255,7 @@ Als events niet op de map verschijnen:
 1. Controleer of `lat` en `lng` zijn ingesteld
 2. Controleer of `country = 'netherlands'` voor Nederlandse events
 3. Controleer de `events_public` view filters
+
+
+
+

@@ -212,4 +212,44 @@ sources:
     license: "unknown"
     redistribution_allowed: true
     robots_policy: "follow"
+  - key: "scrape_haber_nl"
+    name: "HABER.NL"
+    url: "https://www.haber.nl/"
+    language: "nl"
+    category: "nl_national"
+    region: "NL"
+    refresh_minutes: 720  # 12 hours (2x per day)
+    license: "unknown"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "scrape_turkinfo_nl"
+    name: "Turkinfo.nl"
+    url: "https://www.turkinfo.nl/"
+    language: "nl"
+    category: "nl_national"
+    region: "NL"
+    refresh_minutes: 720  # 12 hours (2x per day)
+    license: "unknown"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "scrape_sonhaber_eu"
+    name: "Sonhaber"
+    url: "https://www.sonhaber.eu/"
+    language: "nl"
+    category: "nl_national"
+    region: "NL"
+    refresh_minutes: 720  # 12 hours (2x per day)
+    license: "unknown"
+    redistribution_allowed: true
+    robots_policy: "follow"
+  - key: "scrape_ufuk_nl"
+    name: "Ufuk Media"
+    url: "https://ufuk.nl/"
+    language: "nl"
+    category: "nl_national"
+    region: "NL"
+    refresh_minutes: 720  # 12 hours (2x per day)
+    license: "unknown"
+    redistribution_allowed: true
+    robots_policy: "follow"
 

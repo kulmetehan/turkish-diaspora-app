@@ -24,3 +24,7 @@ WHERE country IS NOT NULL
                   'schweiz', 'suisse', 'zwitserland');
 
 COMMENT ON TABLE events_candidate IS 'Normalized event candidates. Country values are normalized to English (e.g., "netherlands", "germany", "belgium").';
+
+
+
+

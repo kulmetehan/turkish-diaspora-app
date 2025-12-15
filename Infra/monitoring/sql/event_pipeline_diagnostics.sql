@@ -281,3 +281,7 @@ SELECT
     COUNT(*) FILTER (WHERE country = 'austria') AS austria_events,
     COUNT(*) FILTER (WHERE country IS NULL) AS no_country
 FROM events_public;
+
+
+
+

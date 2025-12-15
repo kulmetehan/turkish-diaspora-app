@@ -58,3 +58,7 @@ WHERE er.processing_state = 'enriched'
   );
 
 COMMENT ON VIEW public.events_public IS 'Public events view. Shows only Netherlands events (country = netherlands or nederland) for geocoded events. For non-geocoded events, only blocks clearly invalid patterns (e.g., "Washington, Netherlands"). Foreign cities are allowed until geocoding bot processes them. City_key only uses source city_key when country is explicitly Netherlands (not NULL) to avoid wrong assignments for foreign events or ungeocoded events.';
+
+
+
+

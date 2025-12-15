@@ -45,3 +45,7 @@ SELECT
     COUNT(*) as total_count
 FROM events_candidate
 WHERE event_source_id = (SELECT id FROM event_sources WHERE key = 'sahmeran_events');
+
+
+
+

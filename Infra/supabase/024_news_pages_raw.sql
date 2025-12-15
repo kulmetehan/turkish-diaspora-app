@@ -30,3 +30,7 @@ COMMENT ON COLUMN public.news_pages_raw.content_hash IS 'sha1 hash of news_sourc
 COMMENT ON COLUMN public.news_pages_raw.processing_state IS 'pending|extracted|error_fetch|error_extract';
 
 
+
+
+
+

@@ -311,6 +311,10 @@ def _get_nl_source_keys() -> List[str]:
         "scrape_turksemedia_nl",
         "scrape_dejongeturken",
         "scrape_platformdergisi",
+        "scrape_haber_nl",
+        "scrape_turkinfo_nl",
+        "scrape_sonhaber_eu",
+        "scrape_ufuk_nl",
     ])
 
 
