@@ -74,7 +74,7 @@ const RAW_CATEGORY_CONFIG = [
   { key: "mosque", lucide: "building-2" },
   { key: "car_dealer", lucide: "car-front" },
   { key: "insurance", lucide: "shield-check" },
-  { key: "tailor", lucide: "needle" },
+  { key: "tailor", lucide: "spool" },
   { key: "travel_agency", lucide: "plane" },
   { key: "fast_food", lucide: "sandwich" },
   { key: "events_venue", lucide: "calendar" },
@@ -128,11 +128,11 @@ function buildMarkerSvg(definition: CategoryIconDefinition): string {
   const size = MARKER_BASE_SIZE;
   const radius = MARKER_BORDER_RADIUS;
   const center = size / 2;
-  
+
   // Calculate icon transform to center it with padding
   const iconSize = MARKER_ICON_SIZE;
   const iconScale = iconSize / 24; // Lucide icons are 24x24, scale to desired size
-  
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   <!-- Rounded rectangle background -->
   <rect x="0" y="0" width="${size}" height="${size}" rx="${radius}" ry="${radius}" fill="${resolveBrandRedStrong()}" />
@@ -291,12 +291,12 @@ export function normalizeCategoryKey(raw?: string | null): string {
   if (!trimmed) return fallback;
   const sanitized = trimmed.replace(/[^a-z0-9_-]+/g, "_");
   if (!sanitized) return fallback;
-  
+
   // Handle barbershop alias -> barber
   if (sanitized === "barbershop") {
     return "barber";
   }
-  
+
   if (!SVG_BY_KEY.has(sanitized)) return fallback;
   return sanitized;
 }

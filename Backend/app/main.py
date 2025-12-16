@@ -78,6 +78,7 @@ from api.routers.google_business import router as google_business_router
 from api.routers.user_groups import router as user_groups_router
 from api.routers.promotions import router as promotions_router
 from api.routers.bulletin import router as bulletin_router
+from api.routers.feed import router as feed_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -276,6 +277,7 @@ api_v1_router.include_router(promotions_router)
 api_v1_router.include_router(google_business_router)
 api_v1_router.include_router(user_groups_router)
 api_v1_router.include_router(bulletin_router)
+api_v1_router.include_router(feed_router)
 
 # Mount the versioned API once on the app
 app.include_router(api_v1_router)

@@ -2,32 +2,32 @@
 // F4-S2: Snap-style category-based marker icons matching map design
 import type { LocationMarker } from "@/api/fetchLocations";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import {
   MARKER_BASE_SIZE,
-  MARKER_ICON_COLOR,
   MARKER_BORDER_RADIUS,
+  MARKER_ICON_COLOR,
   MARKER_ICON_SIZE,
-  resolveMarkerFillColor,
   normalizeCategoryKey,
+  resolveMarkerFillColor,
 } from "@/lib/map/categoryIcons";
+import { cn } from "@/lib/utils";
 import {
-  Utensils,
-  ShoppingCart,
-  Croissant,
   Beef,
-  Scissors,
-  Coffee,
   Building2,
-  MapPin,
+  Calendar,
   CarFront,
-  ShieldCheck,
-  Needle,
+  Coffee,
+  Croissant,
+  HeartPulse,
+  MapPin,
   Plane,
   Sandwich,
-  Calendar,
+  Scissors,
+  ShieldCheck,
+  ShoppingCart,
+  Spool,
   Users,
-  HeartPulse,
+  Utensils,
   type LucideIcon,
 } from "lucide-react";
 
@@ -37,7 +37,7 @@ type Props = { loc: LocationMarker; selected?: boolean };
  * F4-S2: Map category key to Lucide icon component
  * Matches the mapping in categoryIcons.ts RAW_CATEGORY_CONFIG
  */
-function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
+export function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
   const normalized = normalizeCategoryKey(categoryKey);
   switch (normalized) {
     case "restaurant":
@@ -60,7 +60,7 @@ function getCategoryIcon(categoryKey: string | null | undefined): LucideIcon {
     case "insurance":
       return ShieldCheck;
     case "tailor":
-      return Needle;
+      return Spool;
     case "travel_agency":
       return Plane;
     case "fast_food":

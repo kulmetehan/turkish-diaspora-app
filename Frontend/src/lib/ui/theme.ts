@@ -27,6 +27,7 @@ export const tokens = {
   shadow: {
     soft: "var(--shadow-soft)",
     card: "var(--shadow-card)",
+    float: "var(--shadow-float)",
   },
   gradient: {
     main: "var(--gradient-main)" as GradientToken,

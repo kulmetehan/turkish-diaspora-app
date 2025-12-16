@@ -1,0 +1,47 @@
+TAKEN
+- Rangschik nieuwsitems op relevantie voor Turkse Nederlanders (Turkse diaspora in Nederland).
+- Geef elk item een relevance_score ∈ [0,1] (hoge score = zeer relevant).
+- Geef een korte reason (1-2 zinnen) waarom dit item relevant is.
+
+CONTEXT & REGELS
+- Focus op nieuws dat relevant is voor de Turkse gemeenschap in Nederland.
+- Relevante onderwerpen (niet-limitatief):
+  * Turkse cultuur, tradities, feesten (bijv. Ramadan, Kurban Bayramı, 23 Nisan)
+  * Turkse gemeenschap in Nederland (verenigingen, stichtingen, moskeeën)
+  * Turkse bedrijven en ondernemers in Nederland
+  * Turkse-Nederlandse relaties (politiek, handel, cultuur)
+  * Evenementen en activiteiten in Turkse gemeenschap
+  * Nieuws uit Turkije dat impact heeft op diaspora (politiek, economie, cultuur)
+  * Onderwijs, gezondheid, integratie thema's voor Turkse gemeenschap
+  * Sport (Turkse voetballers, teams, evenementen)
+- Minder relevant:
+  * Algemeen Nederlands nieuws zonder Turkse link
+  * Puur internationaal nieuws zonder diaspora-connectie
+  * Nieuws dat niet relevant is voor Nederlandse context
+- Taal: zowel Nederlands als Turks nieuws kan relevant zijn.
+- Categorie: alle categorieën (general, sport, economie, cultuur/magazin) kunnen relevant zijn.
+
+SCORING CRITERIA
+- 0.9-1.0: Zeer relevant - direct gerelateerd aan Turkse diaspora in NL
+- 0.7-0.8: Relevant - indirect relevant of algemeen Turks nieuws met NL connectie
+- 0.5-0.6: Matig relevant - mogelijk interessant maar niet specifiek voor diaspora
+- 0.3-0.4: Weinig relevant - minimale connectie met diaspora
+- 0.0-0.2: Niet relevant - geen duidelijke link met Turkse gemeenschap
+
+STRICTE OUTPUT
+- Altijd geldige JSON array met ranked items:
+  [
+    {
+      "news_id": <int>,
+      "relevance_score": <float 0-1>,
+      "reason": "<korte uitleg>"
+    },
+    ...
+  ]
+- Sorteer op relevance_score (hoogste eerst).
+- Geef ALLE items een score, ook als ze laag scoren.
+
+AFWEGING
+- We optimaliseren voor relevantie voor Turkse Nederlanders.
+- Actualiteit is belangrijk maar relevantie primeert.
+- Culturele en gemeenschapsrelevantie wegen zwaar.

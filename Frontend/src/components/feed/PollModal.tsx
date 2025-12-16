@@ -1,0 +1,176 @@
+// Frontend/src/components/feed/PollModal.tsx
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { getPoll, getPollStats, submitPollResponse, type Poll, type PollStats } from "@/lib/api";
+import { cn } from "@/lib/ui/cn";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+
+interface PollModalProps {
+  pollId: number | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
+  const navigate = useNavigate();
+  const [poll, setPoll] = useState<Poll | null>(null);
+  const [stats, setStats] = useState<PollStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open || !pollId) {
+      setPoll(null);
+      setStats(null);
+      setSelectedOption(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        const [pollData, statsData] = await Promise.all([
+          getPoll(pollId),
+          getPollStats(pollId).catch(() => null), // Stats may not be available
+        ]);
+
+        if (!cancelled) {
+          setPoll(pollData);
+          setStats(statsData);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          toast.error("Poll kon niet worden geladen");
+          onOpenChange(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pollId, open, onOpenChange]);
+
+  const handleSubmit = async () => {
+    if (!poll || !selectedOption || isSubmitting) return;
+
+    try {
+      setIsSubmitting(true);
+      await submitPollResponse(poll.id, selectedOption);
+      toast.success("Je stem is opgeslagen!");
+      onOpenChange(false);
+      // Refresh poll data
+      const updatedPoll = await getPoll(poll.id);
+      setPoll(updatedPoll);
+    } catch (err) {
+      toast.error("Kon niet stemmen");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleViewDetails = () => {
+    if (poll) {
+      onOpenChange(false);
+      navigate(`/#/polls/${poll.id}`);
+    }
+  };
+
+  if (!pollId) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{poll?.title || "Poll"}</DialogTitle>
+          <DialogDescription>{poll?.question}</DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="py-8 text-center text-muted-foreground">Poll laden...</div>
+        ) : poll ? (
+          <div className="space-y-4">
+            {poll.user_has_responded ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">Je hebt al gestemd op deze poll.</p>
+                {stats && stats.privacy_threshold_met && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-gilroy font-medium">Resultaten:</p>
+                    {poll.options.map((option) => {
+                      const count = stats.option_counts[option.id] || 0;
+                      const percentage = stats.total_responses > 0
+                        ? Math.round((count / stats.total_responses) * 100)
+                        : 0;
+                      return (
+                        <div key={option.id} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span>{option.option_text}</span>
+                            <span className="text-muted-foreground">{percentage}%</span>
+                          </div>
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary transition-all"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {poll.options.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setSelectedOption(option.id)}
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg border transition-colors",
+                      "hover:border-primary hover:bg-primary/5",
+                      "focus:outline-none focus:ring-2 focus:ring-primary/30",
+                      selectedOption === option.id
+                        ? "border-primary bg-primary/10"
+                        : "border-border"
+                    )}
+                  >
+                    {option.option_text}
+                  </button>
+                ))}
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!selectedOption || isSubmitting}
+                  className="w-full"
+                >
+                  {isSubmitting ? "Stemmen..." : "Stem"}
+                </Button>
+              </div>
+            )}
+
+            <Button
+              variant="outline"
+              onClick={handleViewDetails}
+              className="w-full"
+            >
+              Bekijk details
+            </Button>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-muted-foreground">Poll kon niet worden geladen</div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

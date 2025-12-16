@@ -7,6 +7,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   Gilroy Font Faces
+   --------------------------------------------------------------------------
+   Load Gilroy font family with required weights
+   ========================================================================== */
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy/Gilroy-Black.woff') format('woff'),
+    url('/fonts/gilroy/Gilroy-Black.ttf') format('truetype');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy/Gilroy-Bold.woff') format('woff'),
+    url('/fonts/gilroy/Gilroy-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy/Gilroy-SemiBold.woff') format('woff'),
+    url('/fonts/gilroy/Gilroy-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy/Gilroy-Medium.woff') format('woff'),
+    url('/fonts/gilroy/Gilroy-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy/Gilroy-Regular.woff') format('woff'),
+    url('/fonts/gilroy/Gilroy-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Gilroy';
+  src: url('/fonts/gilroy/Gilroy-Light.woff') format('woff'),
+    url('/fonts/gilroy/Gilroy-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
@@ -61,8 +120,8 @@ body {
   /* Surface + text tokens (light) */
   /* App / map achtergrond: puur wit */
   --background: 0 0% 100%;
-  /* Content body (AppViewportShell variant="content"): heel licht koel grijs */
-  --surface-base: 210 40% 98%;
+  /* Content body (AppViewportShell variant="content"): puur wit */
+  --surface-base: 0 0% 100%;
   --surface-raised: 0 0% 98%;
   /* Kaarten: helder wit, duidelijk boven de surface-base */
   --surface-card: 0 0% 100%;
@@ -92,8 +151,9 @@ body {
   --radius-lg: 1.25rem;
   --radius-md: 0.875rem;
   --radius-sm: 0.625rem;
-  --shadow-soft: 0 15px 35px rgba(15, 23, 42, 0.08), 0 5px 15px rgba(15, 23, 42, 0.05);
+  --shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.02);
   --shadow-card: 0 25px 45px rgba(15, 23, 42, 0.12), 0 10px 20px rgba(15, 23, 42, 0.06);
+  --shadow-float: 0 2px 6px rgba(15, 23, 42, 0.02), 0 1px 2px rgba(15, 23, 42, 0.01);
   --space-grid-gutter: 1.5rem;
 
   /* Tailwind CSS variables (light mode) */
@@ -609,3 +669,12 @@ a:hover {
   background: hsl(var(--surface-base));
 }
 */
+
+/* ==========================================================================
+   10) Scrollbar utilities
+   --------------------------------------------------------------------------
+   Utility classes for hiding scrollbars on horizontally scrollable elements
+   ========================================================================== */
+.overflow-x-auto::-webkit-scrollbar {
+  display: none;
+}

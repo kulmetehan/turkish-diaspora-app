@@ -1,7 +1,7 @@
 # Backend/api/routers/activity.py
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query, Path
+from fastapi import APIRouter, Depends, Query, Path, HTTPException
 from typing import List, Optional, Tuple, Any
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -10,19 +10,32 @@ import json
 
 from app.core.client_id import get_client_id
 from app.core.feature_flags import require_feature
-from services.db_service import fetch
+from services.db_service import fetch, execute
 
 router = APIRouter(prefix="/activity", tags=["activity"])
 
 
+class ActivityUser(BaseModel):
+    id: str  # UUID as string
+    name: Optional[str] = None  # display_name
+    avatar_url: Optional[str] = None
+
+
 class ActivityItem(BaseModel):
     id: int
-    activity_type: str  # 'check_in', 'reaction', 'note', 'poll_response', 'favorite', 'bulletin_post'
+    activity_type: str  # 'check_in', 'reaction', 'note', 'poll_response', 'favorite', 'bulletin_post', 'event'
     location_id: Optional[int]
     location_name: Optional[str]
     payload: dict  # Activity-specific details
     created_at: datetime
     is_promoted: bool = False
+    media_url: Optional[str] = None
+    user: Optional[ActivityUser] = None
+    like_count: int = 0
+    is_liked: bool = False
+    is_bookmarked: bool = False
+    reactions: Optional[dict] = None  # Reaction counts: {"fire": 5, "heart": 3, ...}
+    user_reaction: Optional[str] = None  # Current user's reaction type, if any
 
 
 def _parse_payload(payload: Any) -> dict:
@@ -60,9 +73,8 @@ async def get_own_activity(
     
     if activity_type:
         # Validate activity_type
-        valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post"]
+        valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post", "event"]
         if activity_type not in valid_types:
-            from fastapi import HTTPException
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid activity_type. Must be one of: {', '.join(valid_types)}"
@@ -73,6 +85,18 @@ async def get_own_activity(
     
     where_clause = " AND ".join(conditions)
     
+    # Build LIKE join condition for current user/client
+    like_join_condition = "al.activity_id = ast.id AND "
+    bookmark_join_condition = "ab.activity_id = ast.id AND "
+    if client_id:
+        like_join_condition += f"(al.client_id = '{client_id}')"
+        bookmark_join_condition += f"(ab.client_id = '{client_id}')"
+        user_reaction_condition = f"ar2.client_id = '{client_id}'"
+    else:
+        like_join_condition += "al.client_id IS NULL"
+        bookmark_join_condition += "ab.client_id IS NULL"
+        user_reaction_condition = "ar2.client_id IS NULL"
+    
     sql = f"""
         SELECT 
             ast.id,
@@ -81,6 +105,13 @@ async def get_own_activity(
             l.name as location_name,
             ast.payload,
             ast.created_at,
+            ast.media_url,
+            up.id as user_id,
+            up.display_name as user_name,
+            up.avatar_url as user_avatar_url,
+            COALESCE(like_counts.like_count, 0) as like_count,
+            CASE WHEN al.id IS NOT NULL THEN true ELSE false END as is_liked,
+            CASE WHEN ab.id IS NOT NULL THEN true ELSE false END as is_bookmarked,
             CASE 
                 WHEN pl.id IS NOT NULL AND pl.status = 'active' 
                     AND pl.promotion_type IN ('feed', 'both')
@@ -88,10 +119,36 @@ async def get_own_activity(
                     AND pl.ends_at > now()
                 THEN true 
                 ELSE false 
-            END as is_promoted
+            END as is_promoted,
+            COALESCE(
+                (
+                    SELECT json_object_agg(reaction_type, count)
+                    FROM (
+                        SELECT reaction_type, COUNT(*)::int as count
+                        FROM activity_reactions
+                        WHERE activity_id = ast.id
+                        GROUP BY reaction_type
+                    ) reaction_counts
+                ),
+                '{{}}'::json
+            ) as reactions,
+            (
+                SELECT reaction_type
+                FROM activity_reactions ar2
+                WHERE ar2.activity_id = ast.id AND ({user_reaction_condition})
+                LIMIT 1
+            ) as user_reaction
         FROM activity_stream ast
         LEFT JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
+        LEFT JOIN user_profiles up ON ast.actor_id = up.id AND ast.actor_type = 'user'
+        LEFT JOIN (
+            SELECT activity_id, COUNT(*) as like_count
+            FROM activity_likes
+            GROUP BY activity_id
+        ) like_counts ON like_counts.activity_id = ast.id
+        LEFT JOIN activity_likes al ON {like_join_condition}
+        LEFT JOIN activity_bookmarks ab ON {bookmark_join_condition}
         WHERE {where_clause}
         ORDER BY is_promoted DESC, ast.created_at DESC
         LIMIT ${param_num} OFFSET ${param_num + 1}
@@ -110,6 +167,17 @@ async def get_own_activity(
             payload=_parse_payload(row.get("payload")),
             created_at=row["created_at"],
             is_promoted=row.get("is_promoted", False),
+            media_url=row.get("media_url"),
+            user=ActivityUser(
+                id=str(row["user_id"]),
+                name=row.get("user_name"),
+                avatar_url=row.get("user_avatar_url"),
+            ) if row.get("user_id") else None,
+            like_count=row.get("like_count", 0) or 0,
+            is_liked=row.get("is_liked", False) or False,
+            is_bookmarked=row.get("is_bookmarked", False) or False,
+            reactions=row.get("reactions") if isinstance(row.get("reactions"), dict) else None,
+            user_reaction=row.get("user_reaction"),
         )
         for row in rows
     ]
@@ -169,6 +237,7 @@ async def get_nearby_activity(
     radius_m: int = Query(1000, description="Radius in meters"),
     window: str = Query("24h", description="Time window (e.g., '24h', '7d', '1w')"),
     limit: int = Query(50, le=100),
+    client_id: Optional[str] = Depends(get_client_id),
 ):
     """Get nearby activity feed."""
     require_feature("check_ins_enabled")
@@ -198,6 +267,18 @@ async def get_nearby_activity(
     
     where_clause = " AND ".join(conditions)
     
+    # Build LIKE join condition for current user/client
+    like_join_condition = "al.activity_id = ast.id AND "
+    bookmark_join_condition = "ab.activity_id = ast.id AND "
+    if client_id:
+        like_join_condition += f"(al.client_id = '{client_id}')"
+        bookmark_join_condition += f"(ab.client_id = '{client_id}')"
+        user_reaction_condition = f"ar2.client_id = '{client_id}'"
+    else:
+        like_join_condition += "al.client_id IS NULL"
+        bookmark_join_condition += "ab.client_id IS NULL"
+        user_reaction_condition = "ar2.client_id IS NULL"
+    
     sql = f"""
         SELECT 
             ast.id,
@@ -206,6 +287,13 @@ async def get_nearby_activity(
             l.name as location_name,
             ast.payload,
             ast.created_at,
+            ast.media_url,
+            up.id as user_id,
+            up.display_name as user_name,
+            up.avatar_url as user_avatar_url,
+            COALESCE(like_counts.like_count, 0) as like_count,
+            CASE WHEN al.id IS NOT NULL THEN true ELSE false END as is_liked,
+            CASE WHEN ab.id IS NOT NULL THEN true ELSE false END as is_bookmarked,
             CASE 
                 WHEN pl.id IS NOT NULL AND pl.status = 'active' 
                     AND pl.promotion_type IN ('feed', 'both')
@@ -213,10 +301,36 @@ async def get_nearby_activity(
                     AND pl.ends_at > now()
                 THEN true 
                 ELSE false 
-            END as is_promoted
+            END as is_promoted,
+            COALESCE(
+                (
+                    SELECT json_object_agg(reaction_type, count)
+                    FROM (
+                        SELECT reaction_type, COUNT(*)::int as count
+                        FROM activity_reactions
+                        WHERE activity_id = ast.id
+                        GROUP BY reaction_type
+                    ) reaction_counts
+                ),
+                '{{}}'::json
+            ) as reactions,
+            (
+                SELECT reaction_type
+                FROM activity_reactions ar2
+                WHERE ar2.activity_id = ast.id AND ({user_reaction_condition})
+                LIMIT 1
+            ) as user_reaction
         FROM activity_stream ast
         INNER JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
+        LEFT JOIN user_profiles up ON ast.actor_id = up.id AND ast.actor_type = 'user'
+        LEFT JOIN (
+            SELECT activity_id, COUNT(*) as like_count
+            FROM activity_likes
+            GROUP BY activity_id
+        ) like_counts ON like_counts.activity_id = ast.id
+        LEFT JOIN activity_likes al ON {like_join_condition}
+        LEFT JOIN activity_bookmarks ab ON {bookmark_join_condition}
         WHERE {where_clause}
         ORDER BY is_promoted DESC, ast.created_at DESC
         LIMIT ${param_num}
@@ -234,6 +348,17 @@ async def get_nearby_activity(
             payload=_parse_payload(row.get("payload")),
             created_at=row["created_at"],
             is_promoted=row.get("is_promoted", False),
+            media_url=row.get("media_url"),
+            user=ActivityUser(
+                id=str(row["user_id"]),
+                name=row.get("user_name"),
+                avatar_url=row.get("user_avatar_url"),
+            ) if row.get("user_id") else None,
+            like_count=row.get("like_count", 0) or 0,
+            is_liked=row.get("is_liked", False) or False,
+            is_bookmarked=row.get("is_bookmarked", False) or False,
+            reactions=row.get("reactions") if isinstance(row.get("reactions"), dict) else None,
+            user_reaction=row.get("user_reaction"),
         )
         for row in rows
     ]
@@ -244,11 +369,24 @@ async def get_location_activity(
     location_id: int = Path(..., description="Location ID"),
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
+    client_id: Optional[str] = Depends(get_client_id),
 ):
     """Get activity for a specific location."""
     require_feature("check_ins_enabled")
     
-    sql = """
+    # Build LIKE join condition for current user/client
+    like_join_condition = "al.activity_id = ast.id AND "
+    bookmark_join_condition = "ab.activity_id = ast.id AND "
+    if client_id:
+        like_join_condition += f"(al.client_id = '{client_id}')"
+        bookmark_join_condition += f"(ab.client_id = '{client_id}')"
+        user_reaction_condition = f"ar2.client_id = '{client_id}'"
+    else:
+        like_join_condition += "al.client_id IS NULL"
+        bookmark_join_condition += "ab.client_id IS NULL"
+        user_reaction_condition = "ar2.client_id IS NULL"
+    
+    sql = f"""
         SELECT 
             ast.id,
             ast.activity_type,
@@ -256,6 +394,13 @@ async def get_location_activity(
             l.name as location_name,
             ast.payload,
             ast.created_at,
+            ast.media_url,
+            up.id as user_id,
+            up.display_name as user_name,
+            up.avatar_url as user_avatar_url,
+            COALESCE(like_counts.like_count, 0) as like_count,
+            CASE WHEN al.id IS NOT NULL THEN true ELSE false END as is_liked,
+            CASE WHEN ab.id IS NOT NULL THEN true ELSE false END as is_bookmarked,
             CASE 
                 WHEN pl.id IS NOT NULL AND pl.status = 'active' 
                     AND pl.promotion_type IN ('feed', 'both')
@@ -263,10 +408,36 @@ async def get_location_activity(
                     AND pl.ends_at > now()
                 THEN true 
                 ELSE false 
-            END as is_promoted
+            END as is_promoted,
+            COALESCE(
+                (
+                    SELECT json_object_agg(reaction_type, count)
+                    FROM (
+                        SELECT reaction_type, COUNT(*)::int as count
+                        FROM activity_reactions
+                        WHERE activity_id = ast.id
+                        GROUP BY reaction_type
+                    ) reaction_counts
+                ),
+                '{{}}'::json
+            ) as reactions,
+            (
+                SELECT reaction_type
+                FROM activity_reactions ar2
+                WHERE ar2.activity_id = ast.id AND ({user_reaction_condition})
+                LIMIT 1
+            ) as user_reaction
         FROM activity_stream ast
         LEFT JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
+        LEFT JOIN user_profiles up ON ast.actor_id = up.id AND ast.actor_type = 'user'
+        LEFT JOIN (
+            SELECT activity_id, COUNT(*) as like_count
+            FROM activity_likes
+            GROUP BY activity_id
+        ) like_counts ON like_counts.activity_id = ast.id
+        LEFT JOIN activity_likes al ON {like_join_condition}
+        LEFT JOIN activity_bookmarks ab ON {bookmark_join_condition}
         WHERE ast.location_id = $1
         ORDER BY is_promoted DESC, ast.created_at DESC
         LIMIT $2 OFFSET $3
@@ -283,9 +454,202 @@ async def get_location_activity(
             payload=_parse_payload(row.get("payload")),
             created_at=row["created_at"],
             is_promoted=row.get("is_promoted", False),
+            media_url=row.get("media_url"),
+            user=ActivityUser(
+                id=str(row["user_id"]),
+                name=row.get("user_name"),
+                avatar_url=row.get("user_avatar_url"),
+            ) if row.get("user_id") else None,
+            like_count=row.get("like_count", 0) or 0,
+            is_liked=row.get("is_liked", False) or False,
+            is_bookmarked=row.get("is_bookmarked", False) or False,
+            reactions=row.get("reactions") if isinstance(row.get("reactions"), dict) else None,
+            user_reaction=row.get("user_reaction"),
         )
         for row in rows
     ]
+
+
+@router.post("/{activity_id}/bookmark", response_model=dict)
+async def toggle_activity_bookmark(
+    activity_id: int = Path(..., description="Activity ID"),
+    client_id: Optional[str] = Depends(get_client_id),
+    # TODO: user_id: Optional[UUID] = Depends(get_current_user_optional),
+):
+    """Toggle bookmark on activity item."""
+    require_feature("check_ins_enabled")
+    
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id required")
+    
+    user_id = None  # TODO: Extract from auth session
+    
+    # Check if activity exists
+    check_sql = "SELECT id FROM activity_stream WHERE id = $1"
+    check_rows = await fetch(check_sql, activity_id)
+    if not check_rows:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    
+    # Check if already bookmarked (similar to likes logic)
+    if user_id:
+        check_bookmark_sql = "SELECT id FROM activity_bookmarks WHERE activity_id = $1 AND user_id = $2"
+        existing = await fetch(check_bookmark_sql, activity_id, user_id)
+    else:
+        check_bookmark_sql = "SELECT id FROM activity_bookmarks WHERE activity_id = $1 AND client_id = $2::uuid"
+        existing = await fetch(check_bookmark_sql, activity_id, client_id)
+    
+    if existing:
+        # Unbookmark
+        if user_id:
+            delete_sql = "DELETE FROM activity_bookmarks WHERE activity_id = $1 AND user_id = $2"
+            await execute(delete_sql, activity_id, user_id)
+        else:
+            delete_sql = "DELETE FROM activity_bookmarks WHERE activity_id = $1 AND client_id = $2::uuid"
+            await execute(delete_sql, activity_id, client_id)
+        return {"bookmarked": False}
+    else:
+        # Bookmark
+        if user_id:
+            insert_sql = "INSERT INTO activity_bookmarks (activity_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+            await execute(insert_sql, activity_id, user_id)
+        else:
+            insert_sql = "INSERT INTO activity_bookmarks (activity_id, client_id) VALUES ($1, $2::uuid) ON CONFLICT DO NOTHING"
+            await execute(insert_sql, activity_id, client_id)
+        return {"bookmarked": True}
+
+
+class ReactionToggleRequest(BaseModel):
+    reaction_type: str  # 'fire', 'heart', 'thumbs_up', 'smile', 'star', 'flag'
+
+
+@router.post("/{activity_id}/reactions", response_model=dict)
+async def toggle_activity_reaction(
+    activity_id: int = Path(..., description="Activity ID"),
+    request: ReactionToggleRequest = ...,
+    client_id: Optional[str] = Depends(get_client_id),
+    # TODO: user_id: Optional[UUID] = Depends(get_current_user_optional),
+):
+    """Toggle emoji reaction on activity item."""
+    require_feature("check_ins_enabled")
+    
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id required")
+    
+    # Validate reaction type
+    valid_reactions = ["fire", "heart", "thumbs_up", "smile", "star", "flag"]
+    if request.reaction_type not in valid_reactions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid reaction_type. Must be one of: {', '.join(valid_reactions)}"
+        )
+    
+    user_id = None  # TODO: Extract from auth session
+    
+    # Check if activity exists
+    check_sql = "SELECT id FROM activity_stream WHERE id = $1"
+    check_rows = await fetch(check_sql, activity_id)
+    if not check_rows:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    
+    # Check if already reacted with this type
+    if user_id:
+        check_reaction_sql = """
+            SELECT id FROM activity_reactions 
+            WHERE activity_id = $1 AND user_id = $2 AND reaction_type = $3
+        """
+        existing = await fetch(check_reaction_sql, activity_id, user_id, request.reaction_type)
+    else:
+        check_reaction_sql = """
+            SELECT id FROM activity_reactions 
+            WHERE activity_id = $1 AND client_id = $2 AND reaction_type = $3
+        """
+        existing = await fetch(check_reaction_sql, activity_id, client_id, request.reaction_type)
+    
+    if existing:
+        # Remove reaction
+        if user_id:
+            delete_sql = """
+                DELETE FROM activity_reactions 
+                WHERE activity_id = $1 AND user_id = $2 AND reaction_type = $3
+            """
+            await execute(delete_sql, activity_id, user_id, request.reaction_type)
+        else:
+            delete_sql = """
+                DELETE FROM activity_reactions 
+                WHERE activity_id = $1 AND client_id = $2 AND reaction_type = $3
+            """
+            await execute(delete_sql, activity_id, client_id, request.reaction_type)
+        is_active = False
+    else:
+        # Add reaction
+        if user_id:
+            insert_sql = """
+                INSERT INTO activity_reactions (activity_id, user_id, reaction_type) 
+                VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
+            """
+            await execute(insert_sql, activity_id, user_id, request.reaction_type)
+        else:
+            insert_sql = """
+                INSERT INTO activity_reactions (activity_id, client_id, reaction_type) 
+                VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
+            """
+            await execute(insert_sql, activity_id, client_id, request.reaction_type)
+        is_active = True
+    
+    # Get updated count
+    count_sql = """
+        SELECT COUNT(*) as count 
+        FROM activity_reactions 
+        WHERE activity_id = $1 AND reaction_type = $2
+    """
+    count_rows = await fetch(count_sql, activity_id, request.reaction_type)
+    count = count_rows[0]["count"] if count_rows else 0
+    
+    return {
+        "reaction_type": request.reaction_type,
+        "is_active": is_active,
+        "count": count
+    }
+
+
+@router.get("/{activity_id}/reactions", response_model=dict)
+async def get_activity_reactions(
+    activity_id: int = Path(..., description="Activity ID"),
+):
+    """Get reaction counts for an activity item."""
+    require_feature("check_ins_enabled")
+    
+    # Check if activity exists
+    check_sql = "SELECT id FROM activity_stream WHERE id = $1"
+    check_rows = await fetch(check_sql, activity_id)
+    if not check_rows:
+        raise HTTPException(status_code=404, detail="Activity not found")
+    
+    # Get reaction counts grouped by type
+    counts_sql = """
+        SELECT reaction_type, COUNT(*) as count
+        FROM activity_reactions
+        WHERE activity_id = $1
+        GROUP BY reaction_type
+    """
+    count_rows = await fetch(count_sql, activity_id)
+    
+    # Build reactions dict with all types initialized to 0
+    reactions = {
+        "fire": 0,
+        "heart": 0,
+        "thumbs_up": 0,
+        "smile": 0,
+        "star": 0,
+        "flag": 0,
+    }
+    
+    for row in count_rows:
+        reaction_type = row["reaction_type"]
+        if reaction_type in reactions:
+            reactions[reaction_type] = row["count"]
+    
+    return {"reactions": reactions}
 
 
 
