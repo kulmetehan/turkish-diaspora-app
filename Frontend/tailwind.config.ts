@@ -55,6 +55,9 @@ export default {
           contrast: "hsl(var(--surface-contrast))",
         },
       },
+      fontFamily: {
+        'gilroy': ['Gilroy', 'system-ui', 'sans-serif'],
+      },
       borderRadius: {
         lg: "var(--radius-lg)",
         md: "var(--radius-md)",
@@ -63,6 +66,7 @@ export default {
       boxShadow: {
         soft: "var(--shadow-soft)",
         card: "var(--shadow-card)",
+        float: "var(--shadow-float)",
       },
       spacing: {
         "grid-gutter": "var(--space-grid-gutter)",

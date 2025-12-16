@@ -30,6 +30,46 @@ class UserProfileUpdate(BaseModel):
     language_pref: Optional[str] = None
 
 
+class CurrentUserResponse(BaseModel):
+    """Response model for /users/me endpoint (matches frontend CurrentUser interface)."""
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+@router.get("/me", response_model=CurrentUserResponse)
+async def get_current_user(
+    request: Request,
+    # TODO: user_id: UUID = Depends(get_current_user_required),
+):
+    """
+    Get current user profile (name and avatar).
+    Returns null values for anonymous users or if no profile exists.
+    """
+    # TODO: Extract user_id from auth session when available
+    user_id = None
+    
+    if not user_id:
+        # Return null values for anonymous users
+        return CurrentUserResponse(name=None, avatar_url=None)
+    
+    # Fetch user profile
+    sql = """
+        SELECT display_name, avatar_url
+        FROM user_profiles
+        WHERE id = $1::uuid
+    """
+    rows = await fetch(sql, user_id)
+    
+    if not rows:
+        return CurrentUserResponse(name=None, avatar_url=None)
+    
+    row = rows[0]
+    return CurrentUserResponse(
+        name=row.get("display_name"),
+        avatar_url=row.get("avatar_url"),
+    )
+
+
 @router.get("/{user_id}/profile", response_model=UserProfile)
 async def get_user_profile(
     user_id: str = Path(..., description="User ID (UUID)"),
@@ -204,6 +244,9 @@ async def update_user_profile(
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),
     )
+
+
+
 
 
 

@@ -1,10 +1,10 @@
 // Frontend/src/components/feed/ActivityCard.tsx
+import { ReportButton } from "@/components/report/ReportButton";
+import type { ActivityItem } from "@/lib/api";
+import { cn } from "@/lib/ui/cn";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ActivityTypeIcon } from "./ActivityTypeIcon";
-import { ReportButton } from "@/components/report/ReportButton";
-import { cn } from "@/lib/ui/cn";
-import type { ActivityItem } from "@/lib/api";
 
 interface ActivityCardProps {
   item: ActivityItem;
@@ -16,7 +16,7 @@ function formatActivityTime(value: string): string {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  
+
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);
@@ -47,7 +47,7 @@ function formatActivityTime(value: string): string {
 
 function getActivityMessage(item: ActivityItem): string {
   const locationName = item.location_name || "een locatie";
-  
+
   switch (item.activity_type) {
     case "check_in":
       return `heeft ingecheckt bij ${locationName}`;
@@ -102,8 +102,8 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
     <div
       role={item.location_id || item.activity_type === "bulletin_post" ? "button" : undefined}
       tabIndex={item.location_id || item.activity_type === "bulletin_post" ? 0 : undefined}
-      aria-label={item.activity_type === "bulletin_post" 
-        ? `Ga naar advertentie: ${item.payload?.title || ''}` 
+      aria-label={item.activity_type === "bulletin_post"
+        ? `Ga naar advertentie: ${item.payload?.title || ''}`
         : (item.location_id ? `Ga naar locatie: ${item.location_name}` : undefined)}
       onClick={item.location_id || item.activity_type === "bulletin_post" ? handleClick : undefined}
       onKeyDown={item.location_id || item.activity_type === "bulletin_post" ? handleKeyDown : undefined}
@@ -123,19 +123,19 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm text-foreground">
-                <span className="font-medium">Iemand</span> {activityMessage}
+              <p className="text-sm font-gilroy font-normal text-foreground">
+                <span className="font-gilroy font-medium">Iemand</span> {activityMessage}
               </p>
               {item.is_promoted && (
-                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                   Promoted
                 </span>
               )}
             </div>
             {item.location_name && (
-              <p className="mt-1 text-xs text-muted-foreground">{item.location_name}</p>
+              <p className="mt-1 text-xs font-gilroy font-normal text-muted-foreground">{item.location_name}</p>
             )}
-            <p className="mt-1 text-xs text-muted-foreground">{timeLabel}</p>
+            <p className="mt-1 text-xs font-gilroy font-normal text-muted-foreground">{timeLabel}</p>
           </div>
           {/* Report button for notes and reactions */}
           {(item.activity_type === "note" || item.activity_type === "reaction") && (

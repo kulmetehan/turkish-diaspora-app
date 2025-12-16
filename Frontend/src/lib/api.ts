@@ -875,11 +875,22 @@ export async function getPollStats(pollId: number): Promise<PollStats> {
 export interface ActivityItem {
   is_promoted?: boolean;
   id: number;
-  activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite" | "bulletin_post";
+  activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite" | "bulletin_post" | "event";
   location_id: number | null;
   location_name: string | null;
   payload: Record<string, any>;
   created_at: string;
+  media_url?: string | null;
+  user?: {
+    id: string;
+    name: string | null;
+    avatar_url: string | null;
+  } | null;
+  like_count: number;
+  is_liked: boolean;
+  is_bookmarked: boolean;
+  reactions?: Record<ReactionType, number> | null;
+  user_reaction?: ReactionType | null;
 }
 
 /**
@@ -909,6 +920,100 @@ export async function getActivityFeed(
       },
     }
   );
+}
+
+/**
+ * Toggle like on an activity item.
+ */
+export async function toggleActivityLike(activityId: number): Promise<{ liked: boolean; like_count: number }> {
+  const clientId = getOrCreateClientId();
+  return apiFetch<{ liked: boolean; like_count: number }>(
+    `/api/v1/activity/${activityId}/like`,
+    {
+      method: "POST",
+      headers: {
+        "X-Client-Id": clientId,
+      },
+    }
+  );
+}
+
+/**
+ * Toggle bookmark on an activity item.
+ */
+export async function toggleActivityBookmark(activityId: number): Promise<{ bookmarked: boolean }> {
+  const clientId = getOrCreateClientId();
+  return apiFetch<{ bookmarked: boolean }>(
+    `/api/v1/activity/${activityId}/bookmark`,
+    {
+      method: "POST",
+      headers: {
+        "X-Client-Id": clientId,
+      },
+    }
+  );
+}
+
+/**
+ * Toggle emoji reaction on an activity item.
+ */
+export async function toggleActivityReaction(
+  activityId: number,
+  reactionType: ReactionType
+): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
+  const clientId = getOrCreateClientId();
+  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
+    `/api/v1/activity/${activityId}/reactions`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Client-Id": clientId,
+      },
+      body: JSON.stringify({ reaction_type: reactionType }),
+    }
+  );
+}
+
+/**
+ * Get reaction counts for an activity item.
+ */
+export async function getActivityReactions(
+  activityId: number
+): Promise<{ reactions: Record<ReactionType, number> }> {
+  return apiFetch<{ reactions: Record<ReactionType, number> }>(
+    `/api/v1/activity/${activityId}/reactions`
+  );
+}
+
+// ============================================================================
+// User Profile API
+// ============================================================================
+
+export interface CurrentUser {
+  name: string | null;
+  avatar_url: string | null;
+}
+
+/**
+ * Get current user profile (name and avatar).
+ * Returns null for anonymous users or if request fails.
+ */
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const clientId = getOrCreateClientId();
+  try {
+    return await apiFetch<CurrentUser>(
+      `/api/v1/users/me`,
+      {
+        headers: {
+          "X-Client-Id": clientId,
+        },
+      }
+    );
+  } catch (error) {
+    // Return null for anonymous users or errors
+    return null;
+  }
 }
 
 // ============================================================================
@@ -1620,4 +1725,64 @@ export async function updatePushPreferences(update: PushPreferencesUpdate): Prom
       body: JSON.stringify(update),
     }
   );
+}
+
+// ============================================================================
+// Feed Curated Content API
+// ============================================================================
+
+import type { EventItem } from "@/api/events";
+import type { NewsItem } from "@/api/news";
+
+export interface CategoryStat {
+  category: string;
+  label: string;
+  count: number;
+}
+
+export interface CuratedNewsResponse {
+  items: NewsItem[];
+  meta: {
+    total_ranked?: number;
+    cached_at?: string;
+    message?: string;
+    error?: string;
+  };
+}
+
+export interface LocationStatsResponse {
+  total: number;
+  categories: CategoryStat[];
+  formatted_text: string;
+}
+
+export interface CuratedEventsResponse {
+  items: EventItem[];
+  meta: {
+    total_ranked?: number;
+    cached_at?: string;
+    message?: string;
+    error?: string;
+  };
+}
+
+/**
+ * Fetch AI-curated news items (top 3 ranked by relevance to Turkish Dutch people).
+ */
+export async function fetchCuratedNews(): Promise<CuratedNewsResponse> {
+  return apiFetch<CuratedNewsResponse>("/api/v1/feed/curated/news");
+}
+
+/**
+ * Fetch location statistics with random category selection.
+ */
+export async function fetchLocationStats(): Promise<LocationStatsResponse> {
+  return apiFetch<LocationStatsResponse>("/api/v1/feed/curated/locations");
+}
+
+/**
+ * Fetch AI-curated events (top 3 ranked by relevance to Turkish diaspora).
+ */
+export async function fetchCuratedEvents(): Promise<CuratedEventsResponse> {
+  return apiFetch<CuratedEventsResponse>("/api/v1/feed/curated/events");
 }

@@ -69,3 +69,6 @@ class ExtractedNewsPayload(BaseModel):
 
 
 
+
+
+
