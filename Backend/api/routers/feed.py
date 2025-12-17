@@ -51,23 +51,28 @@ async def get_curated_news() -> CuratedNewsResponse:
                 meta={"message": "No cached rankings available yet"}
             )
         
-        # #region agent log
         ranked_items_raw = row.get("ranked_items")
         metadata_raw = row.get("metadata")
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"A","location":"feed.py:54","message":"ranked_items_raw type check","data":{"type":str(type(ranked_items_raw)),"is_str":isinstance(ranked_items_raw,str),"value_preview":str(ranked_items_raw)[:100] if ranked_items_raw else None},"timestamp":int(__import__("time").time()*1000)})+"\n")
-        # #endregion
         
         # Parse JSONB if it's a string (asyncpg should auto-parse, but handle both cases)
-        if isinstance(ranked_items_raw, str):
-            ranked_items_data = json.loads(ranked_items_raw)
-        else:
-            ranked_items_data = ranked_items_raw or []
+        # This handles both string and dict/list returns from asyncpg
+        try:
+            if isinstance(ranked_items_raw, str):
+                ranked_items_data = json.loads(ranked_items_raw)
+            else:
+                ranked_items_data = ranked_items_raw or []
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("failed_to_parse_ranked_items", error=str(e), type=str(type(ranked_items_raw)))
+            ranked_items_data = []
         
-        if isinstance(metadata_raw, str):
-            metadata = json.loads(metadata_raw)
-        else:
-            metadata = metadata_raw or {}
+        try:
+            if isinstance(metadata_raw, str):
+                metadata = json.loads(metadata_raw)
+            else:
+                metadata = metadata_raw or {}
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("failed_to_parse_metadata", error=str(e), type=str(type(metadata_raw)))
+            metadata = {}
         
         # Convert ranked items to NewsItem format
         news_items: List[NewsItem] = []
@@ -138,23 +143,27 @@ async def get_location_stats() -> LocationStatsResponse:
                 formatted_text="Locaties worden geladen...",
             )
         
-        # #region agent log
         ranked_items_raw = row.get("ranked_items")
         metadata_raw = row.get("metadata")
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"B","location":"feed.py:126","message":"location_stats ranked_items_raw type check","data":{"type":str(type(ranked_items_raw)),"is_str":isinstance(ranked_items_raw,str),"value_preview":str(ranked_items_raw)[:100] if ranked_items_raw else None},"timestamp":int(__import__("time").time()*1000)})+"\n")
-        # #endregion
         
         # Parse JSONB if it's a string (asyncpg should auto-parse, but handle both cases)
-        if isinstance(ranked_items_raw, str):
-            ranked_items_data = json.loads(ranked_items_raw)
-        else:
-            ranked_items_data = ranked_items_raw or {}
+        try:
+            if isinstance(ranked_items_raw, str):
+                ranked_items_data = json.loads(ranked_items_raw)
+            else:
+                ranked_items_data = ranked_items_raw or {}
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("failed_to_parse_location_stats", error=str(e), type=str(type(ranked_items_raw)))
+            ranked_items_data = {}
         
-        if isinstance(metadata_raw, str):
-            metadata = json.loads(metadata_raw)
-        else:
-            metadata = metadata_raw or {}
+        try:
+            if isinstance(metadata_raw, str):
+                metadata = json.loads(metadata_raw)
+            else:
+                metadata = metadata_raw or {}
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("failed_to_parse_location_metadata", error=str(e), type=str(type(metadata_raw)))
+            metadata = {}
         
         # Extract data
         total = ranked_items_data.get("total", 0)
@@ -215,23 +224,27 @@ async def get_curated_events() -> CuratedEventsResponse:
                 meta={"message": "No cached rankings available yet"}
             )
         
-        # #region agent log
         ranked_items_raw = row.get("ranked_items")
         metadata_raw = row.get("metadata")
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps({"sessionId":"debug-session","runId":"run1","hypothesisId":"C","location":"feed.py:188","message":"events ranked_items_raw type check","data":{"type":str(type(ranked_items_raw)),"is_str":isinstance(ranked_items_raw,str),"value_preview":str(ranked_items_raw)[:100] if ranked_items_raw else None},"timestamp":int(__import__("time").time()*1000)})+"\n")
-        # #endregion
         
         # Parse JSONB if it's a string (asyncpg should auto-parse, but handle both cases)
-        if isinstance(ranked_items_raw, str):
-            ranked_items_data = json.loads(ranked_items_raw)
-        else:
-            ranked_items_data = ranked_items_raw or []
+        try:
+            if isinstance(ranked_items_raw, str):
+                ranked_items_data = json.loads(ranked_items_raw)
+            else:
+                ranked_items_data = ranked_items_raw or []
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("failed_to_parse_events_ranked_items", error=str(e), type=str(type(ranked_items_raw)))
+            ranked_items_data = []
         
-        if isinstance(metadata_raw, str):
-            metadata = json.loads(metadata_raw)
-        else:
-            metadata = metadata_raw or {}
+        try:
+            if isinstance(metadata_raw, str):
+                metadata = json.loads(metadata_raw)
+            else:
+                metadata = metadata_raw or {}
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error("failed_to_parse_events_metadata", error=str(e), type=str(type(metadata_raw)))
+            metadata = {}
         
         # Convert ranked items to EventItem format
         event_items: List[EventItem] = []
