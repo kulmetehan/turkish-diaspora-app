@@ -19,3 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_reactions_type ON activity_reactions(rea
 COMMENT ON TABLE activity_reactions IS 'Emoji reactions on activity stream items';
 COMMENT ON COLUMN activity_reactions.reaction_type IS 'Type of emoji reaction: fire, heart, thumbs_up, smile, star, flag';
 COMMENT ON COLUMN activity_reactions.identity_key IS 'Generated column: user_id if available, otherwise client_id';
+

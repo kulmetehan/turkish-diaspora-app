@@ -45,3 +45,4 @@ AFWEGING
 - We optimaliseren voor relevantie voor Turkse Nederlanders.
 - Actualiteit is belangrijk maar relevantie primeert.
 - Culturele en gemeenschapsrelevantie wegen zwaar.
+

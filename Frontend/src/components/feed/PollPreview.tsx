@@ -78,3 +78,4 @@ export function PollPreview({ pollId, onOpenModal, className }: PollPreviewProps
     </button>
   );
 }
+

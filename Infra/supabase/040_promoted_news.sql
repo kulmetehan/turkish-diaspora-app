@@ -39,3 +39,4 @@ COMMENT ON COLUMN public.promoted_news.status IS 'Promotion status: pending (pay
 
 
 
+

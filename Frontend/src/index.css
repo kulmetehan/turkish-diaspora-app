@@ -70,7 +70,7 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --footer-height: 84px;
+  --footer-height: 72px;
   --edge-gap: 14px;
   --top-offset: calc(var(--safe-top) + var(--edge-gap));
   --bottom-offset: calc(var(--safe-bottom) + var(--footer-height) + var(--edge-gap));

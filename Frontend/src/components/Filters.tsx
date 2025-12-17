@@ -1,13 +1,12 @@
 import { useMemo } from "react";
 
 import { Icon } from "@/components/Icon";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
-import type { ViewMode } from "@/lib/routing/viewMode";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
 import { humanizeCategoryLabel } from "@/lib/categories";
+import type { ViewMode } from "@/lib/routing/viewMode";
 import { cn } from "@/lib/ui/cn";
 
 type CategoryOption = { key: string; label: string };
@@ -78,7 +77,7 @@ export default function Filters({
   }, [category, categoryOptions]);
 
   return (
-    <div className="flex flex-col gap-4 rounded-3xl border border-border bg-surface-raised p-4 text-foreground shadow-soft">
+    <div className="flex flex-col gap-4 rounded-3xl bg-surface-raised p-4 text-foreground shadow-soft">
       {viewMode && onViewModeChange ? (
         <Tabs
           value={viewMode}

@@ -21,7 +21,7 @@ const tabs: TabConfig[] = [
 
 export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
   function FooterTabs({ className, style, ...props }, ref) {
-    const height = "84px";
+    const height = "72px";
     const combinedStyle = {
       height,
       "--footer-height": height,
@@ -40,7 +40,7 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
       >
         <nav
           aria-label="Primary navigation"
-          className="mx-auto flex w-full max-w-3xl items-center justify-around px-3 py-2 md:gap-2"
+          className="mx-auto flex w-full max-w-3xl items-center justify-around px-3 pt-1 pb-2 md:gap-2"
         >
           {tabs.map((tab) => (
             <NavLink
@@ -59,17 +59,15 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
             >
               {({ isActive }) => (
                 <>
-                  <span
-                    data-active={isActive ? "true" : "false"}
+                  <Icon
+                    name={tab.icon}
+                    sizeRem={1.35}
+                    aria-hidden
                     className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200 ease-out",
-                      isActive
-                        ? "border-primary/30 bg-primary/10 text-primary shadow-soft"
-                        : "border-border bg-card text-muted-foreground",
+                      "transition-all duration-200 ease-out",
+                      isActive ? "text-primary" : "text-muted-foreground",
                     )}
-                  >
-                    <Icon name={tab.icon} sizeRem={1.35} aria-hidden />
-                  </span>
+                  />
                   <span className="leading-none">{tab.label}</span>
                 </>
               )}

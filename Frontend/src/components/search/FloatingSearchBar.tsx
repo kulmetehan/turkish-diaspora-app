@@ -1,7 +1,7 @@
 import { useId, useMemo, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Search, X } from "lucide-react";
 
 type FloatingSearchBarProps = {
@@ -22,7 +22,7 @@ export function FloatingSearchBar({
   onClear,
   suggestions,
   ariaLabel = "Search locations",
-  placeholder = "Zoek op naam of categorie…",
+  placeholder = "Search by name or category",
   loading,
   className,
   inputId,
@@ -47,10 +47,7 @@ export function FloatingSearchBar({
         {ariaLabel}
       </label>
       <div className="relative">
-        <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-2 shadow-soft transition focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2 focus-within:ring-offset-background">
-          <span className="text-muted-foreground">
-            <Search className="h-5 w-5" aria-hidden />
-          </span>
+        <div className="flex items-center gap-2 rounded-full bg-white px-4 py-1 shadow-float transition focus-within:ring-2 focus-within:ring-primary/20 focus-within:ring-offset-2 focus-within:ring-offset-background">
           <Input
             id={resolvedInputId}
             role="combobox"
@@ -60,7 +57,7 @@ export function FloatingSearchBar({
             autoComplete="off"
             placeholder={placeholder}
             value={value}
-            className="h-12 flex-1 border-0 bg-transparent px-0 py-0 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="h-10 flex-1 border-0 bg-transparent px-0 py-0 text-base text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
             onChange={(event) => {
               onValueChange(event.target.value);
               setOpenSuggest(true);
@@ -106,7 +103,7 @@ export function FloatingSearchBar({
               type="button"
               className={cn(
                 "inline-flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground transition-colors",
-                "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+                "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
               )}
               aria-label="Zoekveld wissen"
               onClick={() => {
@@ -117,7 +114,18 @@ export function FloatingSearchBar({
             >
               <X className="h-4 w-4" />
             </button>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              className={cn(
+                "inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors",
+                "hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+              )}
+              aria-label="Zoeken"
+            >
+              <Search className="h-5 w-5" aria-hidden />
+            </button>
+          )}
         </div>
       </div>
 

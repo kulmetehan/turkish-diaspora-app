@@ -12,3 +12,4 @@ CREATE INDEX IF NOT EXISTS idx_activity_stream_media_url
 COMMENT ON COLUMN activity_stream.media_url IS 'Optional URL to media attachment (image, etc.) for feed cards';
 
 
+

@@ -1,14 +1,12 @@
 import type { EventItem } from "@/api/events";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 
 import {
   eventHasCoordinates,
-  formatCategoryLabel,
   formatCityLabel,
-  formatEventDateRange,
+  formatEventDateRange
 } from "./eventFormatters";
 
 type EventCardProps = {
@@ -50,8 +48,8 @@ export function EventCard({
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
-            <p className="text-base font-semibold text-foreground line-clamp-2">{event.title}</p>
-            <p className="text-sm text-muted-foreground">{formatEventDateRange(event.start_time_utc, event.end_time_utc)}</p>
+            <p className="text-base font-gilroy font-semibold text-foreground line-clamp-2">{event.title}</p>
+            <p className="text-sm font-gilroy font-normal text-muted-foreground">{formatEventDateRange(event.start_time_utc, event.end_time_utc)}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {event.city_key ? (
@@ -60,18 +58,13 @@ export function EventCard({
                 {formatCityLabel(event.city_key)}
               </Badge>
             ) : null}
-            {event.category_key ? (
-              <Badge variant="outline" className="capitalize">
-                {formatCategoryLabel(event.category_key)}
-              </Badge>
-            ) : null}
           </div>
         </div>
         {event.location_text ? (
-          <p className="text-sm text-muted-foreground line-clamp-2">{event.location_text}</p>
+          <p className="text-sm font-gilroy font-normal text-muted-foreground line-clamp-1">{event.location_text}</p>
         ) : null}
         {event.description ? (
-          <p className="text-sm text-muted-foreground line-clamp-3">{event.description}</p>
+          <p className="text-sm font-gilroy font-normal text-muted-foreground line-clamp-3">{event.description}</p>
         ) : null}
       </div>
 
@@ -79,7 +72,7 @@ export function EventCard({
         {showMapButton ? (
           <button
             type="button"
-            className="text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="text-xs font-gilroy font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             onClick={(e) => {
               e.stopPropagation();
               onShowOnMap?.(event);
@@ -89,28 +82,35 @@ export function EventCard({
           </button>
         ) : null}
         {event.url ? (
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
+              window.open(event.url, "_blank", "noopener,noreferrer");
             }}
+            className={cn(
+              "flex-shrink-0 rounded-sm px-3 py-1 text-xs font-gilroy font-medium transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
+              "bg-gray-100/80 text-black/70 hover:bg-gray-200/80 hover:text-black"
+            )}
           >
-            <a href={event.url} target="_blank" rel="noopener noreferrer">
-              Eventpagina
-            </a>
-          </Button>
+            Eventpagina
+          </button>
         ) : null}
-        <Button
-          size="sm"
+        <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
             onOpenDetail?.(event);
           }}
+          className={cn(
+            "flex-shrink-0 rounded-sm px-3 py-1 text-xs font-gilroy font-medium transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
+            "bg-primary/90 text-primary-foreground shadow-soft"
+          )}
         >
           Details
-        </Button>
+        </button>
       </div>
     </div>
   );

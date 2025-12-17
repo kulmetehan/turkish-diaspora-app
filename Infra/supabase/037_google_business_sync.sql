@@ -70,3 +70,4 @@ COMMENT ON COLUMN public.locations.google_business_metadata IS 'Additional Googl
 
 
 
+
