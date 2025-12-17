@@ -3,27 +3,25 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { AppViewportShell } from "@/components/layout";
 import Filters from "@/components/Filters";
-import { Icon } from "@/components/Icon";
 import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
 import OverlayDetailCard from "@/components/OverlayDetailCard";
+import { AppHeader } from "@/components/feed/AppHeader";
+import { AppViewportShell } from "@/components/layout";
 import NoteDialog from "@/components/location/NoteDialog";
+import { MapListToggle } from "@/components/map/MapListToggle";
 import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
 import { ViewportProvider } from "@/contexts/viewport";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useSearch } from "@/hooks/useSearch";
 import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, writeViewMode, type ViewMode } from "@/lib/routing/viewMode";
-import { cn } from "@/lib/ui/cn";
 import { navigationActions, useMapNavigation } from "@/state/navigation";
 
 import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
-import { createNote, updateNote, getNotes, type NoteResponse } from "@/lib/api";
+import { createNote, updateNote, type NoteResponse } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function MapTab() {
@@ -79,10 +77,11 @@ export default function MapTab() {
     const lastSettledBboxRef = useRef<string | null>(null);
     const hasSettledRef = useRef(false);
     const mapHeadingRef = useRef<HTMLHeadingElement | null>(null);
-    const listHeadingRef = useRef<HTMLHeadingElement | null>(null);
     const hasAppliedInitialFocusRef = useRef(false);
+    const listScrollContainerRef = useRef<HTMLDivElement | null>(null);
+    const scrollRestoredRef = useRef(false);
+    const scrollThrottleRef = useRef<number | null>(null);
     const mapHeadingId = useId();
-    const listHeadingId = useId();
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -401,9 +400,61 @@ export default function MapTab() {
         });
     };
 
-    const handleScrollPositionChange = (scrollTop: number) => {
+    const handleScrollPositionChange = useCallback((scrollTop: number) => {
         navigationActions.setMap({ listScrollTop: scrollTop });
-    };
+    }, []);
+
+    // Restore scroll position on mount (for list view)
+    useEffect(() => {
+        if (viewMode !== "list" || scrollRestoredRef.current || !listScrollContainerRef.current) {
+            return;
+        }
+
+        const scrollTop = mapNavigation.listScrollTop;
+        if (scrollTop > 0) {
+            requestAnimationFrame(() => {
+                if (listScrollContainerRef.current && !scrollRestoredRef.current) {
+                    listScrollContainerRef.current.scrollTo({ top: scrollTop, behavior: "auto" });
+                    scrollRestoredRef.current = true;
+                }
+            });
+        } else {
+            scrollRestoredRef.current = true;
+        }
+    }, [viewMode, mapNavigation.listScrollTop]);
+
+    // Track scroll position changes (for list view)
+    useEffect(() => {
+        if (viewMode !== "list") {
+            scrollRestoredRef.current = false;
+            return;
+        }
+
+        const container = listScrollContainerRef.current;
+        if (!container || !handleScrollPositionChange) return;
+
+        const handleScroll = () => {
+            if (scrollThrottleRef.current !== null) {
+                window.cancelAnimationFrame(scrollThrottleRef.current);
+            }
+
+            scrollThrottleRef.current = window.requestAnimationFrame(() => {
+                if (container) {
+                    handleScrollPositionChange(container.scrollTop);
+                }
+            });
+        };
+
+        container.addEventListener("scroll", handleScroll, { passive: true });
+
+        return () => {
+            container.removeEventListener("scroll", handleScroll);
+            if (scrollThrottleRef.current !== null) {
+                window.cancelAnimationFrame(scrollThrottleRef.current);
+                scrollThrottleRef.current = null;
+            }
+        };
+    }, [viewMode, handleScrollPositionChange]);
 
     const renderFilters = (idPrefixOverride?: string) => (
         <Filters
@@ -424,31 +475,36 @@ export default function MapTab() {
             hasAppliedInitialFocusRef.current = true;
             return;
         }
-        const target = viewMode === "map" ? mapHeadingRef.current : listHeadingRef.current;
-        if (!target) return;
-        const frame = requestAnimationFrame(() => {
-            target.focus({ preventScroll: true });
-        });
-        return () => cancelAnimationFrame(frame);
+        if (viewMode === "map") {
+            const target = mapHeadingRef.current;
+            if (!target) return;
+            const frame = requestAnimationFrame(() => {
+                target.focus({ preventScroll: true });
+            });
+            return () => cancelAnimationFrame(frame);
+        }
+        // For list view, focus is handled by the AppHeader or filters
     }, [viewMode]);
 
     const listViewDesktop = (
-        <div
-            className="flex h-full w-full flex-col gap-3 overflow-hidden px-4 py-4 text-foreground focus:outline-none"
-            role="region"
-            aria-labelledby={listHeadingId}
-            data-view="list"
-        >
-            <h2
-                id={listHeadingId}
-                ref={listHeadingRef}
-                tabIndex={-1}
-                className="text-lg font-semibold text-foreground"
+        <div className="flex flex-col h-full relative">
+            {/* Red gradient overlay */}
+            <div
+                className="absolute inset-x-0 top-0 pointer-events-none z-0"
+                style={{
+                    height: '25%',
+                    background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+                }}
+            />
+            <AppHeader onNotificationClick={() => { }} />
+            <div
+                ref={listScrollContainerRef}
+                className="flex h-full w-full flex-col gap-3 flex-1 overflow-y-auto px-4 pb-24 text-foreground focus:outline-none relative z-10"
+                role="region"
+                aria-label="Locatielijst"
+                data-view="list"
             >
-                Locatielijst
-            </h2>
-            {renderFilters("list-desktop")}
-            <div className="flex-1 overflow-hidden">
+                {renderFilters("list-desktop")}
                 <LocationList
                     locations={filtered}
                     selectedId={highlightedId}
@@ -459,41 +515,38 @@ export default function MapTab() {
                     isLoading={globalLocationsLoading}
                     error={globalLocationsError}
                     hasActiveSearch={hasActiveSearch}
-                    fullHeight
-                    scrollTop={mapNavigation.listScrollTop}
-                    onScrollPositionChange={handleScrollPositionChange}
                 />
             </div>
         </div>
     );
 
     const listViewMobile = (
-        <div
-            className="flex h-full w-full flex-col gap-3 overflow-hidden px-4 py-4 text-foreground focus:outline-none"
-            role="region"
-            aria-labelledby={listHeadingId}
-            data-view="list"
-        >
-            <h2
-                id={listHeadingId}
-                ref={listHeadingRef}
-                tabIndex={-1}
-                className="text-lg font-semibold text-foreground"
+        <div className="flex flex-col h-full relative">
+            {/* Red gradient overlay */}
+            <div
+                className="absolute inset-x-0 top-0 pointer-events-none z-0"
+                style={{
+                    height: '25%',
+                    background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+                }}
+            />
+            <AppHeader onNotificationClick={() => { }} />
+            <div
+                ref={listScrollContainerRef}
+                className="flex h-full w-full flex-col gap-3 flex-1 overflow-y-auto px-4 pb-24 text-foreground focus:outline-none relative z-10"
+                role="region"
+                aria-label="Locatielijst"
+                data-view="list"
             >
-                Locatielijst
-            </h2>
-            {renderFilters("list-mobile")}
-            <div className="flex-1 overflow-hidden">
+                {renderFilters("list-mobile")}
                 {detail ? (
-                    <div className="h-full overflow-auto">
-                        <LocationDetail
-                            location={detail}
-                            onBackToList={() => {
-                                setDetailIdLocal(null);
-                                navigationActions.setMap({ selectedLocationId: null });
-                            }}
-                        />
-                    </div>
+                    <LocationDetail
+                        location={detail}
+                        onBackToList={() => {
+                            setDetailIdLocal(null);
+                            navigationActions.setMap({ selectedLocationId: null });
+                        }}
+                    />
                 ) : (
                     <LocationList
                         locations={filtered}
@@ -505,9 +558,6 @@ export default function MapTab() {
                         isLoading={globalLocationsLoading}
                         error={globalLocationsError}
                         hasActiveSearch={hasActiveSearch}
-                        fullHeight
-                        scrollTop={mapNavigation.listScrollTop}
-                        onScrollPositionChange={handleScrollPositionChange}
                     />
                 )}
             </div>
@@ -552,61 +602,34 @@ export default function MapTab() {
             <div className="hidden" aria-hidden>
                 {renderFilters("map-overlay")}
             </div>
+            {/* Top overlay - Search + Categories */}
             <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-4 pt-[var(--top-offset)]">
-                <div className="pointer-events-auto w-full max-w-2xl" data-filters-overlay>
-                    <div className="flex flex-col gap-3 rounded-3xl border border-border bg-card p-4 text-foreground shadow-card supports-[backdrop-filter]:backdrop-blur-2xl">
-                        <Tabs
-                            value={viewMode}
-                            onValueChange={(value) => {
-                                if (value === viewMode) return;
-                                if (value === "list" || value === "map") {
-                                    handleViewModeChange(value);
-                                }
-                            }}
-                        >
-                            <TabsList className={cn(surfaceTabsList, "grid w-full grid-cols-2 bg-card")}>
-                                <TabsTrigger
-                                    value="map"
-                                    data-view="map"
-                                    className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
-                                    onClick={() => {
-                                        if (viewMode !== "map") {
-                                            handleViewModeChange("map");
-                                        }
-                                    }}
-                                >
-                                    <Icon name="Map" className="h-4 w-4" aria-hidden />
-                                    Kaart
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="list"
-                                    data-view="list"
-                                    className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
-                                    onClick={() => {
-                                        if (viewMode !== "list") {
-                                            handleViewModeChange("list");
-                                        }
-                                    }}
-                                >
-                                    <Icon name="List" className="h-4 w-4" aria-hidden />
-                                    Lijst
-                                </TabsTrigger>
-                            </TabsList>
-                        </Tabs>
-                        <FloatingSearchBar
-                            value={filters.search}
-                            onValueChange={(next) => handleFiltersChange({ search: next })}
-                            onClear={() => handleFiltersChange({ search: "" })}
-                            suggestions={suggestions}
-                            loading={loading}
-                            ariaLabel="Zoek locaties"
-                        />
-                        <CategoryChips
-                            categories={categoryOptions}
-                            activeCategory={filters.category}
-                            onSelect={(key) => handleFiltersChange({ category: key })}
-                        />
-                    </div>
+                <div className="pointer-events-auto w-full max-w-2xl flex flex-col gap-3" data-filters-overlay>
+                    <FloatingSearchBar
+                        value={filters.search}
+                        onValueChange={(next) => handleFiltersChange({ search: next })}
+                        onClear={() => handleFiltersChange({ search: "" })}
+                        suggestions={suggestions}
+                        loading={loading}
+                        ariaLabel="Zoek locaties"
+                    />
+                    <CategoryChips
+                        categories={categoryOptions}
+                        activeCategory={filters.category}
+                        onSelect={(key) => handleFiltersChange({ category: key })}
+                    />
+                </div>
+            </div>
+            {/* Bottom overlay - Map/List toggle */}
+            <div
+                className="pointer-events-none fixed inset-x-0 z-20 flex justify-center px-4"
+                style={{ bottom: "var(--bottom-offset)" }}
+            >
+                <div className="pointer-events-auto">
+                    <MapListToggle
+                        viewMode={viewMode}
+                        onViewModeChange={handleViewModeChange}
+                    />
                 </div>
             </div>
             {loading && (

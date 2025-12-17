@@ -45,3 +45,4 @@ class CuratedEventsResponse(BaseModel):
         default_factory=dict,
         description="Metadata: total_ranked, cached_at, etc."
     )
+

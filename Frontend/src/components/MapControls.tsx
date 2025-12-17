@@ -14,7 +14,7 @@ export default function MapControls({ onResetNorth, onLocateUser, locating, disa
     <div
       data-map-controls
       className={cn(
-        "pointer-events-auto fixed right-3 text-brand-white md:right-4",
+        "pointer-events-auto fixed right-3 text-foreground md:right-4",
         "bottom-[var(--bottom-offset)]",
         "z-40 flex flex-col gap-2",
       )}
@@ -28,9 +28,9 @@ export default function MapControls({ onResetNorth, onLocateUser, locating, disa
         disabled={disabled}
         aria-label="Reset bearing to North"
         title="Reset bearing to North"
-        className="h-12 w-12 rounded-2xl border border-white/15 bg-surface-raised/80 text-current shadow-soft transition focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent hover:bg-white/10"
+        className="h-12 w-12 rounded-2xl border border-border bg-surface-raised/80 text-foreground shadow-soft transition focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent hover:bg-surface-muted"
       >
-        <Icon name="Compass" sizeRem={1.1} aria-hidden />
+        <Icon name="Compass" sizeRem={1.1} className="text-foreground" aria-hidden />
       </Button>
       <Button
         type="button"
@@ -40,13 +40,13 @@ export default function MapControls({ onResetNorth, onLocateUser, locating, disa
         disabled={disabled || locating}
         aria-label="Show my location"
         title="Show my location"
-        className="h-12 w-12 rounded-2xl border border-white/15 bg-surface-raised/80 text-current shadow-soft transition focus-visible:ring-2 focus-visible:ring-brand-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent hover:bg-white/10"
+        className="h-12 w-12 rounded-2xl border border-border bg-surface-raised/80 text-foreground shadow-soft transition focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent hover:bg-surface-muted"
       >
         <Icon
           name="LocateFixed"
           sizeRem={1.1}
+          className={cn("text-foreground", locating && "animate-pulse")}
           aria-hidden
-          className={locating ? "animate-pulse" : undefined}
         />
       </Button>
     </div>

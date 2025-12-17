@@ -14,3 +14,4 @@ ALTER TABLE activity_stream
 COMMENT ON CONSTRAINT activity_stream_type_check ON activity_stream IS 'Activity types including event support for feed redesign';
 
 
+

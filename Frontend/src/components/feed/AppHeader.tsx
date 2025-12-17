@@ -25,7 +25,9 @@ export function AppHeader({
       {/* Logo/Wordmark */}
       <div className="flex items-center">
         <h1 className="text-4xl font-gilroy font-black text-foreground tracking-tight">
-          Kom<span className="text-[hsl(var(--brand-red-strong))]">ş</span>u
+          <span className="text-[hsl(var(--brand-red-strong))]">T</span>urk
+          <span className="text-[hsl(var(--brand-red-strong))]">S</span>pot
+          <span className="text-[hsl(var(--brand-red-strong))] text-2xl font-mono align-top">AI</span>
         </h1>
       </div>
 
@@ -62,5 +64,6 @@ export function AppHeader({
     </header>
   );
 }
+
 
 

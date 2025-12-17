@@ -1,21 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { EventItem } from "@/api/events";
+import { FooterTabs } from "@/components/FooterTabs";
 import { EventDateRangePicker } from "@/components/events/EventDateRangePicker";
 import { EventDetailOverlay } from "@/components/events/EventDetailOverlay";
 import { EventList } from "@/components/events/EventList";
 import { EventMapView } from "@/components/events/EventMapView";
+import { EventMonthFilterBar } from "@/components/events/EventMonthFilterBar";
+import { EventsIntroHeading } from "@/components/events/EventsIntroHeading";
 import { eventHasCoordinates } from "@/components/events/eventFormatters";
-import { AppViewportShell, PageShell } from "@/components/layout";
-import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AppHeader } from "@/components/feed/AppHeader";
+import { AppViewportShell } from "@/components/layout";
 import { useEventsFeed } from "@/hooks/useEventsFeed";
-import { cn } from "@/lib/ui/cn";
 import { navigationActions, useEventsNavigation } from "@/state/navigation";
 
 export default function EventsPage() {
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
   const {
     items,
@@ -74,89 +76,174 @@ export default function EventsPage() {
     navigationActions.setEvents({ viewMode: mode });
   }, []);
 
+  // Handle month selection - set date range to first and last day of month
+  const handleMonthSelect = useCallback((month: number | null) => {
+    setSelectedMonth(month);
+    if (month === null) {
+      setDateFrom(null);
+      setDateTo(null);
+    } else {
+      const currentYear = new Date().getFullYear();
+      const firstDay = new Date(currentYear, month - 1, 1);
+      const lastDay = new Date(currentYear, month, 0); // Last day of the month
+
+      // Format as YYYY-MM-DD
+      const formatDate = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      setDateFrom(formatDate(firstDay));
+      setDateTo(formatDate(lastDay));
+    }
+  }, []);
+
   const handleCloseDetail = useCallback(() => {
     navigationActions.setEvents({ detailId: null });
   }, []);
+
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRestoredRef = useRef(false);
+  const scrollThrottleRef = useRef<number | null>(null);
 
   const handleScrollPositionChange = useCallback((scrollTop: number) => {
     navigationActions.setEvents({ scrollTop });
   }, []);
 
+  const handleNotificationClick = useCallback(() => {
+    // TODO: Implement notification navigation
+    console.log("Notification clicked");
+  }, []);
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    if (scrollRestoredRef.current || !scrollContainerRef.current || isLoading || items.length === 0) {
+      return;
+    }
+
+    const scrollTop = eventsNavigation.scrollTop;
+    if (scrollTop > 0) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current && !scrollRestoredRef.current) {
+          scrollContainerRef.current.scrollTo({ top: scrollTop, behavior: "auto" });
+          scrollRestoredRef.current = true;
+        }
+      });
+    } else {
+      scrollRestoredRef.current = true;
+    }
+  }, [eventsNavigation.scrollTop, isLoading, items.length]);
+
+  // Track scroll position changes
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !handleScrollPositionChange) return;
+
+    const handleScroll = () => {
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+      }
+
+      scrollThrottleRef.current = window.requestAnimationFrame(() => {
+        if (container) {
+          handleScrollPositionChange(container.scrollTop);
+        }
+      });
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+        scrollThrottleRef.current = null;
+      }
+    };
+  }, [handleScrollPositionChange]);
+
   return (
     <AppViewportShell variant="content">
-      <PageShell
-        title="Events & bijeenkomsten"
-        subtitle="Ontdek culturele activiteiten, community meetups en zakelijke bijeenkomsten binnen de Turkse diaspora in Nederland."
-        maxWidth="5xl"
-      >
-        <div className="space-y-4">
+      <div className="flex flex-col h-full relative">
+        {/* Red gradient overlay */}
+        <div
+          className="absolute inset-x-0 top-0 pointer-events-none z-0"
+          style={{
+            height: '25%',
+            background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+          }}
+        />
+        <AppHeader
+          onNotificationClick={handleNotificationClick}
+        />
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-4 pb-24 relative z-10"
+        >
+          <EventsIntroHeading
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+          />
           <EventDateRangePicker
             dateFrom={dateFrom}
             dateTo={dateTo}
-            onDateFromChange={setDateFrom}
-            onDateToChange={setDateTo}
+            onDateFromChange={(date) => {
+              setDateFrom(date);
+              // Clear month selection when manually changing dates
+              setSelectedMonth(null);
+            }}
+            onDateToChange={(date) => {
+              setDateTo(date);
+              // Clear month selection when manually changing dates
+              setSelectedMonth(null);
+            }}
+            onClear={() => {
+              setSelectedMonth(null);
+            }}
           />
-          <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
-            <Tabs
-              value={viewMode}
-              onValueChange={(value) => {
-                if (value === "map" || value === "list") {
-                  handleViewModeChange(value);
-                }
-              }}
-            >
-              <TabsList className={cn(surfaceTabsList, "grid w-full grid-cols-2 bg-card")}>
-                <TabsTrigger
-                  value="list"
-                  data-view="list"
-                  className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
-                >
-                  Lijst
-                </TabsTrigger>
-                <TabsTrigger
-                  value="map"
-                  data-view="map"
-                  className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2")}
-                >
-                  Kaart
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
+          <EventMonthFilterBar
+            selectedMonth={selectedMonth}
+            onMonthSelect={handleMonthSelect}
+            className="mt-1"
+          />
+
+          {viewMode === "list" ? (
+            <div className="mt-2">
+              <EventList
+                events={items}
+                selectedId={selectedId}
+                onSelect={handleSelect}
+                onSelectDetail={handleOpenDetail}
+                onShowOnMap={handleShowOnMap}
+                isLoading={isLoading}
+                isLoadingMore={isLoadingMore}
+                error={error}
+                hasMore={hasMore}
+                onLoadMore={loadMore}
+                onRetry={reload}
+              />
+            </div>
+          ) : (
+            <div className="mt-2">
+              <EventMapView
+                events={items}
+                selectedId={selectedId}
+                detailId={detailId}
+                onSelect={handleSelect}
+                onOpenDetail={handleOpenDetail}
+              />
+            </div>
+          )}
         </div>
-
-        {viewMode === "list" ? (
-          <EventList
-            events={items}
-            selectedId={selectedId}
-            onSelect={handleSelect}
-            onSelectDetail={handleOpenDetail}
-            onShowOnMap={handleShowOnMap}
-            isLoading={isLoading}
-            isLoadingMore={isLoadingMore}
-            error={error}
-            hasMore={hasMore}
-            onLoadMore={loadMore}
-            onRetry={reload}
-            scrollTop={eventsNavigation.scrollTop}
-            onScrollPositionChange={handleScrollPositionChange}
-          />
-        ) : (
-          <EventMapView
-            events={items}
-            selectedId={selectedId}
-            detailId={detailId}
-            onSelect={handleSelect}
-            onOpenDetail={handleOpenDetail}
-          />
-        )}
-
-        <EventDetailOverlay
-          event={detailEvent}
-          open={Boolean(detailEvent)}
-          onClose={handleCloseDetail}
-        />
-      </PageShell>
+        <FooterTabs />
+      </div>
+      <EventDetailOverlay
+        event={detailEvent}
+        open={Boolean(detailEvent)}
+        onClose={handleCloseDetail}
+      />
     </AppViewportShell>
   );
 }

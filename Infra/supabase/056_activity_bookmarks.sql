@@ -28,3 +28,4 @@ COMMENT ON COLUMN activity_bookmarks.user_id IS 'Authenticated user ID (mutually
 COMMENT ON COLUMN activity_bookmarks.client_id IS 'Anonymous client ID (mutually exclusive with user_id)';
 
 
+

@@ -28,3 +28,4 @@ COMMENT ON COLUMN activity_likes.user_id IS 'Authenticated user ID (mutually exc
 COMMENT ON COLUMN activity_likes.client_id IS 'Anonymous client ID (mutually exclusive with user_id)';
 
 
+

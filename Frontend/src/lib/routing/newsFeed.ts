@@ -14,7 +14,7 @@ export type NewsFeedKey =
 export const NEWS_FEEDS: Array<{ key: NewsFeedKey; label: string }> = [
   { key: "nl", label: "Nederland" },
   { key: "tr", label: "Turkije" },
-  { key: "local", label: "Lokaal" },
+  { key: "local", label: "Woonplaats" },
   { key: "origin", label: "Herkomst" },
   { key: "trending", label: "Trending" },
   { key: "bookmarks", label: "Opgeslagen" },

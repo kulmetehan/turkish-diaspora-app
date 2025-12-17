@@ -2,9 +2,8 @@ import { useEffect, useRef } from "react";
 
 import type { LocationMarker } from "@/api/fetchLocations";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { buildRouteUrl } from "@/lib/urlBuilders";
 import { cn } from "@/lib/ui/cn";
+import { buildRouteUrl } from "@/lib/urlBuilders";
 
 type PreviewTooltipProps = {
     location: LocationMarker;
@@ -37,57 +36,72 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
             role="dialog"
             aria-modal="false"
             aria-label={`Preview voor ${location.name}`}
-            className="tda-card w-[260px] rounded-3xl border border-white/10 bg-surface-raised/95 p-4 text-foreground shadow-soft backdrop-blur-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70"
+            className="tda-card w-[260px] rounded-3xl border border-white/10 p-4 text-foreground shadow-soft backdrop-blur-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 relative overflow-hidden"
+            style={{
+                background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%), hsl(var(--surface-raised) / 0.95)',
+            }}
             tabIndex={-1}
         >
             <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-foreground line-clamp-2">{location.name}</h3>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                        {(location.category_label || location.category) && (
-                            <Badge variant="secondary" className="capitalize text-[10px]">
-                                {location.category_label ?? location.category}
-                            </Badge>
-                        )}
-                    </div>
+                <div className="min-w-0 flex-1">
+                    <h3 className="text-sm font-gilroy font-semibold text-foreground line-clamp-2">{location.name}</h3>
                 </div>
-                <button
-                    type="button"
-                    className="rounded-full border border-white/10 p-1 text-brand-white/70 transition-colors hover:bg-white/10 hover:text-brand-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-white/70"
-                    aria-label="Sluit preview"
-                    onClick={onRequestClose}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
+                <div className="flex items-start gap-2 flex-shrink-0">
+                    {(location.category_label || location.category) && (
+                        <Badge variant="secondary" className="capitalize text-[10px] font-gilroy">
+                            {location.category_label ?? location.category}
+                        </Badge>
+                    )}
+                    <button
+                        type="button"
+                        className="rounded-full border border-white/10 p-1 text-brand-white/70 transition-colors hover:bg-white/10 hover:text-brand-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-white/70 flex-shrink-0"
+                        aria-label="Sluit preview"
+                        onClick={onRequestClose}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
             </div>
 
             {address && (
-                <p className="mt-3 text-xs text-muted-foreground line-clamp-2">{address}</p>
+                <p className="mt-3 text-xs font-gilroy font-normal text-muted-foreground line-clamp-2">{address}</p>
             )}
 
             <div className="mt-4 flex flex-wrap gap-2">
-                <Button
-                    size="sm"
-                    className="flex-1"
+                <button
+                    type="button"
                     onClick={() => {
                         onRequestDetail();
                     }}
+                    className={cn(
+                        "flex-shrink-0 rounded-sm px-3 py-1 text-xs font-gilroy font-medium transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
+                        "bg-primary/90 text-primary-foreground shadow-soft"
+                    )}
                 >
                     Details
-                </Button>
-                <Button
-                    asChild
-                    size="sm"
-                    variant="outline"
+                </button>
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (routeUrl.startsWith("http")) {
+                            window.open(routeUrl, "_blank", "noopener,noreferrer");
+                        } else {
+                            window.location.href = routeUrl;
+                        }
+                    }}
                     aria-label="Open route in Maps"
+                    className={cn(
+                        "flex-shrink-0 rounded-sm px-3 py-1 text-xs font-gilroy font-medium transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
+                        "bg-gray-100/80 text-black/70 hover:bg-gray-200/80 hover:text-black"
+                    )}
                 >
-                    <a href={routeUrl} target={routeUrl.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer">
-                        Route
-                    </a>
-                </Button>
+                    Route
+                </button>
             </div>
         </div>
     );

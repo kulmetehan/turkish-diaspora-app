@@ -422,3 +422,4 @@ class ContentCurationService:
         # Sort by relevance_score (highest first)
         all_rankings.sort(key=lambda x: x.relevance_score, reverse=True)
         return all_rankings
+

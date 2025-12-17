@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import type { LocationMarker } from "@/api/fetchLocations";
+import { Icon, type IconProps } from "@/components/Icon";
+import { humanizeCategoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/ui/cn";
 
 type Props = {
@@ -15,9 +17,37 @@ type Props = {
   isLoading?: boolean; // NEW: global loading state
   error?: string | null; // NEW: global error state
   hasActiveSearch?: boolean; // NEW: whether there's an active search/filter
-  scrollTop?: number; // Scroll position to restore
-  onScrollPositionChange?: (scrollTop: number) => void; // Callback when scroll position changes
 };
+
+// Category icon mapping (matches CategoryChips)
+const CATEGORY_ICON_MAP: Record<string, IconProps["name"]> = {
+  restaurant: "UtensilsCrossed",
+  bakery: "Croissant",
+  supermarket: "ShoppingBasket",
+  barber: "Scissors",
+  mosque: "MoonStar",
+  travel_agency: "Plane",
+  butcher: "Beef",
+  fast_food: "Sandwich",
+  cafe: "Coffee",
+  cafe_bar: "Beer",
+  grocery: "ShoppingCart",
+  sweets: "Candy",
+  deli: "Sandwich",
+  car_dealer: "CarFront",
+  insurance: "ShieldCheck",
+  tailor: "Spool",
+  events_venue: "Calendar",
+  community_centre: "Users",
+  clinic: "HeartPulse",
+  other: "Store",
+};
+
+function resolveIconName(categoryKey: string | null | undefined): IconProps["name"] {
+  if (!categoryKey) return "Store";
+  const normalized = categoryKey.toLowerCase();
+  return CATEGORY_ICON_MAP[normalized] ?? "Store";
+}
 
 export default function LocationList({
   locations,
@@ -31,13 +61,9 @@ export default function LocationList({
   isLoading = false,
   error = null,
   hasActiveSearch = false,
-  scrollTop = 0,
-  onScrollPositionChange,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const scrollRestoredRef = useRef(false);
-  const scrollThrottleRef = useRef<number | null>(null);
 
   // Zorg dat onze refs altijd up-to-date zijn met de zichtbare lijst
   const ids = useMemo(() => locations.map((l) => l.id).join(","), [locations]);
@@ -50,60 +76,26 @@ export default function LocationList({
     }
   }, [ids, locations]);
 
-  // Restore scroll position on mount
+  // Auto-scroll naar geselecteerd item
   useEffect(() => {
-    if (scrollRestoredRef.current || !containerRef.current || isLoading || locations.length === 0) return;
-
-    if (scrollTop > 0) {
-      // Use requestAnimationFrame to ensure content is rendered
-      requestAnimationFrame(() => {
-        if (containerRef.current && !scrollRestoredRef.current) {
-          containerRef.current.scrollTo({ top: scrollTop, behavior: "auto" });
-          scrollRestoredRef.current = true;
-        }
-      });
-    } else {
-      scrollRestoredRef.current = true;
-    }
-  }, [scrollTop, isLoading, locations.length]);
-
-  // Handle scroll position changes (throttled)
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || !onScrollPositionChange) return;
-
-    const handleScroll = () => {
-      if (scrollThrottleRef.current !== null) {
-        window.cancelAnimationFrame(scrollThrottleRef.current);
-      }
-
-      scrollThrottleRef.current = window.requestAnimationFrame(() => {
-        if (container) {
-          onScrollPositionChange(container.scrollTop);
-        }
-      });
-    };
-
-    container.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      container.removeEventListener("scroll", handleScroll);
-      if (scrollThrottleRef.current !== null) {
-        window.cancelAnimationFrame(scrollThrottleRef.current);
-        scrollThrottleRef.current = null;
-      }
-    };
-  }, [onScrollPositionChange]);
-
-  // Auto-scroll naar geselecteerd item (only after scroll restoration is done)
-  useEffect(() => {
-    if (!autoScrollToSelected || !selectedId || !scrollRestoredRef.current) return;
+    if (!autoScrollToSelected || !selectedId) return;
     const el = itemRefs.current.get(selectedId);
-    const container = containerRef.current;
-    if (!el || !container) return;
+    if (!el) return;
+
+    // Find the scrollable parent (should be the list container in MapTab)
+    let scrollableParent: HTMLElement | null = el.parentElement;
+    while (scrollableParent && scrollableParent !== document.body) {
+      const style = window.getComputedStyle(scrollableParent);
+      if (style.overflowY === "auto" || style.overflowY === "scroll" || style.overflow === "auto" || style.overflow === "scroll") {
+        break;
+      }
+      scrollableParent = scrollableParent.parentElement;
+    }
+
+    if (!scrollableParent) return;
 
     const box = el.getBoundingClientRect();
-    const cbox = container.getBoundingClientRect();
+    const cbox = scrollableParent.getBoundingClientRect();
     const outside = box.top < cbox.top || box.bottom > cbox.bottom;
 
     if (outside) {
@@ -144,14 +136,12 @@ export default function LocationList({
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "rounded-3xl border border-border bg-card text-foreground shadow-card",
-        "divide-y divide-border overflow-auto",
-        fullHeight ? "h-full max-h-none" : "max-h-[calc(100vh-220px)]",
-      )}
+      className="space-y-3"
     >
       {locations.map((l) => {
         const active = l.id === selectedId;
+        const categoryKey = l.category_key ?? l.category ?? null;
+        const categoryIconName = resolveIconName(categoryKey);
         return (
           <div
             key={l.id}
@@ -162,21 +152,40 @@ export default function LocationList({
             }}
             role="button"
             className={cn(
-              "px-4 py-2 transition-all duration-200 ease-out text-foreground",
-              "hover:bg-surface-muted hover:text-foreground",
+              "border border-border rounded-3xl bg-card shadow-soft p-4 transition-all duration-200 ease-out text-foreground",
+              "hover:border-brand-accent hover:shadow-card",
               active
-                ? "bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_20px_35px_rgba(0,0,0,0.45)] ring-1 ring-brand-white/60"
+                ? "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_20px_35px_rgba(0,0,0,0.45)] ring-1 ring-brand-white/60"
                 : ""
             )}
             onClick={() => onSelect?.(l.id)}
           >
-            <div className="flex items-center justify-between gap-2">
-              <div className="font-medium">{l.name}</div>
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-3">
+              <Icon
+                name={categoryIconName}
+                className={cn(
+                  "h-5 w-5 shrink-0",
+                  active ? "text-brand-white" : "text-primary"
+                )}
+                aria-hidden
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-gilroy font-medium">{l.name}</div>
+                <div className={cn(
+                  "text-xs font-gilroy font-normal mt-1",
+                  active ? "text-brand-white/80" : "text-muted-foreground"
+                )}>
+                  {humanizeCategoryLabel(l.category_label ?? l.category)}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
                 {onShowOnMap && (
                   <button
                     type="button"
-                    className="text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className={cn(
+                      "text-xs font-gilroy font-normal underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring whitespace-nowrap",
+                      active ? "text-brand-white/80" : "text-muted-foreground"
+                    )}
                     onClick={(e) => {
                       e.stopPropagation();
                       onShowOnMap(l.id);
@@ -185,10 +194,19 @@ export default function LocationList({
                     Toon op kaart
                   </button>
                 )}
+                {onShowOnMap && onSelectDetail && (
+                  <div className={cn(
+                    "h-px w-full",
+                    active ? "bg-brand-white/20" : "bg-border"
+                  )} />
+                )}
                 {onSelectDetail && (
                   <button
                     type="button"
-                    className="text-xs text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    className={cn(
+                      "text-xs font-gilroy font-normal underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring whitespace-nowrap",
+                      active ? "text-brand-white" : "text-primary"
+                    )}
                     onClick={(e) => {
                       e.stopPropagation();
                       onSelectDetail(l.id);
@@ -198,9 +216,6 @@ export default function LocationList({
                   </button>
                 )}
               </div>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {l.category_label ?? l.category ?? "—"} • {l.is_turkish ? "Turks" : "—"}
             </div>
           </div>
         );
