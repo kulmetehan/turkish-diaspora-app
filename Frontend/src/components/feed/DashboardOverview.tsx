@@ -1,6 +1,6 @@
 // Frontend/src/components/feed/DashboardOverview.tsx
 import type { EventItem } from "@/api/events";
-import type { NewsItem } from "@/api/news";
+import { fetchNews, type NewsItem } from "@/api/news";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   fetchCuratedEvents,
@@ -117,6 +117,18 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
     pollsThisWeek: 0,
     favoritesThisWeek: 0,
     bulletinThisWeek: 0,
+    loading: true,
+    error: false,
+  });
+
+  const [trendsNl, setTrendsNl] = useState<NewsCardData>({
+    items: [],
+    loading: true,
+    error: false,
+  });
+
+  const [trendsTr, setTrendsTr] = useState<NewsCardData>({
+    items: [],
     loading: true,
     error: false,
   });
@@ -313,6 +325,122 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
     };
   }, []);
 
+  // Fetch trends for Netherlands
+  useEffect(() => {
+    let cancelled = false;
+    let controller: AbortController | null = null;
+
+    async function loadTrendsNl() {
+      if (controller) {
+        controller.abort();
+      }
+      controller = new AbortController();
+
+      try {
+        const response = await fetchNews({
+          feed: "trending",
+          trendCountry: "nl",
+          limit: 10,
+          signal: controller.signal,
+        });
+        if (!cancelled) {
+          setTrendsNl({
+            items: response.items || [],
+            loading: false,
+            error: false,
+          });
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+        console.error("Failed to load trends NL:", error);
+        if (!cancelled) {
+          setTrendsNl((prev) => ({
+            ...prev,
+            loading: false,
+            error: true,
+          }));
+        }
+      }
+    }
+
+    loadTrendsNl();
+
+    // Periodieke refresh elk uur
+    const intervalId = setInterval(() => {
+      if (!cancelled) {
+        loadTrendsNl();
+      }
+    }, 3600000); // 1 uur
+
+    return () => {
+      cancelled = true;
+      if (controller) {
+        controller.abort();
+      }
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  // Fetch trends for Turkey
+  useEffect(() => {
+    let cancelled = false;
+    let controller: AbortController | null = null;
+
+    async function loadTrendsTr() {
+      if (controller) {
+        controller.abort();
+      }
+      controller = new AbortController();
+
+      try {
+        const response = await fetchNews({
+          feed: "trending",
+          trendCountry: "tr",
+          limit: 10,
+          signal: controller.signal,
+        });
+        if (!cancelled) {
+          setTrendsTr({
+            items: response.items || [],
+            loading: false,
+            error: false,
+          });
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          return;
+        }
+        console.error("Failed to load trends TR:", error);
+        if (!cancelled) {
+          setTrendsTr((prev) => ({
+            ...prev,
+            loading: false,
+            error: true,
+          }));
+        }
+      }
+    }
+
+    loadTrendsTr();
+
+    // Periodieke refresh elk uur
+    const intervalId = setInterval(() => {
+      if (!cancelled) {
+        loadTrendsTr();
+      }
+    }, 3600000); // 1 uur
+
+    return () => {
+      cancelled = true;
+      if (controller) {
+        controller.abort();
+      }
+      clearInterval(intervalId);
+    };
+  }, []);
+
   // Format date helper
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -356,7 +484,7 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
                 <p className="line-clamp-1 text-[11px] font-gilroy font-medium leading-tight">
                   {item.title}
                 </p>
-                <p className="text-[10px] font-gilroy font-normal text-muted-foreground/70">
+                <p className="truncate text-[10px] font-gilroy font-normal text-muted-foreground/70">
                   {item.source} · {formatDate(item.published_at)}
                 </p>
               </div>
@@ -516,6 +644,84 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             >
               {activityData.bulletinThisWeek} advertenties deze week
             </button>
+          </div>
+        )}
+      </DashboardCard>
+
+      {/* Trending Netherlands Card */}
+      <DashboardCard
+        title="Top 10 Trending Nederland"
+        icon="TrendingUp"
+        footerLink="#/news?feed=trending&trend_country=nl"
+        footerText="Bekijk alle trends"
+      >
+        {trendsNl.loading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-5/6" />
+          </div>
+        ) : trendsNl.error ? (
+          <p className="text-xs font-gilroy font-normal">Niet beschikbaar</p>
+        ) : trendsNl.items.length === 0 ? (
+          <p className="text-xs font-gilroy font-normal">Geen trends beschikbaar</p>
+        ) : (
+          <div className="flex flex-col justify-center space-y-0 min-h-[80px]">
+            {trendsNl.items.slice(0, 10).map((item, index) => (
+              <div
+                key={item.id}
+                className={cn(
+                  "flex items-center gap-2 py-1.5",
+                  index < trendsNl.items.length - 1 && "border-b border-border/40"
+                )}
+              >
+                <span className="flex-shrink-0 text-[11px] font-gilroy font-semibold text-muted-foreground/70 leading-none">
+                  {index + 1}.
+                </span>
+                <p className="line-clamp-1 text-[11px] font-gilroy font-medium leading-tight flex-1">
+                  {item.title}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </DashboardCard>
+
+      {/* Trending Turkey Card */}
+      <DashboardCard
+        title="Top 10 Trending Turkije"
+        icon="TrendingUp"
+        footerLink="#/news?feed=trending&trend_country=tr"
+        footerText="Bekijk alle trends"
+      >
+        {trendsTr.loading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-5/6" />
+          </div>
+        ) : trendsTr.error ? (
+          <p className="text-xs font-gilroy font-normal">Niet beschikbaar</p>
+        ) : trendsTr.items.length === 0 ? (
+          <p className="text-xs font-gilroy font-normal">Geen trends beschikbaar</p>
+        ) : (
+          <div className="flex flex-col justify-center space-y-0 min-h-[80px]">
+            {trendsTr.items.slice(0, 10).map((item, index) => (
+              <div
+                key={item.id}
+                className={cn(
+                  "flex items-center gap-2 py-1.5",
+                  index < trendsTr.items.length - 1 && "border-b border-border/40"
+                )}
+              >
+                <span className="flex-shrink-0 text-[11px] font-gilroy font-semibold text-muted-foreground/70 leading-none">
+                  {index + 1}.
+                </span>
+                <p className="line-clamp-1 text-[11px] font-gilroy font-medium leading-tight flex-1">
+                  {item.title}
+                </p>
+              </div>
+            ))}
           </div>
         )}
       </DashboardCard>

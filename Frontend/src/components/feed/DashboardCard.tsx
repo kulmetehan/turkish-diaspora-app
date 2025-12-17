@@ -24,7 +24,13 @@ export function DashboardCard({
 
   const handleFooterClick = () => {
     if (footerLink) {
-      navigate(footerLink);
+      // Support hash routes (e.g., #/news?feed=trending&trend_country=nl)
+      if (footerLink.startsWith("#")) {
+        const hashPath = footerLink.slice(1); // Remove leading #
+        window.location.hash = hashPath;
+      } else {
+        navigate(footerLink);
+      }
     }
   };
 

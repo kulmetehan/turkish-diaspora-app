@@ -1,4 +1,3 @@
-import { Fragment, useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
@@ -24,8 +23,6 @@ export interface NewsListProps {
   meta?: {
     unavailable_reason?: string;
   };
-  scrollTop?: number; // Scroll position to restore
-  onScrollPositionChange?: (scrollTop: number) => void; // Callback when scroll position changes
 }
 
 const LOADING_SKELETON_COUNT = 4;
@@ -44,66 +41,12 @@ export function NewsList({
   isBookmarked,
   toggleBookmark,
   meta,
-  scrollTop = 0,
-  onScrollPositionChange,
 }: NewsListProps) {
-  // All hooks must be called unconditionally at the top, before any early returns
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const scrollRestoredRef = useRef(false);
-  const scrollThrottleRef = useRef<number | null>(null);
-
-  // Restore scroll position on mount (only when conditions are met)
-  useEffect(() => {
-    // Guard: only restore if we have items and aren't loading initial data
-    if (scrollRestoredRef.current || !scrollContainerRef.current || isLoading || items.length === 0) {
-      return;
-    }
-
-    if (scrollTop > 0) {
-      // Use requestAnimationFrame to ensure content is rendered
-      requestAnimationFrame(() => {
-        if (scrollContainerRef.current && !scrollRestoredRef.current) {
-          scrollContainerRef.current.scrollTo({ top: scrollTop, behavior: "auto" });
-          scrollRestoredRef.current = true;
-        }
-      });
-    } else {
-      scrollRestoredRef.current = true;
-    }
-  }, [scrollTop, isLoading, items.length]);
-
-  // Handle scroll position changes (throttled) - only when we have a scrollable container
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container || !onScrollPositionChange) return;
-
-    const handleScroll = () => {
-      if (scrollThrottleRef.current !== null) {
-        window.cancelAnimationFrame(scrollThrottleRef.current);
-      }
-
-      scrollThrottleRef.current = window.requestAnimationFrame(() => {
-        if (container) {
-          onScrollPositionChange(container.scrollTop);
-        }
-      });
-    };
-
-    container.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      container.removeEventListener("scroll", handleScroll);
-      if (scrollThrottleRef.current !== null) {
-        window.cancelAnimationFrame(scrollThrottleRef.current);
-        scrollThrottleRef.current = null;
-      }
-    };
-  }, [onScrollPositionChange]);
 
   // Early returns AFTER all hooks have been called
   if (isLoading && items.length === 0) {
     return (
-      <div className="rounded-2xl border border-border/80 bg-card p-4 text-foreground shadow-soft">
+      <div className={cn("space-y-4", className)}>
         {Array.from({ length: LOADING_SKELETON_COUNT }).map((_, index) => (
           <NewsCardSkeleton key={index} />
         ))}
@@ -170,27 +113,17 @@ export function NewsList({
   }
 
   return (
-    <div
-      ref={scrollContainerRef}
-      className={cn(
-        "rounded-2xl border border-border/80 bg-card text-foreground shadow-soft",
-        "divide-y divide-border overflow-auto max-h-[calc(100vh-260px)]",
-        className,
-      )}
-    >
+    <div className={cn("space-y-4", className)}>
       {items.map((item) => (
-        <Fragment key={item.id}>
-          <div className="p-3.5">
-            <NewsCard
-              item={item}
-              isBookmarked={isBookmarked?.(item.id)}
-              onToggleBookmark={toggleBookmark ? () => toggleBookmark(item) : undefined}
-            />
-          </div>
-        </Fragment>
+        <NewsCard
+          key={item.id}
+          item={item}
+          isBookmarked={isBookmarked?.(item.id)}
+          onToggleBookmark={toggleBookmark ? () => toggleBookmark(item) : undefined}
+        />
       ))}
       {(hasMore || isLoadingMore) && (
-        <div className="p-3.5">
+        <div className="flex justify-center pt-2">
           {isLoadingMore ? (
             <p className="text-sm text-muted-foreground">Meer nieuws laden…</p>
           ) : (

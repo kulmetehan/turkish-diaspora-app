@@ -75,8 +75,9 @@ export function NewsCard({
       onClick={handleActivate}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative cursor-pointer rounded-2xl border border-border/80 bg-card p-5 text-foreground shadow-soft transition-all duration-200",
-        "hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background hover:shadow-card",
+        "relative cursor-pointer rounded-xl border border-border/50 bg-card p-3 text-foreground shadow-soft transition-all duration-200",
+        "hover:border-border/30 hover:shadow-[0_2px_6px_rgba(15,23,42,0.02),0_1px_2px_rgba(15,23,42,0.01)]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         className,
       )}
     >
@@ -88,20 +89,21 @@ export function NewsCard({
           title={bookmarkLabel}
           onClick={handleBookmarkClick}
           className={cn(
-            "absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground",
+            "absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground",
             "transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
           )}
         >
           {isBookmarked ? (
-            <BookmarkCheck className="h-5 w-5" aria-hidden />
+            <BookmarkCheck className="h-4 w-4" aria-hidden />
           ) : (
-            <Bookmark className="h-5 w-5" aria-hidden />
+            <Bookmark className="h-4 w-4" aria-hidden />
           )}
         </button>
       ) : null}
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-3 pr-8">
+        {/* Image */}
         {item.image_url ? (
-          <div className="flex-shrink-0 overflow-hidden rounded-2xl border border-border/70 bg-muted sm:h-24 sm:w-32">
+          <div className="flex-shrink-0 overflow-hidden rounded-xl border border-border/70 bg-muted sm:h-20 sm:w-24 w-full h-32">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={item.image_url}
@@ -112,37 +114,41 @@ export function NewsCard({
           </div>
         ) : null}
 
+        {/* Content */}
         <div className="flex flex-1 flex-col gap-2">
+          {/* Title */}
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-base font-semibold leading-tight text-foreground">
-                {item.title}
-              </h3>
-              {item.tags?.includes("promoted") && (
-                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                  Promoted
-                </span>
-              )}
-            </div>
-            {item.snippet ? (
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                {item.snippet}
-              </p>
-            ) : null}
+            <h3 className="text-sm font-gilroy font-medium leading-tight text-foreground">
+              {item.title}
+            </h3>
+            {item.tags?.includes("promoted") && (
+              <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
+                Promoted
+              </span>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="font-medium">{item.source}</span>
-            <span className="h-1 w-1 rounded-full bg-muted-foreground/60" aria-hidden />
-            <span>{publishedLabel}</span>
+          {/* Snippet */}
+          {item.snippet ? (
+            <p className="text-sm font-gilroy font-normal text-foreground/90 leading-relaxed line-clamp-2">
+              {item.snippet}
+            </p>
+          ) : null}
+
+          {/* Meta: Source and Date */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-gilroy font-normal text-muted-foreground">{item.source}</span>
+            <span className="text-xs font-gilroy font-normal text-muted-foreground">·</span>
+            <span className="text-xs font-gilroy font-normal text-muted-foreground">{publishedLabel}</span>
           </div>
 
+          {/* Tags */}
           {visibleTags.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {visibleTags.map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex items-center rounded-full border border-border/70 bg-surface-muted px-2 py-0.5 text-xs font-medium capitalize text-foreground"
+                  className="inline-flex items-center rounded-full border border-border/70 bg-surface-muted px-2 py-0.5 text-xs font-gilroy font-medium capitalize text-foreground"
                 >
                   {tag}
                 </span>
