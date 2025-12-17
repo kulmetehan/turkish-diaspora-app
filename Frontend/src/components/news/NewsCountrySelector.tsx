@@ -1,14 +1,17 @@
-// Frontend/src/components/news/NewsFeedTabs.tsx
-import { NEWS_FEEDS, type NewsFeedKey } from "@/lib/routing/newsFeed";
+// Frontend/src/components/news/NewsCountrySelector.tsx
 import { cn } from "@/lib/ui/cn";
 
-export interface NewsFeedTabsProps {
-  value: NewsFeedKey;
-  onChange: (next: NewsFeedKey) => void;
+export interface NewsCountrySelectorProps {
+  value: "nl" | "tr";
+  onChange: (country: "nl" | "tr") => void;
   className?: string;
 }
 
-export function NewsFeedTabs({ value, onChange, className }: NewsFeedTabsProps) {
+export function NewsCountrySelector({
+  value,
+  onChange,
+  className,
+}: NewsCountrySelectorProps) {
   return (
     <div
       className={cn(
@@ -20,13 +23,17 @@ export function NewsFeedTabs({ value, onChange, className }: NewsFeedTabsProps) 
         msOverflowStyle: "none", // IE/Edge
       }}
     >
-      {NEWS_FEEDS.map((feed) => {
-        const isActive = value === feed.key;
+      {(["nl", "tr"] as const).map((country) => {
+        const isActive = value === country;
         return (
           <button
-            key={feed.key}
+            key={country}
             type="button"
-            onClick={() => onChange(feed.key)}
+            onClick={() => {
+              if (value !== country) {
+                onChange(country);
+              }
+            }}
             className={cn(
               "flex-shrink-0 rounded-sm px-4 py-1.5 text-sm font-gilroy font-medium transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
@@ -35,14 +42,12 @@ export function NewsFeedTabs({ value, onChange, className }: NewsFeedTabsProps) 
                 : "bg-gray-100 text-black hover:bg-gray-200"
             )}
             aria-pressed={isActive}
-            aria-label={`Filter by ${feed.label}`}
+            aria-label={`Select ${country === "nl" ? "Nederland" : "Turkije"}`}
           >
-            {feed.label}
+            {country === "nl" ? "Nederland" : "Turkije"}
           </button>
         );
       })}
     </div>
   );
 }
-
-

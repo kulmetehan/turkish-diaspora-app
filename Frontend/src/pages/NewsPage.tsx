@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { NewsItem } from "@/api/news";
-import { AppViewportShell, PageShell } from "@/components/layout";
+import { AppHeader } from "@/components/feed/AppHeader";
+import { FooterTabs } from "@/components/FooterTabs";
+import { AppViewportShell } from "@/components/layout";
 import { NewsCategoryFilterBar } from "@/components/news/NewsCategoryFilterBar";
 import { NewsCityModal } from "@/components/news/NewsCityModal";
+import { NewsCitySelector } from "@/components/news/NewsCitySelector";
+import { NewsCountrySelector } from "@/components/news/NewsCountrySelector";
 import { NewsFeedTabs } from "@/components/news/NewsFeedTabs";
+import { NewsHeaderSearch } from "@/components/news/NewsHeaderSearch";
+import { NewsIntroHeading } from "@/components/news/NewsIntroHeading";
 import { NewsList } from "@/components/news/NewsList";
-import { NewsSearchBar } from "@/components/news/NewsSearchBar";
-import { Button } from "@/components/ui/button";
 import { useNewsBookmarks } from "@/hooks/useNewsBookmarks";
 import { useNewsCityPreferences, type CityLabelMap } from "@/hooks/useNewsCityPreferences";
 import { NEWS_FEED_STALE_MS, useNewsFeed } from "@/hooks/useNewsFeed";
@@ -80,7 +84,22 @@ export default function NewsPage() {
     return hasHashParams ? hashSearchQuery : newsNavigation.searchQuery;
   });
 
-  const [trendCountry, setTrendCountry] = useState<"nl" | "tr">("nl");
+  // Read trend_country from hash on mount
+  const hashParams = (() => {
+    if (typeof window === "undefined") return new URLSearchParams();
+    const hash = window.location.hash ?? "";
+    const queryIndex = hash.indexOf("?");
+    const query = queryIndex >= 0 ? hash.slice(queryIndex + 1) : "";
+    return new URLSearchParams(query);
+  })();
+  const hashTrendCountry = hashParams.get("trend_country") as "nl" | "tr" | null;
+  const [trendCountry, setTrendCountry] = useState<"nl" | "tr">(() => {
+    return (hashTrendCountry === "nl" || hashTrendCountry === "tr") ? hashTrendCountry : "nl";
+  });
+  const [showSearch, setShowSearch] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const scrollRestoredRef = useRef(false);
+  const scrollThrottleRef = useRef<number | null>(null);
 
   const { bookmarks, isBookmarked, toggleBookmark } = useNewsBookmarks();
   const {
@@ -110,6 +129,15 @@ export default function NewsPage() {
       const nextFeed = readNewsFeedFromHash();
       const nextCategories = readNewsCategoriesFromHash();
       const nextSearchQuery = readNewsSearchQueryFromHash();
+      // Read trend_country from hash
+      const hashParams = (() => {
+        if (typeof window === "undefined") return new URLSearchParams();
+        const hash = window.location.hash ?? "";
+        const queryIndex = hash.indexOf("?");
+        const query = queryIndex >= 0 ? hash.slice(queryIndex + 1) : "";
+        return new URLSearchParams(query);
+      })();
+      const nextTrendCountry = hashParams.get("trend_country") as "nl" | "tr" | null;
 
       setFeed((current) => {
         if (current !== nextFeed) {
@@ -135,9 +163,18 @@ export default function NewsPage() {
         }
         return current;
       });
+      // Update trendCountry when hash changes
+      if (nextTrendCountry === "nl" || nextTrendCountry === "tr") {
+        setTrendCountry((current) => {
+          if (current !== nextTrendCountry) {
+            return nextTrendCountry;
+          }
+          return current;
+        });
+      }
     };
     return subscribeToNewsFeedHashChange(handleHashChange);
-  }, []);
+  }, [trendCountry]);
 
   useEffect(() => {
     writeNewsFeedToHash(feed);
@@ -187,52 +224,150 @@ export default function NewsPage() {
     navigationActions.setNews({ scrollTop });
   }, []);
 
+  // Restore scroll position on mount
+  useEffect(() => {
+    if (scrollRestoredRef.current || !scrollContainerRef.current) {
+      return;
+    }
+
+    const scrollTop = newsNavigation.scrollTop;
+    if (scrollTop > 0) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current && !scrollRestoredRef.current) {
+          scrollContainerRef.current.scrollTo({ top: scrollTop, behavior: "auto" });
+          scrollRestoredRef.current = true;
+        }
+      });
+    } else {
+      scrollRestoredRef.current = true;
+    }
+  }, [newsNavigation.scrollTop]);
+
+  // Track scroll position changes
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !handleScrollPositionChange) return;
+
+    const handleScroll = () => {
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+      }
+
+      scrollThrottleRef.current = window.requestAnimationFrame(() => {
+        if (container) {
+          handleScrollPositionChange(container.scrollTop);
+        }
+      });
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+      if (scrollThrottleRef.current !== null) {
+        window.cancelAnimationFrame(scrollThrottleRef.current);
+        scrollThrottleRef.current = null;
+      }
+    };
+  }, [handleScrollPositionChange]);
+
+  const handleNotificationClick = useCallback(() => {
+    // TODO: Implement notification navigation
+    console.log("Notification clicked");
+  }, []);
+
+  const handleSearchToggle = useCallback(() => {
+    setShowSearch((prev) => !prev);
+  }, []);
+
+  const handleSearchClose = useCallback(() => {
+    setShowSearch(false);
+  }, []);
+
   return (
     <AppViewportShell variant="content">
-      <PageShell
-        title="Nieuws voor jou"
-        subtitle="Artikelen geselecteerd op relevantie voor de Turkse diaspora."
-        maxWidth="5xl"
-      >
-        <section className="rounded-3xl border border-border bg-card p-4 shadow-soft">
-          <NewsFeedTabs value={feed} onChange={handleFeedChange} />
-        </section>
-      {feed === "bookmarks" ? (
-        <BookmarksSection
-          bookmarks={bookmarks}
-          isBookmarked={isBookmarked}
-          toggleBookmark={toggleBookmark}
+      <div className="flex flex-col h-full relative">
+        {/* Red gradient overlay */}
+        <div
+          className="absolute inset-x-0 top-0 pointer-events-none z-0"
+          style={{
+            height: '25%',
+            background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+          }}
         />
-      ) : (
-        <StandardNewsSection
-          feed={feed}
-          categories={categories}
-          onCategoriesChange={handleCategoriesChange}
-          onClearCategories={handleClearCategories}
-          searchQuery={searchQuery}
-          onSearchQueryChange={setSearchQuery}
-          onSearchClear={() => setSearchQuery("")}
-          isBookmarked={isBookmarked}
-          toggleBookmark={toggleBookmark}
-          cityPreferences={cityPreferences}
-          cityLabels={cityLabels}
-          onEditCities={openCityModal}
-          trendCountry={trendCountry}
-          onTrendCountryChange={setTrendCountry}
-          scrollTop={newsNavigation.scrollTop}
-          onScrollPositionChange={handleScrollPositionChange}
+        <AppHeader
+          onNotificationClick={handleNotificationClick}
+          showSearch={showSearch}
+          onSearchToggle={handleSearchToggle}
         />
-      )}
-        <NewsCityModal
-          isOpen={isCityModalOpen}
-          options={cityOptions}
-          preferences={cityPreferences}
-          cityLabels={cityLabels}
-          onRememberCities={rememberCityLabels}
-          onSave={saveCityPreferences}
-          onClose={closeCityModal}
+        <NewsHeaderSearch
+          isOpen={showSearch}
+          value={searchQuery}
+          onChange={setSearchQuery}
+          onClear={() => setSearchQuery("")}
+          onClose={handleSearchClose}
+          loading={searchQuery.trim().length >= 2}
         />
-      </PageShell>
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-4 pb-24 relative z-10"
+        >
+          <NewsIntroHeading />
+          {/* City selector for local/origin feeds - positioned under intro, above tabs */}
+          {(feed === "local" || feed === "origin") ? (
+            <NewsCitySelector
+              cities={feed === "local" ? cityPreferences.nl : cityPreferences.tr}
+              cityLabels={cityLabels}
+              onEdit={openCityModal}
+              className="mt-2"
+            />
+          ) : null}
+          {/* Country selector for trending feed - positioned under intro, above tabs */}
+          {feed === "trending" ? (
+            <NewsCountrySelector
+              value={trendCountry}
+              onChange={setTrendCountry}
+              className="mt-2"
+            />
+          ) : null}
+          <NewsFeedTabs value={feed} onChange={handleFeedChange} className="mt-2" />
+          {/* Subtle separator between main tabs and category filters */}
+          {feed === "bookmarks" ? (
+            <BookmarksSection
+              bookmarks={bookmarks}
+              isBookmarked={isBookmarked}
+              toggleBookmark={toggleBookmark}
+            />
+          ) : (
+            <StandardNewsSection
+              feed={feed}
+              categories={categories}
+              onCategoriesChange={handleCategoriesChange}
+              onClearCategories={handleClearCategories}
+              searchQuery={searchQuery}
+              onSearchQueryChange={setSearchQuery}
+              onSearchClear={() => setSearchQuery("")}
+              isBookmarked={isBookmarked}
+              toggleBookmark={toggleBookmark}
+              cityPreferences={cityPreferences}
+              cityLabels={cityLabels}
+              onEditCities={openCityModal}
+              trendCountry={trendCountry}
+              onTrendCountryChange={setTrendCountry}
+            />
+          )}
+        </div>
+        <FooterTabs />
+      </div>
+      <NewsCityModal
+        isOpen={isCityModalOpen}
+        options={cityOptions}
+        preferences={cityPreferences}
+        cityLabels={cityLabels}
+        onRememberCities={rememberCityLabels}
+        onSave={saveCityPreferences}
+        onClose={closeCityModal}
+      />
     </AppViewportShell>
   );
 }
@@ -252,8 +387,6 @@ interface StandardNewsSectionProps {
   onEditCities: () => void;
   trendCountry: "nl" | "tr";
   onTrendCountryChange: (country: "nl" | "tr") => void;
-  scrollTop: number;
-  onScrollPositionChange: (scrollTop: number) => void;
 }
 
 function StandardNewsSection({
@@ -271,8 +404,6 @@ function StandardNewsSection({
   onEditCities,
   trendCountry,
   onTrendCountryChange,
-  scrollTop,
-  onScrollPositionChange,
 }: StandardNewsSectionProps) {
   const trimmedSearch = searchQuery.trim();
   const isSearchMode = trimmedSearch.length >= 2;
@@ -371,76 +502,19 @@ function StandardNewsSection({
   }, [maybeAutoRefresh]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="rounded-3xl border border-border bg-card p-4 shadow-soft">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <NewsSearchBar
-            value={searchQuery}
-            onChange={onSearchQueryChange}
-            onClear={onSearchClear}
-            loading={isSearchMode && searchLoading}
-            className="flex-1"
-          />
-        </div>
-
-        {isSearchMode ? (
-          <p className="px-1 pt-2 text-xs text-muted-foreground">
-            Zoekresultaten binnen de selectie. Gebruik de tabs om snel terug te schakelen naar een vaste feed.
-          </p>
-        ) : (
-          <p className="px-1 pt-2 text-xs text-muted-foreground">
-            Laatst bijgewerkt: {lastUpdatedLabel}
-          </p>
-        )}
-        {isTrendingFeed ? (
-          <div className="px-1 pt-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <span>Land</span>
-              <div className="flex gap-2">
-                {(["nl", "tr"] as const).map((country) => (
-                  <Button
-                    key={`trend-country-${country}`}
-                    type="button"
-                    size="sm"
-                    variant={trendCountry === country ? "default" : "outline"}
-                    onClick={() => {
-                      if (trendCountry !== country) {
-                        onTrendCountryChange(country);
-                      }
-                    }}
-                  >
-                    {country === "nl" ? "Nederland" : "Turkije"}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
-
+    <div className="flex flex-col gap-2 mt-2">
+      {/* Category filters for non-trending feeds */}
       {!isTrendingFeed ? (
         <NewsCategoryFilterBar
           feed={feed}
           selected={categories}
           onChange={onCategoriesChange}
           onClear={onClearCategories}
+          className="mt-1"
         />
       ) : null}
 
-      {(feed === "local" || feed === "origin") ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-3xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground shadow-soft">
-          <span>
-            Steden:&nbsp;
-            {feed === "local"
-              ? renderCityList(cityPreferences.nl, cityLabels)
-              : renderCityList(cityPreferences.tr, cityLabels)}
-          </span>
-          <Button type="button" variant="ghost" size="sm" onClick={onEditCities}>
-            Wijzig selectie
-          </Button>
-        </div>
-      ) : null}
-
+      {/* News list */}
       <NewsList
         items={displayedItems}
         isLoading={displayedLoading}
@@ -454,8 +528,6 @@ function StandardNewsSection({
         isBookmarked={isBookmarked}
         toggleBookmark={toggleBookmark}
         meta={!isSearchMode ? meta : undefined}
-        scrollTop={scrollTop}
-        onScrollPositionChange={onScrollPositionChange}
       />
     </div>
   );
@@ -474,12 +546,12 @@ function BookmarksSection({
 }: BookmarksSectionProps) {
   if (!bookmarks.length) {
     return (
-      <div className="space-y-4">
+      <div className="mt-2 space-y-4">
         <p className="px-1 text-xs text-muted-foreground">
           Je opgeslagen artikelen worden lokaal op dit apparaat bewaard en worden niet
           gesynchroniseerd met andere apparaten.
         </p>
-        <div className="rounded-3xl border border-border bg-card p-6 text-center text-foreground shadow-soft">
+        <div className="rounded-2xl border border-border/80 bg-card p-6 text-center text-foreground shadow-soft">
           <p className="text-base font-semibold text-foreground">
             Nog geen opgeslagen artikelen
           </p>
@@ -492,7 +564,7 @@ function BookmarksSection({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mt-2 space-y-4">
       <p className="px-1 text-xs text-muted-foreground">
         Je opgeslagen artikelen worden lokaal op dit apparaat bewaard en worden niet
         gesynchroniseerd met andere apparaten.
@@ -512,9 +584,3 @@ function BookmarksSection({
   );
 }
 
-function renderCityList(cities: string[], cityLabels: CityLabelMap) {
-  if (!cities.length) {
-    return "geen selectie";
-  }
-  return cities.map((key) => cityLabels[key]?.name ?? key).join(", ");
-}
