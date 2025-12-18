@@ -1,5 +1,5 @@
 // Frontend/src/components/feed/AppHeader.tsx
-import TurkSpotBot from "@/assets/TurkSpotBot.png";
+import TurkSpotBot from "@/assets/turkspotbot.png";
 import { Icon } from "@/components/Icon";
 import { cn } from "@/lib/ui/cn";
 import { useNavigate } from "react-router-dom";
