@@ -1,5 +1,5 @@
 // Shared mascotte avatar component for onboarding screens
-import TurkSpotBot from "@/assets/TurkSpotBot.png";
+import TurkSpotBot from "@/assets/turkspotbot.png";
 import { cn } from "@/lib/ui/cn";
 
 export interface MascotteAvatarProps {
