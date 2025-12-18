@@ -12,13 +12,13 @@ export interface FeedFilterTabsProps {
 
 // Filter configuration: display label -> activity_type value
 const FILTERS: Array<{ label: string; value: ActivityFilter }> = [
-  { label: "All", value: "all" },
+  { label: "Alles", value: "all" },
   { label: "Check-ins", value: "check_in" },
-  { label: "Reactions", value: "reaction" },
-  { label: "Notes", value: "note" },
+  { label: "Reacties", value: "reaction" },
+  { label: "Notities", value: "note" },
   { label: "Polls", value: "poll_response" },
-  { label: "Favorites", value: "favorite" },
-  { label: "Bulletin", value: "bulletin_post" },
+  { label: "Favorieten", value: "favorite" },
+  { label: "Prikbord", value: "bulletin_post" },
 ];
 
 export function FeedFilterTabs({
@@ -61,6 +61,7 @@ export function FeedFilterTabs({
     </div>
   );
 }
+
 
 
 

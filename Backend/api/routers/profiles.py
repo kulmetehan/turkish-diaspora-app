@@ -3,12 +3,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from starlette.requests import Request
-from typing import Optional
+from typing import Optional, List, Literal
 from pydantic import BaseModel
 from datetime import datetime
 
 from app.core.feature_flags import require_feature
+from app.core.client_id import get_client_id
 from services.db_service import fetch, execute
+from services.xp_service import award_xp
+from services.badge_service import _award_badge
 
 router = APIRouter(prefix="/users", tags=["profiles"])
 
@@ -28,12 +31,35 @@ class UserProfileUpdate(BaseModel):
     avatar_url: Optional[str] = None
     city_key: Optional[str] = None
     language_pref: Optional[str] = None
+    home_city: Optional[str] = None
+    home_region: Optional[str] = None
+    memleket: Optional[List[str]] = None
+    gender: Optional[Literal["male", "female", "prefer_not_to_say"]] = None
 
 
 class CurrentUserResponse(BaseModel):
     """Response model for /users/me endpoint (matches frontend CurrentUser interface)."""
     name: Optional[str] = None
     avatar_url: Optional[str] = None
+
+
+class OnboardingStatusResponse(BaseModel):
+    first_run: bool
+    onboarding_completed: bool
+    onboarding_version: Optional[str] = None
+
+
+class OnboardingCompleteRequest(BaseModel):
+    home_city: str
+    home_region: Optional[str] = None
+    memleket: Optional[List[str]] = None
+    gender: Optional[Literal["male", "female", "prefer_not_to_say"]] = None
+
+
+class OnboardingCompleteResponse(BaseModel):
+    success: bool
+    xp_awarded: int
+    badge_earned: Optional[str] = None
 
 
 @router.get("/me", response_model=CurrentUserResponse)
@@ -171,6 +197,31 @@ async def update_user_profile(
         values.append(profile.language_pref)
         param_num += 1
     
+    if profile.home_city is not None:
+        updates.append(f"home_city = ${param_num}")
+        values.append(profile.home_city.strip() if profile.home_city else None)
+        param_num += 1
+    
+    if profile.home_region is not None:
+        updates.append(f"home_region = ${param_num}")
+        values.append(profile.home_region.strip() if profile.home_region else None)
+        param_num += 1
+    
+    if profile.memleket is not None:
+        updates.append(f"memleket = ${param_num}")
+        values.append(profile.memleket if profile.memleket else None)
+        param_num += 1
+    
+    if profile.gender is not None:
+        if profile.gender not in ("male", "female", "prefer_not_to_say"):
+            raise HTTPException(
+                status_code=400,
+                detail="gender must be one of: male, female, prefer_not_to_say"
+            )
+        updates.append(f"gender = ${param_num}")
+        values.append(profile.gender)
+        param_num += 1
+    
     if not updates:
         raise HTTPException(
             status_code=400,
@@ -244,6 +295,163 @@ async def update_user_profile(
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),
     )
+
+
+@router.get("/me/onboarding-status", response_model=OnboardingStatusResponse)
+async def get_onboarding_status(
+    request: Request,
+    client_id: Optional[str] = Depends(get_client_id),
+):
+    """
+    Get onboarding status for current user.
+    Returns first_run=true for anonymous users or if no profile exists.
+    """
+    # TODO: Extract user_id from auth session when available
+    user_id = None
+    
+    if not user_id:
+        # Anonymous users or no profile: return first_run=true
+        return OnboardingStatusResponse(
+            first_run=True,
+            onboarding_completed=False,
+            onboarding_version=None,
+        )
+    
+    # Fetch onboarding status from user_profiles
+    sql = """
+        SELECT first_run, onboarding_completed, onboarding_version
+        FROM user_profiles
+        WHERE id = $1::uuid
+    """
+    rows = await fetch(sql, user_id)
+    
+    if not rows:
+        # No profile exists: treat as first run
+        return OnboardingStatusResponse(
+            first_run=True,
+            onboarding_completed=False,
+            onboarding_version=None,
+        )
+    
+    row = rows[0]
+    return OnboardingStatusResponse(
+        first_run=row.get("first_run", True) if row.get("first_run") is not None else True,
+        onboarding_completed=row.get("onboarding_completed", False) if row.get("onboarding_completed") is not None else False,
+        onboarding_version=row.get("onboarding_version"),
+    )
+
+
+@router.post("/me/onboarding/complete", response_model=OnboardingCompleteResponse)
+async def complete_onboarding(
+    request: Request,
+    data: OnboardingCompleteRequest,
+    client_id: Optional[str] = Depends(get_client_id),
+):
+    """
+    Complete onboarding flow.
+    Updates user profile with onboarding data, awards XP and badge.
+    """
+    # TODO: Extract user_id from auth session when available
+    user_id = None
+    
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required to complete onboarding"
+        )
+    
+    # Validate home_city (required)
+    if not data.home_city or not data.home_city.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="home_city is required"
+        )
+    
+    # Validate gender if provided
+    if data.gender is not None and data.gender not in ("male", "female", "prefer_not_to_say"):
+        raise HTTPException(
+            status_code=400,
+            detail="gender must be one of: male, female, prefer_not_to_say"
+        )
+    
+    try:
+        # Update user_profiles with onboarding data
+        update_sql = """
+            UPDATE user_profiles
+            SET 
+                home_city = $1,
+                home_region = $2,
+                memleket = $3,
+                gender = $4,
+                onboarding_completed = true,
+                first_run = false,
+                onboarding_completed_at = now(),
+                updated_at = now()
+            WHERE id = $5::uuid
+            RETURNING id
+        """
+        
+        # Convert memleket list to array format for PostgreSQL
+        memleket_array = data.memleket if data.memleket else None
+        
+        result_rows = await fetch(
+            update_sql,
+            data.home_city.strip(),
+            data.home_region.strip() if data.home_region else None,
+            memleket_array,
+            data.gender,
+            user_id,
+        )
+        
+        if not result_rows:
+            raise HTTPException(
+                status_code=404,
+                detail="User profile not found"
+            )
+        
+        # Award 10 XP for onboarding completion
+        xp_awarded = 0
+        try:
+            xp_success = await award_xp(
+                user_id=user_id,
+                client_id=client_id,
+                source="onboarding",
+                amount=10,
+            )
+            if xp_success:
+                xp_awarded = 10
+        except Exception as e:
+            # Log but don't fail the request if XP award fails
+            from app.core.logging import get_logger
+            logger = get_logger()
+            logger.warning("onboarding_xp_award_failed", user_id=user_id, error=str(e))
+        
+        # Award "nieuwkomer" badge
+        badge_earned = None
+        try:
+            badge_success = await _award_badge(user_id, "nieuwkomer", None)
+            if badge_success:
+                badge_earned = "nieuwkomer"
+        except Exception as e:
+            # Log but don't fail the request if badge award fails
+            from app.core.logging import get_logger
+            logger = get_logger()
+            logger.warning("onboarding_badge_award_failed", user_id=user_id, error=str(e))
+        
+        return OnboardingCompleteResponse(
+            success=True,
+            xp_awarded=xp_awarded,
+            badge_earned=badge_earned,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to complete onboarding: {str(e)}"
+        )
+
 
 
 

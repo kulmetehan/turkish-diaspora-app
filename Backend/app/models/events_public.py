@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EventItem(BaseModel):
@@ -23,6 +23,14 @@ class EventItem(BaseModel):
     updated_at: datetime
     lat: Optional[float] = None
     lng: Optional[float] = None
+    reactions: Optional[Dict[str, int]] = Field(
+        default=None,
+        description="Reaction counts: {'fire': 5, 'heart': 3, ...}",
+    )
+    user_reaction: Optional[str] = Field(
+        default=None,
+        description="Current user's reaction type, if any",
+    )
 
 
 class EventsListResponse(BaseModel):

@@ -42,7 +42,7 @@ export async function share(data: ShareData): Promise<boolean> {
 
   // Fallback to clipboard
   try {
-    const shareText = data.text 
+    const shareText = data.text
       ? `${data.title}\n\n${data.text}\n\n${shareUrl}`
       : `${data.title}\n\n${shareUrl}`;
 
@@ -71,6 +71,14 @@ export function getPollUrl(pollId: number | string): string {
 }
 
 /**
+ * Generate deep link URL for an event.
+ */
+export function getEventUrl(eventId: number | string): string {
+  const baseUrl = window.location.origin + window.location.pathname;
+  return `${baseUrl}#/events/${eventId}`;
+}
+
+/**
  * Share a location.
  */
 export async function shareLocation(location: {
@@ -79,7 +87,7 @@ export async function shareLocation(location: {
   category?: string | null;
 }): Promise<boolean> {
   const url = getLocationUrl(location.id);
-  const categoryText = location.category 
+  const categoryText = location.category
     ? ` (${location.category})`
     : "";
 
@@ -99,7 +107,7 @@ export async function sharePoll(poll: {
   question?: string;
 }): Promise<boolean> {
   const url = getPollUrl(poll.id);
-  const text = poll.question 
+  const text = poll.question
     ? poll.question
     : `Check out this poll: ${poll.title}`;
 
@@ -109,6 +117,22 @@ export async function sharePoll(poll: {
     url,
   });
 }
+
+/**
+ * Share an event.
+ */
+export async function shareEvent(event: {
+  id: number | string;
+  title: string;
+}): Promise<boolean> {
+  const url = getEventUrl(event.id);
+  return share({
+    title: `Check out ${event.title} on Turkspot!`,
+    text: `I found this event on Turkspot: ${event.title}`,
+    url,
+  });
+}
+
 
 
 

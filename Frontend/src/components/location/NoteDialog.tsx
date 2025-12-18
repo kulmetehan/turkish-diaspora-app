@@ -2,10 +2,9 @@ import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
-    DialogTitle,
+    DialogTitle
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -109,7 +108,7 @@ export default function NoteDialog({
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent
-                className="z-[80]"
+                className="z-[80] font-gilroy"
                 overlayClassName="z-[79]"
                 onEscapeKeyDown={(e) => {
                     // Prevent closing on Escape when typing in textarea
@@ -128,13 +127,10 @@ export default function NoteDialog({
                 }}
             >
                 <DialogHeader>
-                    <DialogTitle>
+                    <DialogTitle className="font-gilroy">
                         {initialContent ? "Notitie bewerken" : "Notitie toevoegen"}
                         {locationName && ` - ${locationName}`}
                     </DialogTitle>
-                    <DialogDescription>
-                        Deel je ervaring of tips over deze locatie (3-1000 karakters)
-                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
@@ -152,6 +148,7 @@ export default function NoteDialog({
                             maxLength={MAX_LENGTH}
                             disabled={isSubmitting}
                             autoFocus
+                            className="font-gilroy"
                         />
                         <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>
@@ -180,13 +177,16 @@ export default function NoteDialog({
                         variant="outline"
                         onClick={() => handleOpenChange(false)}
                         disabled={isSubmitting}
+                        className="font-gilroy"
                     >
                         Annuleren
                     </Button>
                     <Button
                         type="button"
+                        variant="default"
                         onClick={handleSubmit}
                         disabled={!isValid || isSubmitting}
+                        className="font-gilroy"
                     >
                         {isSubmitting ? "Opslaan..." : initialContent ? "Bijwerken" : "Opslaan"}
                     </Button>

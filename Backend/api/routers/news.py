@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Dict, List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Path, Depends
+from pydantic import BaseModel
 
+from app.core.client_id import get_client_id
+from app.core.feature_flags import require_feature
 from app.models.news_city_config import (
     NewsCity,
     get_default_city_keys,
@@ -17,6 +20,7 @@ from app.models.news_public import (
     NewsItem,
     NewsListResponse,
 )
+from services.db_service import fetch, execute
 from services.news_feed_rules import FeedType
 from services.news_service import (
     list_news_by_feed,
@@ -298,5 +302,165 @@ def _city_to_payload(city: NewsCity) -> NewsCityRecord:
         lng=city.lng,
         metadata=metadata,
     )
+
+
+class ReactionToggleRequest(BaseModel):
+    reaction_type: str  # 'fire', 'heart', 'thumbs_up', 'smile', 'star', 'flag'
+
+
+@router.post("/{news_id}/reactions", response_model=dict)
+async def toggle_news_reaction(
+    news_id: int = Path(..., description="News ID"),
+    request: ReactionToggleRequest = ...,
+    client_id: Optional[str] = Depends(get_client_id),
+):
+    """Toggle emoji reaction on news item."""
+    require_feature("check_ins_enabled")
+    
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id required")
+    
+    # Validate reaction type
+    valid_reactions = ["fire", "heart", "thumbs_up", "smile", "star", "flag"]
+    if request.reaction_type not in valid_reactions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid reaction_type. Must be one of: {', '.join(valid_reactions)}"
+        )
+    
+    user_id = None  # TODO: Extract from auth session
+    
+    # Check if news exists (only for DB-based news, not trending/promoted)
+    check_sql = "SELECT id FROM raw_ingested_news WHERE id = $1"
+    check_rows = await fetch(check_sql, news_id)
+    if not check_rows:
+        raise HTTPException(status_code=404, detail="News item not found")
+    
+    # Check if already reacted with this type
+    if user_id:
+        check_reaction_sql = """
+            SELECT id FROM news_reactions 
+            WHERE news_id = $1 AND user_id = $2 AND reaction_type = $3
+        """
+        existing = await fetch(check_reaction_sql, news_id, user_id, request.reaction_type)
+    else:
+        check_reaction_sql = """
+            SELECT id FROM news_reactions 
+            WHERE news_id = $1 AND client_id = $2 AND reaction_type = $3
+        """
+        existing = await fetch(check_reaction_sql, news_id, client_id, request.reaction_type)
+    
+    if existing:
+        # Remove reaction
+        if user_id:
+            delete_sql = """
+                DELETE FROM news_reactions 
+                WHERE news_id = $1 AND user_id = $2 AND reaction_type = $3
+            """
+            await execute(delete_sql, news_id, user_id, request.reaction_type)
+        else:
+            delete_sql = """
+                DELETE FROM news_reactions 
+                WHERE news_id = $1 AND client_id = $2 AND reaction_type = $3
+            """
+            await execute(delete_sql, news_id, client_id, request.reaction_type)
+        is_active = False
+    else:
+        # Add reaction
+        if user_id:
+            insert_sql = """
+                INSERT INTO news_reactions (news_id, user_id, reaction_type) 
+                VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
+            """
+            await execute(insert_sql, news_id, user_id, request.reaction_type)
+        else:
+            insert_sql = """
+                INSERT INTO news_reactions (news_id, client_id, reaction_type) 
+                VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
+            """
+            await execute(insert_sql, news_id, client_id, request.reaction_type)
+        is_active = True
+    
+    # Get updated count
+    count_sql = """
+        SELECT COUNT(*) as count 
+        FROM news_reactions 
+        WHERE news_id = $1 AND reaction_type = $2
+    """
+    count_rows = await fetch(count_sql, news_id, request.reaction_type)
+    count = count_rows[0]["count"] if count_rows else 0
+    
+    return {
+        "reaction_type": request.reaction_type,
+        "is_active": is_active,
+        "count": count
+    }
+
+
+@router.get("/{news_id}/reactions", response_model=dict)
+async def get_news_reactions(
+    news_id: int = Path(..., description="News ID"),
+    client_id: Optional[str] = Depends(get_client_id),
+):
+    """Get reaction counts and user reaction for a news item."""
+    require_feature("check_ins_enabled")
+    
+    # Check if news exists
+    check_sql = "SELECT id FROM raw_ingested_news WHERE id = $1"
+    check_rows = await fetch(check_sql, news_id)
+    if not check_rows:
+        raise HTTPException(status_code=404, detail="News item not found")
+    
+    user_id = None  # TODO: Extract from auth session
+    
+    # Get reaction counts grouped by type
+    counts_sql = """
+        SELECT reaction_type, COUNT(*) as count
+        FROM news_reactions
+        WHERE news_id = $1
+        GROUP BY reaction_type
+    """
+    count_rows = await fetch(counts_sql, news_id)
+    
+    # Build reactions dict with all types initialized to 0
+    reactions = {
+        "fire": 0,
+        "heart": 0,
+        "thumbs_up": 0,
+        "smile": 0,
+        "star": 0,
+        "flag": 0,
+    }
+    
+    for row in count_rows:
+        reaction_type = row["reaction_type"]
+        if reaction_type in reactions:
+            reactions[reaction_type] = row["count"]
+    
+    # Get user's reaction if any
+    user_reaction = None
+    if user_id:
+        user_reaction_sql = """
+            SELECT reaction_type FROM news_reactions
+            WHERE news_id = $1 AND user_id = $2
+            LIMIT 1
+        """
+        user_reaction_rows = await fetch(user_reaction_sql, news_id, user_id)
+        if user_reaction_rows:
+            user_reaction = user_reaction_rows[0]["reaction_type"]
+    elif client_id:
+        user_reaction_sql = """
+            SELECT reaction_type FROM news_reactions
+            WHERE news_id = $1 AND client_id = $2
+            LIMIT 1
+        """
+        user_reaction_rows = await fetch(user_reaction_sql, news_id, client_id)
+        if user_reaction_rows:
+            user_reaction = user_reaction_rows[0]["reaction_type"]
+    
+    return {
+        "reactions": reactions,
+        "user_reaction": user_reaction
+    }
 
 

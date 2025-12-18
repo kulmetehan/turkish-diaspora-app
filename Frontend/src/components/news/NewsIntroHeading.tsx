@@ -15,3 +15,4 @@ export function NewsIntroHeading({ className }: NewsIntroHeadingProps) {
   );
 }
 
+

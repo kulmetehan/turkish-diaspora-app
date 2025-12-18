@@ -1105,7 +1105,7 @@ export default function MapView({
     if (destroyedRef.current) return;
     if (typeof navigator === "undefined" || !("geolocation" in navigator) || !navigator.geolocation) {
       clearUserLocation();
-      console.info("Geolocation not supported.");
+      // console.info("Geolocation not supported.");
       return;
     }
     if (isLocating) return;
@@ -1120,7 +1120,7 @@ export default function MapView({
         const { latitude, longitude } = position.coords ?? {};
         if (!isFiniteCoord(longitude) || !isFiniteCoord(latitude)) {
           clearUserLocation();
-          console.info("Could not determine your position.");
+          // console.info("Could not determine your position.");
           return;
         }
 
@@ -1174,7 +1174,7 @@ export default function MapView({
           default:
             break;
         }
-        console.info(message);
+        // console.info(message);
       },
       {
         enableHighAccuracy: true,
@@ -1189,7 +1189,7 @@ export default function MapView({
       if (destroyedRef.current) return;
       const location = findLocationById(id);
       if (!location) {
-        console.warn("MapView: location not found for id", id);
+        // console.warn("MapView: location not found for id", id);
         return;
       }
       if (!isFiniteCoord(location.lng) || !isFiniteCoord(location.lat)) {
@@ -1321,7 +1321,7 @@ export default function MapView({
     const pending = pendingFocusDataRef.current;
     if (!pending) return;
     if (!isFiniteCoord(pending.location.lng) || !isFiniteCoord(pending.location.lat)) {
-      console.warn("Skipping focus: invalid coordinates", pending);
+      // console.warn("Skipping focus: invalid coordinates", pending);
       pendingFocusDataRef.current = null;
       onFocusConsumed?.();
       return;
@@ -1421,7 +1421,7 @@ export default function MapView({
       try {
         await registerClusterSprites(map);
       } catch (err) {
-        console.error("[MapView] Failed to register cluster sprites:", err);
+        // console.error("[MapView] Failed to register cluster sprites:", err);
         // Don't throw - markers should work even if cluster sprites fail
       }
 
@@ -1524,7 +1524,7 @@ export default function MapView({
         // Mark initial view as settled to prevent overriding
         initialViewSettledRef.current = true;
         if (import.meta.env.DEV) {
-          console.debug("[MapView] Restored camera from navigation store", mapNavigation.camera);
+          // console.debug("[MapView] Restored camera from navigation store", mapNavigation.camera);
         }
       } catch {
         // Ignore errors, fall back to initial center behavior
@@ -1543,11 +1543,11 @@ export default function MapView({
       if (!map) return;
 
       if (import.meta.env.DEV) {
-        console.debug("[InitialMapCameraApplied]", {
-          center: target.center,
-          zoom: target.zoom,
-          source: initialCenterResult.source,
-        });
+        // console.debug("[InitialMapCameraApplied]", {
+        //   center: target.center,
+        //   zoom: target.zoom,
+        //   source: initialCenterResult.source,
+        // });
       }
 
       const success = performCameraTransition(
@@ -1601,7 +1601,7 @@ export default function MapView({
         zoom: overrideZoom,
       });
       if (import.meta.env.DEV) {
-        console.debug("[MapView] Using initialCenterOverride:", initialCenterOverride);
+        // console.debug("[MapView] Using initialCenterOverride:", initialCenterOverride);
       }
       return;
     }
@@ -1679,12 +1679,12 @@ export default function MapView({
 
     const location = findLocationById(focusId);
     if (!location) {
-      console.warn("MapView: cannot focus, location not found for id", focusId);
+      // console.warn("MapView: cannot focus, location not found for id", focusId);
       onFocusConsumed?.();
       return;
     }
     if (!isFiniteCoord(location.lng) || !isFiniteCoord(location.lat)) {
-      console.warn("Skipping focus: invalid coordinates", { id: focusId, location });
+      // console.warn("Skipping focus: invalid coordinates", { id: focusId, location });
       onFocusConsumed?.();
       return;
     }

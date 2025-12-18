@@ -1017,6 +1017,76 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 }
 
 // ============================================================================
+// Onboarding API
+// ============================================================================
+
+export interface OnboardingStatus {
+  first_run: boolean;
+  onboarding_completed: boolean;
+  onboarding_version: string | null;
+}
+
+export interface OnboardingData {
+  home_city: string;
+  home_region?: string | null;
+  memleket?: string[] | null;
+  gender?: "male" | "female" | "prefer_not_to_say" | null;
+}
+
+export interface OnboardingResult {
+  success: boolean;
+  xp_awarded: number;
+  badge_earned: string | null;
+}
+
+const ONBOARDING_STORAGE_KEY = "tda_onboarding_completed";
+const ONBOARDING_VERSION_KEY = "tda_onboarding_version";
+
+/**
+ * Get onboarding status for current user (from localStorage).
+ * Onboarding is device-specific, not account-specific.
+ */
+export function getOnboardingStatus(): OnboardingStatus {
+  const completed = localStorage.getItem(ONBOARDING_STORAGE_KEY) === "true";
+  const version = localStorage.getItem(ONBOARDING_VERSION_KEY) || null;
+
+  return {
+    first_run: !completed,
+    onboarding_completed: completed,
+    onboarding_version: version,
+  };
+}
+
+/**
+ * Complete onboarding flow (saves to localStorage).
+ * Onboarding is device-specific, not account-specific.
+ */
+export function completeOnboarding(data: OnboardingData): OnboardingResult {
+  // Save to localStorage
+  localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+  localStorage.setItem(ONBOARDING_VERSION_KEY, "v1.0");
+
+  // Optionally save onboarding data for future use
+  localStorage.setItem("tda_onboarding_data", JSON.stringify(data));
+
+  return {
+    success: true,
+    xp_awarded: 0, // No XP/badge for localStorage-based onboarding
+    badge_earned: null,
+  };
+}
+
+/**
+ * Reset onboarding flow (clears localStorage).
+ * Useful for testing or allowing users to restart onboarding.
+ */
+export function resetOnboarding(): void {
+  localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+  localStorage.removeItem(ONBOARDING_VERSION_KEY);
+  localStorage.removeItem("tda_onboarding_data");
+}
+
+// ============================================================================
 // Location Interactions API (Check-ins, Reactions, Notes, Favorites)
 // ============================================================================
 
@@ -1055,15 +1125,20 @@ export async function getCheckInStats(locationId: number): Promise<CheckInStats>
 export interface ReactionStats {
   location_id: number;
   reactions: Record<string, number>;
+  user_reaction?: ReactionType | null;
 }
 
 export type ReactionType = "fire" | "heart" | "thumbs_up" | "smile" | "star" | "flag";
 
 /**
- * Add a reaction to a location.
+ * Toggle a reaction on a location (add if not exists, remove if exists).
  */
-export async function createReaction(locationId: number, reactionType: ReactionType): Promise<{ ok: boolean; reaction_id: number }> {
-  return apiFetch<{ ok: boolean; reaction_id: number }>(
+export async function toggleLocationReaction(
+  locationId: number,
+  reactionType: ReactionType
+): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
+  const clientId = getOrCreateClientId();
+  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
     `/api/v1/locations/${locationId}/reactions`,
     {
       method: "POST",
@@ -1076,22 +1151,76 @@ export async function createReaction(locationId: number, reactionType: ReactionT
 }
 
 /**
- * Remove a reaction from a location.
+ * Get aggregated reaction counts and user reaction for a location.
  */
-export async function removeReaction(locationId: number, reactionType: ReactionType): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(
-    `/api/v1/locations/${locationId}/reactions/${reactionType}`,
+export async function getLocationReactions(
+  locationId: number
+): Promise<{ reactions: Record<ReactionType, number>; user_reaction: ReactionType | null }> {
+  return apiFetch<{ reactions: Record<ReactionType, number>; user_reaction: ReactionType | null }>(
+    `/api/v1/locations/${locationId}/reactions`
+  );
+}
+
+/**
+ * Toggle a reaction on a news item (add if not exists, remove if exists).
+ */
+export async function toggleNewsReaction(
+  newsId: number,
+  reactionType: ReactionType
+): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
+  const clientId = getOrCreateClientId();
+  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
+    `/api/v1/news/${newsId}/reactions`,
     {
-      method: "DELETE",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reaction_type: reactionType }),
     }
   );
 }
 
 /**
- * Get aggregated reaction counts for a location.
+ * Get aggregated reaction counts and user reaction for a news item.
  */
-export async function getReactionStats(locationId: number): Promise<ReactionStats> {
-  return apiFetch<ReactionStats>(`/api/v1/locations/${locationId}/reactions`);
+export async function getNewsReactions(
+  newsId: number
+): Promise<{ reactions: Record<ReactionType, number>; user_reaction: ReactionType | null }> {
+  return apiFetch<{ reactions: Record<ReactionType, number>; user_reaction: ReactionType | null }>(
+    `/api/v1/news/${newsId}/reactions`
+  );
+}
+
+/**
+ * Toggle a reaction on an event (add if not exists, remove if exists).
+ */
+export async function toggleEventReaction(
+  eventId: number,
+  reactionType: ReactionType
+): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
+  const clientId = getOrCreateClientId();
+  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
+    `/api/v1/events/${eventId}/reactions`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reaction_type: reactionType }),
+    }
+  );
+}
+
+/**
+ * Get aggregated reaction counts and user reaction for an event.
+ */
+export async function getEventReactions(
+  eventId: number
+): Promise<{ reactions: Record<ReactionType, number>; user_reaction: ReactionType | null }> {
+  return apiFetch<{ reactions: Record<ReactionType, number>; user_reaction: ReactionType | null }>(
+    `/api/v1/events/${eventId}/reactions`
+  );
 }
 
 // Notes

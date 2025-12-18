@@ -20,14 +20,14 @@ interface HomePageProps {
 
 function HomePage({ initialTab }: HomePageProps) {
   const location = useLocation();
-  
+
   // Derive activeTab from URL pathname (URL is source of truth)
   const tabFromPath: TabId =
     location.pathname.startsWith("/news") ? "news" :
-    location.pathname.startsWith("/events") ? "events" :
-    location.pathname.startsWith("/feed") ? "feed" :
-    location.pathname.startsWith("/account") ? "account" :
-    "map";
+      location.pathname.startsWith("/events") ? "events" :
+        location.pathname.startsWith("/map") ? "map" :
+          location.pathname.startsWith("/account") ? "account" :
+            "feed";
 
   // Sync URL to navigation store on mount and route changes
   // URL is source of truth; initialTab is only a fallback if pathname doesn't match expected routes

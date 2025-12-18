@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { AppViewportShell, PageShell } from "@/components/layout";
-import { Icon } from "@/components/Icon";
-import { Button } from "@/components/ui/button";
-import { getTheme, setTheme, type ThemeSetting } from "@/lib/theme/darkMode";
-import { PrivacySettings } from "@/components/settings/PrivacySettings";
-import { PushNotificationSettings } from "@/components/push/PushNotificationSettings";
 import { ActivityHistory } from "@/components/activity/ActivityHistory";
+import { Icon } from "@/components/Icon";
+import { AppViewportShell, PageShell } from "@/components/layout";
+import { PushNotificationSettings } from "@/components/push/PushNotificationSettings";
 import { ReferralShare } from "@/components/referrals/ReferralShare";
+import { PrivacySettings } from "@/components/settings/PrivacySettings";
+import { Button } from "@/components/ui/button";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { supabase } from "@/lib/supabaseClient";
+import { getTheme, setTheme, type ThemeSetting } from "@/lib/theme/darkMode";
 import { toast } from "sonner";
 
 export default function AccountPage() {
@@ -26,7 +26,7 @@ export default function AccountPage() {
     try {
       await supabase.auth.signOut();
       toast.success("Uitgelogd");
-      navigate("/map", { replace: true });
+      navigate("/feed", { replace: true });
     } catch (error) {
       toast.error("Uitloggen mislukt", {
         description: error instanceof Error ? error.message : "Onbekende fout",
@@ -95,79 +95,79 @@ export default function AccountPage() {
           aria-labelledby="appearance-heading"
           className="rounded-3xl border border-border bg-card p-6 shadow-soft"
         >
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <h2 id="appearance-heading" className="text-lg font-medium text-foreground">
-              Appearance
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Temporarily manage the theme from here while the header is removed.
-            </p>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <h2 id="appearance-heading" className="text-lg font-medium text-foreground">
+                Appearance
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Temporarily manage the theme from here while the header is removed.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={cycleTheme}
+              aria-label="Schakel thema"
+              className="inline-flex items-center gap-2"
+            >
+              <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
+              <span>Theme: {theme}</span>
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={cycleTheme}
-            aria-label="Schakel thema"
-            className="inline-flex items-center gap-2"
+        </section>
+
+        <PrivacySettings />
+
+        <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
+          <PushNotificationSettings />
+        </section>
+
+        {isAuthenticated && (
+          <section
+            aria-labelledby="referral-heading"
+            className="rounded-3xl border border-border bg-card p-6 shadow-soft"
           >
-            <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
-            <span>Theme: {theme}</span>
-          </Button>
-        </div>
-      </section>
-      
-      <PrivacySettings />
-      
-      <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
-        <PushNotificationSettings />
-      </section>
-      
-      {isAuthenticated && (
+            <ReferralShare />
+          </section>
+        )}
+
         <section
-          aria-labelledby="referral-heading"
+          aria-labelledby="activity-history-heading"
           className="rounded-3xl border border-border bg-card p-6 shadow-soft"
         >
-          <ReferralShare />
+          <h2 id="activity-history-heading" className="text-lg font-medium text-foreground mb-4">
+            Activiteitsgeschiedenis
+          </h2>
+          <ActivityHistory />
         </section>
-      )}
-      
-      <section
-        aria-labelledby="activity-history-heading"
-        className="rounded-3xl border border-border bg-card p-6 shadow-soft"
-      >
-        <h2 id="activity-history-heading" className="text-lg font-medium text-foreground mb-4">
-          Activiteitsgeschiedenis
-        </h2>
-        <ActivityHistory />
-      </section>
-      
-      <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
-        <div className="space-y-4">
-          <h2 className="text-lg font-medium text-foreground">Legal</h2>
-          <div className="flex flex-col gap-2">
-            <a
-              href="#/privacy"
-              className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-            >
-              Privacybeleid
-            </a>
-            <a
-              href="#/terms"
-              className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-            >
-              Gebruiksvoorwaarden
-            </a>
-            <a
-              href="#/guidelines"
-              className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-            >
-              Community Richtlijnen
-            </a>
+
+        <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
+          <div className="space-y-4">
+            <h2 className="text-lg font-medium text-foreground">Legal</h2>
+            <div className="flex flex-col gap-2">
+              <a
+                href="#/privacy"
+                className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+              >
+                Privacybeleid
+              </a>
+              <a
+                href="#/terms"
+                className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+              >
+                Gebruiksvoorwaarden
+              </a>
+              <a
+                href="#/guidelines"
+                className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+              >
+                Community Richtlijnen
+              </a>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
       </PageShell>
     </AppViewportShell>
   );

@@ -1,5 +1,7 @@
 import { apiFetch } from "@/lib/api";
 
+import type { ReactionType } from "@/lib/api";
+
 export interface NewsItem {
   id: number;
   title: string;
@@ -9,6 +11,8 @@ export interface NewsItem {
   url: string;
   image_url?: string | null;
   tags: string[];
+  reactions?: Record<ReactionType, number> | null;
+  user_reaction?: ReactionType | null;
 }
 
 export interface NewsListResponse {

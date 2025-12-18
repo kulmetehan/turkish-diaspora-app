@@ -4,6 +4,8 @@ import { apiFetch } from "@/lib/api";
  * Mirrors Backend/app/models/events_public.EventItem.
  * Optional lat/lng fields are future-proofed for when the backend exposes coordinates.
  */
+import type { ReactionType } from "@/lib/api";
+
 export interface EventItem {
   id: number;
   title: string;
@@ -20,6 +22,8 @@ export interface EventItem {
   /** TODO(ES-0.8): backend to expose coordinates so markers can render. */
   lat?: number | null;
   lng?: number | null;
+  reactions?: Record<ReactionType, number> | null;
+  user_reaction?: ReactionType | null;
 }
 
 export interface EventsListResponse {

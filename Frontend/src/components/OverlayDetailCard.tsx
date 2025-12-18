@@ -10,14 +10,13 @@ import { useViewportContext } from "@/contexts/viewport";
 import {
     addFavorite,
     createCheckIn,
-    createReaction,
     deleteNote,
     getCheckInStats,
+    getLocationReactions,
     getNotes,
-    getReactionStats,
     isFavorite,
     removeFavorite,
-    removeReaction,
+    toggleLocationReaction,
     type CheckInStats,
     type NoteResponse,
     type ReactionStats,
@@ -135,8 +134,15 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                 setHasCheckedInToday(checkInData.check_ins_today > 0);
 
                 // Load reaction stats
-                const reactionData = await getReactionStats(locationId);
-                setReactionStats(reactionData);
+                const reactionData = await getLocationReactions(locationId);
+                setReactionStats({
+                    location_id: locationId,
+                    reactions: reactionData.reactions,
+                });
+                // Set user reaction from API response
+                if (reactionData.user_reaction) {
+                    setUserReactions(new Set([reactionData.user_reaction]));
+                }
 
                 // Load notes
                 const notesData = await getNotes(locationId);
@@ -188,31 +194,40 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
         setReactionLoading(reactionType);
 
         try {
-            if (hasReaction) {
-                await removeReaction(locationId, reactionType);
+            // Toggle reaction (add if not exists, remove if exists)
+            const result = await toggleLocationReaction(locationId, reactionType);
+
+            // Update user reactions based on result
+            if (result.is_active) {
+                // Remove old reaction if exists
+                setUserReactions((prev) => {
+                    const next = new Set(prev);
+                    prev.forEach((rt) => next.delete(rt));
+                    next.add(reactionType);
+                    return next;
+                });
+            } else {
+                // Remove reaction
                 setUserReactions((prev) => {
                     const next = new Set(prev);
                     next.delete(reactionType);
                     return next;
                 });
-                toast.success("Reaction verwijderd");
-            } else {
-                await createReaction(locationId, reactionType);
-                setUserReactions((prev) => new Set(prev).add(reactionType));
-                toast.success("Reaction toegevoegd");
             }
 
-            const stats = await getReactionStats(locationId);
-            setReactionStats(stats);
-        } catch (error: any) {
-            if (error.message?.includes("409") || error.message?.includes("already exists")) {
-                if (!hasReaction) {
-                    setUserReactions((prev) => new Set(prev).add(reactionType));
-                }
-                toast.error("Je hebt al gereageerd met deze emoji");
+            // Refresh stats
+            const stats = await getLocationReactions(locationId);
+            setReactionStats({
+                location_id: locationId,
+                reactions: stats.reactions,
+            });
+            if (stats.user_reaction) {
+                setUserReactions(new Set([stats.user_reaction]));
             } else {
-                toast.error(error.message || "Fout bij toevoegen van reaction");
+                setUserReactions(new Set());
             }
+        } catch (error: any) {
+            toast.error(error.message || "Fout bij bijwerken van reaction");
         } finally {
             setReactionLoading(null);
         }

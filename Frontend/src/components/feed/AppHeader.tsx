@@ -1,6 +1,8 @@
 // Frontend/src/components/feed/AppHeader.tsx
+import TurkSpotBot from "@/assets/TurkSpotBot.png";
 import { Icon } from "@/components/Icon";
 import { cn } from "@/lib/ui/cn";
+import { useNavigate } from "react-router-dom";
 
 export interface AppHeaderProps {
   onNotificationClick?: () => void;
@@ -15,6 +17,12 @@ export function AppHeader({
   onSearchToggle,
   className
 }: AppHeaderProps) {
+  const navigate = useNavigate();
+
+  const handleLogoClick = () => {
+    navigate("/feed");
+  };
+
   return (
     <header
       className={cn(
@@ -22,14 +30,24 @@ export function AppHeader({
         className
       )}
     >
-      {/* Logo/Wordmark */}
-      <div className="flex items-center">
+      {/* Logo/Wordmark with mascot */}
+      <button
+        type="button"
+        onClick={handleLogoClick}
+        className="flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 rounded-sm"
+        aria-label="Go to home"
+      >
         <h1 className="text-4xl font-gilroy font-black text-foreground tracking-tight">
           <span className="text-[hsl(var(--brand-red-strong))]">T</span>urk
           <span className="text-[hsl(var(--brand-red-strong))]">S</span>pot
           <span className="text-[hsl(var(--brand-red-strong))] text-2xl font-mono align-top">AI</span>
         </h1>
-      </div>
+        <img
+          src={TurkSpotBot}
+          alt="TurkSpot Bot mascot"
+          className="h-12 w-auto object-contain"
+        />
+      </button>
 
       {/* Right side: Search toggle (replaces bell for news page) or Notification Bell */}
       {onSearchToggle ? (
@@ -64,6 +82,7 @@ export function AppHeader({
     </header>
   );
 }
+
 
 
 

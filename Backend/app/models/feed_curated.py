@@ -46,3 +46,4 @@ class CuratedEventsResponse(BaseModel):
         description="Metadata: total_ranked, cached_at, etc."
     )
 
+

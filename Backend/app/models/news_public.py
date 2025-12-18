@@ -20,6 +20,14 @@ class NewsItem(BaseModel):
     url: str
     image_url: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
+    reactions: Optional[Dict[str, int]] = Field(
+        default=None,
+        description="Reaction counts: {'fire': 5, 'heart': 3, ...}",
+    )
+    user_reaction: Optional[str] = Field(
+        default=None,
+        description="Current user's reaction type, if any",
+    )
 
 
 class NewsListResponse(BaseModel):

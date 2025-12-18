@@ -22,7 +22,7 @@ export function FloatingSearchBar({
   onClear,
   suggestions,
   ariaLabel = "Search locations",
-  placeholder = "Search by name or category",
+  placeholder = "Zoek op naam of categorie",
   loading,
   className,
   inputId,

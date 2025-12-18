@@ -1,7 +1,17 @@
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+
 import type { EventItem } from "@/api/events";
+import { EmojiReactions } from "@/components/feed/EmojiReactions";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
+import type { ReactionType } from "@/lib/api";
+import { getEventReactions, toggleEventReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+
+// Module-level cache to persist across component remounts
+// Use Map to track both "fetched" and "in-flight" states
+const eventReactionsFetchCache = new Map<number, 'fetching' | 'fetched'>();
 
 import {
   eventHasCoordinates,
@@ -25,6 +35,137 @@ export function EventCard({
   onShowOnMap,
 }: EventCardProps) {
   const showMapButton = Boolean(onShowOnMap && eventHasCoordinates(event));
+
+  // Reactions state
+  const [reactions, setReactions] = useState<Record<ReactionType, number>>({
+    fire: 0,
+    heart: 0,
+    thumbs_up: 0,
+    smile: 0,
+    star: 0,
+    flag: 0,
+  });
+  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
+  const [isLoadingReactions, setIsLoadingReactions] = useState(false);
+
+  // Initialize reactions from event props if available
+  // Use a ref to track the last reactions values to avoid unnecessary updates
+  const lastReactionsRef = useRef<string | null>(null);
+  const lastUserReactionRef = useRef<ReactionType | null>(null);
+
+  useEffect(() => {
+    // Only update if reactions actually changed (by value, not reference)
+    const reactionsKey = event.reactions ? JSON.stringify(event.reactions) : null;
+    if (reactionsKey !== lastReactionsRef.current && event.reactions) {
+      lastReactionsRef.current = reactionsKey;
+      setReactions({
+        fire: event.reactions.fire || 0,
+        heart: event.reactions.heart || 0,
+        thumbs_up: event.reactions.thumbs_up || 0,
+        smile: event.reactions.smile || 0,
+        star: event.reactions.star || 0,
+        flag: event.reactions.flag || 0,
+      });
+    } else if (!event.reactions) {
+      lastReactionsRef.current = null;
+    }
+
+    if (event.user_reaction !== lastUserReactionRef.current) {
+      lastUserReactionRef.current = event.user_reaction || null;
+      setUserReaction(event.user_reaction || null);
+    }
+  }, [event.reactions, event.user_reaction]);
+
+  // Fetch reactions on mount if not provided
+  // Use module-level cache to persist across component remounts
+  useEffect(() => {
+    // Only fetch if:
+    // 1. Reactions are not provided in props
+    // 2. We haven't fetched yet for this event (checked in module-level cache)
+    // 3. We're not currently loading
+    // Don't check reactions state here - it may be stale. Only check props.
+    const hasReactionsFromProps = !!event.reactions;
+    const cacheState = eventReactionsFetchCache.get(event.id);
+    const hasFetched = cacheState === 'fetched' || cacheState === 'fetching';
+    const shouldFetch = !hasReactionsFromProps && !isLoadingReactions && !hasFetched;
+
+    if (shouldFetch) {
+      // Set cache to 'fetching' IMMEDIATELY to prevent race conditions with other mounting components
+      eventReactionsFetchCache.set(event.id, 'fetching');
+      setIsLoadingReactions(true);
+      getEventReactions(event.id)
+        .then((data) => {
+          // Mark as fetched in cache
+          eventReactionsFetchCache.set(event.id, 'fetched');
+          setReactions({
+            fire: data.reactions.fire || 0,
+            heart: data.reactions.heart || 0,
+            thumbs_up: data.reactions.thumbs_up || 0,
+            smile: data.reactions.smile || 0,
+            star: data.reactions.star || 0,
+            flag: data.reactions.flag || 0,
+          });
+          setUserReaction(data.user_reaction);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch event reactions:", error);
+          eventReactionsFetchCache.delete(event.id); // Allow retry on error
+        })
+        .finally(() => {
+          setIsLoadingReactions(false);
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.id]);
+
+  const handleReactionToggle = async (reactionType: ReactionType) => {
+    const previousReactions = { ...reactions };
+    const previousUserReaction = userReaction;
+
+    // Optimistic update
+    if (userReaction === reactionType) {
+      // Remove reaction
+      setUserReaction(null);
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: Math.max(0, prev[reactionType] - 1),
+      }));
+    } else {
+      // Add or change reaction
+      if (userReaction) {
+        // Remove old reaction count
+        setReactions((prev) => ({
+          ...prev,
+          [userReaction]: Math.max(0, prev[userReaction] - 1),
+        }));
+      }
+      setUserReaction(reactionType);
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: prev[reactionType] + 1,
+      }));
+    }
+
+    try {
+      const result = await toggleEventReaction(event.id, reactionType);
+      // Update with server response
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: result.count,
+      }));
+      if (!result.is_active) {
+        setUserReaction(null);
+      } else {
+        setUserReaction(reactionType);
+      }
+    } catch (error) {
+      // Rollback on error
+      setReactions(previousReactions);
+      setUserReaction(previousUserReaction);
+      toast.error("Kon reactie niet bijwerken. Probeer het opnieuw.");
+      console.error("Failed to toggle event reaction:", error);
+    }
+  };
 
   return (
     <div
@@ -66,6 +207,16 @@ export function EventCard({
         {event.description ? (
           <p className="text-sm font-gilroy font-normal text-muted-foreground line-clamp-3">{event.description}</p>
         ) : null}
+      </div>
+
+      {/* Emoji Reactions */}
+      <div className="mt-4" onClick={(e) => e.stopPropagation()}>
+        <EmojiReactions
+          activityId={event.id}
+          reactions={reactions}
+          userReaction={userReaction}
+          onReactionToggle={handleReactionToggle}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-end gap-2">

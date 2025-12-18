@@ -1,9 +1,9 @@
 // Frontend/src/components/share/ShareButton.tsx
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/Icon";
+import { Button } from "@/components/ui/button";
+import { share, shareEvent, shareLocation, sharePoll, type ShareData } from "@/lib/share";
+import { useState } from "react";
 import { toast } from "sonner";
-import { share, shareLocation, sharePoll, type ShareData } from "@/lib/share";
 
 interface ShareButtonProps {
   variant?: "default" | "outline" | "ghost";
@@ -19,6 +19,10 @@ interface ShareButtonProps {
     title: string;
     question?: string;
   };
+  event?: {
+    id: number | string;
+    title: string;
+  };
   customData?: ShareData;
 }
 
@@ -28,6 +32,7 @@ export function ShareButton({
   className,
   location,
   poll,
+  event,
   customData,
 }: ShareButtonProps) {
   const [isSharing, setIsSharing] = useState(false);
@@ -41,6 +46,8 @@ export function ShareButton({
         success = await shareLocation(location);
       } else if (poll) {
         success = await sharePoll(poll);
+      } else if (event) {
+        success = await shareEvent(event);
       } else if (customData) {
         success = await share(customData);
       }
@@ -71,7 +78,7 @@ export function ShareButton({
       aria-label="Deel"
     >
       <Icon name={isSharing ? "Loader2" : "Share2"} className="h-4 w-4" />
-      {size !== "icon" && <span className="ml-2">{isSharing ? "Delen..." : "Deel"}</span>}
+      {size !== "icon" && !isSharing && <span className="ml-2">Deel</span>}
     </Button>
   );
 }
