@@ -232,7 +232,7 @@ export default function AdminDiscoveryMap({
           dateTo || undefined,
           selectedCategory || undefined
         );
-        console.debug("[DiscoveryCoverage] cells", data);
+        // console.debug("[DiscoveryCoverage] cells", data);
         if (!cancelled) {
           setGridData(data);
         }

@@ -9,11 +9,11 @@ export interface GreetingBlockProps {
 function getTimeBasedGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) {
-    return "Good Morning";
+    return "Goedemorgen";
   } else if (hour < 18) {
-    return "Good Afternoon";
+    return "Goedemiddag";
   } else {
-    return "Good Evening";
+    return "Goedenavond";
   }
 }
 
@@ -33,11 +33,12 @@ export function GreetingBlock({ userName, className }: GreetingBlockProps) {
         ) : null}
       </h2>
       <p className="mt-1 text-sm font-gilroy font-normal text-black">
-        What&apos;s happening in your community
+        Wat er gebeurt in je omgeving...
       </p>
     </div>
   );
 }
+
 
 
 

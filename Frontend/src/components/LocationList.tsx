@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 
 import type { LocationMarker } from "@/api/fetchLocations";
 import { Icon, type IconProps } from "@/components/Icon";
+import { ShareButton } from "@/components/share/ShareButton";
 import { humanizeCategoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/ui/cn";
 
@@ -178,7 +179,7 @@ export default function LocationList({
                   {humanizeCategoryLabel(l.category_label ?? l.category)}
                 </div>
               </div>
-              <div className="flex flex-col items-end gap-1 shrink-0">
+              <div className="flex flex-row items-center gap-2 shrink-0">
                 {onShowOnMap && (
                   <button
                     type="button"
@@ -193,12 +194,6 @@ export default function LocationList({
                   >
                     Toon op kaart
                   </button>
-                )}
-                {onShowOnMap && onSelectDetail && (
-                  <div className={cn(
-                    "h-px w-full",
-                    active ? "bg-brand-white/20" : "bg-border"
-                  )} />
                 )}
                 {onSelectDetail && (
                   <button
@@ -215,6 +210,21 @@ export default function LocationList({
                     Details
                   </button>
                 )}
+                <div onClick={(e) => e.stopPropagation()}>
+                  <ShareButton
+                    location={{
+                      id: l.id,
+                      name: l.name,
+                      category: l.category_label ?? l.category ?? null,
+                    }}
+                    size="sm"
+                    variant="ghost"
+                    className={cn(
+                      "h-6 px-2",
+                      active ? "text-brand-white hover:text-brand-white/80" : ""
+                    )}
+                  />
+                </div>
               </div>
             </div>
           </div>

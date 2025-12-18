@@ -20,3 +20,4 @@ COMMENT ON COLUMN feed_curated_content.ranked_items IS 'JSONB array of ranked it
 COMMENT ON COLUMN feed_curated_content.metadata IS 'Additional metadata: total_ranked, cached_at, AI model used, etc.';
 COMMENT ON COLUMN feed_curated_content.expires_at IS 'Timestamp when this ranking becomes stale (news: 6h, events/locations: 24h)';
 
+

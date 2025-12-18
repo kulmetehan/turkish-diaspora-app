@@ -47,7 +47,7 @@ export function DashboardCard({
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Icon name={icon} sizeRem={1.2} />
         </div>
-        <h3 className="text-sm font-gilroy font-semibold text-foreground">{title}</h3>
+        <h3 className="text-xs font-gilroy font-semibold text-foreground">{title}</h3>
       </div>
 
       {/* Content */}
@@ -65,4 +65,5 @@ export function DashboardCard({
     </div>
   );
 }
+
 

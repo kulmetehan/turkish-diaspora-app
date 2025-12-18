@@ -60,7 +60,7 @@ export function EmojiReactions({
               "hover:bg-muted focus:outline-none focus:ring-2 focus:ring-primary/30",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               isActive
-                ? "bg-primary/10 scale-110"
+                ? "bg-primary/10 text-primary border border-primary/30 scale-110"
                 : "bg-transparent"
             )}
             aria-label={`${reactionType} reaction`}
@@ -83,4 +83,5 @@ export function EmojiReactions({
     </div>
   );
 }
+
 

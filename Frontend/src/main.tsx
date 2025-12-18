@@ -58,7 +58,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <HashRouter>
       <Routes>
         <Route element={<AppLayout />}>
-          <Route index element={<Navigate to="/map" replace />} />
+          <Route index element={<Navigate to="/feed" replace />} />
           <Route path="/map" element={<App initialTab="map" />} />
           <Route path="/news" element={<App initialTab="news" />} />
           <Route path="/events" element={<App initialTab="events" />} />
@@ -202,8 +202,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             </Suspense>
           </AdminRouteWrapper>
         } />
-        {/* Catch-all naar map */}
-        <Route path="*" element={<Navigate to="/map" replace />} />
+        {/* Catch-all naar feed */}
+        <Route path="*" element={<Navigate to="/feed" replace />} />
       </Routes>
       <Toaster position="top-right" />
     </HashRouter>

@@ -12,9 +12,9 @@ type TabConfig = {
 };
 
 const tabs: TabConfig[] = [
-  { to: "/feed", icon: "Sparkles", label: "Feed" },
-  { to: "/news", icon: "Newspaper", label: "News" },
-  { to: "/map", icon: "Map", label: "Map", end: true },
+  { to: "/feed", icon: "MoonStar", label: "FEED" },
+  { to: "/news", icon: "Newspaper", label: "NIEUWS" },
+  { to: "/map", icon: "Map", label: "KAART", end: true },
   { to: "/events", icon: "CalendarCheck", label: "Events" },
   { to: "/account", icon: "User2", label: "Account" },
 ];

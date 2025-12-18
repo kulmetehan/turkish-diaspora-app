@@ -209,7 +209,12 @@ export default function EventsPage() {
             className="mt-1"
           />
 
-          {viewMode === "list" ? (
+          {detailId && detailEvent ? (
+            <EventDetailOverlay
+              event={detailEvent}
+              onBackToList={handleCloseDetail}
+            />
+          ) : viewMode === "list" ? (
             <div className="mt-2">
               <EventList
                 events={items}
@@ -239,11 +244,6 @@ export default function EventsPage() {
         </div>
         <FooterTabs />
       </div>
-      <EventDetailOverlay
-        event={detailEvent}
-        open={Boolean(detailEvent)}
-        onClose={handleCloseDetail}
-      />
     </AppViewportShell>
   );
 }

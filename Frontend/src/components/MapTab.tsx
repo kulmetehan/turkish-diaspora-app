@@ -4,10 +4,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import Filters from "@/components/Filters";
-import LocationDetail from "@/components/LocationDetail";
 import LocationList from "@/components/LocationList";
 import MapView from "@/components/MapView";
-import OverlayDetailCard from "@/components/OverlayDetailCard";
+import UnifiedLocationDetail from "@/components/UnifiedLocationDetail";
 import { AppHeader } from "@/components/feed/AppHeader";
 import { AppViewportShell } from "@/components/layout";
 import NoteDialog from "@/components/location/NoteDialog";
@@ -182,7 +181,7 @@ export default function MapTab() {
                     if (controller.signal.aborted || cancelled) return;
 
                     if (import.meta.env.DEV) {
-                        console.debug(`[MapTab] Fetched ${rows.length} locations for bbox: ${requestBbox}`);
+                        // console.debug(`[MapTab] Fetched ${rows.length} locations for bbox: ${requestBbox}`);
                     }
 
                     setViewportLocations(rows);
@@ -378,14 +377,14 @@ export default function MapTab() {
 
             setIsNoteDialogOpen(false);
             setEditingNote(null);
-            // Notes will be refreshed by OverlayDetailCard's useEffect when it re-renders
+            // Notes will be refreshed by UnifiedLocationDetail's useEffect when it re-renders
         } catch (error: any) {
             throw error;
         }
     };
 
     const handleNotesRefresh = () => {
-        // Trigger a re-render of OverlayDetailCard by toggling detailId
+        // Trigger a re-render of UnifiedLocationDetail by toggling detailId
         // This is a workaround - ideally we'd have a proper refresh mechanism
         if (detailIdLocal) {
             const currentId = detailIdLocal;
@@ -540,9 +539,10 @@ export default function MapTab() {
             >
                 {renderFilters("list-mobile")}
                 {detail ? (
-                    <LocationDetail
+                    <UnifiedLocationDetail
                         location={detail}
-                        onBackToList={() => {
+                        viewMode="list"
+                        onBack={() => {
                             setDetailIdLocal(null);
                             navigationActions.setMap({ selectedLocationId: null });
                         }}
@@ -651,9 +651,11 @@ export default function MapTab() {
                     : (isCompact ? listViewMobile : listViewDesktop)}
 
                 {detail && (isDesktop || viewMode === "map") && (
-                    <OverlayDetailCard
+                    <UnifiedLocationDetail
                         location={detail}
+                        viewMode="map"
                         open={Boolean(detail)}
+                        onBack={handleCloseDetail}
                         onClose={handleCloseDetail}
                         onAddNote={handleAddNote}
                         onEditNote={handleEditNote}
@@ -661,7 +663,7 @@ export default function MapTab() {
                     />
                 )}
 
-                {/* Note Dialog - rendered outside OverlayDetailCard to avoid nesting issues */}
+                {/* Note Dialog - rendered outside UnifiedLocationDetail to avoid nesting issues */}
                 {detail && (
                     <NoteDialog
                         open={isNoteDialogOpen}

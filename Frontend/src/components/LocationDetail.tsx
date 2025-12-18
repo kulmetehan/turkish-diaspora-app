@@ -11,14 +11,13 @@ import {
     addFavorite,
     createCheckIn,
     createNote,
-    createReaction,
     deleteNote,
     getCheckInStats,
+    getLocationReactions,
     getNotes,
-    getReactionStats,
     isFavorite,
     removeFavorite,
-    removeReaction,
+    toggleLocationReaction,
     updateNote,
     type CheckInStats,
     type NoteResponse,
@@ -90,9 +89,15 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                 setHasCheckedInToday(checkInData.check_ins_today > 0);
 
                 // Load reaction stats
-                const reactionData = await getReactionStats(locationId);
-                setReactionStats(reactionData);
-                // Note: We can't determine user reactions without user_id, so we'll track locally
+                const reactionData = await getLocationReactions(locationId);
+                setReactionStats({
+                    location_id: locationId,
+                    reactions: reactionData.reactions,
+                });
+                // Set user reaction from API response
+                if (reactionData.user_reaction) {
+                    setUserReactions(new Set([reactionData.user_reaction]));
+                }
 
                 // Load notes
                 const notesData = await getNotes(locationId);
@@ -144,35 +149,40 @@ export default function LocationDetail({ location, onBackToList }: Props) {
         setReactionLoading(reactionType);
 
         try {
-            if (hasReaction) {
+            // Toggle reaction (add if not exists, remove if exists)
+            const result = await toggleLocationReaction(locationId, reactionType);
+
+            // Update user reactions based on result
+            if (result.is_active) {
+                // Remove old reaction if exists
+                setUserReactions((prev) => {
+                    const next = new Set(prev);
+                    prev.forEach((rt) => next.delete(rt));
+                    next.add(reactionType);
+                    return next;
+                });
+            } else {
                 // Remove reaction
-                await removeReaction(locationId, reactionType);
                 setUserReactions((prev) => {
                     const next = new Set(prev);
                     next.delete(reactionType);
                     return next;
                 });
-                toast.success("Reaction verwijderd");
-            } else {
-                // Add reaction
-                await createReaction(locationId, reactionType);
-                setUserReactions((prev) => new Set(prev).add(reactionType));
-                toast.success("Reaction toegevoegd");
             }
 
             // Refresh stats
-            const stats = await getReactionStats(locationId);
-            setReactionStats(stats);
-        } catch (error: any) {
-            if (error.message?.includes("409") || error.message?.includes("already exists")) {
-                // If we tried to add but it already exists, add it to userReactions
-                if (!hasReaction) {
-                    setUserReactions((prev) => new Set(prev).add(reactionType));
-                }
-                toast.error("Je hebt al gereageerd met deze emoji");
+            const stats = await getLocationReactions(locationId);
+            setReactionStats({
+                location_id: locationId,
+                reactions: stats.reactions,
+            });
+            if (stats.user_reaction) {
+                setUserReactions(new Set([stats.user_reaction]));
             } else {
-                toast.error(error.message || "Fout bij toevoegen van reaction");
+                setUserReactions(new Set());
             }
+        } catch (error: any) {
+            toast.error(error.message || "Fout bij bijwerken van reaction");
         } finally {
             setReactionLoading(null);
         }
@@ -192,19 +202,42 @@ export default function LocationDetail({ location, onBackToList }: Props) {
     const handleSaveNote = async (content: string) => {
         try {
             if (editingNote) {
+                // Optimistic update for edit
+                setNotes((prevNotes) =>
+                    prevNotes.map((note) =>
+                        note.id === editingNote.id
+                            ? { ...note, content, is_edited: true, updated_at: new Date().toISOString() }
+                            : note
+                    )
+                );
                 await updateNote(editingNote.id, content);
                 toast.success("Notitie bijgewerkt");
             } else {
-                await createNote(locationId, content);
+                // Optimistic update for create - add temporary note
+                const tempNote: NoteResponse = {
+                    id: Date.now(), // Temporary ID
+                    location_id: locationId,
+                    content,
+                    is_edited: false,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                };
+                setNotes((prevNotes) => [tempNote, ...prevNotes]);
+
+                const newNote = await createNote(locationId, content);
+                // Replace temporary note with real one from server
+                setNotes((prevNotes) =>
+                    prevNotes.map((note) => (note.id === tempNote.id ? newNote : note))
+                );
                 toast.success("Notitie toegevoegd");
             }
 
-            // Refresh notes
-            const notesData = await getNotes(locationId);
-            setNotes(notesData);
             setIsNoteDialogOpen(false);
             setEditingNote(null);
         } catch (error: any) {
+            // Rollback optimistic update on error
+            const notesData = await getNotes(locationId);
+            setNotes(notesData);
             throw error; // Let NoteDialog handle the error
         }
     };

@@ -79,7 +79,7 @@ export function EventMapView({
           console.error(`[EventMapView] ⚠️ INVALID MARKER: lat/lng are not numbers!`, marker);
         }
       });
-      console.log('[EventMapView] ===== DEBUG END =====');
+      // console.log('[EventMapView] ===== DEBUG END =====');
     }
 
     return markers;

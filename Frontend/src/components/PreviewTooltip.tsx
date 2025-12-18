@@ -36,9 +36,9 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
             role="dialog"
             aria-modal="false"
             aria-label={`Preview voor ${location.name}`}
-            className="tda-card w-[260px] rounded-3xl border border-white/10 p-4 text-foreground shadow-soft backdrop-blur-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 relative overflow-hidden"
+            className="tda-card w-[260px] rounded-3xl border border-brand-red p-4 text-foreground shadow-lg shadow-gray-500/20 backdrop-blur-xl outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70 relative overflow-hidden"
             style={{
-                background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%), hsl(var(--surface-raised) / 0.95)',
+                background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.20) 0%, hsl(var(--brand-red) / 0.10) 50%, transparent 100%), hsl(var(--surface-raised) / 0.95)',
             }}
             tabIndex={-1}
         >
@@ -54,7 +54,7 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
                     )}
                     <button
                         type="button"
-                        className="rounded-full border border-white/10 p-1 text-brand-white/70 transition-colors hover:bg-white/10 hover:text-brand-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-white/70 flex-shrink-0"
+                        className="rounded-full border border-white/10 p-1 text-gray-600 transition-colors hover:bg-white/10 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-white/70 flex-shrink-0"
                         aria-label="Sluit preview"
                         onClick={onRequestClose}
                     >
@@ -77,9 +77,10 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
                         onRequestDetail();
                     }}
                     className={cn(
-                        "flex-shrink-0 rounded-sm px-3 py-1 text-xs font-gilroy font-medium transition-colors",
+                        "flex-shrink-0 rounded-sm px-3 py-1 text-xs font-gilroy font-medium transition-all",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
-                        "bg-primary/90 text-primary-foreground shadow-soft"
+                        "bg-primary/90 text-primary-foreground shadow-soft",
+                        "hover:bg-gradient-to-r hover:from-primary/90 hover:to-primary/70"
                     )}
                 >
                     Details
@@ -97,7 +98,7 @@ export default function PreviewTooltip({ location, onRequestDetail, onRequestClo
                     className={cn(
                         "flex-shrink-0 rounded-sm px-3 py-1 text-xs font-gilroy font-medium transition-colors",
                         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
-                        "bg-gray-100/80 text-black/70 hover:bg-gray-200/80 hover:text-black"
+                        "bg-gray-600/80 text-white/90 hover:bg-gray-400/80 hover:text-white"
                     )}
                 >
                     Route

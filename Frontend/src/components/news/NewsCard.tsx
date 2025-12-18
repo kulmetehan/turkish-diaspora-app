@@ -1,9 +1,17 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Bookmark, BookmarkCheck } from "lucide-react";
+import { toast } from "sonner";
 
 import type { NewsItem } from "@/api/news";
+import { EmojiReactions } from "@/components/feed/EmojiReactions";
+import type { ReactionType } from "@/lib/api";
+import { getNewsReactions, toggleNewsReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+
+// Module-level cache to persist across component remounts
+// Use Map to track both "fetched" and "in-flight" states
+const newsReactionsFetchCache = new Map<number, 'fetching' | 'fetched'>();
 
 type NewsCardProps = {
   item: NewsItem;
@@ -41,6 +49,137 @@ export function NewsCard({
     () => formatPublishedDate(item.published_at),
     [item.published_at],
   );
+
+  // Reactions state
+  const [reactions, setReactions] = useState<Record<ReactionType, number>>({
+    fire: 0,
+    heart: 0,
+    thumbs_up: 0,
+    smile: 0,
+    star: 0,
+    flag: 0,
+  });
+  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
+  const [isLoadingReactions, setIsLoadingReactions] = useState(false);
+
+  // Initialize reactions from item props if available
+  // Use a ref to track the last reactions values to avoid unnecessary updates
+  const lastReactionsRef = useRef<string | null>(null);
+  const lastUserReactionRef = useRef<ReactionType | null>(null);
+
+  useEffect(() => {
+    // Only update if reactions actually changed (by value, not reference)
+    const reactionsKey = item.reactions ? JSON.stringify(item.reactions) : null;
+    if (reactionsKey !== lastReactionsRef.current && item.reactions) {
+      lastReactionsRef.current = reactionsKey;
+      setReactions({
+        fire: item.reactions.fire || 0,
+        heart: item.reactions.heart || 0,
+        thumbs_up: item.reactions.thumbs_up || 0,
+        smile: item.reactions.smile || 0,
+        star: item.reactions.star || 0,
+        flag: item.reactions.flag || 0,
+      });
+    } else if (!item.reactions) {
+      lastReactionsRef.current = null;
+    }
+
+    if (item.user_reaction !== lastUserReactionRef.current) {
+      lastUserReactionRef.current = item.user_reaction as ReactionType | null;
+      setUserReaction(item.user_reaction as ReactionType | null);
+    }
+  }, [item.reactions, item.user_reaction]);
+
+  // Fetch reactions on mount if not provided
+  // Use module-level cache to persist across component remounts
+  useEffect(() => {
+    // Only fetch if:
+    // 1. Reactions are not provided in props
+    // 2. We haven't fetched yet for this item (checked in module-level cache)
+    // 3. We're not currently loading
+    // Don't check reactions state here - it may be stale. Only check props.
+    const hasReactionsFromProps = !!item.reactions;
+    const cacheState = newsReactionsFetchCache.get(item.id);
+    const hasFetched = cacheState === 'fetched' || cacheState === 'fetching';
+    const shouldFetch = !hasReactionsFromProps && !isLoadingReactions && !hasFetched;
+
+    if (shouldFetch) {
+      // Set cache to 'fetching' IMMEDIATELY to prevent race conditions with other mounting components
+      newsReactionsFetchCache.set(item.id, 'fetching');
+      setIsLoadingReactions(true);
+      getNewsReactions(item.id)
+        .then((data) => {
+          // Mark as fetched in cache
+          newsReactionsFetchCache.set(item.id, 'fetched');
+          setReactions({
+            fire: data.reactions.fire || 0,
+            heart: data.reactions.heart || 0,
+            thumbs_up: data.reactions.thumbs_up || 0,
+            smile: data.reactions.smile || 0,
+            star: data.reactions.star || 0,
+            flag: data.reactions.flag || 0,
+          });
+          setUserReaction(data.user_reaction);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch news reactions:", error);
+          newsReactionsFetchCache.delete(item.id); // Allow retry on error
+        })
+        .finally(() => {
+          setIsLoadingReactions(false);
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
+  const handleReactionToggle = async (reactionType: ReactionType) => {
+    const previousReactions = { ...reactions };
+    const previousUserReaction = userReaction;
+
+    // Optimistic update
+    if (userReaction === reactionType) {
+      // Remove reaction
+      setUserReaction(null);
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: Math.max(0, prev[reactionType] - 1),
+      }));
+    } else {
+      // Add or change reaction
+      if (userReaction) {
+        // Remove old reaction count
+        setReactions((prev) => ({
+          ...prev,
+          [userReaction]: Math.max(0, prev[userReaction] - 1),
+        }));
+      }
+      setUserReaction(reactionType);
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: prev[reactionType] + 1,
+      }));
+    }
+
+    try {
+      const result = await toggleNewsReaction(item.id, reactionType);
+      // Update with server response
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: result.count,
+      }));
+      if (!result.is_active) {
+        setUserReaction(null);
+      } else {
+        setUserReaction(reactionType);
+      }
+    } catch (error) {
+      // Rollback on error
+      setReactions(previousReactions);
+      setUserReaction(previousUserReaction);
+      toast.error("Kon reactie niet bijwerken. Probeer het opnieuw.");
+      console.error("Failed to toggle news reaction:", error);
+    }
+  };
 
   const handleActivate = () => {
     if (onClick) {
@@ -156,6 +295,16 @@ export function NewsCard({
             </div>
           ) : null}
         </div>
+      </div>
+
+      {/* Emoji Reactions */}
+      <div className="mt-3 pt-2 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
+        <EmojiReactions
+          activityId={item.id}
+          reactions={reactions}
+          userReaction={userReaction}
+          onReactionToggle={handleReactionToggle}
+        />
       </div>
     </div>
   );

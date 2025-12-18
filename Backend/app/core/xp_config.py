@@ -14,6 +14,7 @@ XP_AMOUNTS: Dict[str, int] = {
     "note": 20,
     "poll_response": 15,
     "favorite": 5,
+    "onboarding": 10,
 }
 
 # Daily XP cap (default)
@@ -31,6 +32,7 @@ def get_xp_amount(action: str) -> int:
         XP amount (0 if action not configured)
     """
     return XP_AMOUNTS.get(action, 0)
+
 
 
 

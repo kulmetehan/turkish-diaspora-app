@@ -33,3 +33,4 @@ COMMENT ON TABLE events_candidate IS 'Normalized event candidates. Country value
 
 
 
+

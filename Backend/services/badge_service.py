@@ -25,6 +25,7 @@ BADGE_TYPES = {
     "streak_7": "7 day streak",
     "streak_30": "30 day streak",
     "check_in_100": "100 check-ins total",
+    "nieuwkomer": "Onboarding completed",
 }
 
 
@@ -205,6 +206,7 @@ async def _award_badge(user_id: str, badge_type: str, city_key: Optional[str]) -
             error=str(e),
         )
         return False
+
 
 
 

@@ -175,3 +175,4 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
   );
 }
 
+

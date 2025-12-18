@@ -456,7 +456,7 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
     <div className={cn("grid grid-cols-2 gap-3", className)}>
       {/* News Card */}
       <DashboardCard
-        title="Laatste Nieuws"
+        title="Laatste nieuws"
         icon="Newspaper"
         footerLink="/news"
         footerText="Bekijk alle nieuws"
@@ -495,7 +495,7 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Locations Card */}
       <DashboardCard
-        title="Bij jou in de buurt"
+        title="In de buurt"
         icon="Map"
         footerLink="/map"
         footerText="Bekijk op kaart"
@@ -554,7 +554,7 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Events Card */}
       <DashboardCard
-        title="Aankomende Events"
+        title="Events"
         icon="CalendarCheck"
         footerLink="/events"
         footerText="Bekijk alle events"
@@ -596,7 +596,7 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Activity Summary Card */}
       <DashboardCard
-        title="Recent Activity"
+        title="Activiteit"
         icon="Sparkles"
       >
         {activityData.loading ? (
@@ -728,4 +728,5 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
     </div>
   );
 }
+
 

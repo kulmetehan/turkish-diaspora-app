@@ -1,9 +1,18 @@
 // Frontend/src/components/LocationCard.tsx
 
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
+
 import type { LocationMarker } from "@/api/fetchLocations";
-import React from "react";
-import { cn } from "@/lib/ui/cn";
+import { EmojiReactions } from "@/components/feed/EmojiReactions";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import type { ReactionType } from "@/lib/api";
+import { getLocationReactions, toggleLocationReaction } from "@/lib/api";
+import { cn } from "@/lib/ui/cn";
+
+// Module-level cache to persist across component remounts
+// Use Map to track both "fetched" and "in-flight" states
+const locationReactionsFetchCache = new Map<number, 'fetching' | 'fetched'>();
 
 type Props = {
   location: LocationMarker;
@@ -45,6 +54,108 @@ function getStatusBadge(loc: LocationMarker): { text: string; className: string 
 const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect }) => {
   const { text: statusText, className: badgeClass } = getStatusBadge(location);
 
+  // Reactions state
+  const [reactions, setReactions] = useState<Record<ReactionType, number>>({
+    fire: 0,
+    heart: 0,
+    thumbs_up: 0,
+    smile: 0,
+    star: 0,
+    flag: 0,
+  });
+  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
+  const [isLoadingReactions, setIsLoadingReactions] = useState(false);
+
+  // Fetch reactions on mount if not provided
+  // Use module-level cache to persist across component remounts
+  useEffect(() => {
+    if (!location.id) return;
+
+    const currentLocationId = Number(location.id);
+    const cacheState = locationReactionsFetchCache.get(currentLocationId);
+    const hasFetched = cacheState === 'fetched' || cacheState === 'fetching';
+    const shouldFetch = !isLoadingReactions && !hasFetched;
+
+    if (shouldFetch) {
+      // Set cache to 'fetching' IMMEDIATELY to prevent race conditions with other mounting components
+      locationReactionsFetchCache.set(currentLocationId, 'fetching');
+      setIsLoadingReactions(true);
+      getLocationReactions(currentLocationId)
+        .then((data) => {
+          // Mark as fetched in cache
+          locationReactionsFetchCache.set(currentLocationId, 'fetched');
+          setReactions({
+            fire: data.reactions.fire || 0,
+            heart: data.reactions.heart || 0,
+            thumbs_up: data.reactions.thumbs_up || 0,
+            smile: data.reactions.smile || 0,
+            star: data.reactions.star || 0,
+            flag: data.reactions.flag || 0,
+          });
+          setUserReaction(data.user_reaction);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch location reactions:", error);
+          locationReactionsFetchCache.delete(currentLocationId); // Allow retry on error
+        })
+        .finally(() => {
+          setIsLoadingReactions(false);
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.id]);
+
+  const handleReactionToggle = async (reactionType: ReactionType) => {
+    if (!location.id) return;
+
+    const previousReactions = { ...reactions };
+    const previousUserReaction = userReaction;
+
+    // Optimistic update
+    if (userReaction === reactionType) {
+      // Remove reaction
+      setUserReaction(null);
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: Math.max(0, prev[reactionType] - 1),
+      }));
+    } else {
+      // Add or change reaction
+      if (userReaction) {
+        // Remove old reaction count
+        setReactions((prev) => ({
+          ...prev,
+          [userReaction]: Math.max(0, prev[userReaction] - 1),
+        }));
+      }
+      setUserReaction(reactionType);
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: prev[reactionType] + 1,
+      }));
+    }
+
+    try {
+      const result = await toggleLocationReaction(Number(location.id), reactionType);
+      // Update with server response
+      setReactions((prev) => ({
+        ...prev,
+        [reactionType]: result.count,
+      }));
+      if (!result.is_active) {
+        setUserReaction(null);
+      } else {
+        setUserReaction(reactionType);
+      }
+    } catch (error) {
+      // Rollback on error
+      setReactions(previousReactions);
+      setUserReaction(previousUserReaction);
+      toast.error("Kon reactie niet bijwerken. Probeer het opnieuw.");
+      console.error("Failed to toggle location reaction:", error);
+    }
+  };
+
   const handleClick = () => {
     if (onSelect && location.id) onSelect(location.id);
   };
@@ -67,7 +178,7 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
         "my-2 cursor-pointer rounded-3xl border border-border bg-card p-4 text-foreground shadow-soft transition-all duration-200",
         "hover:border-brand-accent hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         isSelected &&
-          "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_30px_45px_rgba(0,0,0,0.55)]",
+        "border-transparent bg-[hsl(var(--brand-red-strong))] text-brand-white shadow-[0_30px_45px_rgba(0,0,0,0.55)]",
       )}
     >
       <div className="flex items-center justify-between gap-2">
@@ -84,6 +195,18 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
           <span className="text-sm">{location.category_label ?? location.category ?? "—"}</span>
         </div>
       </div>
+
+      {/* Emoji Reactions */}
+      {location.id && (
+        <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+          <EmojiReactions
+            activityId={Number(location.id)}
+            reactions={reactions}
+            userReaction={userReaction}
+            onReactionToggle={handleReactionToggle}
+          />
+        </div>
+      )}
     </div>
   );
 };
