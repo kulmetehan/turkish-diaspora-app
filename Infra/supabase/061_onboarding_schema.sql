@@ -40,3 +40,4 @@ COMMENT ON COLUMN user_profiles.home_city IS 'User home city (e.g., Rotterdam)';
 COMMENT ON COLUMN user_profiles.home_region IS 'User home region (e.g., Zuid-Holland)';
 COMMENT ON COLUMN user_profiles.memleket IS 'Array of Turkish provinces (roots)';
 COMMENT ON COLUMN user_profiles.gender IS 'User gender preference for addressing';
+

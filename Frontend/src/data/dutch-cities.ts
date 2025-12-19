@@ -47,3 +47,4 @@ export function getCitiesByRegion(region: string): DutchCity[] {
 export function getRegions(): string[] {
   return Array.from(new Set(DUTCH_CITIES.map((c) => c.region))).sort();
 }
+

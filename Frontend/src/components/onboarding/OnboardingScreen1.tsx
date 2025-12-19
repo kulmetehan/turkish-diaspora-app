@@ -1,9 +1,11 @@
 // Onboarding Screen 1: Carousel with 3 slides
+import ekleBg from "@/assets/ekle-bg.png";
+import kesfetBg from "@/assets/kesfet-bg.png";
+import yasaBg from "@/assets/yasa-bg.png";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { useRef, useState } from "react";
-import { MascotteAvatar } from "./MascotteAvatar";
 import { OnboardingProgress } from "./OnboardingProgress";
 
 export interface OnboardingScreen1Props {
@@ -14,14 +16,17 @@ const slides = [
   {
     title: "Keşfet",
     body: "Zie waar Turkse ondernemers,\nevents en plekken zijn.",
+    image: kesfetBg,
   },
   {
     title: "Yaşa",
     body: "Bekijk lokaal nieuws,\npolls en wat er speelt in jouw omgeving.",
+    image: yasaBg,
   },
   {
     title: "Ekle",
     body: "Zoek, reageer\nen voeg locaties toe.",
+    image: ekleBg,
   },
 ];
 
@@ -32,12 +37,6 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
   const [mouseStart, setMouseStart] = useState<number | null>(null);
   const [mouseEnd, setMouseEnd] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:35', message: 'Component render', data: { currentSlide }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A,B,C,D' }) }).catch(() => { });
-  }
-  // #endregion
 
   // Minimum swipe distance (in pixels)
   const minSwipeDistance = 50;
@@ -95,28 +94,10 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
   };
 
   const handleNext = () => {
-    // #region agent log
-    if (typeof window !== 'undefined') {
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:91', message: 'handleNext called', data: { currentSlide, slidesLength: slides.length }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-    }
-    // #endregion
     if (currentSlide < slides.length - 1) {
-      setCurrentSlide((prev) => {
-        const next = prev + 1;
-        // #region agent log
-        if (typeof window !== 'undefined') {
-          fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:95', message: 'Moving to next slide', data: { prev, next }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-        }
-        // #endregion
-        return next;
-      });
+      setCurrentSlide((prev) => prev + 1);
     } else {
       // Last slide - proceed to next screen
-      // #region agent log
-      if (typeof window !== 'undefined') {
-        fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:99', message: 'Calling onNext', data: { currentSlide }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-      }
-      // #endregion
       onNext();
     }
   };
@@ -132,7 +113,11 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
     <div className="fixed inset-0 z-[100] bg-background" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header with mascotte */}
       <div className="flex-shrink-0 flex flex-col items-center justify-center px-6 pt-12 pb-6">
-        <MascotteAvatar size="lg" className="mb-4" />
+        <img
+          src={slides[currentSlide].image}
+          alt={`${slides[currentSlide].title} mascotte`}
+          className="h-32 w-32 object-contain mb-4"
+        />
         <OnboardingProgress current={currentSlide} total={slides.length} />
       </div>
 
@@ -152,13 +137,6 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseUp}
       >
-        {/* #region agent log */}
-        {typeof window !== 'undefined' && containerRef.current && (() => {
-          const rect = containerRef.current.getBoundingClientRect();
-          fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:128', message: 'Carousel container dimensions', data: { top: rect.top, bottom: rect.bottom, height: rect.height }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-          return null;
-        })()}
-        {/* #endregion */}
         <div className="relative h-full w-full">
           {slides.map((slide, index) => (
             <div
@@ -170,16 +148,6 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
               )}
               style={{ pointerEvents: index === currentSlide ? 'auto' : 'none' }}
             >
-              {/* #region agent log */}
-              {typeof window !== 'undefined' && index === currentSlide && (() => {
-                const slideEl = document.querySelector(`[data-slide-index="${index}"]`);
-                if (slideEl) {
-                  const rect = (slideEl as HTMLElement).getBoundingClientRect();
-                  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:137', message: 'Active slide dimensions', data: { index, top: rect.top, bottom: rect.bottom, height: rect.height, zIndex: window.getComputedStyle(slideEl as Element).zIndex }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A,B' }) }).catch(() => { });
-                }
-                return null;
-              })()}
-              {/* #endregion */}
               <h2 className="mb-4 text-3xl font-gilroy font-bold text-foreground">
                 {slide.title}
               </h2>
@@ -191,14 +159,7 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
               <div className="flex items-center justify-between gap-4 w-full max-w-md mt-6">
                 {/* Previous button */}
                 <Button
-                  onClick={() => {
-                    // #region agent log
-                    if (typeof window !== 'undefined') {
-                      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:160', message: 'Previous button clicked', data: { currentSlide }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-                    }
-                    // #endregion
-                    handlePrevious();
-                  }}
+                  onClick={handlePrevious}
                   variant="outline"
                   size="lg"
                   disabled={currentSlide === 0}
@@ -228,14 +189,7 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
 
                 {/* Next/Complete button */}
                 <Button
-                  onClick={() => {
-                    // #region agent log
-                    if (typeof window !== 'undefined') {
-                      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingScreen1.tsx:190', message: 'Next button clicked', data: { currentSlide, isLast: currentSlide === slides.length - 1 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-                    }
-                    // #endregion
-                    handleNext();
-                  }}
+                  onClick={handleNext}
                   size="lg"
                   variant="default"
                   className="flex items-center gap-2 font-gilroy min-w-[100px]"
@@ -258,3 +212,4 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
     </div>
   );
 }
+

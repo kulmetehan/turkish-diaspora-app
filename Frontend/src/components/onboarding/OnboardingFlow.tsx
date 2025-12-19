@@ -25,22 +25,11 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [onboardingData, setOnboardingData] = useState<OnboardingState>({});
   const [isCompleting, setIsCompleting] = useState(false);
 
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingFlow.tsx:24', message: 'OnboardingFlow render', data: { currentScreen, onboardingData, isCompleting }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-  }
-  // #endregion
-
   const handleScreen0Next = () => {
     setCurrentScreen(1);
   };
 
   const handleScreen1Next = () => {
-    // #region agent log
-    if (typeof window !== 'undefined') {
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingFlow.tsx:32', message: 'handleScreen1Next called', data: { currentScreen, willGoTo: 2 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-    }
-    // #endregion
     setCurrentScreen(2);
   };
 
@@ -94,11 +83,6 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   // Render current screen
-  // #region agent log
-  if (typeof window !== 'undefined') {
-    fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'OnboardingFlow.tsx:91', message: 'Rendering screen', data: { currentScreen, screenName: ['Screen0', 'Screen1', 'Screen2', 'Screen3', 'Screen4', 'Screen5'][currentScreen] || 'unknown' }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-  }
-  // #endregion
   switch (currentScreen) {
     case 0:
       return <OnboardingScreen0 onNext={handleScreen0Next} />;
@@ -116,3 +100,4 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return null;
   }
 }
+

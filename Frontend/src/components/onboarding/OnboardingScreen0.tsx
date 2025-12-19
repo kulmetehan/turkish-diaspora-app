@@ -77,3 +77,4 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
     </div>
   );
 }
+

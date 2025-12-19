@@ -31,12 +31,13 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
       <div className="flex flex-col items-center justify-center px-6 pt-12 pb-8">
         <MascotteAvatar size="lg" className="mb-4" />
         <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
-          Zodat ik je normaal kan aanspreken.
+          Zodat ik je op maat kan bedienen.
         </h2>
       </div>
 
       {/* Gender buttons */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-4">
+        <p className="text-sm text-muted-foreground mb-4">Geslacht</p>
         <Button
           onClick={() => handleSelect("male")}
           size="lg"
@@ -74,3 +75,4 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
     </div>
   );
 }
+

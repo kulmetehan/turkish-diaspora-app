@@ -30,3 +30,4 @@ COMMENT ON COLUMN activity_bookmarks.client_id IS 'Anonymous client ID (mutually
 
 
 
+

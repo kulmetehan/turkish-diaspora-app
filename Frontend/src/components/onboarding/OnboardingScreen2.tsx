@@ -1,11 +1,11 @@
 // Onboarding Screen 2: Woonplaats Picker
 import type { NewsCity } from "@/api/news";
 import { searchNewsCities } from "@/api/news";
+import woonplaatsBg from "@/assets/woonplaats-bg.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/ui/cn";
-import { useEffect, useState } from "react";
-import { MascotteAvatar } from "./MascotteAvatar";
+import { useEffect, useRef, useState } from "react";
 
 export interface OnboardingScreen2Props {
   onNext: (data: { home_city: string; home_region: string }) => void;
@@ -17,6 +17,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NewsCity[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Search cities when query changes
   useEffect(() => {
@@ -68,7 +69,25 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
       e.preventDefault();
       e.stopPropagation();
     }
+
+    // Dismiss keyboard immediately
+    inputRef.current?.blur();
+
+    // Clear search results and query for clean UI
+    setSearchResults([]);
+    setSearchQuery("");
+
+    // Set selected city
     setSelectedCity(city);
+
+    // Automatically proceed to next step after a short delay
+    // This ensures the keyboard dismisses and UI updates smoothly
+    setTimeout(() => {
+      onNext({
+        home_city: city.name,
+        home_region: city.province || city.country.toUpperCase(),
+      });
+    }, 150);
   };
 
   const handleNext = () => {
@@ -84,7 +103,11 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
     <div className="fixed inset-0 z-[100] flex flex-col bg-background" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header */}
       <div className="flex-shrink-0 flex flex-col items-center justify-center px-6 pt-12 pb-6">
-        <MascotteAvatar size="lg" className="mb-4" />
+        <img
+          src={woonplaatsBg}
+          alt="Woonplaats mascotte"
+          className="h-32 w-32 object-contain mb-4"
+        />
         <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
           Waar woon jij ongeveer?
         </h2>
@@ -97,16 +120,23 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
       {/* Search input */}
       <div className="flex-shrink-0 px-6 pb-4">
         <Input
+          ref={inputRef}
           type="text"
           placeholder="Typ een stad in Nederland..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full"
+          className="w-full text-base"
+          style={{ fontSize: '16px' }}
         />
       </div>
 
-      {/* City list */}
-      <div className="flex-1 overflow-y-auto px-6" style={{ minHeight: 0 }}>
+      {/* City list - positioned above footer */}
+      <div
+        className="flex-1 overflow-y-auto px-6 pb-40 relative z-[60] bg-background"
+        style={{
+          minHeight: 0,
+        }}
+      >
         <div className="space-y-2">
           {isSearching ? (
             <div className="py-8 text-center text-muted-foreground">
@@ -119,7 +149,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
                 onClick={(e) => handleCitySelect(city, e)}
                 onMouseDown={(e) => e.preventDefault()}
                 className={cn(
-                  "w-full rounded-lg border p-4 text-left transition-all cursor-pointer",
+                  "w-full rounded-lg border p-4 text-left transition-all cursor-pointer relative",
                   selectedCity?.cityKey === city.cityKey
                     ? "border-primary bg-primary/10"
                     : "border-border bg-card hover:bg-muted"
@@ -146,15 +176,18 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
 
       {/* Footer with CTA */}
       <div
-        className="px-6 pb-8 pt-4 border-t border-border/50 bg-background"
+        className="px-6 pt-4 border-t border-border/50 bg-background z-50 shadow-lg"
         style={{
-          position: 'relative',
-          zIndex: 10,
-          flexShrink: 0
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
+          pointerEvents: 'none',
         }}
       >
         {selectedCity && (
-          <div className="mb-4 text-center">
+          <div className="mb-4 text-center" style={{ pointerEvents: 'auto' }}>
             <p className="text-sm font-medium text-foreground">
               Geselecteerd: {selectedCity.name}
             </p>
@@ -163,7 +196,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
             )}
           </div>
         )}
-        <div className="flex gap-4">
+        <div className="flex gap-4" style={{ pointerEvents: 'auto' }}>
           {onPrevious && (
             <Button
               onClick={(e) => {
@@ -197,3 +230,4 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
     </div>
   );
 }
+
