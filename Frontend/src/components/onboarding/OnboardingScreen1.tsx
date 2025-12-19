@@ -117,16 +117,6 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
 
   return (
     <div className="fixed inset-0 z-[100] bg-background" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Header with mascotte */}
-      <div className="flex-shrink-0 flex flex-col items-center justify-center px-6 pt-6 pb-3 md:pt-12 md:pb-6">
-        <img
-          src={slides[currentSlide].image}
-          alt={`${slides[currentSlide].title} mascotte`}
-          className="h-20 w-20 md:h-32 md:w-32 object-contain mb-2 md:mb-4"
-        />
-        <OnboardingProgress current={currentSlide} total={slides.length} />
-      </div>
-
       {/* Carousel container - Show only active slide */}
       <div
         ref={containerRef}
@@ -149,14 +139,24 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
               key={index}
               data-slide-index={index}
               className={cn(
-                "absolute inset-0 flex flex-col items-center px-6 text-center transition-opacity duration-300",
+                "absolute inset-0 flex flex-col items-center justify-center px-6 text-center transition-opacity duration-300",
                 index === currentSlide ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
               )}
               style={{ pointerEvents: index === currentSlide ? 'auto' : 'none' }}
             >
-              {/* Spacer to position image at specific height */}
-              <div style={{ minHeight: '8rem', maxHeight: '8rem' }} />
-              {/* Illustration image - shown between progress dots (in header) and title */}
+              {/* Mascotte avatar */}
+              <img
+                src={slide.image}
+                alt={`${slide.title} mascotte`}
+                className="h-20 w-20 md:h-32 md:w-32 object-contain mb-2 md:mb-4 flex-shrink-0"
+              />
+
+              {/* Progress dots */}
+              <div className="mb-4 md:mb-6 flex-shrink-0">
+                <OnboardingProgress current={currentSlide} total={slides.length} />
+              </div>
+
+              {/* Illustration image - shown between progress dots and title */}
               {slide.illustration && (
                 <img
                   src={slide.illustration}
@@ -171,11 +171,8 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
                 {slide.body}
               </p>
 
-              {/* Spacer to position buttons at specific height (not at bottom) */}
-              <div style={{ minHeight: '4rem', maxHeight: '4rem' }} className="flex-shrink-0" />
-
-              {/* Navigation buttons - Fixed at specific height (not at bottom) */}
-              <div className="flex items-center justify-between gap-4 w-full max-w-md flex-shrink-0 pb-4 md:pb-6">
+              {/* Navigation buttons - Centered with content */}
+              <div className="flex items-center justify-between gap-4 w-full max-w-md flex-shrink-0">
                 {/* Previous button */}
                 <Button
                   onClick={handlePrevious}
