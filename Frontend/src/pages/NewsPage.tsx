@@ -16,6 +16,7 @@ import { useNewsBookmarks } from "@/hooks/useNewsBookmarks";
 import { useNewsCityPreferences, type CityLabelMap } from "@/hooks/useNewsCityPreferences";
 import { NEWS_FEED_STALE_MS, useNewsFeed } from "@/hooks/useNewsFeed";
 import { useNewsSearch } from "@/hooks/useNewsSearch";
+import { getOnboardingStatus } from "@/lib/api";
 import {
   clearNewsCategoriesFromHash,
   readNewsCategoriesFromHash,
@@ -116,10 +117,21 @@ export default function NewsPage() {
 
   useEffect(() => {
     if (!cityReady) return;
-    if (
-      (feed === "local" && cityPreferences.nl.length === 0) ||
-      (feed === "origin" && cityPreferences.tr.length === 0)
-    ) {
+
+    // Check onboarding status
+    const onboardingStatus = getOnboardingStatus();
+
+    // Only show modal if:
+    // 1. Onboarding is NOT completed AND cities are missing for the current feed
+    // 2. OR: Onboarding is completed but cities are still missing (edge case - user skipped cities)
+    const shouldShowModal =
+      (!onboardingStatus.onboarding_completed ||
+        (feed === "local" && cityPreferences.nl.length === 0) ||
+        (feed === "origin" && cityPreferences.tr.length === 0)) &&
+      ((feed === "local" && cityPreferences.nl.length === 0) ||
+        (feed === "origin" && cityPreferences.tr.length === 0));
+
+    if (shouldShowModal) {
       openCityModal();
     }
   }, [cityReady, cityPreferences, feed, openCityModal]);

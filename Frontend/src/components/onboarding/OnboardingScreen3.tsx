@@ -38,7 +38,9 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
           limit: 50, // Get more results to include ilçe's
           signal: controller.signal,
         });
-        setSearchResults(results);
+        // Filter to ensure only TR cities are shown (safety check)
+        const filteredResults = results.filter(city => city.country === "tr");
+        setSearchResults(filteredResults);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           console.error("Failed to search Turkish cities", error);

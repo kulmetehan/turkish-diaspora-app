@@ -8,7 +8,7 @@ import { cn } from "@/lib/ui/cn";
 import { useEffect, useRef, useState } from "react";
 
 export interface OnboardingScreen2Props {
-  onNext: (data: { home_city: string; home_region: string }) => void;
+  onNext: (data: { home_city: string; home_region: string; home_city_key: string }) => void;
   onPrevious?: () => void;
 }
 
@@ -32,23 +32,16 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
     const timeoutId = setTimeout(async () => {
       setIsSearching(true);
       try {
-        // Search in both NL and TR, but prioritize NL
-        const [nlResults, trResults] = await Promise.all([
-          searchNewsCities({
-            country: "nl",
-            q: trimmed,
-            limit: 20,
-            signal: controller.signal,
-          }).catch(() => []),
-          searchNewsCities({
-            country: "tr",
-            q: trimmed,
-            limit: 10,
-            signal: controller.signal,
-          }).catch(() => []),
-        ]);
-        // Combine results, NL first
-        setSearchResults([...nlResults, ...trResults]);
+        // Search only in NL for woonplaats
+        const nlResults = await searchNewsCities({
+          country: "nl",
+          q: trimmed,
+          limit: 20,
+          signal: controller.signal,
+        }).catch(() => []);
+        // Filter to ensure only NL cities are shown (safety check)
+        const filteredResults = nlResults.filter(city => city.country === "nl");
+        setSearchResults(filteredResults);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           console.error("Failed to search cities", error);
@@ -86,6 +79,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
       onNext({
         home_city: city.name,
         home_region: city.province || city.country.toUpperCase(),
+        home_city_key: city.cityKey.toLowerCase(),
       });
     }, 150);
   };
@@ -95,6 +89,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
       onNext({
         home_city: selectedCity.name,
         home_region: selectedCity.province || selectedCity.country.toUpperCase(),
+        home_city_key: selectedCity.cityKey.toLowerCase(),
       });
     }
   };

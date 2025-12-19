@@ -118,11 +118,11 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
   return (
     <div className="fixed inset-0 z-[100] bg-background" style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Header with mascotte */}
-      <div className="flex-shrink-0 flex flex-col items-center justify-center px-6 pt-12 pb-6">
+      <div className="flex-shrink-0 flex flex-col items-center justify-center px-6 pt-6 pb-3 md:pt-12 md:pb-6">
         <img
           src={slides[currentSlide].image}
           alt={`${slides[currentSlide].title} mascotte`}
-          className="h-32 w-32 object-contain mb-4"
+          className="h-20 w-20 md:h-32 md:w-32 object-contain mb-2 md:mb-4"
         />
         <OnboardingProgress current={currentSlide} total={slides.length} />
       </div>
@@ -159,18 +159,18 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
                 <img
                   src={slide.illustration}
                   alt={`${slide.title} illustratie`}
-                  className="h-[17.28rem] w-auto object-contain mb-4"
+                  className="h-48 md:h-[17.28rem] w-auto object-contain mb-2 md:mb-4"
                 />
               )}
-              <h2 className="mb-4 text-3xl font-gilroy font-bold text-foreground">
+              <h2 className="mb-2 md:mb-4 text-2xl md:text-3xl font-gilroy font-bold text-foreground">
                 {slide.title}
               </h2>
-              <p className="mb-8 whitespace-pre-line text-lg font-gilroy font-normal text-muted-foreground">
+              <p className="mb-4 md:mb-8 whitespace-pre-line text-base md:text-lg font-gilroy font-normal text-muted-foreground">
                 {slide.body}
               </p>
 
               {/* Navigation buttons - Directly under the text */}
-              <div className="flex items-center justify-between gap-4 w-full max-w-md mt-6">
+              <div className="flex items-center justify-between gap-4 w-full max-w-md mt-4 md:mt-6">
                 {/* Previous button */}
                 <Button
                   onClick={handlePrevious}
