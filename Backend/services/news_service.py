@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from app.models.news_city_config import get_city_by_key
 from app.models.news_public import NewsItem
@@ -112,7 +113,23 @@ def _build_tags(location_tag: Any, topics: Any) -> List[str]:
     return deduped
 
 
+def _parse_reactions(reactions: Any) -> Optional[Dict[str, int]]:
+    """Parse reactions JSON from database (json_object_agg returns string, not dict)."""
+    if reactions is None:
+        return None
+    if isinstance(reactions, dict):
+        return reactions
+    if isinstance(reactions, str):
+        try:
+            parsed = json.loads(reactions)
+            return parsed if isinstance(parsed, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
+
+
 def _row_to_news_item(row: Mapping[str, Any]) -> NewsItem:
+    parsed_reactions = _parse_reactions(row.get("reactions"))
     return NewsItem(
         id=int(row["id"]),
         title=str(row.get("title") or "Untitled"),
@@ -122,6 +139,8 @@ def _row_to_news_item(row: Mapping[str, Any]) -> NewsItem:
         url=str(row.get("link")),
         image_url=row.get("image_url"),
         tags=_build_tags(row.get("location_tag"), row.get("topics")),
+        reactions=parsed_reactions,
+        user_reaction=row.get("user_reaction"),
     )
 
 
@@ -289,7 +308,20 @@ async def list_news_by_feed(
             published_at,
             topics,
             location_tag,
-            {score_column} AS relevance_score
+            {score_column} AS relevance_score,
+            COALESCE(
+                (
+                    SELECT json_object_agg(reaction_type, count)
+                    FROM (
+                        SELECT reaction_type, COUNT(*)::int as count
+                        FROM news_reactions
+                        WHERE news_id = raw_ingested_news.id
+                        GROUP BY reaction_type
+                    ) reaction_counts
+                ),
+                '{{}}'::json
+            ) as reactions,
+            NULL as user_reaction
         FROM raw_ingested_news
         WHERE {where_clause}
         ORDER BY {order_clause}
@@ -357,24 +389,37 @@ async def list_trending_news(
               )
         )
         SELECT
-            id,
-            title,
-            summary,
-            content,
-            source_name,
-            link,
-            image_url,
-            published_at,
-            topics,
-            location_tag,
-            (GREATEST(diaspora_score, geo_score)
-                * GREATEST(0.0, 1.0 - (hours_since / NULLIF($4, 0)))
-                * (1.0 + LEAST(LOG(1 + source_freq), 0.5))
+            ranked.id,
+            ranked.title,
+            ranked.summary,
+            ranked.content,
+            ranked.source_name,
+            ranked.link,
+            ranked.image_url,
+            ranked.published_at,
+            ranked.topics,
+            ranked.location_tag,
+            (GREATEST(ranked.diaspora_score, ranked.geo_score)
+                * GREATEST(0.0, 1.0 - (ranked.hours_since / NULLIF($4, 0)))
+                * (1.0 + LEAST(LOG(1 + ranked.source_freq), 0.5))
             ) AS trending_score,
-            hours_since,
-            source_freq
+            ranked.hours_since,
+            ranked.source_freq,
+            COALESCE(
+                (
+                    SELECT json_object_agg(reaction_type, count)
+                    FROM (
+                        SELECT reaction_type, COUNT(*)::int as count
+                        FROM news_reactions
+                        WHERE news_id = ranked.id
+                        GROUP BY reaction_type
+                    ) reaction_counts
+                ),
+                '{}'::json
+            ) as reactions,
+            NULL as user_reaction
         FROM ranked
-        ORDER BY trending_score DESC, published_at DESC
+        ORDER BY trending_score DESC, ranked.published_at DESC
         LIMIT $5 OFFSET $6
     """
     rows = await fetch(query, *params)
@@ -442,7 +487,20 @@ async def search_news(
             (
                 ts_rank(news_search_tsv, q.tsq) * 0.7
                 + COALESCE(relevance_diaspora, 0) * 0.3
-            ) AS search_score
+            ) AS search_score,
+            COALESCE(
+                (
+                    SELECT json_object_agg(reaction_type, count)
+                    FROM (
+                        SELECT reaction_type, COUNT(*)::int as count
+                        FROM news_reactions
+                        WHERE news_id = raw_ingested_news.id
+                        GROUP BY reaction_type
+                    ) reaction_counts
+                ),
+                '{}'::json
+            ) as reactions,
+            NULL as user_reaction
         FROM raw_ingested_news, q
         WHERE
             processing_state = 'classified'

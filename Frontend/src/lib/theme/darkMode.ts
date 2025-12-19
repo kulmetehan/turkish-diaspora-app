@@ -5,7 +5,12 @@ function apply(theme: ThemeSetting) {
   const root = document.documentElement;
   const isSystemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
   const effectiveDark = theme === "dark" || (theme === "system" && isSystemDark);
-  root.classList.toggle("dark", effectiveDark);
+  // Use add/remove instead of toggle to ensure correct state
+  if (effectiveDark) {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
 }
 
 export function initTheme() {

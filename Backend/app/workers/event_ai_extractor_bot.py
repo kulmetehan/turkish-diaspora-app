@@ -35,7 +35,15 @@ logger = get_logger().bind(worker="event_ai_extractor_bot")
 
 DEFAULT_LIMIT = 20
 DEFAULT_CHUNK_SIZE = 16000
-AI_PAGE_SOURCE_KEYS: set[str] = {"sahmeran_events", "ajda_events", "ediz_events"}
+AI_PAGE_SOURCE_KEYS: set[str] = {
+    "sahmeran_events",
+    "ajda_events",
+    "ediz_events",
+    "meervaart_events",
+    "melkweg_events",
+    "paradiso_events",
+    "dedoelen_events",
+}
 
 
 def _parse_worker_run_id(value: str) -> UUID:

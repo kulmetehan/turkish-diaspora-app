@@ -15,11 +15,8 @@ from services.xp_service import award_xp
 router = APIRouter(prefix="/locations", tags=["reactions"])
 
 
-VALID_REACTION_TYPES = {'fire', 'heart', 'thumbs_up', 'smile', 'star', 'flag'}
-
-
 class ReactionToggleRequest(BaseModel):
-    reaction_type: str  # 'fire', 'heart', 'thumbs_up', 'smile', 'star', 'flag'
+    reaction_type: str  # Emoji string (e.g., "🔥", "❤️", "👍", etc.)
 
 
 class ReactionStats(BaseModel):
@@ -41,11 +38,18 @@ async def toggle_location_reaction(
     if not client_id:
         raise HTTPException(status_code=400, detail="client_id required")
     
-    # Validate reaction type
-    if request.reaction_type not in VALID_REACTION_TYPES:
+    # Basic validation: ensure reaction_type is a non-empty string
+    if not request.reaction_type or not isinstance(request.reaction_type, str) or len(request.reaction_type.strip()) == 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid reaction_type. Must be one of: {', '.join(VALID_REACTION_TYPES)}"
+            detail="reaction_type must be a non-empty string (emoji)"
+        )
+    
+    # Limit emoji length to prevent abuse (reasonable limit for emoji sequences)
+    if len(request.reaction_type) > 10:
+        raise HTTPException(
+            status_code=400,
+            detail="reaction_type too long (max 10 characters)"
         )
     
     user_id = None  # TODO: Extract from auth session
@@ -141,23 +145,15 @@ async def get_reactions(
         FROM location_reactions
         WHERE location_id = $1
         GROUP BY reaction_type
+        ORDER BY count DESC, reaction_type ASC
     """
     count_rows = await fetch(counts_sql, location_id)
     
-    # Build reactions dict with all types initialized to 0
-    reactions = {
-        "fire": 0,
-        "heart": 0,
-        "thumbs_up": 0,
-        "smile": 0,
-        "star": 0,
-        "flag": 0,
-    }
-    
+    # Build reactions dict dynamically from database results
+    reactions: Dict[str, int] = {}
     for row in count_rows:
         reaction_type = row["reaction_type"]
-        if reaction_type in reactions:
-            reactions[reaction_type] = row.get("count", 0) or 0
+        reactions[reaction_type] = row.get("count", 0) or 0
     
     # Get user's reaction if any
     user_reaction = None

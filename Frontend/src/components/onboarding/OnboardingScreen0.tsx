@@ -47,7 +47,7 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
         <div className="mb-8 space-y-4">
           <h1
             className={cn(
-              "text-3xl font-semibold text-foreground transition-opacity duration-500",
+              "text-3xl font-semibold text-black transition-opacity duration-500",
               showFirstText ? "opacity-100" : "opacity-0"
             )}
           >

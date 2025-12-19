@@ -6,6 +6,7 @@ import { ShareButton } from "@/components/share/ShareButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import {
     addFavorite,
@@ -32,24 +33,7 @@ type Props = {
     onBackToList: () => void;
 };
 
-// Reaction type to emoji mapping
-const REACTION_EMOJIS: Record<ReactionType, string> = {
-    fire: "🔥",
-    heart: "❤️",
-    thumbs_up: "👍",
-    smile: "😊",
-    star: "⭐",
-    flag: "🚩",
-};
-
-const REACTION_LABELS: Record<ReactionType, string> = {
-    fire: "Fire",
-    heart: "Heart",
-    thumbs_up: "Thumbs Up",
-    smile: "Smile",
-    star: "Star",
-    flag: "Flag",
-};
+// No longer using fixed reaction types - reactions are now custom emoji strings
 
 export default function LocationDetail({ location, onBackToList }: Props) {
     const locationId = parseInt(location.id);
@@ -61,7 +45,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
 
     // State for reactions
     const [reactionStats, setReactionStats] = useState<ReactionStats | null>(null);
-    const [userReactions, setUserReactions] = useState<Set<ReactionType>>(new Set());
+    const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
     const [reactionLoading, setReactionLoading] = useState<ReactionType | null>(null);
 
     // State for notes
@@ -95,9 +79,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                     reactions: reactionData.reactions,
                 });
                 // Set user reaction from API response
-                if (reactionData.user_reaction) {
-                    setUserReactions(new Set([reactionData.user_reaction]));
-                }
+                setUserReaction(reactionData.user_reaction || null);
 
                 // Load notes
                 const notesData = await getNotes(locationId);
@@ -145,30 +127,15 @@ export default function LocationDetail({ location, onBackToList }: Props) {
     const handleReaction = async (reactionType: ReactionType) => {
         if (reactionLoading) return;
 
-        const hasReaction = userReactions.has(reactionType);
+        const hasReaction = userReaction === reactionType;
         setReactionLoading(reactionType);
 
         try {
             // Toggle reaction (add if not exists, remove if exists)
             const result = await toggleLocationReaction(locationId, reactionType);
 
-            // Update user reactions based on result
-            if (result.is_active) {
-                // Remove old reaction if exists
-                setUserReactions((prev) => {
-                    const next = new Set(prev);
-                    prev.forEach((rt) => next.delete(rt));
-                    next.add(reactionType);
-                    return next;
-                });
-            } else {
-                // Remove reaction
-                setUserReactions((prev) => {
-                    const next = new Set(prev);
-                    next.delete(reactionType);
-                    return next;
-                });
-            }
+            // Update user reaction based on result
+            setUserReaction(result.is_active ? reactionType : null);
 
             // Refresh stats
             const stats = await getLocationReactions(locationId);
@@ -176,11 +143,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                 location_id: locationId,
                 reactions: stats.reactions,
             });
-            if (stats.user_reaction) {
-                setUserReactions(new Set([stats.user_reaction]));
-            } else {
-                setUserReactions(new Set());
-            }
+            setUserReaction(stats.user_reaction || null);
         } catch (error: any) {
             toast.error(error.message || "Fout bij bijwerken van reaction");
         } finally {
@@ -448,24 +411,29 @@ export default function LocationDetail({ location, onBackToList }: Props) {
 
                         {/* Reactions Section */}
                         <Card className="p-4 mb-4">
-                            <h3 className="font-medium text-sm mb-3">Reactions</h3>
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="font-medium text-sm">Reactions</h3>
+                                <EmojiPicker
+                                    onEmojiSelect={handleReaction}
+                                    className="text-foreground"
+                                />
+                            </div>
                             <div className="flex flex-wrap gap-2">
-                                {(Object.keys(REACTION_EMOJIS) as ReactionType[]).map((reactionType) => {
-                                    const count = reactionStats?.reactions[reactionType] ?? 0;
-                                    const isActive = userReactions.has(reactionType);
-                                    const isLoading = reactionLoading === reactionType;
+                                {reactionStats?.reactions && Object.entries(reactionStats.reactions).map(([emoji, count]) => {
+                                    if (count === 0) return null;
+                                    const isActive = userReaction === emoji;
+                                    const isLoading = reactionLoading === emoji;
 
                                     return (
                                         <Button
-                                            key={reactionType}
-                                            onClick={() => handleReaction(reactionType)}
+                                            key={emoji}
+                                            onClick={() => handleReaction(emoji)}
                                             disabled={isLoading}
                                             variant={isActive ? "default" : "outline"}
                                             size="sm"
                                             className="relative"
                                         >
-                                            <span className="text-lg mr-1">{REACTION_EMOJIS[reactionType]}</span>
-                                            <span className="text-xs">{REACTION_LABELS[reactionType]}</span>
+                                            <span className="text-lg mr-1">{emoji}</span>
                                             {count > 0 && (
                                                 <Badge
                                                     variant="secondary"
@@ -477,6 +445,9 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                                         </Button>
                                     );
                                 })}
+                                {(!reactionStats?.reactions || Object.keys(reactionStats.reactions).length === 0) && (
+                                    <p className="text-sm text-muted-foreground">Nog geen reacties. Voeg de eerste toe!</p>
+                                )}
                             </div>
                         </Card>
 

@@ -56,10 +56,8 @@ export function NewsCategoryFilterBar({
 
   const handleToggle = (category: NewsCategoryKey) => {
     const isActive = normalizedSelection.includes(category);
-    const next = isActive
-      ? normalizedSelection.filter((value) => value !== category)
-      : [...normalizedSelection, category];
-    onChange(next);
+    // Single select: always select only the clicked category, or deselect if already active
+    onChange(isActive ? [] : [category]);
   };
 
 

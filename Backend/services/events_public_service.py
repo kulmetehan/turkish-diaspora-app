@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, time, timezone
-from typing import Any, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from app.models.events_public import EventItem
 from services.db_service import fetch, fetchrow
@@ -13,6 +14,21 @@ def _date_start(dt: date) -> datetime:
 
 def _date_end(dt: date) -> datetime:
     return datetime.combine(dt, time.max, tzinfo=timezone.utc)
+
+
+def _parse_reactions(reactions: Any) -> Optional[Dict[str, int]]:
+    """Parse reactions JSON from database (json_object_agg returns string, not dict)."""
+    if reactions is None:
+        return None
+    if isinstance(reactions, dict):
+        return reactions
+    if isinstance(reactions, str):
+        try:
+            parsed = json.loads(reactions)
+            return parsed if isinstance(parsed, dict) else None
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return None
 
 
 def _row_to_event_item(row: Any) -> EventItem:
@@ -39,6 +55,8 @@ def _row_to_event_item(row: Any) -> EventItem:
         updated_at=row["updated_at"],
         lat=lat,
         lng=lng,
+        reactions=_parse_reactions(row.get("reactions")),
+        user_reaction=row.get("user_reaction"),
     )
 
 
@@ -97,7 +115,20 @@ async def list_public_events(
             summary_ai,
             updated_at,
             lat,
-            lng
+            lng,
+            COALESCE(
+                (
+                    SELECT json_object_agg(reaction_type, count)
+                    FROM (
+                        SELECT reaction_type, COUNT(*)::int as count
+                        FROM event_reactions
+                        WHERE event_id = ep.id
+                        GROUP BY reaction_type
+                    ) reaction_counts
+                ),
+                '{{}}'::json
+            ) as reactions,
+            NULL as user_reaction
         FROM events_public ep
         WHERE {where_clause}
         ORDER BY start_time_utc ASC, id ASC

@@ -109,17 +109,9 @@ export function FeedCard({
   const hasMedia = Boolean(mediaUrl);
   const isEvent = type === "event";
 
-  // Initialize reactions with all types set to 0 if not provided
+  // Reactions are now dynamic emoji strings, so we just use them directly
   const reactionCounts = useMemo(() => {
-    const defaultReactions: Record<ReactionType, number> = {
-      fire: 0,
-      heart: 0,
-      thumbs_up: 0,
-      smile: 0,
-      star: 0,
-      flag: 0,
-    };
-    return reactions ? { ...defaultReactions, ...reactions } : defaultReactions;
+    return reactions || {};
   }, [reactions]);
 
   const handleBookmark = (e: React.MouseEvent) => {

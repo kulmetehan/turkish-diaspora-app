@@ -5,7 +5,6 @@ import type { EventItem } from "@/api/events";
 import { EmojiReactions } from "@/components/feed/EmojiReactions";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
-import type { ReactionType } from "@/lib/api";
 import { getEventReactions, toggleEventReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 
@@ -37,37 +36,25 @@ export function EventCard({
   const showMapButton = Boolean(onShowOnMap && eventHasCoordinates(event));
 
   // Reactions state
-  const [reactions, setReactions] = useState<Record<ReactionType, number>>({
-    fire: 0,
-    heart: 0,
-    thumbs_up: 0,
-    smile: 0,
-    star: 0,
-    flag: 0,
-  });
-  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
+  const [reactions, setReactions] = useState<Record<string, number>>({});
+  const [userReaction, setUserReaction] = useState<string | null>(null);
   const [isLoadingReactions, setIsLoadingReactions] = useState(false);
 
   // Initialize reactions from event props if available
   // Use a ref to track the last reactions values to avoid unnecessary updates
   const lastReactionsRef = useRef<string | null>(null);
-  const lastUserReactionRef = useRef<ReactionType | null>(null);
+  const lastUserReactionRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Only update if reactions actually changed (by value, not reference)
     const reactionsKey = event.reactions ? JSON.stringify(event.reactions) : null;
     if (reactionsKey !== lastReactionsRef.current && event.reactions) {
       lastReactionsRef.current = reactionsKey;
-      setReactions({
-        fire: event.reactions.fire || 0,
-        heart: event.reactions.heart || 0,
-        thumbs_up: event.reactions.thumbs_up || 0,
-        smile: event.reactions.smile || 0,
-        star: event.reactions.star || 0,
-        flag: event.reactions.flag || 0,
-      });
+      // Use reactions directly as they come from the API (dynamic emoji keys)
+      setReactions(event.reactions as Record<string, number>);
     } else if (!event.reactions) {
       lastReactionsRef.current = null;
+      setReactions({});
     }
 
     if (event.user_reaction !== lastUserReactionRef.current) {
@@ -97,15 +84,9 @@ export function EventCard({
         .then((data) => {
           // Mark as fetched in cache
           eventReactionsFetchCache.set(event.id, 'fetched');
-          setReactions({
-            fire: data.reactions.fire || 0,
-            heart: data.reactions.heart || 0,
-            thumbs_up: data.reactions.thumbs_up || 0,
-            smile: data.reactions.smile || 0,
-            star: data.reactions.star || 0,
-            flag: data.reactions.flag || 0,
-          });
-          setUserReaction(data.user_reaction);
+          // Use reactions directly as they come from the API (dynamic emoji keys)
+          setReactions(data.reactions || {});
+          setUserReaction(data.user_reaction || null);
         })
         .catch((error) => {
           console.error("Failed to fetch event reactions:", error);
@@ -118,7 +99,7 @@ export function EventCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.id]);
 
-  const handleReactionToggle = async (reactionType: ReactionType) => {
+  const handleReactionToggle = async (reactionType: string) => {
     const previousReactions = { ...reactions };
     const previousUserReaction = userReaction;
 
@@ -126,38 +107,44 @@ export function EventCard({
     if (userReaction === reactionType) {
       // Remove reaction
       setUserReaction(null);
-      setReactions((prev) => ({
-        ...prev,
-        [reactionType]: Math.max(0, prev[reactionType] - 1),
-      }));
+      setReactions((prev) => {
+        const newReactions = { ...prev };
+        const currentCount = newReactions[reactionType] || 0;
+        if (currentCount <= 1) {
+          delete newReactions[reactionType];
+        } else {
+          newReactions[reactionType] = currentCount - 1;
+        }
+        return newReactions;
+      });
     } else {
       // Add or change reaction
       if (userReaction) {
         // Remove old reaction count
-        setReactions((prev) => ({
-          ...prev,
-          [userReaction]: Math.max(0, prev[userReaction] - 1),
-        }));
+        setReactions((prev) => {
+          const newReactions = { ...prev };
+          const oldCount = newReactions[userReaction] || 0;
+          if (oldCount <= 1) {
+            delete newReactions[userReaction];
+          } else {
+            newReactions[userReaction] = oldCount - 1;
+          }
+          return newReactions;
+        });
       }
       setUserReaction(reactionType);
       setReactions((prev) => ({
         ...prev,
-        [reactionType]: prev[reactionType] + 1,
+        [reactionType]: (prev[reactionType] || 0) + 1,
       }));
     }
 
     try {
       const result = await toggleEventReaction(event.id, reactionType);
-      // Update with server response
-      setReactions((prev) => ({
-        ...prev,
-        [reactionType]: result.count,
-      }));
-      if (!result.is_active) {
-        setUserReaction(null);
-      } else {
-        setUserReaction(reactionType);
-      }
+      // Refresh from server to get accurate state
+      const updatedData = await getEventReactions(event.id);
+      setReactions(updatedData.reactions || {});
+      setUserReaction(updatedData.user_reaction || null);
     } catch (error) {
       // Rollback on error
       setReactions(previousReactions);

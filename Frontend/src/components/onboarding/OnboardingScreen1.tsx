@@ -149,28 +149,30 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
               key={index}
               data-slide-index={index}
               className={cn(
-                "absolute inset-0 flex flex-col items-center justify-center px-6 text-center transition-opacity duration-300",
+                "absolute inset-0 flex flex-col items-center px-6 text-center transition-opacity duration-300",
                 index === currentSlide ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
               )}
               style={{ pointerEvents: index === currentSlide ? 'auto' : 'none' }}
             >
+              {/* Spacer to center image between header and title */}
+              <div className="flex-1" />
               {/* Illustration image - shown between progress dots (in header) and title */}
               {slide.illustration && (
                 <img
                   src={slide.illustration}
                   alt={`${slide.title} illustratie`}
-                  className="h-48 md:h-[17.28rem] w-auto object-contain mb-2 md:mb-4"
+                  className="h-48 md:h-[17.28rem] w-auto object-contain mb-2 md:mb-4 flex-shrink-0"
                 />
               )}
-              <h2 className="mb-2 md:mb-4 text-2xl md:text-3xl font-gilroy font-bold text-foreground">
+              <h2 className="mb-2 md:mb-4 text-2xl md:text-3xl font-gilroy font-bold text-foreground flex-shrink-0">
                 {slide.title}
               </h2>
-              <p className="mb-4 md:mb-8 whitespace-pre-line text-base md:text-lg font-gilroy font-normal text-muted-foreground">
+              <p className="mb-4 md:mb-8 whitespace-pre-line text-base md:text-lg font-gilroy font-normal text-muted-foreground flex-shrink-0">
                 {slide.body}
               </p>
 
               {/* Navigation buttons - Directly under the text */}
-              <div className="flex items-center justify-between gap-4 w-full max-w-md mt-4 md:mt-6">
+              <div className="flex items-center justify-between gap-4 w-full max-w-md mt-4 md:mt-6 flex-shrink-0 mb-4">
                 {/* Previous button */}
                 <Button
                   onClick={handlePrevious}

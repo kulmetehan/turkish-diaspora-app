@@ -1166,7 +1166,7 @@ export interface ReactionStats {
   user_reaction?: ReactionType | null;
 }
 
-export type ReactionType = "fire" | "heart" | "thumbs_up" | "smile" | "star" | "flag";
+export type ReactionType = string; // Custom emoji string
 
 /**
  * Toggle a reaction on a location (add if not exists, remove if exists).

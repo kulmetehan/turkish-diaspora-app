@@ -55,14 +55,7 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
   const { text: statusText, className: badgeClass } = getStatusBadge(location);
 
   // Reactions state
-  const [reactions, setReactions] = useState<Record<ReactionType, number>>({
-    fire: 0,
-    heart: 0,
-    thumbs_up: 0,
-    smile: 0,
-    star: 0,
-    flag: 0,
-  });
+  const [reactions, setReactions] = useState<Record<string, number>>({});
   const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
   const [isLoadingReactions, setIsLoadingReactions] = useState(false);
 
@@ -84,14 +77,7 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
         .then((data) => {
           // Mark as fetched in cache
           locationReactionsFetchCache.set(currentLocationId, 'fetched');
-          setReactions({
-            fire: data.reactions.fire || 0,
-            heart: data.reactions.heart || 0,
-            thumbs_up: data.reactions.thumbs_up || 0,
-            smile: data.reactions.smile || 0,
-            star: data.reactions.star || 0,
-            flag: data.reactions.flag || 0,
-          });
+          setReactions(data.reactions || {});
           setUserReaction(data.user_reaction);
         })
         .catch((error) => {
@@ -115,38 +101,44 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
     if (userReaction === reactionType) {
       // Remove reaction
       setUserReaction(null);
-      setReactions((prev) => ({
-        ...prev,
-        [reactionType]: Math.max(0, prev[reactionType] - 1),
-      }));
+      setReactions((prev) => {
+        const newReactions = { ...prev };
+        const currentCount = newReactions[reactionType] || 0;
+        if (currentCount <= 1) {
+          delete newReactions[reactionType];
+        } else {
+          newReactions[reactionType] = currentCount - 1;
+        }
+        return newReactions;
+      });
     } else {
       // Add or change reaction
       if (userReaction) {
         // Remove old reaction count
-        setReactions((prev) => ({
-          ...prev,
-          [userReaction]: Math.max(0, prev[userReaction] - 1),
-        }));
+        setReactions((prev) => {
+          const newReactions = { ...prev };
+          const oldCount = newReactions[userReaction] || 0;
+          if (oldCount <= 1) {
+            delete newReactions[userReaction];
+          } else {
+            newReactions[userReaction] = oldCount - 1;
+          }
+          return newReactions;
+        });
       }
       setUserReaction(reactionType);
       setReactions((prev) => ({
         ...prev,
-        [reactionType]: prev[reactionType] + 1,
+        [reactionType]: (prev[reactionType] || 0) + 1,
       }));
     }
 
     try {
       const result = await toggleLocationReaction(Number(location.id), reactionType);
-      // Update with server response
-      setReactions((prev) => ({
-        ...prev,
-        [reactionType]: result.count,
-      }));
-      if (!result.is_active) {
-        setUserReaction(null);
-      } else {
-        setUserReaction(reactionType);
-      }
+      // Refresh from server to get accurate state
+      const updatedData = await getLocationReactions(Number(location.id));
+      setReactions(updatedData.reactions || {});
+      setUserReaction(updatedData.user_reaction);
     } catch (error) {
       // Rollback on error
       setReactions(previousReactions);
