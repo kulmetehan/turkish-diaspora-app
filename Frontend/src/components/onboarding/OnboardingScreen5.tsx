@@ -99,7 +99,7 @@ export function OnboardingScreen5({ onComplete }: OnboardingScreen5Props) {
       <Button
         onClick={onComplete}
         size="lg"
-        variant="secondary"
+        variant="default"
         className="min-w-[200px] font-gilroy"
         aria-label="Naar de feed"
       >

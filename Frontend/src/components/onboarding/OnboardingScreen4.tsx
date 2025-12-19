@@ -46,6 +46,7 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
             "w-full font-gilroy",
             selectedGender === "male" && "ring-2 ring-primary ring-offset-2"
           )}
+          type="button"
         >
           Man
         </Button>
@@ -57,6 +58,7 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
             "w-full font-gilroy",
             selectedGender === "female" && "ring-2 ring-primary ring-offset-2"
           )}
+          type="button"
         >
           Vrouw
         </Button>
@@ -68,6 +70,7 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
             "w-full font-gilroy",
             selectedGender === "prefer_not_to_say" && "ring-2 ring-primary ring-offset-2"
           )}
+          type="button"
         >
           Zeg ik liever niet
         </Button>
