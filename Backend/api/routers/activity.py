@@ -173,24 +173,6 @@ async def get_own_activity(
     
     rows = await fetch(sql, *params)
     
-    # #region agent log
-    import time
-    if rows:
-        sample_row = dict(rows[0])
-        sample_activity_id = sample_row.get("id")
-        sample_reactions = sample_row.get("reactions")
-        # Also check what's actually in the database for this activity
-        check_reactions_sql = """
-            SELECT reaction_type, COUNT(*)::int as count
-            FROM activity_reactions
-            WHERE activity_id = $1
-            GROUP BY reaction_type
-        """
-        db_reactions = await fetch(check_reactions_sql, sample_activity_id)
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:161", "message": "get_activity_feed: sample row reactions", "data": {"activity_id": sample_activity_id, "reactions_raw": sample_reactions, "reactions_type": type(sample_reactions).__name__, "user_reaction": sample_row.get("user_reaction"), "db_reactions_check": [dict(r) for r in db_reactions]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
-    # #endregion
-    
     result = [
         ActivityItem(
             id=row["id"],
@@ -214,13 +196,6 @@ async def get_own_activity(
         )
         for row in rows
     ]
-    
-    # #region agent log
-    if result:
-        sample_item = result[0]
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:192", "message": "get_activity_feed: sample ActivityItem reactions", "data": {"activity_id": sample_item.id, "reactions": sample_item.reactions, "user_reaction": sample_item.user_reaction}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-    # #endregion
     
     return result
 
@@ -381,24 +356,6 @@ async def get_nearby_activity(
     
     rows = await fetch(sql, *params)
     
-    # #region agent log
-    import time
-    if rows:
-        sample_row = dict(rows[0])
-        sample_activity_id = sample_row.get("id")
-        sample_reactions = sample_row.get("reactions")
-        # Also check what's actually in the database for this activity
-        check_reactions_sql = """
-            SELECT reaction_type, COUNT(*)::int as count
-            FROM activity_reactions
-            WHERE activity_id = $1
-            GROUP BY reaction_type
-        """
-        db_reactions = await fetch(check_reactions_sql, sample_activity_id)
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:161", "message": "get_activity_feed: sample row reactions", "data": {"activity_id": sample_activity_id, "reactions_raw": sample_reactions, "reactions_type": type(sample_reactions).__name__, "user_reaction": sample_row.get("user_reaction"), "db_reactions_check": [dict(r) for r in db_reactions]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "C"}) + "\n")
-    # #endregion
-    
     result = [
         ActivityItem(
             id=row["id"],
@@ -422,13 +379,6 @@ async def get_nearby_activity(
         )
         for row in rows
     ]
-    
-    # #region agent log
-    if result:
-        sample_item = result[0]
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:192", "message": "get_activity_feed: sample ActivityItem reactions", "data": {"activity_id": sample_item.id, "reactions": sample_item.reactions, "user_reaction": sample_item.user_reaction}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-    # #endregion
     
     return result
 
@@ -601,12 +551,6 @@ async def toggle_activity_reaction(
     """Toggle emoji reaction on activity item."""
     require_feature("check_ins_enabled")
     
-    # #region agent log
-    import time
-    with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-        f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:585", "message": "toggle_activity_reaction ENTRY", "data": {"activity_id": activity_id, "reaction_type": request.reaction_type, "client_id": client_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "D"}) + "\n")
-    # #endregion
-    
     if not client_id:
         raise HTTPException(status_code=400, detail="client_id required")
     
@@ -668,45 +612,13 @@ async def toggle_activity_reaction(
                 INSERT INTO activity_reactions (activity_id, user_id, reaction_type) 
                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
             """
-            # #region agent log
-            import time
-            with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:597", "message": "Attempting INSERT activity_reaction (user_id)", "data": {"activity_id": activity_id, "reaction_type": request.reaction_type, "user_id": str(user_id)}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-            # #endregion
-            try:
-                await execute(insert_sql, activity_id, user_id, request.reaction_type)
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:605", "message": "INSERT activity_reaction succeeded", "data": {"activity_id": activity_id, "reaction_type": request.reaction_type}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-            except Exception as e:
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:609", "message": "INSERT activity_reaction FAILED", "data": {"activity_id": activity_id, "reaction_type": request.reaction_type, "error": str(e), "error_type": type(e).__name__}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-                raise
+            await execute(insert_sql, activity_id, user_id, request.reaction_type)
         else:
             insert_sql = """
                 INSERT INTO activity_reactions (activity_id, client_id, reaction_type) 
                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
             """
-            # #region agent log
-            import time
-            with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:618", "message": "Attempting INSERT activity_reaction (client_id)", "data": {"activity_id": activity_id, "reaction_type": request.reaction_type, "client_id": client_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-            # #endregion
-            try:
-                await execute(insert_sql, activity_id, client_id, request.reaction_type)
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:625", "message": "INSERT activity_reaction succeeded", "data": {"activity_id": activity_id, "reaction_type": request.reaction_type}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-            except Exception as e:
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:629", "message": "INSERT activity_reaction FAILED", "data": {"activity_id": activity_id, "reaction_type": request.reaction_type, "error": str(e), "error_type": type(e).__name__}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-                raise
+            await execute(insert_sql, activity_id, client_id, request.reaction_type)
         is_active = True
     
     # Get updated count
@@ -748,22 +660,11 @@ async def get_activity_reactions(
     """
     count_rows = await fetch(counts_sql, activity_id)
     
-    # #region agent log
-    import time
-    with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-        f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:678", "message": "get_activity_reactions: raw DB results", "data": {"activity_id": activity_id, "count_rows": [dict(r) for r in count_rows]}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-    # #endregion
-    
     # Build reactions dict dynamically from database results
     reactions: Dict[str, int] = {}
     for row in count_rows:
         reaction_type = row["reaction_type"]
         reactions[reaction_type] = row["count"]
-    
-    # #region agent log
-    with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-        f.write(json.dumps({"timestamp": time.time() * 1000, "location": "activity.py:687", "message": "get_activity_reactions: returning reactions", "data": {"activity_id": activity_id, "reactions": reactions}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "B"}) + "\n")
-    # #endregion
     
     return {"reactions": reactions}
 

@@ -228,24 +228,7 @@ async def _resolve_trending_payload(
     Resolve trending payload from X API.
     Returns items, total count, and optional metadata (e.g., unavailable_reason).
     """
-    # #region agent log
-    import json
-    import time
-    log_path = "/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log"
-    try:
-        with open(log_path, "a") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_resolve_entry", "timestamp": int(time.time() * 1000), "location": "news.py:217", "message": "_resolve_trending_payload entry", "data": {"limit": limit, "offset": offset, "trend_country": trend_country}, "sessionId": "debug-session", "runId": "post-fix", "hypothesisId": "A"}) + "\n")
-    except: pass
-    # #endregion
-    
     result: TrendingResult = await fetch_trending_topics(limit=limit + offset, country=trend_country)
-    
-    # #region agent log
-    try:
-        with open(log_path, "a") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_resolve_result", "timestamp": int(time.time() * 1000), "location": "news.py:227", "message": "fetch_trending_topics result", "data": {"topics_count": len(result.topics), "unavailable_reason": result.unavailable_reason}, "sessionId": "debug-session", "runId": "post-fix", "hypothesisId": "A"}) + "\n")
-    except: pass
-    # #endregion
     
     if result.topics:
         sliced = result.topics[offset:offset + limit]
@@ -253,24 +236,12 @@ async def _resolve_trending_payload(
         meta = None
         if result.unavailable_reason:
             meta = {"unavailable_reason": result.unavailable_reason}
-        # #region agent log
-        try:
-            with open(log_path, "a") as f:
-                f.write(json.dumps({"id": f"log_{int(time.time())}_resolve_success", "timestamp": int(time.time() * 1000), "location": "news.py:231", "message": "returning success", "data": {"items_count": len(items), "total": len(result.topics), "meta": meta}, "sessionId": "debug-session", "runId": "post-fix", "hypothesisId": "A"}) + "\n")
-        except: pass
-        # #endregion
         return items, len(result.topics), meta
     
     # No topics available
     meta = None
     if result.unavailable_reason:
         meta = {"unavailable_reason": result.unavailable_reason}
-    # #region agent log
-    try:
-        with open(log_path, "a") as f:
-            f.write(json.dumps({"id": f"log_{int(time.time())}_resolve_empty", "timestamp": int(time.time() * 1000), "location": "news.py:241", "message": "returning empty", "data": {"meta": meta}, "sessionId": "debug-session", "runId": "post-fix", "hypothesisId": "A"}) + "\n")
-    except: pass
-    # #endregion
     return [], 0, meta
 
 
