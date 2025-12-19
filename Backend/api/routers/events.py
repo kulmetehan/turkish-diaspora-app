@@ -198,45 +198,13 @@ async def toggle_event_reaction(
                 INSERT INTO event_reactions (event_id, user_id, reaction_type) 
                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
             """
-            # #region agent log
-            import json, time
-            with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:201", "message": "Attempting INSERT event_reaction (user_id)", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "user_id": str(user_id)}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-            # #endregion
-            try:
-                await execute(insert_sql, event_id, user_id, request.reaction_type)
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:208", "message": "INSERT event_reaction succeeded", "data": {"event_id": event_id, "reaction_type": request.reaction_type}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-            except Exception as e:
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:213", "message": "INSERT event_reaction FAILED", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "error": str(e), "error_type": type(e).__name__}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-                raise
+            await execute(insert_sql, event_id, user_id, request.reaction_type)
         else:
             insert_sql = """
                 INSERT INTO event_reactions (event_id, client_id, reaction_type) 
                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
             """
-            # #region agent log
-            import json, time
-            with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:207", "message": "Attempting INSERT event_reaction", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "client_id": client_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-            # #endregion
-            try:
-                await execute(insert_sql, event_id, client_id, request.reaction_type)
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:214", "message": "INSERT event_reaction succeeded", "data": {"event_id": event_id, "reaction_type": request.reaction_type}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-            except Exception as e:
-                # #region agent log
-                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:219", "message": "INSERT event_reaction FAILED", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "error": str(e), "error_type": type(e).__name__}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
-                # #endregion
-                raise
+            await execute(insert_sql, event_id, client_id, request.reaction_type)
         is_active = True
     
     # Get updated count
