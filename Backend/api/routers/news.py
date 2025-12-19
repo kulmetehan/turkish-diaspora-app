@@ -305,7 +305,7 @@ def _city_to_payload(city: NewsCity) -> NewsCityRecord:
 
 
 class ReactionToggleRequest(BaseModel):
-    reaction_type: str  # 'fire', 'heart', 'thumbs_up', 'smile', 'star', 'flag'
+    reaction_type: str  # Emoji string (e.g., "🔥", "❤️", "👍", etc.)
 
 
 @router.post("/{news_id}/reactions", response_model=dict)
@@ -320,12 +320,18 @@ async def toggle_news_reaction(
     if not client_id:
         raise HTTPException(status_code=400, detail="client_id required")
     
-    # Validate reaction type
-    valid_reactions = ["fire", "heart", "thumbs_up", "smile", "star", "flag"]
-    if request.reaction_type not in valid_reactions:
+    # Basic validation: ensure reaction_type is a non-empty string
+    if not request.reaction_type or not isinstance(request.reaction_type, str) or len(request.reaction_type.strip()) == 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid reaction_type. Must be one of: {', '.join(valid_reactions)}"
+            detail="reaction_type must be a non-empty string (emoji)"
+        )
+    
+    # Limit emoji length to prevent abuse (reasonable limit for emoji sequences)
+    if len(request.reaction_type) > 10:
+        raise HTTPException(
+            status_code=400,
+            detail="reaction_type too long (max 10 characters)"
         )
     
     user_id = None  # TODO: Extract from auth session
@@ -375,7 +381,7 @@ async def toggle_news_reaction(
             await execute(insert_sql, news_id, user_id, request.reaction_type)
         else:
             insert_sql = """
-                INSERT INTO news_reactions (news_id, client_id, reaction_type) 
+                INSERT INTO news_reactions (news_id, client_id, reaction_type)
                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
             """
             await execute(insert_sql, news_id, client_id, request.reaction_type)
@@ -419,23 +425,15 @@ async def get_news_reactions(
         FROM news_reactions
         WHERE news_id = $1
         GROUP BY reaction_type
+        ORDER BY count DESC, reaction_type ASC
     """
     count_rows = await fetch(counts_sql, news_id)
     
-    # Build reactions dict with all types initialized to 0
-    reactions = {
-        "fire": 0,
-        "heart": 0,
-        "thumbs_up": 0,
-        "smile": 0,
-        "star": 0,
-        "flag": 0,
-    }
-    
+    # Build reactions dict dynamically from database results
+    reactions: Dict[str, int] = {}
     for row in count_rows:
         reaction_type = row["reaction_type"]
-        if reaction_type in reactions:
-            reactions[reaction_type] = row["count"]
+        reactions[reaction_type] = row["count"]
     
     # Get user's reaction if any
     user_reaction = None

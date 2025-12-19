@@ -10,7 +10,7 @@ import { PollModal } from "@/components/feed/PollModal";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
-import { getActivityFeed, getCurrentUser, getOnboardingStatus, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type OnboardingStatus, type ReactionType } from "@/lib/api";
+import { getActivityFeed, getActivityReactions, getCurrentUser, getOnboardingStatus, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type OnboardingStatus, type ReactionType } from "@/lib/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -71,7 +71,7 @@ function transformActivityItem(
     ? (item.payload?.poll_id as number) || null
     : null;
 
-  return {
+  const transformed = {
     id: item.id,
     user: {
       avatar: item.user?.avatar_url || null,
@@ -98,6 +98,14 @@ function transformActivityItem(
     onLocationClick,
     onPollClick,
   };
+
+  // #region agent log
+  if (item.reactions) {
+    fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'FeedPage.tsx:101', message: 'transformActivityItem: reactions in transformed', data: { activityId: item.id, reactions: item.reactions, userReaction: item.user_reaction, transformedReactions: transformed.reactions }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
+  }
+  // #endregion
+
+  return transformed;
 }
 
 export default function FeedPage() {
@@ -161,6 +169,12 @@ export default function FeedPage() {
     try {
       const activityType = activeFilter === "all" ? undefined : activeFilter;
       const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
+      // #region agent log
+      if (data.length > 0) {
+        const sampleItem = data[0];
+        fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'FeedPage.tsx:166', message: 'loadInitialData: sample item reactions', data: { activityId: sampleItem.id, reactions: sampleItem.reactions, userReaction: sampleItem.user_reaction }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
+      }
+      // #endregion
       setFeedItems(data);
       setOffset(data.length);
       setHasMore(data.length >= INITIAL_LIMIT);
@@ -223,39 +237,30 @@ export default function FeedPage() {
   // Handle reaction toggle
   const handleReactionToggle = useCallback(async (activityId: number, reactionType: ReactionType) => {
     try {
+      // Call toggle API
       const result = await toggleActivityReaction(activityId, reactionType);
-      // Optimistic update
+
+      // Fetch updated reactions from server to get accurate counts
+      const reactionsData = await getActivityReactions(activityId);
+
+      // Update state with server response
       setFeedItems((prev) =>
         prev.map((item) => {
           if (item.id !== activityId) return item;
 
-          const currentReactions = item.reactions || {
-            fire: 0,
-            heart: 0,
-            thumbs_up: 0,
-            smile: 0,
-            star: 0,
-            flag: 0,
-          };
-
-          const updatedReactions = {
-            ...currentReactions,
-            [reactionType]: result.count,
-          };
-
           return {
             ...item,
-            reactions: updatedReactions,
+            reactions: reactionsData.reactions || {},
             user_reaction: result.is_active ? reactionType : null,
           };
         })
       );
     } catch (error) {
       toast.error("Kon reactie niet toevoegen");
-      // Reload to get correct state
-      loadInitialData();
+      // Optionally reload the feed item to get accurate state
+      // This could be done by refreshing just this item from the API
     }
-  }, [loadInitialData]);
+  }, []);
 
   // Handle bookmark toggle
   const handleBookmark = useCallback(async (activityId: number) => {

@@ -5,7 +5,6 @@ import { toast } from "sonner";
 
 import type { NewsItem } from "@/api/news";
 import { EmojiReactions } from "@/components/feed/EmojiReactions";
-import type { ReactionType } from "@/lib/api";
 import { getNewsReactions, toggleNewsReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 
@@ -51,42 +50,30 @@ export function NewsCard({
   );
 
   // Reactions state
-  const [reactions, setReactions] = useState<Record<ReactionType, number>>({
-    fire: 0,
-    heart: 0,
-    thumbs_up: 0,
-    smile: 0,
-    star: 0,
-    flag: 0,
-  });
-  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
+  const [reactions, setReactions] = useState<Record<string, number>>({});
+  const [userReaction, setUserReaction] = useState<string | null>(null);
   const [isLoadingReactions, setIsLoadingReactions] = useState(false);
 
   // Initialize reactions from item props if available
   // Use a ref to track the last reactions values to avoid unnecessary updates
   const lastReactionsRef = useRef<string | null>(null);
-  const lastUserReactionRef = useRef<ReactionType | null>(null);
+  const lastUserReactionRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Only update if reactions actually changed (by value, not reference)
     const reactionsKey = item.reactions ? JSON.stringify(item.reactions) : null;
     if (reactionsKey !== lastReactionsRef.current && item.reactions) {
       lastReactionsRef.current = reactionsKey;
-      setReactions({
-        fire: item.reactions.fire || 0,
-        heart: item.reactions.heart || 0,
-        thumbs_up: item.reactions.thumbs_up || 0,
-        smile: item.reactions.smile || 0,
-        star: item.reactions.star || 0,
-        flag: item.reactions.flag || 0,
-      });
+      // Use reactions directly as they come from the API (dynamic emoji keys)
+      setReactions(item.reactions as Record<string, number>);
     } else if (!item.reactions) {
       lastReactionsRef.current = null;
+      setReactions({});
     }
 
     if (item.user_reaction !== lastUserReactionRef.current) {
-      lastUserReactionRef.current = item.user_reaction as ReactionType | null;
-      setUserReaction(item.user_reaction as ReactionType | null);
+      lastUserReactionRef.current = item.user_reaction || null;
+      setUserReaction(item.user_reaction || null);
     }
   }, [item.reactions, item.user_reaction]);
 
@@ -111,15 +98,9 @@ export function NewsCard({
         .then((data) => {
           // Mark as fetched in cache
           newsReactionsFetchCache.set(item.id, 'fetched');
-          setReactions({
-            fire: data.reactions.fire || 0,
-            heart: data.reactions.heart || 0,
-            thumbs_up: data.reactions.thumbs_up || 0,
-            smile: data.reactions.smile || 0,
-            star: data.reactions.star || 0,
-            flag: data.reactions.flag || 0,
-          });
-          setUserReaction(data.user_reaction);
+          // Use reactions directly as they come from the API (dynamic emoji keys)
+          setReactions(data.reactions || {});
+          setUserReaction(data.user_reaction || null);
         })
         .catch((error) => {
           console.error("Failed to fetch news reactions:", error);
@@ -132,7 +113,7 @@ export function NewsCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.id]);
 
-  const handleReactionToggle = async (reactionType: ReactionType) => {
+  const handleReactionToggle = async (reactionType: string) => {
     const previousReactions = { ...reactions };
     const previousUserReaction = userReaction;
 
@@ -140,38 +121,44 @@ export function NewsCard({
     if (userReaction === reactionType) {
       // Remove reaction
       setUserReaction(null);
-      setReactions((prev) => ({
-        ...prev,
-        [reactionType]: Math.max(0, prev[reactionType] - 1),
-      }));
+      setReactions((prev) => {
+        const newReactions = { ...prev };
+        const currentCount = newReactions[reactionType] || 0;
+        if (currentCount <= 1) {
+          delete newReactions[reactionType];
+        } else {
+          newReactions[reactionType] = currentCount - 1;
+        }
+        return newReactions;
+      });
     } else {
       // Add or change reaction
       if (userReaction) {
         // Remove old reaction count
-        setReactions((prev) => ({
-          ...prev,
-          [userReaction]: Math.max(0, prev[userReaction] - 1),
-        }));
+        setReactions((prev) => {
+          const newReactions = { ...prev };
+          const oldCount = newReactions[userReaction] || 0;
+          if (oldCount <= 1) {
+            delete newReactions[userReaction];
+          } else {
+            newReactions[userReaction] = oldCount - 1;
+          }
+          return newReactions;
+        });
       }
       setUserReaction(reactionType);
       setReactions((prev) => ({
         ...prev,
-        [reactionType]: prev[reactionType] + 1,
+        [reactionType]: (prev[reactionType] || 0) + 1,
       }));
     }
 
     try {
       const result = await toggleNewsReaction(item.id, reactionType);
-      // Update with server response
-      setReactions((prev) => ({
-        ...prev,
-        [reactionType]: result.count,
-      }));
-      if (!result.is_active) {
-        setUserReaction(null);
-      } else {
-        setUserReaction(reactionType);
-      }
+      // Refresh from server to get accurate state
+      const updatedData = await getNewsReactions(item.id);
+      setReactions(updatedData.reactions || {});
+      setUserReaction(updatedData.user_reaction || null);
     } catch (error) {
       // Rollback on error
       setReactions(previousReactions);

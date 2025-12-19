@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 EVENT_SOURCE_STATUSES = ("active", "disabled")
-EVENT_SELECTOR_FORMATS = ("html", "rss", "json", "json_ld")
+EVENT_SELECTOR_FORMATS = ("html", "rss", "json", "json_ld", "ai_page")
 
 
 def _clean_string(value: Any, field_name: str) -> str:
@@ -20,7 +20,8 @@ def _clean_string(value: Any, field_name: str) -> str:
 
 def sanitize_event_selectors(raw_value: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Normalize selector configuration for HTML/RSS/JSON sources while maintaining backward compatibility.
+    Normalize selector configuration for HTML/RSS/JSON/AI sources while maintaining backward compatibility.
+    Supported formats: html, rss, json, json_ld, ai_page
     """
     if raw_value is None:
         raw_value = {}
@@ -66,6 +67,10 @@ def sanitize_event_selectors(raw_value: Optional[Dict[str, Any]]) -> Dict[str, A
         normalized["items_path"] = _clean_string(items_path, "selectors.items_path")
         title_key = normalized.get("title_key") or "title"
         normalized["title_key"] = _clean_string(title_key, "selectors.title_key")
+    elif fmt == "ai_page":
+        # AI-powered extraction doesn't require selectors - just the format flag
+        # The EventAIExtractorBot will handle HTML extraction via OpenAI
+        pass
     else:  # json_ld
         items_path = normalized.get("json_items_path") or "$"
         normalized["json_items_path"] = _clean_string(items_path, "selectors.json_items_path")

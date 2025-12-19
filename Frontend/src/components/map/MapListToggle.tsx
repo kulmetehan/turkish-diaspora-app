@@ -44,7 +44,7 @@ export function MapListToggle({ viewMode, onViewModeChange }: MapListToggleProps
           "inline-flex items-center justify-center gap-2 rounded-full px-8 py-2.5 text-sm font-semibold transition-all",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
           viewMode === "list"
-            ? "bg-primary text-primary-foreground shadow-soft"
+            ? "bg-primary text-primary-foreground shadow-soft dark:text-black"
             : "bg-transparent text-foreground hover:bg-surface-muted"
         )}
         aria-pressed={viewMode === "list"}

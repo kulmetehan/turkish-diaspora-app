@@ -24,7 +24,15 @@ from services.worker_runs_service import (
 configure_logging(service_name="worker")
 logger = get_logger().bind(worker="event_page_fetcher_bot")
 
-AI_PAGE_SOURCE_KEYS: set[str] = {"sahmeran_events", "ajda_events", "ediz_events"}
+AI_PAGE_SOURCE_KEYS: set[str] = {
+    "sahmeran_events",
+    "ajda_events",
+    "ediz_events",
+    "meervaart_events",
+    "melkweg_events",
+    "paradiso_events",
+    "dedoelen_events",
+}
 
 
 def _parse_worker_run_id(value: str) -> UUID:

@@ -38,8 +38,8 @@ export default function AccountPage() {
     const order: ThemeSetting[] = ["light", "dark", "system"];
     const currentIndex = order.indexOf(theme);
     const next = order[(currentIndex >= 0 ? currentIndex + 1 : 0) % order.length];
-    setThemeState(next);
     setTheme(next);
+    setThemeState(next);
   };
 
   return (
@@ -110,7 +110,7 @@ export default function AccountPage() {
               size="sm"
               onClick={cycleTheme}
               aria-label="Schakel thema"
-              className="inline-flex items-center gap-2"
+              className="inline-flex items-center gap-2 text-foreground"
             >
               <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
               <span>Theme: {theme}</span>

@@ -68,7 +68,7 @@ export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(
                       isActive ? "text-primary" : "text-muted-foreground",
                     )}
                   />
-                  <span className="leading-none">{tab.label}</span>
+                  <span className="leading-none font-gilroy">{tab.label}</span>
                 </>
               )}
             </NavLink>

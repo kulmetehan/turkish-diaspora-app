@@ -8,6 +8,7 @@ import { ShareButton } from "@/components/share/ShareButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import { getEventReactions, toggleEventReaction, type ReactionStats, type ReactionType } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 
@@ -20,15 +21,7 @@ type EventDetailOverlayProps = {
 
 const DESCRIPTION_THRESHOLD = 160;
 
-// Reaction type to emoji mapping
-const REACTION_EMOJIS: Record<ReactionType, string> = {
-  fire: "🔥",
-  heart: "❤️",
-  thumbs_up: "👍",
-  smile: "😊",
-  star: "⭐",
-  flag: "🚩",
-};
+// No longer using fixed reaction types - reactions are now custom emoji strings
 
 
 export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayProps) {
@@ -47,7 +40,7 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
 
   // State for reactions
   const [reactionStats, setReactionStats] = useState<ReactionStats | null>(null);
-  const [userReactions, setUserReactions] = useState<Set<ReactionType>>(new Set());
+  const [userReaction, setUserReaction] = useState<ReactionType | null>(null);
   const [reactionLoading, setReactionLoading] = useState<ReactionType | null>(null);
 
   // State for loading initial data
@@ -65,11 +58,7 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
           reactions: reactionData.reactions,
         });
         // Set user reaction from API response
-        if (reactionData.user_reaction) {
-          setUserReactions(new Set([reactionData.user_reaction]));
-        } else {
-          setUserReactions(new Set());
-        }
+        setUserReaction(reactionData.user_reaction || null);
       } catch (error: any) {
         console.error("Failed to load event data:", error);
         // Don't show toast here to avoid spam
@@ -85,29 +74,15 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
   const handleReaction = async (reactionType: ReactionType) => {
     if (reactionLoading) return;
 
-    const hasReaction = userReactions.has(reactionType);
+    const hasReaction = userReaction === reactionType;
     setReactionLoading(reactionType);
 
     try {
       // Toggle reaction (add if not exists, remove if exists)
       const result = await toggleEventReaction(eventId, reactionType);
 
-      // Update user reactions based on result
-      if (result.is_active) {
-        // Remove old reaction if exists
-        setUserReactions((prev) => {
-          const next = new Set<ReactionType>();
-          next.add(reactionType);
-          return next;
-        });
-      } else {
-        // Remove reaction
-        setUserReactions((prev) => {
-          const next = new Set(prev);
-          next.delete(reactionType);
-          return next;
-        });
-      }
+      // Update user reaction based on result
+      setUserReaction(result.is_active ? reactionType : null);
 
       // Refresh stats
       const stats = await getEventReactions(eventId);
@@ -115,11 +90,7 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
         location_id: eventId,
         reactions: stats.reactions,
       });
-      if (stats.user_reaction) {
-        setUserReactions(new Set([stats.user_reaction]));
-      } else {
-        setUserReactions(new Set());
-      }
+      setUserReaction(stats.user_reaction || null);
     } catch (error: any) {
       toast.error(error.message || "Fout bij bijwerken van reaction");
     } finally {
@@ -128,9 +99,9 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-y-auto">
       {/* Header with back button */}
-      <div className="flex items-center gap-3 p-4 border-b bg-background">
+      <div className="flex items-center gap-3 p-4 border-b bg-background flex-shrink-0">
         <Button
           type="button"
           variant="ghost"
@@ -157,7 +128,7 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
       </div>
 
       {/* Event content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div className="flex-1 p-4">
         {/* Event Info Card - All content in one card */}
         <Card className="p-4 mb-4">
           <div className="space-y-4">
@@ -224,17 +195,23 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
               </div>
             ) : (
               <div className="pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  {(Object.keys(REACTION_EMOJIS) as ReactionType[]).map((reactionType) => {
-                    const count = reactionStats?.reactions[reactionType] ?? 0;
-                    const isActive = userReactions.has(reactionType);
-                    const isLoading = reactionLoading === reactionType;
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-foreground/70">Reactions</h4>
+                  <EmojiPicker
+                    onEmojiSelect={handleReaction}
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {reactionStats?.reactions && Object.entries(reactionStats.reactions).map(([emoji, count]) => {
+                    if (count === 0) return null;
+                    const isActive = userReaction === emoji;
+                    const isLoading = reactionLoading === emoji;
 
                     return (
                       <button
-                        key={reactionType}
+                        key={emoji}
                         type="button"
-                        onClick={() => handleReaction(reactionType)}
+                        onClick={() => handleReaction(emoji)}
                         disabled={isLoading}
                         className={cn(
                           "flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all",
@@ -244,10 +221,10 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
                             ? "bg-primary/10 text-primary border border-primary/30 scale-110"
                             : "bg-transparent"
                         )}
-                        aria-label={`${reactionType} reaction`}
-                        title={reactionType}
+                        aria-label={`${emoji} reaction`}
+                        title={emoji}
                       >
-                        <span className="text-lg leading-none">{REACTION_EMOJIS[reactionType]}</span>
+                        <span className="text-lg leading-none">{emoji}</span>
                         {count > 0 && (
                           <span
                             className={cn(
@@ -261,6 +238,9 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
                       </button>
                     );
                   })}
+                  {(!reactionStats?.reactions || Object.keys(reactionStats.reactions).length === 0) && (
+                    <p className="text-sm text-muted-foreground">Nog geen reacties. Voeg de eerste toe!</p>
+                  )}
                 </div>
               </div>
             )}

@@ -1,26 +1,16 @@
 // Frontend/src/components/feed/EmojiReactions.tsx
+import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import { type ReactionType } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { useState } from "react";
 
 export interface EmojiReactionsProps {
   activityId: number;
-  reactions: Record<ReactionType, number>;
+  reactions: Record<string, number> | null;
   userReaction: ReactionType | null;
   onReactionToggle: (reactionType: ReactionType) => void;
   className?: string;
 }
-
-const EMOJI_SET: ReactionType[] = ["fire", "heart", "thumbs_up", "smile", "star", "flag"];
-
-const EMOJI_MAP: Record<ReactionType, string> = {
-  fire: "🔥",
-  heart: "❤️",
-  thumbs_up: "👍",
-  smile: "😊",
-  star: "⭐",
-  flag: "🚩",
-};
 
 export function EmojiReactions({
   activityId,
@@ -42,18 +32,24 @@ export function EmojiReactions({
     }
   };
 
+  // Convert reactions to array of entries, filter out zero counts, sort by count desc
+  const reactionEntries = reactions
+    ? Object.entries(reactions)
+      .filter(([_, count]) => count > 0)
+      .sort(([_, a], [__, b]) => b - a)
+    : [];
+
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      {EMOJI_SET.map((reactionType) => {
-        const count = reactions[reactionType] || 0;
-        const isActive = userReaction === reactionType;
-        const isLoading = isToggling === reactionType;
+    <div className={cn("flex items-center gap-2 flex-wrap", className)}>
+      {reactionEntries.map(([emoji, count]) => {
+        const isActive = userReaction === emoji;
+        const isLoading = isToggling === emoji;
 
         return (
           <button
-            key={reactionType}
+            key={emoji}
             type="button"
-            onClick={() => handleReactionClick(reactionType)}
+            onClick={() => handleReactionClick(emoji)}
             disabled={isLoading}
             className={cn(
               "flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all",
@@ -63,10 +59,10 @@ export function EmojiReactions({
                 ? "bg-primary/10 text-primary border border-primary/30 scale-110"
                 : "bg-transparent"
             )}
-            aria-label={`${reactionType} reaction`}
-            title={reactionType}
+            aria-label={`${emoji} reaction`}
+            title={emoji}
           >
-            <span className="text-lg leading-none">{EMOJI_MAP[reactionType]}</span>
+            <span className="text-lg leading-none">{emoji}</span>
             {count > 0 && (
               <span
                 className={cn(
@@ -80,6 +76,10 @@ export function EmojiReactions({
           </button>
         );
       })}
+      <EmojiPicker
+        onEmojiSelect={handleReactionClick}
+        className="text-foreground"
+      />
     </div>
   );
 }

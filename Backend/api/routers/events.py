@@ -125,7 +125,7 @@ async def get_events(
 
 
 class ReactionToggleRequest(BaseModel):
-    reaction_type: str  # 'fire', 'heart', 'thumbs_up', 'smile', 'star', 'flag'
+    reaction_type: str  # Emoji string (e.g., "🔥", "❤️", "👍", etc.)
 
 
 @router.post("/{event_id}/reactions", response_model=dict)
@@ -140,12 +140,18 @@ async def toggle_event_reaction(
     if not client_id:
         raise HTTPException(status_code=400, detail="client_id required")
     
-    # Validate reaction type
-    valid_reactions = ["fire", "heart", "thumbs_up", "smile", "star", "flag"]
-    if request.reaction_type not in valid_reactions:
+    # Basic validation: ensure reaction_type is a non-empty string
+    if not request.reaction_type or not isinstance(request.reaction_type, str) or len(request.reaction_type.strip()) == 0:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid reaction_type. Must be one of: {', '.join(valid_reactions)}"
+            detail="reaction_type must be a non-empty string (emoji)"
+        )
+    
+    # Limit emoji length to prevent abuse (reasonable limit for emoji sequences)
+    if len(request.reaction_type) > 10:
+        raise HTTPException(
+            status_code=400,
+            detail="reaction_type too long (max 10 characters)"
         )
     
     user_id = None  # TODO: Extract from auth session
@@ -192,13 +198,45 @@ async def toggle_event_reaction(
                 INSERT INTO event_reactions (event_id, user_id, reaction_type) 
                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
             """
-            await execute(insert_sql, event_id, user_id, request.reaction_type)
+            # #region agent log
+            import json, time
+            with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:201", "message": "Attempting INSERT event_reaction (user_id)", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "user_id": str(user_id)}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+            # #endregion
+            try:
+                await execute(insert_sql, event_id, user_id, request.reaction_type)
+                # #region agent log
+                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:208", "message": "INSERT event_reaction succeeded", "data": {"event_id": event_id, "reaction_type": request.reaction_type}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                # #endregion
+            except Exception as e:
+                # #region agent log
+                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:213", "message": "INSERT event_reaction FAILED", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "error": str(e), "error_type": type(e).__name__}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                # #endregion
+                raise
         else:
             insert_sql = """
                 INSERT INTO event_reactions (event_id, client_id, reaction_type) 
                 VALUES ($1, $2, $3) ON CONFLICT DO NOTHING
             """
-            await execute(insert_sql, event_id, client_id, request.reaction_type)
+            # #region agent log
+            import json, time
+            with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+                f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:207", "message": "Attempting INSERT event_reaction", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "client_id": client_id}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+            # #endregion
+            try:
+                await execute(insert_sql, event_id, client_id, request.reaction_type)
+                # #region agent log
+                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:214", "message": "INSERT event_reaction succeeded", "data": {"event_id": event_id, "reaction_type": request.reaction_type}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                # #endregion
+            except Exception as e:
+                # #region agent log
+                with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+                    f.write(json.dumps({"timestamp": time.time() * 1000, "location": "events.py:219", "message": "INSERT event_reaction FAILED", "data": {"event_id": event_id, "reaction_type": request.reaction_type, "error": str(e), "error_type": type(e).__name__}, "sessionId": "debug-session", "runId": "run1", "hypothesisId": "A"}) + "\n")
+                # #endregion
+                raise
         is_active = True
     
     # Get updated count
@@ -239,23 +277,15 @@ async def get_event_reactions(
         FROM event_reactions
         WHERE event_id = $1
         GROUP BY reaction_type
+        ORDER BY count DESC, reaction_type ASC
     """
     count_rows = await fetch(counts_sql, event_id)
     
-    # Build reactions dict with all types initialized to 0
-    reactions = {
-        "fire": 0,
-        "heart": 0,
-        "thumbs_up": 0,
-        "smile": 0,
-        "star": 0,
-        "flag": 0,
-    }
-    
+    # Build reactions dict dynamically from database results
+    reactions: Dict[str, int] = {}
     for row in count_rows:
         reaction_type = row["reaction_type"]
-        if reaction_type in reactions:
-            reactions[reaction_type] = row["count"]
+        reactions[reaction_type] = row["count"]
     
     # Get user's reaction if any
     user_reaction = None
