@@ -154,8 +154,8 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
               )}
               style={{ pointerEvents: index === currentSlide ? 'auto' : 'none' }}
             >
-              {/* Spacer to center image between header and title */}
-              <div className="flex-1" />
+              {/* Spacer to position image at specific height */}
+              <div style={{ minHeight: '8rem', maxHeight: '8rem' }} />
               {/* Illustration image - shown between progress dots (in header) and title */}
               {slide.illustration && (
                 <img
@@ -171,8 +171,11 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
                 {slide.body}
               </p>
 
-              {/* Navigation buttons - Directly under the text */}
-              <div className="flex items-center justify-between gap-4 w-full max-w-md mt-4 md:mt-6 flex-shrink-0 mb-4">
+              {/* Spacer to position buttons at specific height (not at bottom) */}
+              <div style={{ minHeight: '4rem', maxHeight: '4rem' }} className="flex-shrink-0" />
+
+              {/* Navigation buttons - Fixed at specific height (not at bottom) */}
+              <div className="flex items-center justify-between gap-4 w-full max-w-md flex-shrink-0 pb-4 md:pb-6">
                 {/* Previous button */}
                 <Button
                   onClick={handlePrevious}
