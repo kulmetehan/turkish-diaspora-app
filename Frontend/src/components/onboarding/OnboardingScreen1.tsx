@@ -1,7 +1,10 @@
 // Onboarding Screen 1: Carousel with 3 slides
 import ekleBg from "@/assets/ekle-bg.png";
+import ekleIllustration from "@/assets/eklescherm.png";
 import kesfetBg from "@/assets/kesfet-bg.png";
+import kesfetIllustration from "@/assets/kesfet.jpg";
 import yasaBg from "@/assets/yasa-bg.png";
+import yasaIllustration from "@/assets/yasascherm.png";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
@@ -17,16 +20,19 @@ const slides = [
     title: "Keşfet",
     body: "Zie waar Turkse ondernemers,\nevents en plekken zijn.",
     image: kesfetBg,
+    illustration: kesfetIllustration,
   },
   {
     title: "Yaşa",
     body: "Bekijk lokaal nieuws,\npolls en wat er speelt in jouw omgeving.",
     image: yasaBg,
+    illustration: yasaIllustration,
   },
   {
     title: "Ekle",
     body: "Zoek, reageer\nen voeg locaties toe.",
     image: ekleBg,
+    illustration: ekleIllustration,
   },
 ];
 
@@ -148,6 +154,14 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
               )}
               style={{ pointerEvents: index === currentSlide ? 'auto' : 'none' }}
             >
+              {/* Illustration image - shown between progress dots (in header) and title */}
+              {slide.illustration && (
+                <img
+                  src={slide.illustration}
+                  alt={`${slide.title} illustratie`}
+                  className="h-[17.28rem] w-auto object-contain mb-4"
+                />
+              )}
               <h2 className="mb-4 text-3xl font-gilroy font-bold text-foreground">
                 {slide.title}
               </h2>

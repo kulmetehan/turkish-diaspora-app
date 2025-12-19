@@ -171,7 +171,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
         <Input
           ref={inputRef}
           type="text"
-          placeholder="Zoek stad of ilçe..."
+          placeholder="Zoek stad of ilçe... in Turkije"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full text-base"
