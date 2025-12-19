@@ -1029,8 +1029,15 @@ export interface OnboardingStatus {
 export interface OnboardingData {
   home_city: string;
   home_region?: string | null;
+  home_city_key?: string | null;  // CityKey for news preferences
   memleket?: string[] | null;
   gender?: "male" | "female" | "prefer_not_to_say" | null;
+}
+
+export interface OnboardingCompleteResponse {
+  success: boolean;
+  xp_awarded: number;
+  badge_earned: string | null;
 }
 
 export interface OnboardingResult {
@@ -1058,22 +1065,53 @@ export function getOnboardingStatus(): OnboardingStatus {
 }
 
 /**
- * Complete onboarding flow (saves to localStorage).
- * Onboarding is device-specific, not account-specific.
+ * Complete onboarding flow (saves to backend API and localStorage).
+ * Onboarding is device-specific for anonymous users (client_id), account-specific for authenticated users.
  */
-export function completeOnboarding(data: OnboardingData): OnboardingResult {
-  // Save to localStorage
-  localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
-  localStorage.setItem(ONBOARDING_VERSION_KEY, "v1.0");
+export async function completeOnboarding(data: OnboardingData): Promise<OnboardingResult> {
+  // Try to save to backend API first
+  try {
+    const response = await apiFetch<OnboardingCompleteResponse>(
+      "/api/v1/users/me/onboarding/complete",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          home_city: data.home_city,
+          home_region: data.home_region || null,
+          home_city_key: data.home_city_key || null,
+          memleket: data.memleket || null,
+          gender: data.gender || null,
+        }),
+      }
+    );
 
-  // Optionally save onboarding data for future use
-  localStorage.setItem("tda_onboarding_data", JSON.stringify(data));
+    // On success, also save to localStorage for backwards compatibility
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+    localStorage.setItem(ONBOARDING_VERSION_KEY, "v1.0");
+    localStorage.setItem("tda_onboarding_data", JSON.stringify(data));
 
-  return {
-    success: true,
-    xp_awarded: 0, // No XP/badge for localStorage-based onboarding
-    badge_earned: null,
-  };
+    return {
+      success: response.success,
+      xp_awarded: response.xp_awarded,
+      badge_earned: response.badge_earned,
+    };
+  } catch (error) {
+    // Fallback to localStorage if API call fails
+    console.warn("Failed to save onboarding to backend, using localStorage fallback:", error);
+
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+    localStorage.setItem(ONBOARDING_VERSION_KEY, "v1.0");
+    localStorage.setItem("tda_onboarding_data", JSON.stringify(data));
+
+    return {
+      success: true,
+      xp_awarded: 0, // No XP/badge for localStorage-based onboarding
+      badge_earned: null,
+    };
+  }
 }
 
 /**

@@ -52,6 +52,7 @@ class OnboardingStatusResponse(BaseModel):
 class OnboardingCompleteRequest(BaseModel):
     home_city: str
     home_region: Optional[str] = None
+    home_city_key: Optional[str] = None  # CityKey for news preferences
     memleket: Optional[List[str]] = None
     gender: Optional[Literal["male", "female", "prefer_not_to_say"]] = None
 
@@ -349,15 +350,17 @@ async def complete_onboarding(
 ):
     """
     Complete onboarding flow.
-    Updates user profile with onboarding data, awards XP and badge.
+    Updates user profile (authenticated) or onboarding_responses (anonymous) with onboarding data.
+    Awards XP and badge for authenticated users.
     """
     # TODO: Extract user_id from auth session when available
     user_id = None
     
-    if not user_id:
+    # Require either user_id (authenticated) or client_id (anonymous)
+    if not user_id and not client_id:
         raise HTTPException(
-            status_code=401,
-            detail="Authentication required to complete onboarding"
+            status_code=400,
+            detail="Either authentication or X-Client-Id header is required"
         )
     
     # Validate home_city (required)
@@ -375,68 +378,112 @@ async def complete_onboarding(
         )
     
     try:
-        # Update user_profiles with onboarding data
-        update_sql = """
-            UPDATE user_profiles
-            SET 
-                home_city = $1,
-                home_region = $2,
-                memleket = $3,
-                gender = $4,
-                onboarding_completed = true,
-                first_run = false,
-                onboarding_completed_at = now(),
-                updated_at = now()
-            WHERE id = $5::uuid
-            RETURNING id
-        """
-        
-        # Convert memleket list to array format for PostgreSQL
+        # Normalize memleket array
         memleket_array = data.memleket if data.memleket else None
+        # Normalize home_city_key (lowercase)
+        home_city_key = data.home_city_key.lower().strip() if data.home_city_key and data.home_city_key.strip() else None
         
-        result_rows = await fetch(
-            update_sql,
-            data.home_city.strip(),
-            data.home_region.strip() if data.home_region else None,
-            memleket_array,
-            data.gender,
-            user_id,
-        )
-        
-        if not result_rows:
-            raise HTTPException(
-                status_code=404,
-                detail="User profile not found"
+        if user_id:
+            # Authenticated user: update user_profiles
+            update_sql = """
+                UPDATE user_profiles
+                SET 
+                    home_city = $1,
+                    home_region = $2,
+                    memleket = $3,
+                    gender = $4,
+                    onboarding_completed = true,
+                    first_run = false,
+                    onboarding_completed_at = now(),
+                    updated_at = now()
+                WHERE id = $5::uuid
+                RETURNING id
+            """
+            
+            result_rows = await fetch(
+                update_sql,
+                data.home_city.strip(),
+                data.home_region.strip() if data.home_region else None,
+                memleket_array,
+                data.gender,
+                user_id,
             )
-        
-        # Award 10 XP for onboarding completion
-        xp_awarded = 0
-        try:
-            xp_success = await award_xp(
-                user_id=user_id,
-                client_id=client_id,
-                source="onboarding",
-                amount=10,
+            
+            if not result_rows:
+                raise HTTPException(
+                    status_code=404,
+                    detail="User profile not found"
+                )
+            
+            # Award 10 XP for onboarding completion (only for authenticated users)
+            xp_awarded = 0
+            try:
+                xp_success = await award_xp(
+                    user_id=user_id,
+                    client_id=client_id,
+                    source="onboarding",
+                    amount=10,
+                )
+                if xp_success:
+                    xp_awarded = 10
+            except Exception as e:
+                # Log but don't fail the request if XP award fails
+                from app.core.logging import get_logger
+                logger = get_logger()
+                logger.warning("onboarding_xp_award_failed", user_id=user_id, error=str(e))
+            
+            # Award "nieuwkomer" badge (only for authenticated users)
+            badge_earned = None
+            try:
+                badge_success = await _award_badge(user_id, "nieuwkomer", None)
+                if badge_success:
+                    badge_earned = "nieuwkomer"
+            except Exception as e:
+                # Log but don't fail the request if badge award fails
+                from app.core.logging import get_logger
+                logger = get_logger()
+                logger.warning("onboarding_badge_award_failed", user_id=user_id, error=str(e))
+        else:
+            # Anonymous user: upsert onboarding_responses
+            upsert_sql = """
+                INSERT INTO onboarding_responses (
+                    client_id, home_city, home_region, home_city_key, 
+                    memleket, gender, onboarding_version, completed_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
+                ON CONFLICT (client_id)
+                DO UPDATE SET
+                    home_city = EXCLUDED.home_city,
+                    home_region = EXCLUDED.home_region,
+                    home_city_key = EXCLUDED.home_city_key,
+                    memleket = EXCLUDED.memleket,
+                    gender = EXCLUDED.gender,
+                    onboarding_version = EXCLUDED.onboarding_version,
+                    completed_at = EXCLUDED.completed_at,
+                    updated_at = now()
+                RETURNING id
+            """
+            
+            result_rows = await fetch(
+                upsert_sql,
+                client_id,
+                data.home_city.strip(),
+                data.home_region.strip() if data.home_region else None,
+                home_city_key,
+                memleket_array,
+                data.gender,
+                "v1.0",
             )
-            if xp_success:
-                xp_awarded = 10
-        except Exception as e:
-            # Log but don't fail the request if XP award fails
-            from app.core.logging import get_logger
-            logger = get_logger()
-            logger.warning("onboarding_xp_award_failed", user_id=user_id, error=str(e))
-        
-        # Award "nieuwkomer" badge
-        badge_earned = None
-        try:
-            badge_success = await _award_badge(user_id, "nieuwkomer", None)
-            if badge_success:
-                badge_earned = "nieuwkomer"
-        except Exception as e:
-            # Log but don't fail the request if badge award fails
-            from app.core.logging import get_logger
-            logger = get_logger()
-            logger.warning("onboarding_badge_award_failed", user_id=user_id, error=str(e))
+            
+            if not result_rows:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to save onboarding response"
+                )
+            
+            # No XP or badges for anonymous users
+            xp_awarded = 0
+            badge_earned = None
         
         return OnboardingCompleteResponse(
             success=True,
