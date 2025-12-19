@@ -23,3 +23,4 @@ export function MascotteAvatar({ size = "md", className }: MascotteAvatarProps) 
     />
   );
 }
+

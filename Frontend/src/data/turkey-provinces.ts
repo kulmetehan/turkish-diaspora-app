@@ -102,3 +102,4 @@ export function getProvinceByName(name: string): TurkeyProvince | undefined {
     (p) => p.name_tr.toLowerCase() === name.toLowerCase() || p.name_nl.toLowerCase() === name.toLowerCase()
   );
 }
+

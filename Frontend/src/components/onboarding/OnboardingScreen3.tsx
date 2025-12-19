@@ -1,11 +1,11 @@
 // Onboarding Screen 3: Memleket Selector
 import type { NewsCity } from "@/api/news";
 import { searchNewsCities } from "@/api/news";
+import memleketBg from "@/assets/memleket-bg.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/ui/cn";
-import { useEffect, useState } from "react";
-import { MascotteAvatar } from "./MascotteAvatar";
+import { useEffect, useRef, useState } from "react";
 
 export interface OnboardingScreen3Props {
   onNext: (data: { memleket: string[] | null }) => void;
@@ -17,6 +17,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
   const [searchResults, setSearchResults] = useState<NewsCity[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showMultiple, setShowMultiple] = useState(true); // Start directly in multiple mode
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Search Turkish cities (including ilçe's) when query changes
   useEffect(() => {
@@ -58,14 +59,33 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
       e.preventDefault();
       e.stopPropagation();
     }
-    setSelectedCities((prev) => {
-      const exists = prev.some((c) => c.cityKey === city.cityKey);
-      if (exists) {
-        return prev.filter((c) => c.cityKey !== city.cityKey);
-      } else {
-        return [...prev, city];
-      }
-    });
+
+    // Dismiss keyboard immediately
+    inputRef.current?.blur();
+
+    // Check if city is already selected
+    const isAlreadySelected = selectedCities.some((c) => c.cityKey === city.cityKey);
+
+    if (isAlreadySelected) {
+      // If already selected, remove it (toggle off)
+      setSelectedCities((prev) => prev.filter((c) => c.cityKey !== city.cityKey));
+      return;
+    }
+
+    // Add city to selection
+    const newSelectedCities = [...selectedCities, city];
+    setSelectedCities(newSelectedCities);
+
+    // Clear search query and results for clean UI
+    setSearchQuery("");
+    setSearchResults([]);
+
+    // Automatically proceed to next step after a short delay
+    // This ensures the keyboard dismisses and UI updates smoothly
+    setTimeout(() => {
+      const cityKeys = newSelectedCities.map((c) => c.cityKey.toLowerCase());
+      onNext({ memleket: cityKeys });
+    }, 150);
   };
 
   const handleMultiple = () => {
@@ -92,7 +112,11 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
       <div className="fixed inset-0 z-[100] flex flex-col bg-background">
         {/* Header */}
         <div className="flex flex-col items-center justify-center px-6 pt-12 pb-6">
-          <MascotteAvatar size="lg" className="mb-4" />
+          <img
+            src={memleketBg}
+            alt="Memleket mascotte"
+            className="h-32 w-32 object-contain mb-4"
+          />
           <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
             En je roots?
           </h2>
@@ -129,7 +153,11 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
     <div className="fixed inset-0 z-[100] flex flex-col bg-background">
       {/* Header */}
       <div className="flex flex-col items-center justify-center px-6 pt-12 pb-6">
-        <MascotteAvatar size="lg" className="mb-4" />
+        <img
+          src={memleketBg}
+          alt="Memleket mascotte"
+          className="h-32 w-32 object-contain mb-4"
+        />
         <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
           En je roots?
         </h2>
@@ -141,16 +169,18 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
       {/* Search input */}
       <div className="px-6 pb-4">
         <Input
+          ref={inputRef}
           type="text"
           placeholder="Zoek stad of ilçe..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full"
+          className="w-full text-base"
+          style={{ fontSize: '16px' }}
         />
       </div>
 
-      {/* City list */}
-      <div className="flex-1 overflow-y-auto px-6">
+      {/* City list - positioned above footer */}
+      <div className="flex-1 overflow-y-auto px-6 pb-40 relative z-[60] bg-background" style={{ minHeight: 0 }}>
         <div className="space-y-2">
           {isSearching ? (
             <div className="py-8 text-center text-muted-foreground">
@@ -165,7 +195,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
                   onClick={(e) => handleCityToggle(city, e)}
                   onMouseDown={(e) => e.preventDefault()}
                   className={cn(
-                    "w-full rounded-lg border p-4 text-left transition-all cursor-pointer",
+                    "w-full rounded-lg border p-4 text-left transition-all cursor-pointer relative",
                     isSelected
                       ? "border-primary bg-primary/10"
                       : "border-border bg-card hover:bg-muted"
@@ -199,15 +229,25 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
       </div>
 
       {/* Footer with CTA */}
-      <div className="px-6 pb-8 pt-4 border-t border-border/50">
+      <div
+        className="px-6 pt-4 border-t border-border/50 bg-background z-50 shadow-lg"
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))',
+          pointerEvents: 'none',
+        }}
+      >
         {selectedCities.length > 0 && (
-          <div className="mb-4 text-center">
+          <div className="mb-4 text-center" style={{ pointerEvents: 'auto' }}>
             <p className="text-sm font-medium text-foreground">
               {selectedCities.length} stad{selectedCities.length > 1 ? 'en' : ''} geselecteerd
             </p>
           </div>
         )}
-        <div className="space-y-2">
+        <div className="space-y-2" style={{ pointerEvents: 'auto' }}>
           {selectedCities.length > 0 && (
             <Button
               onClick={handleNext}
@@ -222,7 +262,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
           <Button
             onClick={handleSkip}
             size="lg"
-            variant={selectedCities.length > 0 ? "outline" : "default"}
+            variant="link"
             className="w-full"
             aria-label="Sla over"
           >
@@ -233,3 +273,4 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
     </div>
   );
 }
+

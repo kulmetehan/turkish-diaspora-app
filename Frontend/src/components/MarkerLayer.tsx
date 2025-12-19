@@ -45,19 +45,7 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
 
     // Build GeoJSON for current locations
     const data = useMemo(() => {
-        if (process.env.NODE_ENV === 'development') {
-            console.log('[MarkerLayer] Received locations:', locations.length);
-            locations.forEach(loc => {
-                console.log(`[MarkerLayer] Location ID=${loc.id}, lat=${loc.lat} (${typeof loc.lat}), lng=${loc.lng} (${typeof loc.lng})`);
-            });
-        }
         const geoJson = buildMarkerGeoJSON(locations);
-        if (process.env.NODE_ENV === 'development') {
-            console.log('[MarkerLayer] GeoJSON features:', geoJson.features.length, 'out of', locations.length);
-            geoJson.features.forEach(f => {
-                console.log(`[MarkerLayer] GeoJSON Feature ID=${f.properties.id}, coords=[${f.geometry.coordinates[0]}, ${f.geometry.coordinates[1]}]`);
-            });
-        }
         return geoJson;
     }, [locations]);
 
@@ -100,41 +88,8 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
         if (!layersReady.current) return;
         if (!hasStyleObject(map)) return;
         const src: any = map.getSource(SRC_ID);
-        if (process.env.NODE_ENV === 'development') {
-            console.log('[MarkerLayer] Updating source data:', {
-                hasSource: !!src,
-                hasSetData: !!(src && src.setData),
-                featuresCount: data.features.length,
-                locationsCount: locations.length,
-            });
-        }
         if (src && src.setData) {
             src.setData(data as any);
-            if (process.env.NODE_ENV === 'development') {
-                console.log('[MarkerLayer] Source data updated successfully');
-                // Log current map bounds to see if marker is in view
-                try {
-                    const bounds = map.getBounds();
-                    console.log('[MarkerLayer] Current map bounds:', {
-                        north: bounds.getNorth(),
-                        south: bounds.getSouth(),
-                        east: bounds.getEast(),
-                        west: bounds.getWest(),
-                    });
-                    // Check if any features are in view
-                    data.features.forEach(f => {
-                        const [lng, lat] = f.geometry.coordinates;
-                        const inBounds = bounds.contains([lng, lat]);
-                        console.log(`[MarkerLayer] Feature ${f.properties.id} at [${lng}, ${lat}]: inBounds=${inBounds}`);
-                    });
-                } catch (e) {
-                    console.warn('[MarkerLayer] Could not get map bounds:', e);
-                }
-            }
-        } else {
-            if (process.env.NODE_ENV === 'development') {
-                console.warn('[MarkerLayer] Source not ready or setData not available');
-            }
         }
     }, [map, data, locations]);
 

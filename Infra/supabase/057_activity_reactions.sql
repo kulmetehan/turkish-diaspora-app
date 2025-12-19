@@ -21,3 +21,4 @@ COMMENT ON COLUMN activity_reactions.reaction_type IS 'Type of emoji reaction: f
 COMMENT ON COLUMN activity_reactions.identity_key IS 'Generated column: user_id if available, otherwise client_id';
 
 
+

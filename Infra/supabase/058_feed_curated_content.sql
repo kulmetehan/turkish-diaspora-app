@@ -21,3 +21,4 @@ COMMENT ON COLUMN feed_curated_content.metadata IS 'Additional metadata: total_r
 COMMENT ON COLUMN feed_curated_content.expires_at IS 'Timestamp when this ranking becomes stale (news: 6h, events/locations: 24h)';
 
 
+
