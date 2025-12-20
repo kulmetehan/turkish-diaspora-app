@@ -21,7 +21,17 @@ export function normalizeApiBase(raw: string | undefined): string {
 }
 
 // API_BASE should be just the backend origin (no trailing slash, no /api/v1)
+// In production builds, Vite replaces import.meta.env.VITE_API_BASE_URL at build time
+// If not set, it will be undefined and normalizeApiBase returns empty string
 export const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
+
+// Debug logging in development to help troubleshoot environment variable issues
+if (import.meta.env.DEV) {
+  // eslint-disable-next-line no-console
+  console.debug("[API_BASE] VITE_API_BASE_URL:", import.meta.env.VITE_API_BASE_URL);
+  // eslint-disable-next-line no-console
+  console.debug("[API_BASE] Normalized:", API_BASE);
+}
 
 /** Demo data for Bangkok locations when backend is not available */
 const DEMO_DATA = {
@@ -62,7 +72,11 @@ export async function apiFetch<T>(
 ): Promise<T> {
   // Require a configured backend in all modes
   if (!API_BASE) {
-    throw new Error('Backend not configured (VITE_API_BASE_URL not set)');
+    const errorMsg = `Backend not configured: VITE_API_BASE_URL is not set or empty. 
+      Current value: "${import.meta.env.VITE_API_BASE_URL || 'undefined'}"
+      Please set VITE_API_BASE_URL environment variable before building.`;
+    console.error('[apiFetch]', errorMsg);
+    throw new Error(errorMsg);
   }
 
   const url = `${API_BASE}${path}`;
