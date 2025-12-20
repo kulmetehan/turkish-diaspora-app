@@ -10,6 +10,10 @@ export default defineConfig(({ mode }) => {
   // Only load variables with VITE_ prefix for security.
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   
+  // Check both loaded env file and process.env (for CI/CD environments)
+  // process.env takes precedence if set
+  const basePath = process.env.VITE_BASE_PATH || env.VITE_BASE_PATH || '/'
+  
   return {
     plugins: [react()] as PluginOption[],
     resolve: {
@@ -20,7 +24,7 @@ export default defineConfig(({ mode }) => {
     // Base path configuration - use environment variable or default to root
     // For Render deployment, use root path "/"
     // For GitHub Pages, set VITE_BASE_PATH="/turkish-diaspora-app/"
-    base: env.VITE_BASE_PATH || '/',
+    base: basePath,
     // Optioneel: wat vriendelijkere build warnings
     build: {
       sourcemap: false,
