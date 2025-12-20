@@ -55,8 +55,11 @@ jobs:
         run: npm ci
 
       # Base path is configured in vite.config.ts
+      # Also set as environment variable to ensure it's available during build
       - name: Build
         working-directory: Frontend
+        env:
+          VITE_BASE_PATH: /turkish-diaspora-app/
         run: npm run build
 
       # Validatie: index.html moet /turkish-diaspora-app/ bevatten vóór assets
