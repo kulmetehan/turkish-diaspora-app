@@ -36,11 +36,15 @@ export async function fetchLocations(
     offset?: number,
     signal?: AbortSignal
 ): Promise<LocationMarker[]> {
-    const fallbackBase = "http://127.0.0.1:8000";
-    const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
-    const API_BASE = normalizeApiBase(
-        (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase
-    );
+    // Use the same API_BASE from api.ts for consistency
+    // Only fallback to localhost in development if API_BASE is empty
+    const envBase = import.meta.env.VITE_API_BASE_URL;
+    const normalizedBase = normalizeApiBase(envBase);
+    const API_BASE = normalizedBase || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
+    
+    if (!API_BASE) {
+        throw new Error('Backend not configured (VITE_API_BASE_URL not set)');
+    }
 
     // Build query string
     const params = new URLSearchParams();
@@ -108,11 +112,14 @@ export async function fetchLocations(
 }
 
 export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSignal): Promise<number> {
-    const fallbackBase = "http://127.0.0.1:8000";
-    const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
-    const API_BASE = normalizeApiBase(
-        (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase
-    );
+    // Use the same API_BASE from api.ts for consistency
+    const envBase = import.meta.env.VITE_API_BASE_URL;
+    const normalizedBase = normalizeApiBase(envBase);
+    const API_BASE = normalizedBase || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
+    
+    if (!API_BASE) {
+        throw new Error('Backend not configured (VITE_API_BASE_URL not set)');
+    }
 
     // Build query string
     const params = new URLSearchParams();
@@ -144,11 +151,14 @@ export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSi
 }
 
 export async function fetchCategories(signal?: AbortSignal): Promise<CategoryOption[]> {
-    const fallbackBase = "http://127.0.0.1:8000";
-    const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
-    const API_BASE = normalizeApiBase(
-        (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase
-    );
+    // Use the same API_BASE from api.ts for consistency
+    const envBase = import.meta.env.VITE_API_BASE_URL;
+    const normalizedBase = normalizeApiBase(envBase);
+    const API_BASE = normalizedBase || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
+    
+    if (!API_BASE) {
+        throw new Error('Backend not configured (VITE_API_BASE_URL not set)');
+    }
 
     // Use new categories endpoint
     const url = `${API_BASE}/api/v1/categories`;
