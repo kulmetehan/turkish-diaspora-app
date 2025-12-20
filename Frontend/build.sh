@@ -24,6 +24,20 @@ echo "   VITE_API_BASE_URL=${VITE_API_BASE_URL:-NOT SET}"
 echo "   VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:+SET}"
 echo "   VITE_SUPABASE_URL=${VITE_SUPABASE_URL:+SET}"
 
+# Validate critical environment variables
+if [ -z "$VITE_API_BASE_URL" ]; then
+  echo "❌ ERROR: VITE_API_BASE_URL is not set!"
+  echo "   Please set VITE_API_BASE_URL in Render environment variables."
+  echo "   Expected: https://turkish-diaspora-app.onrender.com"
+  exit 1
+fi
+
+# Warn if using old API URL
+if [[ "$VITE_API_BASE_URL" == *"tda-api.onrender.com"* ]]; then
+  echo "⚠️  WARNING: VITE_API_BASE_URL contains 'tda-api.onrender.com'"
+  echo "   This is the old backend URL. Update to: https://turkish-diaspora-app.onrender.com"
+fi
+
 # Build the application
 npm run build
 
