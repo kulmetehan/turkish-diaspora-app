@@ -37,7 +37,7 @@ const AdminBulletinModeration = React.lazy(() => import("@/pages/admin/AdminBull
 const DiasporaPulsePage = React.lazy(() => import("@/pages/DiasporaPulsePage"));
 const PollDetailPage = React.lazy(() => import("@/pages/PollDetailPage"));
 
-// Vite levert dit via 'base' (bv. "/turkish-diaspora-app/") voor GitHub Pages builds.
+// Vite base path is configured in vite.config.ts (defaults to "/" for Render deployment)
 
 initTheme();
 initI18n();
