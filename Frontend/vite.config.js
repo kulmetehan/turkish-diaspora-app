@@ -21,8 +21,8 @@ export default defineConfig({
         chunkSizeWarningLimit: 1200,
     },
     server: {
-    // Handig bij mobiel/devices testen; commentaar weg te halen indien gewenst:
-    // host: true,
-    // port: 5173,
+        // Handig bij mobiel/devices testen; commentaar weg te halen indien gewenst:
+        // host: true,
+        // port: 5173,
     },
 });
