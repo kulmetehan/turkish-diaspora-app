@@ -157,7 +157,8 @@ app.add_middleware(
         "http://127.0.0.1:5173",
         "https://kulmetehan.github.io",
         "https://turkish-diaspora-app.onrender.com",
-        "https://turkspot.onrender.com",  # Render frontend deployment
+        "https://turkspot.onrender.com",  # Render frontend deployment (subdomain)
+        "https://turkspot.app",  # Render frontend deployment (custom domain)
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
