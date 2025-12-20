@@ -102,14 +102,34 @@ cd Frontend/dist && python3 -m http.server 3000
 
 ## Verification
 
-After deployment, check the browser console for:
+### After Deployment
 
-```
-[API_BASE] VITE_API_BASE_URL: https://your-api.onrender.com
-[API_BASE] Normalized: https://your-api.onrender.com
-```
+1. **Check Browser Console**: Open the deployed site and check the browser console. You should see API calls going to:
+   ```
+   https://turkish-diaspora-app.onrender.com/api/v1/...
+   ```
+   
+   ❌ **Wrong**: If you see `tda-api.onrender.com` or `127.0.0.1:8000`, the environment variable was not set correctly during build.
 
-If you see `undefined` or empty values, the environment variables were not available during the build.
+2. **Check Build Logs**: In Render build logs, look for:
+   ```
+   VITE_API_BASE_URL=https://turkish-diaspora-app.onrender.com
+   ```
+   
+   If you see `VITE_API_BASE_URL=NOT SET` or an old URL, update the environment variable and trigger a new deployment.
+
+### Common Issues
+
+**Problem**: API calls go to `tda-api.onrender.com` instead of `turkish-diaspora-app.onrender.com`
+
+**Cause**: `VITE_API_BASE_URL` environment variable in Render is set to the old URL or not set at all.
+
+**Solution**:
+1. Go to Render Dashboard → Your Static Site → Environment
+2. Find or add `VITE_API_BASE_URL`
+3. Set value to: `https://turkish-diaspora-app.onrender.com` (no trailing slash, no `/api/v1`)
+4. Save and trigger a new deployment
+5. Wait for build to complete and verify in browser console
 
 ## Related Documentation
 
