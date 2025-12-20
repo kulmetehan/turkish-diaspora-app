@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { getOrCreateClientId, claimReferral } from "@/lib/api";
+import { getOrCreateClientId, claimReferral, API_BASE } from "@/lib/api";
 import { AppViewportShell, PageShell } from "@/components/layout";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -56,7 +56,7 @@ export default function UserAuthPage() {
         const clientId = getOrCreateClientId();
         try {
           // Call migration endpoint
-          const response = await fetch("/api/v1/auth/migrate-client-id", {
+          const response = await fetch(`${API_BASE}/api/v1/auth/migrate-client-id`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -110,7 +110,7 @@ export default function UserAuthPage() {
         const clientId = getOrCreateClientId();
         if (data.session) {
           try {
-            const response = await fetch("/api/v1/auth/migrate-client-id", {
+            const response = await fetch(`${API_BASE}/api/v1/auth/migrate-client-id`, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
