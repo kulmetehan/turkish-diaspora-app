@@ -1,6 +1,6 @@
 // src/api/fetchLocations.ts
 import { getAcceptLanguageHeader } from "@/i18n";
-import { getOrCreateClientId } from "@/lib/api";
+import { getOrCreateClientId, normalizeApiBase } from "@/lib/api";
 
 export interface CategoryOption {
     key: string;
@@ -38,7 +38,9 @@ export async function fetchLocations(
 ): Promise<LocationMarker[]> {
     const fallbackBase = "http://127.0.0.1:8000";
     const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
-    const API_BASE = (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase;
+    const API_BASE = normalizeApiBase(
+        (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase
+    );
 
     // Build query string
     const params = new URLSearchParams();
@@ -108,7 +110,9 @@ export async function fetchLocations(
 export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSignal): Promise<number> {
     const fallbackBase = "http://127.0.0.1:8000";
     const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
-    const API_BASE = (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase;
+    const API_BASE = normalizeApiBase(
+        (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase
+    );
 
     // Build query string
     const params = new URLSearchParams();
@@ -142,7 +146,9 @@ export async function fetchLocationsCount(bbox?: string | null, signal?: AbortSi
 export async function fetchCategories(signal?: AbortSignal): Promise<CategoryOption[]> {
     const fallbackBase = "http://127.0.0.1:8000";
     const envBase = (import.meta as any)?.env?.VITE_API_BASE_URL;
-    const API_BASE = (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase;
+    const API_BASE = normalizeApiBase(
+        (typeof envBase === "string" && envBase.length > 0) ? envBase : fallbackBase
+    );
 
     // Use new categories endpoint
     const url = `${API_BASE}/api/v1/categories`;

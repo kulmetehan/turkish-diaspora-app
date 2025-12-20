@@ -2,8 +2,26 @@
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
 
+/**
+ * Normalize API base URL: remove /api/v1 if present, we add it in paths.
+ * This ensures consistent behavior whether VITE_API_BASE_URL includes /api/v1 or not.
+ * 
+ * @param raw - The raw API base URL from environment variable
+ * @returns Normalized base URL (host only, no trailing slash, no /api/v1)
+ */
+export function normalizeApiBase(raw: string | undefined): string {
+  if (!raw) return "";
+  // Remove trailing slashes
+  let base = raw.replace(/\/+$/, "");
+  // Remove /api/v1 if it exists at the end
+  if (base.endsWith("/api/v1")) {
+    base = base.slice(0, -7); // Remove "/api/v1"
+  }
+  return base;
+}
+
 // API_BASE should be just the backend origin (no trailing slash, no /api/v1)
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+export const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 
 /** Demo data for Bangkok locations when backend is not available */
 const DEMO_DATA = {

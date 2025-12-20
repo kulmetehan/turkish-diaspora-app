@@ -36,7 +36,11 @@ jobs:
         working-directory: Frontend
         run: |
           : > .env.production
-          # Backend API base (zonder trailing slash)
+          # Base path voor GitHub Pages deployment
+          echo "VITE_BASE_PATH=/turkish-diaspora-app/" >> .env.production
+          # Backend API base (alleen host, zonder trailing slash, zonder /api/v1)
+          # De code voegt automatisch /api/v1 toe aan alle API paths
+          # normalizeApiBase() verwijdert /api/v1 als het per ongeluk in de URL zit
           echo "VITE_API_BASE_URL=${{ secrets.VITE_API_BASE_URL }}" >> .env.production
           # Mapbox tokens/style
           echo "VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }}" >> .env.production
