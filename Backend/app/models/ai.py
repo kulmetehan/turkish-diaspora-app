@@ -22,6 +22,8 @@ class Action(str, Enum):
 
 # Import Category enum from central registry
 from app.models.categories import Category
+# Import EventCategory enum for event classification
+from app.models.event_categories import EventCategory
 
 
 class VerificationStatus(str, Enum):
@@ -85,6 +87,41 @@ class AIClassification(BaseModel):
     """
     action: Action = Field(..., description="keep/ignore decision")
     category: Optional[Category] = Field(default=None)
+    confidence_score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="0..1",
+        validation_alias=AliasChoices("confidence_score", "confidence", "score"),
+    )
+    reason: Optional[str] = None
+    subcategory: Optional[str] = None
+
+    @field_validator("confidence_score", mode="before")
+    @classmethod
+    def _coerce_and_clip_conf(cls, v: Any) -> float:
+        try:
+            f = float(v)
+        except Exception:
+            raise PydanticCustomError("confidence_invalid", "confidence_score must be float in [0,1]")
+        # CLIP vóór constraints zodat 1.2 niet faalt maar 1.0 wordt
+        return _clip01(f) or 0.0
+
+    @model_validator(mode="after")
+    def _validate_category_for_action(self):
+        """Enforce that category is required when action='keep', optional when action='ignore'."""
+        if self.action == Action.KEEP and self.category is None:
+            raise ValueError("category is required when action='keep'")
+        return self
+
+
+class AIEventClassification(BaseModel):
+    """
+    Event classification output, using EventCategory instead of Category.
+    Separate from AIClassification to avoid breaking location classification.
+    """
+    action: Action = Field(..., description="keep/ignore decision")
+    category: Optional[EventCategory] = Field(default=None)
     confidence_score: float = Field(
         ...,
         ge=0.0,

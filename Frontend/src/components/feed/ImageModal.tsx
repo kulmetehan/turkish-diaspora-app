@@ -92,3 +92,6 @@ export function ImageModal({ imageUrl, open, onOpenChange }: ImageModalProps) {
 
 
 
+
+
+

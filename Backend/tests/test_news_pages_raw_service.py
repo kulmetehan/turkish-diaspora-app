@@ -135,3 +135,6 @@ async def test_update_news_page_processing_state_invalid(monkeypatch):
 
 
 
+
+
+

@@ -1,13 +1,13 @@
 // Frontend/src/components/activity/ActivityHistory.tsx
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { format, isToday, isYesterday, startOfWeek, isWithinInterval, parseISO } from "date-fns";
-import { nl } from "date-fns/locale";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/ui/cn";
-import { ActivityFeed } from "@/components/feed/ActivityFeed";
 import { ActivityCard } from "@/components/feed/ActivityCard";
+import { ActivityFeed } from "@/components/feed/ActivityFeed";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getActivityFeed, type ActivityItem } from "@/lib/api";
+import { cn } from "@/lib/ui/cn";
+import { format, isToday, isWithinInterval, isYesterday, parseISO, startOfWeek } from "date-fns";
+import { nl } from "date-fns/locale";
+import { useCallback, useEffect, useState } from "react";
 
 interface ActivityHistoryProps {
   className?: string;
@@ -17,42 +17,44 @@ type ActivityFilter = "all" | "check_in" | "reaction" | "note" | "poll_response"
 
 export function ActivityHistory({ className }: ActivityHistoryProps) {
   const [filter, setFilter] = useState<ActivityFilter>("all");
-  
+
   // For now, we use the existing ActivityFeed component
   // In the future, we could add client-side filtering or a filtered API endpoint
-  
+
   return (
     <div className={cn("space-y-4", className)}>
       <Tabs value={filter} onValueChange={(value) => setFilter(value as ActivityFilter)}>
-        <TabsList className="overflow-x-auto bg-card mb-4">
-          <TabsTrigger value="all">Alles</TabsTrigger>
-          <TabsTrigger value="check_in">Check-ins</TabsTrigger>
-          <TabsTrigger value="reaction">Reacties</TabsTrigger>
-          <TabsTrigger value="note">Notities</TabsTrigger>
-          <TabsTrigger value="poll_response">Polls</TabsTrigger>
-          <TabsTrigger value="favorite">Favorieten</TabsTrigger>
-        </TabsList>
-        
+        <div className="max-w-full overflow-x-auto mb-4" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+          <TabsList className="bg-card">
+            <TabsTrigger value="all">Alles</TabsTrigger>
+            <TabsTrigger value="check_in">Check-ins</TabsTrigger>
+            <TabsTrigger value="reaction">Reacties</TabsTrigger>
+            <TabsTrigger value="note">Notities</TabsTrigger>
+            <TabsTrigger value="poll_response">Polls</TabsTrigger>
+            <TabsTrigger value="favorite">Favorieten</TabsTrigger>
+          </TabsList>
+        </div>
+
         <TabsContent value="all">
           <ActivityFeed />
         </TabsContent>
-        
+
         <TabsContent value="check_in">
           <FilteredActivityFeed activityType="check_in" />
         </TabsContent>
-        
+
         <TabsContent value="reaction">
           <FilteredActivityFeed activityType="reaction" />
         </TabsContent>
-        
+
         <TabsContent value="note">
           <FilteredActivityFeed activityType="note" />
         </TabsContent>
-        
+
         <TabsContent value="poll_response">
           <FilteredActivityFeed activityType="poll_response" />
         </TabsContent>
-        
+
         <TabsContent value="favorite">
           <FilteredActivityFeed activityType="favorite" />
         </TabsContent>
@@ -159,11 +161,11 @@ function FilteredActivityFeed({ activityType }: { activityType: ActivityItem["ac
 // Helper function to group activities by date (for future use)
 function groupActivitiesByDate(items: ActivityItem[]): Record<string, ActivityItem[]> {
   const groups: Record<string, ActivityItem[]> = {};
-  
+
   for (const item of items) {
     const date = parseISO(item.created_at);
     let groupKey: string;
-    
+
     if (isToday(date)) {
       groupKey = "Vandaag";
     } else if (isYesterday(date)) {
@@ -173,13 +175,13 @@ function groupActivitiesByDate(items: ActivityItem[]): Record<string, ActivityIt
     } else {
       groupKey = format(date, "d MMMM yyyy", { locale: nl });
     }
-    
+
     if (!groups[groupKey]) {
       groups[groupKey] = [];
     }
     groups[groupKey].push(item);
   }
-  
+
   return groups;
 }
 

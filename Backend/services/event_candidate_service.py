@@ -52,6 +52,7 @@ class EventCandidateRecord:
     state: str
     created_at: datetime
     updated_at: datetime
+    event_category: Optional[str] = None
     source_name: Optional[str] = None
     has_duplicates: bool = False
 
@@ -74,6 +75,7 @@ class EventCandidateRecord:
             state=str(row["state"]),
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            event_category=row.get("event_category"),
             source_name=row.get("source_name"),
             has_duplicates=bool(row.get("has_duplicates", False)),
         )
@@ -94,6 +96,7 @@ class EventCandidateRecord:
             source_key=self.source_key,
             ingest_hash=self.ingest_hash,
             state=self.state,
+            event_category=self.event_category,
             created_at=self.created_at,
             updated_at=self.updated_at,
         )
@@ -227,6 +230,7 @@ async def fetch_recent_event_candidates(limit: int = 50) -> Iterable[EventCandid
             source_key,
             ingest_hash,
             state,
+            event_category,
             created_at,
             updated_at,
             EXISTS (
@@ -302,6 +306,7 @@ async def list_event_candidates(
             ec.source_key,
             ec.ingest_hash,
             ec.state,
+            ec.event_category,
             ec.created_at,
             ec.updated_at,
             es.name AS source_name,
@@ -344,6 +349,7 @@ async def list_candidate_duplicates(
             ec.source_key,
             ec.ingest_hash,
             ec.state,
+            ec.event_category,
             ec.created_at,
             ec.updated_at,
             es.name AS source_name,
@@ -381,6 +387,7 @@ async def list_candidate_duplicates(
                 ec.source_key,
                 ec.ingest_hash,
                 ec.state,
+                ec.event_category,
                 ec.created_at,
                 ec.updated_at,
                 es.name AS source_name,
@@ -414,6 +421,7 @@ async def list_candidate_duplicates(
             ec.source_key,
             ec.ingest_hash,
             ec.state,
+            ec.event_category,
             ec.created_at,
             ec.updated_at,
             es.name AS source_name,
@@ -436,6 +444,7 @@ async def update_event_candidate_state(
     candidate_id: int,
     new_state: str,
     actor_email: Optional[str] = None,
+    event_category: Optional[str] = None,
 ) -> EventCandidateRecord:
     if new_state not in EVENT_CANDIDATE_STATES:
         raise ValueError(f"Invalid target state: {new_state}")
@@ -457,6 +466,7 @@ async def update_event_candidate_state(
             ec.source_key,
             ec.ingest_hash,
             ec.state,
+            ec.event_category,
             ec.created_at,
             ec.updated_at,
             es.name AS source_name,
@@ -482,17 +492,33 @@ async def update_event_candidate_state(
             f"Invalid transition: {current.state} -> {new_state}",
         )
 
-    await execute(
-        """
-        UPDATE events_candidate
-        SET state = $2,
-            updated_at = $3
-        WHERE id = $1
-        """,
-        candidate_id,
-        new_state,
-        datetime.now(timezone.utc),
-    )
+    if event_category is not None:
+        await execute(
+            """
+            UPDATE events_candidate
+            SET state = $2,
+                event_category = $3,
+                updated_at = $4
+            WHERE id = $1
+            """,
+            candidate_id,
+            new_state,
+            event_category,
+            datetime.now(timezone.utc),
+        )
+        current.event_category = event_category
+    else:
+        await execute(
+            """
+            UPDATE events_candidate
+            SET state = $2,
+                updated_at = $3
+            WHERE id = $1
+            """,
+            candidate_id,
+            new_state,
+            datetime.now(timezone.utc),
+        )
 
     logger.info(
         "event_candidate_state_updated",

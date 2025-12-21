@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { AccountLoginSection } from "@/components/account/AccountLoginSection";
+import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
 import { ActivityHistory } from "@/components/activity/ActivityHistory";
+import { AppHeader } from "@/components/feed/AppHeader";
+import { FooterTabs } from "@/components/FooterTabs";
 import { Icon } from "@/components/Icon";
-import { AppViewportShell, PageShell } from "@/components/layout";
+import { AppViewportShell } from "@/components/layout";
 import { PushNotificationSettings } from "@/components/push/PushNotificationSettings";
 import { ReferralShare } from "@/components/referrals/ReferralShare";
 import { PrivacySettings } from "@/components/settings/PrivacySettings";
@@ -15,6 +19,7 @@ import { toast } from "sonner";
 
 export default function AccountPage() {
   const [theme, setThemeState] = useState<ThemeSetting>("system");
+  const [activeTab, setActiveTab] = useState<AccountTabKey>("weergave");
   const { isAuthenticated, userId, email, isLoading } = useUserAuth();
   const navigate = useNavigate();
 
@@ -42,133 +47,145 @@ export default function AccountPage() {
     setThemeState(next);
   };
 
+  const handleNotificationClick = () => {
+    // TODO: Implement notification navigation
+    console.log("Notification clicked");
+  };
+
   return (
     <AppViewportShell variant="content">
-      <PageShell
-        title="Account"
-        subtitle={isAuthenticated ? `Ingelogd als ${email || "gebruiker"}` : "Maak een account aan om je activiteit bij te houden"}
-        maxWidth="4xl"
-      >
-        {!isLoading && (
-          <section className="rounded-3xl border border-border bg-card p-6 shadow-soft mb-6">
-            {isAuthenticated ? (
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-medium text-foreground">Account</h2>
-                  <p className="text-sm text-muted-foreground">
-                    {email || "Gebruiker"} ({userId?.slice(0, 8)}...)
-                  </p>
+      <div className="flex flex-col h-full relative">
+        {/* Red gradient overlay */}
+        <div
+          className="absolute inset-x-0 top-0 pointer-events-none z-0"
+          style={{
+            height: '25%',
+            background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+          }}
+        />
+        <AppHeader onNotificationClick={handleNotificationClick} />
+        <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
+          <div className="max-w-4xl mx-auto py-4">
+            {!isLoading && (
+              <AccountLoginSection
+                isAuthenticated={isAuthenticated}
+                email={email}
+                userId={userId}
+                onLogout={handleLogout}
+                className="mb-4"
+              />
+            )}
+
+            <AccountTabs value={activeTab} onChange={setActiveTab} className="mb-4" />
+
+            {activeTab === "weergave" && (
+              <div className="rounded-xl bg-surface-muted/50 p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-gilroy font-medium text-foreground">
+                      Weergave
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      Beheer het thema van de app
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={cycleTheme}
+                    aria-label="Schakel thema"
+                    className="inline-flex items-center gap-2 text-foreground"
+                  >
+                    <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
+                    <span>Theme: {theme}</span>
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleLogout}
-                  className="inline-flex items-center gap-2"
-                >
-                  <Icon name="LogOut" className="h-4 w-4" aria-hidden />
-                  <span>Uitloggen</span>
-                </Button>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-medium text-foreground">Niet ingelogd</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Log in of maak een account aan om je activiteit bij te houden
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => navigate("/auth")}
-                  className="inline-flex items-center gap-2"
-                >
-                  <Icon name="LogIn" className="h-4 w-4" aria-hidden />
-                  <span>Inloggen / Registreren</span>
-                </Button>
               </div>
             )}
-          </section>
-        )}
-        <section
-          aria-labelledby="appearance-heading"
-          className="rounded-3xl border border-border bg-card p-6 shadow-soft"
-        >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-1">
-              <h2 id="appearance-heading" className="text-lg font-medium text-foreground">
-                Appearance
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Temporarily manage the theme from here while the header is removed.
-              </p>
+
+            {activeTab === "privacy" && (
+              <div className="rounded-xl bg-surface-muted/50 p-6">
+                <PrivacySettings />
+              </div>
+            )}
+
+            {activeTab === "notificaties" && (
+              <div className="rounded-xl bg-surface-muted/50 p-6">
+                <PushNotificationSettings />
+              </div>
+            )}
+
+            {activeTab === "referral" && (
+              isAuthenticated ? (
+                <div className="rounded-xl bg-surface-muted/50 p-6">
+                  <ReferralShare />
+                </div>
+              ) : (
+                <div className="rounded-xl bg-surface-muted/50 p-6">
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="text-lg font-gilroy font-medium text-foreground mb-1">Referral Programma</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Nodig vrienden uit en verdien XP wanneer zij zich aanmelden
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-border rounded-lg bg-muted/30">
+                      <Icon name="Users" className="h-12 w-12 text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Inloggen vereist</h3>
+                      <p className="text-sm text-muted-foreground mb-6 max-w-md">
+                        Om het referral programma te gebruiken, heb je een account nodig.
+                        Dit zorgt ervoor dat je referral code gekoppeld is aan jouw account.
+                      </p>
+                      <Button onClick={() => navigate("/auth")} className="inline-flex items-center gap-2">
+                        <Icon name="LogIn" className="h-4 w-4" />
+                        <span>Inloggen / Registreren</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
+
+            {activeTab === "geschiedenis" && (
+              <div className="rounded-xl bg-surface-muted/50 p-6">
+                <h2 className="text-lg font-gilroy font-medium text-foreground mb-4">
+                  Activiteitsgeschiedenis
+                </h2>
+                <ActivityHistory />
+              </div>
+            )}
+
+            {/* Legal section at bottom without border */}
+            <div className="mt-6 rounded-xl bg-surface-muted/50 p-6">
+              <div className="space-y-4">
+                <h2 className="text-lg font-gilroy font-medium text-foreground">Legal</h2>
+                <div className="flex flex-col gap-2">
+                  <a
+                    href="#/privacy"
+                    className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+                  >
+                    Privacybeleid
+                  </a>
+                  <a
+                    href="#/terms"
+                    className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+                  >
+                    Gebruiksvoorwaarden
+                  </a>
+                  <a
+                    href="#/guidelines"
+                    className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+                  >
+                    Community Richtlijnen
+                  </a>
+                </div>
+              </div>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={cycleTheme}
-              aria-label="Schakel thema"
-              className="inline-flex items-center gap-2 text-foreground"
-            >
-              <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
-              <span>Theme: {theme}</span>
-            </Button>
           </div>
-        </section>
-
-        <PrivacySettings />
-
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
-          <PushNotificationSettings />
-        </section>
-
-        {isAuthenticated && (
-          <section
-            aria-labelledby="referral-heading"
-            className="rounded-3xl border border-border bg-card p-6 shadow-soft"
-          >
-            <ReferralShare />
-          </section>
-        )}
-
-        <section
-          aria-labelledby="activity-history-heading"
-          className="rounded-3xl border border-border bg-card p-6 shadow-soft"
-        >
-          <h2 id="activity-history-heading" className="text-lg font-medium text-foreground mb-4">
-            Activiteitsgeschiedenis
-          </h2>
-          <ActivityHistory />
-        </section>
-
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-soft">
-          <div className="space-y-4">
-            <h2 className="text-lg font-medium text-foreground">Legal</h2>
-            <div className="flex flex-col gap-2">
-              <a
-                href="#/privacy"
-                className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-              >
-                Privacybeleid
-              </a>
-              <a
-                href="#/terms"
-                className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-              >
-                Gebruiksvoorwaarden
-              </a>
-              <a
-                href="#/guidelines"
-                className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-              >
-                Community Richtlijnen
-              </a>
-            </div>
-          </div>
-        </section>
-      </PageShell>
+        </div>
+        <FooterTabs />
+      </div>
     </AppViewportShell>
   );
 }

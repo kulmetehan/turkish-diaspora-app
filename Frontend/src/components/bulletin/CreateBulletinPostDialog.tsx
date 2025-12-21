@@ -1,5 +1,6 @@
 // Frontend/src/components/bulletin/CreateBulletinPostDialog.tsx
-import { useState } from "react";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -7,14 +8,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { useUserAuth } from "@/hooks/useUserAuth";
 import { createBulletinPost } from "@/lib/api/bulletin";
-import type { BulletinPostCreate, BulletinCategory } from "@/types/bulletin";
+import type { BulletinCategory, BulletinPostCreate } from "@/types/bulletin";
+import { useState } from "react";
 import { toast } from "sonner";
 
 interface CreateBulletinPostDialogProps {
@@ -37,6 +39,7 @@ export function CreateBulletinPostDialog({
   onOpenChange,
   onSuccess,
 }: CreateBulletinPostDialogProps) {
+  const { isAuthenticated } = useUserAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<Partial<BulletinPostCreate>>({
     title: "",
@@ -91,7 +94,7 @@ export function CreateBulletinPostDialog({
       };
 
       const result = await createBulletinPost(payload);
-      
+
       if (result.moderation_message) {
         toast.success("Advertentie ingediend", {
           description: result.moderation_message,
@@ -114,7 +117,7 @@ export function CreateBulletinPostDialog({
       onSuccess?.();
     } catch (err: any) {
       const errorMsg = err.response?.data?.detail || err.message || "Kon advertentie niet plaatsen";
-      
+
       if (typeof errorMsg === "object" && errorMsg.message) {
         toast.error(errorMsg.message, {
           description: errorMsg.details,
@@ -139,156 +142,162 @@ export function CreateBulletinPostDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Title */}
-          <div>
-            <Label htmlFor="title">Titel *</Label>
-            <Input
-              id="title"
-              value={formData.title || ""}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              placeholder="Bijv. Personeel gezocht voor bakkerij"
-              maxLength={100}
-              required
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {formData.title?.length || 0}/100 tekens
-            </p>
+        {!isAuthenticated ? (
+          <div className="py-4">
+            <LoginPrompt message="Log in om een advertentie te plaatsen" />
           </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Title */}
+            <div>
+              <Label htmlFor="title">Titel *</Label>
+              <Input
+                id="title"
+                value={formData.title || ""}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="Bijv. Personeel gezocht voor bakkerij"
+                maxLength={100}
+                required
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {formData.title?.length || 0}/100 tekens
+              </p>
+            </div>
 
-          {/* Description */}
-          <div>
-            <Label htmlFor="description">Beschrijving</Label>
-            <Textarea
-              id="description"
-              value={formData.description || ""}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Geef meer details over je advertentie..."
-              maxLength={2000}
-              rows={4}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {formData.description?.length || 0}/2000 tekens
-            </p>
-          </div>
+            {/* Description */}
+            <div>
+              <Label htmlFor="description">Beschrijving</Label>
+              <Textarea
+                id="description"
+                value={formData.description || ""}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Geef meer details over je advertentie..."
+                maxLength={2000}
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {formData.description?.length || 0}/2000 tekens
+              </p>
+            </div>
 
-          {/* Category */}
-          <div>
-            <Label htmlFor="category">Categorie *</Label>
-            <Select
-              value={formData.category}
-              onValueChange={(value) =>
-                setFormData({ ...formData, category: value as BulletinCategory })
-              }
-            >
-              <SelectTrigger id="category">
-                <SelectValue placeholder="Selecteer categorie" />
-              </SelectTrigger>
-              <SelectContent>
-                {categoryOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* City */}
-          <div>
-            <Label htmlFor="city">Stad (optioneel)</Label>
-            <Input
-              id="city"
-              value={formData.city || ""}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value || undefined })}
-              placeholder="Bijv. Rotterdam"
-            />
-          </div>
-
-          {/* Contact Info */}
-          <div className="space-y-3 pt-2 border-t">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="show_contact">Contactinformatie tonen</Label>
-              <Switch
-                id="show_contact"
-                checked={formData.show_contact_info ?? true}
-                onCheckedChange={(checked) =>
-                  setFormData({ ...formData, show_contact_info: checked })
+            {/* Category */}
+            <div>
+              <Label htmlFor="category">Categorie *</Label>
+              <Select
+                value={formData.category}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, category: value as BulletinCategory })
                 }
+              >
+                <SelectTrigger id="category">
+                  <SelectValue placeholder="Selecteer categorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categoryOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* City */}
+            <div>
+              <Label htmlFor="city">Stad (optioneel)</Label>
+              <Input
+                id="city"
+                value={formData.city || ""}
+                onChange={(e) => setFormData({ ...formData, city: e.target.value || undefined })}
+                placeholder="Bijv. Rotterdam"
               />
             </div>
 
-            {formData.show_contact_info && (
-              <div className="space-y-3 pl-4 border-l-2 border-border">
-                <div>
-                  <Label htmlFor="phone">Telefoon (optioneel)</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={formData.contact_phone || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contact_phone: e.target.value || undefined })
-                    }
-                    placeholder="+31 6 12345678"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="email">E-mail (optioneel)</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.contact_email || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contact_email: e.target.value || undefined })
-                    }
-                    placeholder="voorbeeld@email.com"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="whatsapp">WhatsApp (optioneel)</Label>
-                  <Input
-                    id="whatsapp"
-                    value={formData.contact_whatsapp || ""}
-                    onChange={(e) =>
-                      setFormData({ ...formData, contact_whatsapp: e.target.value || undefined })
-                    }
-                    placeholder="+31 6 12345678"
-                  />
-                </div>
+            {/* Contact Info */}
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="show_contact">Contactinformatie tonen</Label>
+                <Switch
+                  id="show_contact"
+                  checked={formData.show_contact_info ?? true}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, show_contact_info: checked })
+                  }
+                />
               </div>
-            )}
-          </div>
 
-          {/* Expiry */}
-          <div>
-            <Label htmlFor="expires_in_days">Geldig voor (dagen)</Label>
-            <Input
-              id="expires_in_days"
-              type="number"
-              min="1"
-              max="365"
-              value={formData.expires_in_days || 7}
-              onChange={(e) =>
-                setFormData({ ...formData, expires_in_days: parseInt(e.target.value) || 7 })
-              }
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Standaard 7 dagen. Maximaal 365 dagen.
-            </p>
-          </div>
+              {formData.show_contact_info && (
+                <div className="space-y-3 pl-4 border-l-2 border-border">
+                  <div>
+                    <Label htmlFor="phone">Telefoon (optioneel)</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formData.contact_phone || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contact_phone: e.target.value || undefined })
+                      }
+                      placeholder="+31 6 12345678"
+                    />
+                  </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Annuleren
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Plaatsen..." : "Advertentie plaatsen"}
-            </Button>
-          </div>
-        </form>
+                  <div>
+                    <Label htmlFor="email">E-mail (optioneel)</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.contact_email || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contact_email: e.target.value || undefined })
+                      }
+                      placeholder="voorbeeld@email.com"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="whatsapp">WhatsApp (optioneel)</Label>
+                    <Input
+                      id="whatsapp"
+                      value={formData.contact_whatsapp || ""}
+                      onChange={(e) =>
+                        setFormData({ ...formData, contact_whatsapp: e.target.value || undefined })
+                      }
+                      placeholder="+31 6 12345678"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Expiry */}
+            <div>
+              <Label htmlFor="expires_in_days">Geldig voor (dagen)</Label>
+              <Input
+                id="expires_in_days"
+                type="number"
+                min="1"
+                max="365"
+                value={formData.expires_in_days || 7}
+                onChange={(e) =>
+                  setFormData({ ...formData, expires_in_days: parseInt(e.target.value) || 7 })
+                }
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Standaard 7 dagen. Maximaal 365 dagen.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex justify-end gap-3 pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                Annuleren
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Plaatsen..." : "Advertentie plaatsen"}
+              </Button>
+            </div>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

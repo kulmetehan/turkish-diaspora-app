@@ -54,3 +54,6 @@ COMMENT ON COLUMN public.referrals.referred_xp_awarded IS 'Whether referred user
 
 
 
+
+
+

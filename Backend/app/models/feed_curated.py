@@ -48,3 +48,6 @@ class CuratedEventsResponse(BaseModel):
 
 
 
+
+
+

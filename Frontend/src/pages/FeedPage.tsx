@@ -6,6 +6,7 @@ import { FeedFilterTabs, type ActivityFilter } from "@/components/feed/FeedFilte
 import { FeedList } from "@/components/feed/FeedList";
 import { GreetingBlock } from "@/components/feed/GreetingBlock";
 import { ImageModal } from "@/components/feed/ImageModal";
+import { PollFeed } from "@/components/feed/PollFeed";
 import { PollModal } from "@/components/feed/PollModal";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
@@ -351,6 +352,8 @@ export default function FeedPage() {
           <FeedFilterTabs activeFilter={activeFilter} onFilterChange={setActiveFilter} />
           {activeFilter === "all" ? (
             <DashboardOverview className="mt-2" />
+          ) : activeFilter === "poll_response" ? (
+            <PollFeed className="mt-2" />
           ) : error ? (
             <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
               <p className="text-foreground">{error}</p>

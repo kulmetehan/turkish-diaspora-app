@@ -3,10 +3,10 @@ name: TDA Event Pipeline
 # Complete event processing pipeline with AI extraction flow:
 # 1. event-page-fetcher → haalt HTML op voor ajda/sahmeran/ediz
 # 2. event-ai-extractor → extraheert events met OpenAI
-# 3. event-scraper → DISABLED (nog geen selectors voor bekendere sites)
-# 4. event-normalization → normaliseert beide flows
-# 5. event-enrichment → verrijkt met AI
-# 6. event-geocoding → voegt coördinaten toe
+# 3. event-normalization → normaliseert beide flows
+# 4. event-enrichment → verrijkt met AI
+# 5. event-geocoding → voegt coördinaten toe
+# 6. event-verification → classificeert en promoveert events (NEW)
 # Runs every 72 hours (3 days) to process events through the full pipeline automatically.
 on:
   schedule:
@@ -243,3 +243,41 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: |
           python -m app.workers.event_geocoding_bot --limit 50
+
+  event-verification:
+    needs: event-geocoding
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run VerifyEventsBot
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PYTHONPATH: .
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -m app.workers.verify_events --limit 200

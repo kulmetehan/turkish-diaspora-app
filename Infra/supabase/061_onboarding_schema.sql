@@ -41,3 +41,6 @@ COMMENT ON COLUMN user_profiles.home_region IS 'User home region (e.g., Zuid-Hol
 COMMENT ON COLUMN user_profiles.memleket IS 'Array of Turkish provinces (roots)';
 COMMENT ON COLUMN user_profiles.gender IS 'User gender preference for addressing';
 
+
+
+

@@ -1,0 +1,24 @@
+TAKEN
+- Bepaal of het event relevant is voor de Turkse diaspora in NL:
+  action ∈ {"keep","ignore"}
+- Geef de primaire category wanneer action="keep".
+- Geef een confidence_score ∈ [0,1] (hoge score = hoge zekerheid).
+- Geef een korte reason (1 zin).
+
+CONTEXT & REGELS
+- Gebruik vooral title + description + location; let op duidelijke Turkse cues.
+- Turkse cues: Turkse namen, woorden (kebab, döner, lahmacun, pide, börek, simit, baklava), steden (istanbul, ankara, konya), culturele termen (türk, turkse, anatolia), religieuze termen (cami, moskee, diyanet, alevi).
+- Events met Turkse artiesten, organisatoren, of thema's → keep.
+- Generieke Nederlandse events zonder Turkse link → ignore.
+- Categories (ALLEEN deze gebruiken): club, theater, concert, familie.
+  - club: Club nachten, disco feesten, after parties
+  - theater: Stand up, voorstellingen
+  - concert: Concerten van artiesten
+  - familie: Familie events zoals culturele of religieuze bijeenkomsten
+- Als je géén Turkse indicaties vindt → action="ignore", category=null.
+
+STRICTE OUTPUT
+- Altijd geldige JSON: {"action": "...", "category": <string|null>, "confidence_score": <float>, "reason": "..."}
+- Als action="ignore": category=null.
+- Confidence: zeer zeker (≥0.9), twijfel (0.6–0.8), laag (<0.6).
+

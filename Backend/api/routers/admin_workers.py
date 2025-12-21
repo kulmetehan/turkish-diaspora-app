@@ -38,6 +38,7 @@ BOT_CHOICES = {
     "event_enrichment",
     "event_normalization",
     "event_geocoding",
+    "verify_events",
 }
 
 THIS_FILE = Path(__file__).resolve()

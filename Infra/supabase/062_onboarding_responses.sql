@@ -34,3 +34,6 @@ COMMENT ON COLUMN onboarding_responses.memleket IS 'Array of Turkish city keys (
 COMMENT ON COLUMN onboarding_responses.gender IS 'User gender preference for addressing';
 COMMENT ON COLUMN onboarding_responses.onboarding_version IS 'Version of onboarding flow completed (for A/B testing)';
 COMMENT ON COLUMN onboarding_responses.completed_at IS 'Timestamp when onboarding was completed';
+
+
+
