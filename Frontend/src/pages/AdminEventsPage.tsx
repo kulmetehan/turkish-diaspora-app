@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { AdminEventMetricsCard } from "@/components/admin/AdminEventMetricsCard";
 import { AdminEventsTable } from "@/components/admin/AdminEventsTable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,12 +13,14 @@ import { useAdminEventSources } from "@/hooks/useAdminEventSources";
 import {
     flushAllEventsAdmin,
     getEventCandidateDuplicatesAdmin,
+    getEventStateMetricsAdmin,
     listEventCandidatesAdmin,
     publishEventCandidateAdmin,
     rejectEventCandidateAdmin,
     verifyEventCandidateAdmin,
     type AdminEventCandidate,
     type AdminEventDuplicateCluster,
+    type EventStateMetrics,
 } from "@/lib/apiAdmin";
 
 const STATE_FILTERS = [
@@ -51,6 +54,8 @@ export default function AdminEventsPage() {
     const [duplicatesLoading, setDuplicatesLoading] = useState<boolean>(false);
     const [flushDialogOpen, setFlushDialogOpen] = useState<boolean>(false);
     const [flushing, setFlushing] = useState<boolean>(false);
+    const [metrics, setMetrics] = useState<EventStateMetrics | null>(null);
+    const [metricsLoading, setMetricsLoading] = useState<boolean>(false);
     const { sources } = useAdminEventSources();
 
     const selectedSourceLabel = useMemo(() => {
@@ -62,6 +67,32 @@ export default function AdminEventsPage() {
     useEffect(() => {
         setOffset(0);
     }, [stateFilter, sourceFilter, search, dedupeFilter]);
+
+    // Fetch metrics
+    useEffect(() => {
+        let cancelled = false;
+        const fetchMetrics = async () => {
+            setMetricsLoading(true);
+            try {
+                const data = await getEventStateMetricsAdmin();
+                if (!cancelled) {
+                    setMetrics(data);
+                }
+            } catch (err: any) {
+                if (!cancelled) {
+                    toast.error(err?.message || "Failed to load metrics");
+                }
+            } finally {
+                if (!cancelled) {
+                    setMetricsLoading(false);
+                }
+            }
+        };
+        fetchMetrics();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -131,6 +162,13 @@ export default function AdminEventsPage() {
                 toast.success("Event rejected");
             }
             await refetch();
+            // Refresh metrics after action
+            try {
+                const data = await getEventStateMetricsAdmin();
+                setMetrics(data);
+            } catch (err: any) {
+                // Silently fail metrics refresh
+            }
         } catch (err: any) {
             toast.error(err?.message || `Failed to ${action} event`);
         } finally {
@@ -167,6 +205,13 @@ export default function AdminEventsPage() {
             toast.success(result.message || "Events flushed successfully");
             setFlushDialogOpen(false);
             await refetch();
+            // Refresh metrics after flush
+            try {
+                const data = await getEventStateMetricsAdmin();
+                setMetrics(data);
+            } catch (err: any) {
+                // Silently fail metrics refresh
+            }
         } catch (err: any) {
             toast.error(err?.message || "Failed to flush events");
         } finally {
@@ -193,6 +238,8 @@ export default function AdminEventsPage() {
                     Flush All Events
                 </Button>
             </div>
+
+            <AdminEventMetricsCard metrics={metrics} loading={metricsLoading} />
 
             <Card className="rounded-2xl shadow-sm">
                 <CardContent className="p-4 space-y-4">

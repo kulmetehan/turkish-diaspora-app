@@ -631,3 +631,43 @@ async def update_event_raw_from_detail_page(
     )
 
 
+async def fetch_event_raw_by_id(event_raw_id: int) -> Optional[EventRaw]:
+    """
+    Fetch a single EventRaw by ID.
+    """
+    row = await fetchrow(
+        """
+        SELECT
+            id,
+            event_source_id,
+            title,
+            description,
+            location_text,
+            venue,
+            event_url,
+            image_url,
+            start_at,
+            end_at,
+            detected_format,
+            ingest_hash,
+            raw_payload,
+            processing_state,
+            processing_errors,
+            fetched_at,
+            created_at,
+            language_code,
+            category_key,
+            summary_ai,
+            confidence_score,
+            enriched_at,
+            enriched_by
+        FROM event_raw
+        WHERE id = $1
+        """,
+        event_raw_id,
+    )
+    if not row:
+        return None
+    return EventRawRecord.from_row(dict(row)).to_model()
+
+

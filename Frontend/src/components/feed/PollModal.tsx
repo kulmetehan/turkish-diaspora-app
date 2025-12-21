@@ -69,10 +69,17 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
       setIsSubmitting(true);
       await submitPollResponse(poll.id, selectedOption);
       toast.success("Je stem is opgeslagen!");
-      onOpenChange(false);
-      // Refresh poll data
-      const updatedPoll = await getPoll(poll.id);
+
+      // Fetch updated poll data and stats immediately
+      const [updatedPoll, updatedStats] = await Promise.all([
+        getPoll(poll.id),
+        getPollStats(poll.id).catch(() => null),
+      ]);
+
+      // Update state to show results
       setPoll(updatedPoll);
+      setStats(updatedStats);
+      // Don't close modal - show results instead
     } catch (err) {
       toast.error("Kon niet stemmen");
     } finally {
@@ -174,6 +181,9 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
     </Dialog>
   );
 }
+
+
+
 
 
 

@@ -20,3 +20,6 @@ COMMENT ON TABLE news_reactions IS 'Emoji reactions on news items';
 COMMENT ON COLUMN news_reactions.reaction_type IS 'Type of emoji reaction: fire, heart, thumbs_up, smile, star, flag';
 COMMENT ON COLUMN news_reactions.identity_key IS 'Generated column: user_id if available, otherwise client_id';
 
+
+
+

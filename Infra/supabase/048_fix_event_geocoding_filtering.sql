@@ -107,3 +107,6 @@ COMMENT ON VIEW public.events_public IS 'Public events view. Shows only Netherla
 
 
 
+
+
+

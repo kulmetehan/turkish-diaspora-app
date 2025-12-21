@@ -16,6 +16,8 @@ type EventSourceListProps = {
     loading: boolean;
     onEdit: (source: EventSourceDTO) => void;
     onToggleStatus: (source: EventSourceDTO) => void;
+    onDelete?: (source: EventSourceDTO) => void;
+    onDiagnostics?: (source: EventSourceDTO) => void;
 };
 
 function StatusBadge({ status }: { status: EventSourceDTO["status"] }) {
@@ -28,7 +30,7 @@ function StatusBadge({ status }: { status: EventSourceDTO["status"] }) {
     );
 }
 
-export default function EventSourceList({ sources, loading, onEdit, onToggleStatus }: EventSourceListProps) {
+export default function EventSourceList({ sources, loading, onEdit, onToggleStatus, onDelete, onDiagnostics }: EventSourceListProps) {
     return (
         <Card className="rounded-2xl shadow-sm">
             <CardContent className="p-0">
@@ -76,16 +78,35 @@ export default function EventSourceList({ sources, loading, onEdit, onToggleStat
                                             {source.last_error ? source.last_error.slice(0, 120) : "—"}
                                         </td>
                                         <td className="px-4 py-3 text-right space-x-2">
+                                            {onDiagnostics && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => onDiagnostics(source)}
+                                                    title="View diagnostics"
+                                                >
+                                                    Diagnostics
+                                                </Button>
+                                            )}
                                             <Button size="sm" variant="outline" onClick={() => onEdit(source)}>
                                                 Edit
                                             </Button>
                                             <Button
                                                 size="sm"
-                                                variant={source.status === "active" ? "destructive" : "default"}
+                                                variant={source.status === "active" ? "secondary" : "default"}
                                                 onClick={() => onToggleStatus(source)}
                                             >
                                                 {source.status === "active" ? "Disable" : "Activate"}
                                             </Button>
+                                            {onDelete && (
+                                                <Button
+                                                    size="sm"
+                                                    variant="destructive"
+                                                    onClick={() => onDelete(source)}
+                                                >
+                                                    Delete
+                                                </Button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

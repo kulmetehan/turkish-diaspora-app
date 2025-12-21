@@ -229,3 +229,6 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
   );
 }
 
+
+
+

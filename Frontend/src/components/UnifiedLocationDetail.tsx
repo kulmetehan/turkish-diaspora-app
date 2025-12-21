@@ -2,6 +2,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState } from "react";
 
 import type { LocationMarker } from "@/api/fetchLocations";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { Icon } from "@/components/Icon";
 import NoteDialog from "@/components/location/NoteDialog";
 import { ReportButton } from "@/components/report/ReportButton";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useViewportContext } from "@/contexts/viewport";
+import { useUserAuth } from "@/hooks/useUserAuth";
 import {
     addFavorite,
     createCheckIn,
@@ -70,6 +72,7 @@ export default function UnifiedLocationDetail({
     onNotesRefresh,
 }: Props) {
     const { viewport } = useViewportContext();
+    const { isAuthenticated } = useUserAuth();
     const locationId = parseInt(location.id);
     const city = useMemo(() => deriveCityForLocation(location, "Unknown"), [location]);
 
@@ -245,6 +248,9 @@ export default function UnifiedLocationDetail({
 
     // Note handlers
     const handleAddNote = () => {
+        if (!isAuthenticated) {
+            return; // LoginPrompt will be shown instead
+        }
         if (viewMode === "map" && onAddNote) {
             onAddNote();
         } else {
@@ -254,6 +260,9 @@ export default function UnifiedLocationDetail({
     };
 
     const handleEditNote = (note: NoteResponse) => {
+        if (!isAuthenticated) {
+            return; // LoginPrompt will be shown instead
+        }
         if (viewMode === "map" && onEditNote) {
             onEditNote(note);
         } else {
@@ -464,26 +473,30 @@ export default function UnifiedLocationDetail({
 
                 {/* Check-in button on own row, full width */}
                 <div>
-                    <Button
-                        onClick={handleCheckIn}
-                        disabled={hasCheckedInToday || isCheckingIn || initialLoading}
-                        size="sm"
-                        className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-gilroy"
-                    >
-                        {isCheckingIn ? (
-                            "Check-in..."
-                        ) : hasCheckedInToday ? (
-                            <>
-                                <Icon name="CheckCircle" className="h-4 w-4 mr-2" />
-                                Ingecheckt
-                            </>
-                        ) : (
-                            <>
-                                <Icon name="MapPin" className="h-4 w-4 mr-2" />
-                                Check-in
-                            </>
-                        )}
-                    </Button>
+                    {!isAuthenticated ? (
+                        <LoginPrompt message="Log in om in te checken" className="mb-0" />
+                    ) : (
+                        <Button
+                            onClick={handleCheckIn}
+                            disabled={hasCheckedInToday || isCheckingIn || initialLoading}
+                            size="sm"
+                            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-gilroy"
+                        >
+                            {isCheckingIn ? (
+                                "Check-in..."
+                            ) : hasCheckedInToday ? (
+                                <>
+                                    <Icon name="CheckCircle" className="h-4 w-4 mr-2" />
+                                    Ingecheckt
+                                </>
+                            ) : (
+                                <>
+                                    <Icon name="MapPin" className="h-4 w-4 mr-2" />
+                                    Check-in
+                                </>
+                            )}
+                        </Button>
+                    )}
                 </div>
 
                 {/* Rest of content */}
@@ -735,26 +748,30 @@ export default function UnifiedLocationDetail({
                 {/* Check-in button on own row, full width */}
                 {!initialLoading && (
                     <div>
-                        <Button
-                            onClick={handleCheckIn}
-                            disabled={hasCheckedInToday || isCheckingIn}
-                            size="sm"
-                            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-                        >
-                            {isCheckingIn ? (
-                                "Check-in..."
-                            ) : hasCheckedInToday ? (
-                                <>
-                                    <Icon name="CheckCircle" className="h-4 w-4 mr-2" />
-                                    Ingecheckt
-                                </>
-                            ) : (
-                                <>
-                                    <Icon name="MapPin" className="h-4 w-4 mr-2" />
-                                    Check-in
-                                </>
-                            )}
-                        </Button>
+                        {!isAuthenticated ? (
+                            <LoginPrompt message="Log in om in te checken" className="mb-0" />
+                        ) : (
+                            <Button
+                                onClick={handleCheckIn}
+                                disabled={hasCheckedInToday || isCheckingIn}
+                                size="sm"
+                                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                            >
+                                {isCheckingIn ? (
+                                    "Check-in..."
+                                ) : hasCheckedInToday ? (
+                                    <>
+                                        <Icon name="CheckCircle" className="h-4 w-4 mr-2" />
+                                        Ingecheckt
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icon name="MapPin" className="h-4 w-4 mr-2" />
+                                        Check-in
+                                    </>
+                                )}
+                            </Button>
+                        )}
                     </div>
                 )}
 
@@ -961,4 +978,7 @@ export default function UnifiedLocationDetail({
         </>
     );
 }
+
+
+
 

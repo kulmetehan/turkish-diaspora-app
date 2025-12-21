@@ -14,7 +14,6 @@ export interface FeedFilterTabsProps {
 const FILTERS: Array<{ label: string; value: ActivityFilter }> = [
   { label: "Alles", value: "all" },
   { label: "Check-ins", value: "check_in" },
-  { label: "Reacties", value: "reaction" },
   { label: "Notities", value: "note" },
   { label: "Polls", value: "poll_response" },
   { label: "Favorieten", value: "favorite" },
@@ -61,6 +60,9 @@ export function FeedFilterTabs({
     </div>
   );
 }
+
+
+
 
 
 

@@ -32,6 +32,10 @@ AI_PAGE_SOURCE_KEYS: set[str] = {
     "melkweg_events",
     "paradiso_events",
     "dedoelen_events",
+    "podiummozaiek_events",
+    "tivolivredenburg_events",
+    "bitterzoet_events",
+    "muziekgebouw_events",
 }
 
 

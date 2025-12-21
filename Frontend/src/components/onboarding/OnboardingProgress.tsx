@@ -26,3 +26,6 @@ export function OnboardingProgress({ current, total, className }: OnboardingProg
   );
 }
 
+
+
+

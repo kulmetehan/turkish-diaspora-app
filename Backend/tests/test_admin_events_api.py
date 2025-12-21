@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.deps.admin_auth import AdminUser, verify_admin_user
 from app.main import app
+from services.db_service import execute, fetch, fetchrow, init_db_pool
 from services.event_candidate_service import EventCandidateRecord
 
 pytestmark = pytest.mark.asyncio(loop_scope="module")
@@ -274,4 +275,61 @@ async def test_get_event_candidate_duplicates(admin_client: AsyncClient, monkeyp
     data = resp.json()
     assert data["canonical"]["id"] == 10
     assert data["duplicates"][0]["id"] == 11
+
+
+@pytest.mark.asyncio
+async def test_event_metrics_endpoint(admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test the /admin/events/metrics endpoint returns correct structure."""
+    
+    async def fake_fetchrow_total(sql: str, *params):
+        if "COUNT(*)::int AS count FROM events_candidate" in sql:
+            return {"count": 100}
+        elif "COUNT(*)::int AS count FROM events_public" in sql:
+            return {"count": 25}
+        elif "published_not_visible" in sql.lower():
+            return {"count": 5}
+        elif "duplicate_of_id IS NOT NULL" in sql:
+            return {"count": 10}
+        return {"count": 0}
+    
+    async def fake_fetch_state_counts(sql: str, *params):
+        if "SELECT state, COUNT(*)::int AS count" in sql:
+            return [
+                {"state": "candidate", "count": 50},
+                {"state": "verified", "count": 20},
+                {"state": "published", "count": 30},
+                {"state": "rejected", "count": 0},
+            ]
+        return []
+    
+    monkeypatch.setattr("api.routers.admin_events.fetchrow", fake_fetchrow_total)
+    monkeypatch.setattr("api.routers.admin_events.fetch", fake_fetch_state_counts)
+    
+    resp = await admin_client.get("/api/v1/admin/events/metrics")
+    assert resp.status_code == 200
+    data = resp.json()
+    
+    assert data["total_candidates"] == 100
+    assert data["by_state"]["candidate"] == 50
+    assert data["by_state"]["verified"] == 20
+    assert data["by_state"]["published"] == 30
+    assert data["by_state"]["rejected"] == 0
+    assert data["visible_in_frontend"] == 25
+    assert data["published_not_visible"] == 5
+    assert data["duplicate_count"] == 10
+
+
+@pytest.mark.asyncio
+async def test_event_metrics_endpoint_db_error(admin_client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test that metrics endpoint handles database errors gracefully."""
+    
+    async def fake_fetchrow(*args, **kwargs):
+        raise asyncpg.InterfaceError("Database error")
+    
+    monkeypatch.setattr("api.routers.admin_events.fetchrow", fake_fetchrow)
+    monkeypatch.setattr("api.routers.admin_events.fetch", fake_fetchrow)
+    
+    resp = await admin_client.get("/api/v1/admin/events/metrics")
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "event metrics unavailable"
 

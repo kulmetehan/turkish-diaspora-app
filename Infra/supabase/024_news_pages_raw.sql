@@ -41,3 +41,6 @@ COMMENT ON COLUMN public.news_pages_raw.processing_state IS 'pending|extracted|e
 
 
 
+
+
+

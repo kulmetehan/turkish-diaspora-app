@@ -23,6 +23,7 @@ class EventCandidateBase(BaseModel):
     source_key: str = Field(..., min_length=1)
     ingest_hash: str = Field(..., min_length=8)
     state: EventCandidateState = Field(default="candidate")
+    event_category: Optional[str] = None
 
     @field_validator("title")
     @classmethod

@@ -58,3 +58,6 @@ BEGIN
 END $$;
 
 COMMENT ON TABLE public.event_sources IS 'Added 4 new event sources: meervaart_events, melkweg_events, paradiso_events, dedoelen_events (2025-01-XX)';
+
+
+

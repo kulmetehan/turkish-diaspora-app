@@ -2,11 +2,13 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState } from "react";
 
 import type { LocationMarker } from "@/api/fetchLocations";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useViewportContext } from "@/contexts/viewport";
+import { useUserAuth } from "@/hooks/useUserAuth";
 import {
     addFavorite,
     createCheckIn,
@@ -62,6 +64,7 @@ function safeString(value: unknown): string | null {
 
 export default function OverlayDetailCard({ location, open, onClose, onAddNote, onEditNote, onNotesRefresh }: OverlayDetailCardProps) {
     const { viewport } = useViewportContext();
+    const { isAuthenticated } = useUserAuth();
     const locationId = parseInt(location.id);
     const city = useMemo(() => deriveCityForLocation(location, "Unknown"), [location]);
 
@@ -165,6 +168,9 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
 
     // Check-in handler
     const handleCheckIn = async () => {
+        if (!isAuthenticated) {
+            return; // LoginPrompt will be shown instead
+        }
         if (hasCheckedInToday || isCheckingIn) return;
 
         setIsCheckingIn(true);
@@ -235,10 +241,16 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
 
     // Note handlers - delegate to parent component
     const handleAddNote = () => {
+        if (!isAuthenticated) {
+            return; // LoginPrompt will be shown instead
+        }
         onAddNote?.();
     };
 
     const handleEditNote = (note: NoteResponse) => {
+        if (!isAuthenticated) {
+            return; // LoginPrompt will be shown instead
+        }
         onEditNote?.(note);
     };
 
@@ -434,40 +446,44 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                     <>
                                         {/* Interaction Actions Bar */}
                                         <Card className="p-4">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <Button
-                                                    onClick={handleCheckIn}
-                                                    disabled={hasCheckedInToday || isCheckingIn}
-                                                    variant={hasCheckedInToday ? "secondary" : "default"}
-                                                    size="sm"
-                                                    className="border-white/20 text-brand-white hover:bg-white/10"
-                                                >
-                                                    {isCheckingIn ? (
-                                                        "Check-in..."
-                                                    ) : hasCheckedInToday ? (
-                                                        <>
-                                                            <Icon name="CheckCircle" className="h-4 w-4 mr-2" />
-                                                            Ingecheckt
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <Icon name="MapPin" className="h-4 w-4 mr-2" />
-                                                            Check-in
-                                                        </>
-                                                    )}
-                                                </Button>
+                                            {!isAuthenticated ? (
+                                                <LoginPrompt message="Log in om in te checken" className="mb-0" />
+                                            ) : (
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <Button
+                                                        onClick={handleCheckIn}
+                                                        disabled={hasCheckedInToday || isCheckingIn}
+                                                        variant={hasCheckedInToday ? "secondary" : "default"}
+                                                        size="sm"
+                                                        className="border-white/20 text-brand-white hover:bg-white/10"
+                                                    >
+                                                        {isCheckingIn ? (
+                                                            "Check-in..."
+                                                        ) : hasCheckedInToday ? (
+                                                            <>
+                                                                <Icon name="CheckCircle" className="h-4 w-4 mr-2" />
+                                                                Ingecheckt
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Icon name="MapPin" className="h-4 w-4 mr-2" />
+                                                                Check-in
+                                                            </>
+                                                        )}
+                                                    </Button>
 
-                                                <Button
-                                                    onClick={handleToggleFavorite}
-                                                    disabled={favoriteLoading}
-                                                    variant={isFavorited ? "default" : "outline"}
-                                                    size="sm"
-                                                    className="border-white/20 text-foreground hover:bg-white/10"
-                                                >
-                                                    <Icon name="Star" className={`h-4 w-4 mr-2 ${isFavorited ? "fill-current" : ""}`} />
-                                                    {favoriteLoading ? "..." : isFavorited ? "Favoriet" : "Favoriet"}
-                                                </Button>
-                                            </div>
+                                                    <Button
+                                                        onClick={handleToggleFavorite}
+                                                        disabled={favoriteLoading}
+                                                        variant={isFavorited ? "default" : "outline"}
+                                                        size="sm"
+                                                        className="border-white/20 text-foreground hover:bg-white/10"
+                                                    >
+                                                        <Icon name="Star" className={`h-4 w-4 mr-2 ${isFavorited ? "fill-current" : ""}`} />
+                                                        {favoriteLoading ? "..." : isFavorited ? "Favoriet" : "Favoriet"}
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </Card>
 
                                         {/* Stats Overview Card */}
@@ -542,11 +558,16 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                         <Card className="p-4">
                                             <div className="flex items-center justify-between mb-3">
                                                 <h3 className="font-medium text-sm text-foreground">Notities</h3>
-                                                <Button onClick={handleAddNote} size="sm" variant="outline" className="border-white/30 bg-white/10 text-foreground hover:bg-white/20 hover:border-white/40">
-                                                    <Icon name="Plus" className="h-4 w-4 mr-2" />
-                                                    Notitie toevoegen
-                                                </Button>
+                                                {isAuthenticated ? (
+                                                    <Button onClick={handleAddNote} size="sm" variant="outline" className="border-white/30 bg-white/10 text-foreground hover:bg-white/20 hover:border-white/40">
+                                                        <Icon name="Plus" className="h-4 w-4 mr-2" />
+                                                        Notitie toevoegen
+                                                    </Button>
+                                                ) : null}
                                             </div>
+                                            {!isAuthenticated && (
+                                                <LoginPrompt message="Log in om een notitie toe te voegen" className="mb-3" />
+                                            )}
 
                                             {notesLoading ? (
                                                 <div className="text-center text-sm text-foreground/70 py-4">Laden...</div>

@@ -356,6 +356,19 @@ export async function flushAllEventsAdmin(resetSources: boolean = true): Promise
     );
 }
 
+export type EventStateMetrics = {
+    total_candidates: number;
+    by_state: Record<string, number>;
+    visible_in_frontend: number;
+    published_not_visible: number;
+    duplicate_count: number;
+    canonical_with_duplicates: number;
+};
+
+export async function getEventStateMetricsAdmin(): Promise<EventStateMetrics> {
+    return authFetch<EventStateMetrics>("/api/v1/admin/events/metrics");
+}
+
 // Import CategoryOption type from fetchLocations
 import type { CategoryOption } from "@/api/fetchLocations";
 
@@ -807,6 +820,47 @@ export async function updateEventSourceAdmin(id: number, payload: EventSourceUpd
 export async function toggleEventSourceStatusAdmin(id: number): Promise<{ id: number; status: "active" | "disabled" }> {
     return authFetch<{ id: number; status: "active" | "disabled" }>(`/api/v1/admin/event-sources/${id}/toggle-status`, {
         method: "POST",
+    });
+}
+
+export type EventSourceDiagnostics = {
+    source_id: number;
+    source_key: string;
+    source_name: string;
+    status: string;
+    last_run_at?: string | null;
+    last_success_at?: string | null;
+    last_error?: string | null;
+    pages_raw_count: number;
+    pages_pending: number;
+    pages_extracted: number;
+    pages_error: number;
+    events_raw_count: number;
+    events_raw_pending: number;
+    events_raw_enriched: number;
+    events_raw_error: number;
+    events_candidate_count: number;
+    events_candidate_by_state: Record<string, number>;
+    events_published_count: number;
+    events_visible_in_frontend: number;
+};
+
+export async function getEventSourceDiagnosticsAdmin(sourceId: number): Promise<EventSourceDiagnostics> {
+    return authFetch<EventSourceDiagnostics>(`/api/v1/admin/events/sources/${sourceId}/diagnostics`);
+}
+
+export type DeleteEventSourceResponse = {
+    id: number;
+    key: string;
+    name: string;
+    deleted: boolean;
+    cascade: boolean;
+    related_records_deleted: number;
+};
+
+export async function deleteEventSourceAdmin(sourceId: number, cascade: boolean = false): Promise<DeleteEventSourceResponse> {
+    return authFetch<DeleteEventSourceResponse>(`/api/v1/admin/event-sources/${sourceId}?cascade=${cascade}`, {
+        method: "DELETE",
     });
 }
 
