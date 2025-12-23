@@ -1,6 +1,7 @@
 // Frontend/src/lib/api.ts
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import type { LocationMarker } from "@/api/fetchLocations";
 
 /**
  * Normalize API base URL: remove /api/v1 if present, we add it in paths.
@@ -130,7 +131,24 @@ export async function apiFetch<T>(
               // eslint-disable-next-line no-console
               console.warn("[apiFetch] auth rejected", res.status, url);
             }
-            try { await supabase.auth.signOut(); } catch { }
+            // Whitelist of endpoints where 401/403 is expected and should not trigger signOut
+            // These are typically optional endpoints that may return 401 for unauthenticated users
+            const optionalAuthEndpoints = [
+              "/api/v1/users/me", // All /me endpoints are optional or may return 401 for unauthenticated users
+            ];
+            const isOptionalEndpoint = optionalAuthEndpoints.some(endpoint => path.startsWith(endpoint));
+            
+            // Only sign out for admin endpoints or non-optional endpoints
+            // and only on the final retry attempt to avoid signing out during
+            // temporary token refresh issues or network errors
+            if (!isOptionalEndpoint && attempt === maxAttempts) {
+              const { data: { session } } = await supabase.auth.getSession();
+              // Only sign out if we still have a session - this means the token
+              // was rejected by the backend, not that we're already logged out
+              if (session) {
+                try { await supabase.auth.signOut(); } catch { }
+              }
+            }
             throw new Error(`AUTH_${res.status} ${url}`);
           }
           // Retry on typical warm-up statuses
@@ -244,6 +262,27 @@ export async function authFetch<T>(
     }
     throw err;
   }
+}
+
+/**
+ * API fetch with optional authentication.
+ * Adds Authorization header if user is authenticated, otherwise works like apiFetch.
+ * Use this for endpoints that support both authenticated and anonymous users.
+ */
+export async function apiFetchWithOptionalAuth<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs: number = 60000
+): Promise<T> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  
+  const headers = {
+    ...(init?.headers ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+  
+  return apiFetch<T>(path, { ...init, headers }, timeoutMs);
 }
 
 export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
@@ -875,18 +914,22 @@ export async function getPoll(pollId: number): Promise<Poll> {
 }
 
 /**
+ * Get a single location by ID.
+ */
+export async function getLocationById(locationId: number): Promise<LocationMarker> {
+  return apiFetch<LocationMarker>(`/api/v1/locations/${locationId}`);
+}
+
+/**
  * Submit a poll response.
  */
 export async function submitPollResponse(pollId: number, optionId: number): Promise<{ ok: boolean; response_id: number }> {
-  const clientId = getOrCreateClientId();
-
-  return apiFetch<{ ok: boolean; response_id: number }>(
+  return apiFetchWithOptionalAuth<{ ok: boolean; response_id: number }>(
     `/api/v1/polls/${pollId}/responses`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Client-Id": clientId,
       },
       body: JSON.stringify({ option_id: optionId }),
     }
@@ -917,12 +960,15 @@ export interface ActivityItem {
     id: string;
     name: string | null;
     avatar_url: string | null;
+    primary_role?: string | null;
+    secondary_role?: string | null;
   } | null;
   like_count: number;
   is_liked: boolean;
   is_bookmarked: boolean;
   reactions?: Record<ReactionType, number> | null;
   user_reaction?: ReactionType | null;
+  labels?: string[] | null;
 }
 
 /**
@@ -958,14 +1004,10 @@ export async function getActivityFeed(
  * Toggle like on an activity item.
  */
 export async function toggleActivityLike(activityId: number): Promise<{ liked: boolean; like_count: number }> {
-  const clientId = getOrCreateClientId();
-  return apiFetch<{ liked: boolean; like_count: number }>(
+  return apiFetchWithOptionalAuth<{ liked: boolean; like_count: number }>(
     `/api/v1/activity/${activityId}/like`,
     {
       method: "POST",
-      headers: {
-        "X-Client-Id": clientId,
-      },
     }
   );
 }
@@ -974,14 +1016,10 @@ export async function toggleActivityLike(activityId: number): Promise<{ liked: b
  * Toggle bookmark on an activity item.
  */
 export async function toggleActivityBookmark(activityId: number): Promise<{ bookmarked: boolean }> {
-  const clientId = getOrCreateClientId();
-  return apiFetch<{ bookmarked: boolean }>(
+  return apiFetchWithOptionalAuth<{ bookmarked: boolean }>(
     `/api/v1/activity/${activityId}/bookmark`,
     {
       method: "POST",
-      headers: {
-        "X-Client-Id": clientId,
-      },
     }
   );
 }
@@ -993,14 +1031,12 @@ export async function toggleActivityReaction(
   activityId: number,
   reactionType: ReactionType
 ): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
-  const clientId = getOrCreateClientId();
-  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
+  return apiFetchWithOptionalAuth<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
     `/api/v1/activity/${activityId}/reactions`,
     {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Client-Id": clientId,
       },
       body: JSON.stringify({ reaction_type: reactionType }),
     }
@@ -1027,25 +1063,80 @@ export interface CurrentUser {
   avatar_url: string | null;
 }
 
+export interface UserProfile {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  city_key: string | null;
+  language_pref: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 /**
  * Get current user profile (name and avatar).
  * Returns null for anonymous users or if request fails.
  */
+export async function getWeekFeedback(): Promise<{
+  should_show: boolean;
+  message: string;
+  week_start: string;
+}> {
+  // This endpoint requires authentication
+  return authFetch<{
+    should_show: boolean;
+    message: string;
+    week_start: string;
+  }>("/api/v1/users/me/week-feedback");
+}
+
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const clientId = getOrCreateClientId();
   try {
-    return await apiFetch<CurrentUser>(
-      `/api/v1/users/me`,
-      {
-        headers: {
-          "X-Client-Id": clientId,
-        },
-      }
-    );
+    // Use apiFetchWithOptionalAuth to include Authorization header if available
+    return await apiFetchWithOptionalAuth<CurrentUser>(`/api/v1/users/me`);
   } catch (error) {
     // Return null for anonymous users or errors
     return null;
   }
+}
+
+/**
+ * Check if username is available (case-insensitive).
+ */
+export async function checkUsernameAvailable(username: string): Promise<{ available: boolean }> {
+  return authFetch<{ available: boolean }>(
+    `/api/v1/users/me/check-username?username=${encodeURIComponent(username)}`
+  );
+}
+
+/**
+ * Update user profile (display_name and/or avatar_url).
+ */
+export async function updateProfile(data: {
+  display_name?: string;
+  avatar_url?: string;
+}): Promise<UserProfile> {
+  return authFetch<UserProfile>("/api/v1/users/me/profile", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+}
+
+export interface UsernameChangeStatus {
+  can_change: boolean;
+  last_change: string | null;
+  next_change_available: string | null;
+  days_remaining: number;
+}
+
+/**
+ * Get username change status (1x per month limit check).
+ */
+export async function getUsernameChangeStatus(): Promise<UsernameChangeStatus> {
+  return authFetch<UsernameChangeStatus>("/api/v1/users/me/username-change-status");
 }
 
 // ============================================================================
@@ -1103,7 +1194,7 @@ export function getOnboardingStatus(): OnboardingStatus {
 export async function completeOnboarding(data: OnboardingData): Promise<OnboardingResult> {
   // Try to save to backend API first
   try {
-    const response = await apiFetch<OnboardingCompleteResponse>(
+    const response = await apiFetchWithOptionalAuth<OnboardingCompleteResponse>(
       "/api/v1/users/me/onboarding/complete",
       {
         method: "POST",
@@ -1166,13 +1257,15 @@ export interface CheckInStats {
   total_check_ins: number;
   check_ins_today: number;
   unique_users_today: number;
+  check_ins_this_week?: number;
+  status_text?: string;
 }
 
 /**
  * Create a check-in for a location.
  */
 export async function createCheckIn(locationId: number): Promise<{ ok: boolean; check_in_id: number }> {
-  return apiFetch<{ ok: boolean; check_in_id: number }>(
+  return apiFetchWithOptionalAuth<{ ok: boolean; check_in_id: number }>(
     `/api/v1/locations/${locationId}/check-ins`,
     {
       method: "POST",
@@ -1191,6 +1284,26 @@ export async function getCheckInStats(locationId: number): Promise<CheckInStats>
   return apiFetch<CheckInStats>(`/api/v1/locations/${locationId}/check-ins`);
 }
 
+// Mahallelisi
+export interface MahallelisiResponse {
+  user_id: string;
+  name: string;
+  check_in_count: number;
+  primary_role?: string;
+  secondary_role?: string;
+}
+
+/**
+ * Get the most active user (Mahallelisi) for a location this week.
+ */
+export async function getLocationMahallelisi(
+  locationId: number
+): Promise<MahallelisiResponse | null> {
+  return apiFetch<MahallelisiResponse | null>(
+    `/api/v1/locations/${locationId}/mahallelisi`
+  );
+}
+
 // Reactions
 export interface ReactionStats {
   location_id: number;
@@ -1207,8 +1320,7 @@ export async function toggleLocationReaction(
   locationId: number,
   reactionType: ReactionType
 ): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
-  const clientId = getOrCreateClientId();
-  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
+  return apiFetchWithOptionalAuth<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
     `/api/v1/locations/${locationId}/reactions`,
     {
       method: "POST",
@@ -1238,8 +1350,7 @@ export async function toggleNewsReaction(
   newsId: number,
   reactionType: ReactionType
 ): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
-  const clientId = getOrCreateClientId();
-  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
+  return apiFetchWithOptionalAuth<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
     `/api/v1/news/${newsId}/reactions`,
     {
       method: "POST",
@@ -1269,8 +1380,7 @@ export async function toggleEventReaction(
   eventId: number,
   reactionType: ReactionType
 ): Promise<{ reaction_type: ReactionType; is_active: boolean; count: number }> {
-  const clientId = getOrCreateClientId();
-  return apiFetch<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
+  return apiFetchWithOptionalAuth<{ reaction_type: ReactionType; is_active: boolean; count: number }>(
     `/api/v1/events/${eventId}/reactions`,
     {
       method: "POST",
@@ -1301,13 +1411,15 @@ export interface NoteResponse {
   is_edited: boolean;
   created_at: string;
   updated_at: string;
+  reaction_count?: number;
+  labels?: string[];
 }
 
 /**
  * Create a note for a location.
  */
 export async function createNote(locationId: number, content: string): Promise<NoteResponse> {
-  return apiFetch<NoteResponse>(
+  return apiFetchWithOptionalAuth<NoteResponse>(
     `/api/v1/locations/${locationId}/notes`,
     {
       method: "POST",
@@ -1322,10 +1434,18 @@ export async function createNote(locationId: number, content: string): Promise<N
 /**
  * Get notes for a location.
  */
-export async function getNotes(locationId: number, limit: number = 50, offset: number = 0): Promise<NoteResponse[]> {
+export async function getNotes(
+  locationId: number,
+  limit: number = 50,
+  offset: number = 0,
+  sortBy?: string
+): Promise<NoteResponse[]> {
   const params = new URLSearchParams();
   params.set("limit", limit.toString());
   params.set("offset", offset.toString());
+  if (sortBy) {
+    params.set("sort_by", sortBy);
+  }
   return apiFetch<NoteResponse[]>(`/api/v1/locations/${locationId}/notes?${params.toString()}`);
 }
 
@@ -1333,7 +1453,7 @@ export async function getNotes(locationId: number, limit: number = 50, offset: n
  * Update a note.
  */
 export async function updateNote(noteId: number, content: string): Promise<NoteResponse> {
-  return apiFetch<NoteResponse>(
+  return apiFetchWithOptionalAuth<NoteResponse>(
     `/api/v1/locations/notes/${noteId}`,
     {
       method: "PUT",
@@ -1349,7 +1469,7 @@ export async function updateNote(noteId: number, content: string): Promise<NoteR
  * Delete a note.
  */
 export async function deleteNote(noteId: number): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(
+  return apiFetchWithOptionalAuth<{ ok: boolean }>(
     `/api/v1/locations/notes/${noteId}`,
     {
       method: "DELETE",
@@ -1362,7 +1482,7 @@ export async function deleteNote(noteId: number): Promise<{ ok: boolean }> {
  * Add a location to favorites.
  */
 export async function addFavorite(locationId: number): Promise<{ ok: boolean; favorite_id: number }> {
-  return apiFetch<{ ok: boolean; favorite_id: number }>(
+  return apiFetchWithOptionalAuth<{ ok: boolean; favorite_id: number }>(
     `/api/v1/locations/${locationId}/favorites`,
     {
       method: "POST",
@@ -1377,7 +1497,7 @@ export async function addFavorite(locationId: number): Promise<{ ok: boolean; fa
  * Remove a location from favorites.
  */
 export async function removeFavorite(locationId: number): Promise<{ ok: boolean }> {
-  return apiFetch<{ ok: boolean }>(
+  return apiFetchWithOptionalAuth<{ ok: boolean }>(
     `/api/v1/locations/${locationId}/favorites`,
     {
       method: "DELETE",
@@ -1924,6 +2044,174 @@ export async function updatePushPreferences(update: PushPreferencesUpdate): Prom
       body: JSON.stringify(update),
     }
   );
+}
+
+// ============================================================================
+// User Roles & Gamification API
+// ============================================================================
+
+export interface UserRolesResponse {
+  primary_role: string;
+  secondary_role: string | null;
+  earned_at: string;
+  expires_at: string | null;
+  city_key: string | null;
+}
+
+export async function getMyRoles(): Promise<UserRolesResponse> {
+  return authFetch<UserRolesResponse>("/api/v1/users/me/roles");
+}
+
+export interface ActivitySummaryResponse {
+  user_id: string;
+  last_4_weeks_active_days: number;
+  last_activity_date: string | null;
+  total_söz_count: number;
+  total_check_in_count: number;
+  total_poll_response_count: number;
+  city_key: string | null;
+  updated_at: string;
+}
+
+export async function getMyActivitySummary(): Promise<ActivitySummaryResponse> {
+  return authFetch<ActivitySummaryResponse>("/api/v1/users/me/activity-summary");
+}
+
+export interface NoteSummary {
+  id: number;
+  location_id: number;
+  location_name: string;
+  content_preview: string;
+  created_at: string;
+}
+
+export interface CheckInSummary {
+  id: number;
+  location_id: number;
+  location_name: string;
+  created_at: string;
+}
+
+export interface ContributionsResponse {
+  last_notes: NoteSummary[];
+  last_check_ins: CheckInSummary[];
+  poll_response_count: number;
+}
+
+export async function getMyContributions(): Promise<ContributionsResponse> {
+  return authFetch<ContributionsResponse>("/api/v1/users/me/contributions");
+}
+
+export interface RecognitionEntry {
+  category: string;
+  title: string;
+  period: string;
+  rank: number;
+  context: string | null;
+}
+
+export interface RecognitionResponse {
+  recognitions: RecognitionEntry[];
+}
+
+export async function getMyRecognition(): Promise<RecognitionResponse> {
+  return authFetch<RecognitionResponse>("/api/v1/users/me/recognition");
+}
+
+// ============================================================================
+// Leaderboards API
+// ============================================================================
+
+export interface LeaderboardUser {
+  user_id: string;
+  name: string | null;
+  role: string | null;
+  context: string | null;
+}
+
+export interface LeaderboardCard {
+  category: string;
+  title: string;
+  users: LeaderboardUser[];
+}
+
+export interface OneCikanlarResponse {
+  period: string;
+  city_key: string | null;
+  cards: LeaderboardCard[];
+}
+
+/**
+ * Get Öne Çıkanlar (Featured Users) leaderboards.
+ */
+export async function getOneCikanlar(
+  period: "today" | "week" | "month" = "week",
+  cityKey?: string | null
+): Promise<OneCikanlarResponse> {
+  const params = new URLSearchParams();
+  params.set("period", period);
+  if (cityKey) {
+    params.set("city_key", cityKey);
+  }
+  return apiFetch<OneCikanlarResponse>(`/api/v1/leaderboards/öne-çıkanlar?${params.toString()}`);
+}
+
+// ============================================================================
+// Rewards API
+// ============================================================================
+
+export interface Reward {
+  id: number;
+  title: string;
+  description: string | null;
+  reward_type: string;
+  sponsor: string;
+  status: string;
+  claimed_at: string | null;
+  created_at: string;
+}
+
+export interface UserReward {
+  id: number;
+  reward: Reward;
+  leaderboard_entry_id: number | null;
+  status: string;
+  claimed_at: string | null;
+  created_at: string;
+}
+
+export interface ClaimRewardResponse {
+  success: boolean;
+  reward: Reward | null;
+  message: string;
+}
+
+/**
+ * Get all rewards for the current user.
+ */
+export async function getMyRewards(status?: string | null): Promise<UserReward[]> {
+  const params = new URLSearchParams();
+  if (status) {
+    params.set("status", status);
+  }
+  const query = params.toString();
+  return authFetch<UserReward[]>(`/api/v1/rewards/me${query ? `?${query}` : ""}`);
+}
+
+/**
+ * Get pending (unclaimed) rewards for the current user.
+ */
+export async function getMyPendingRewards(): Promise<UserReward[]> {
+  return authFetch<UserReward[]>("/api/v1/rewards/me/pending");
+}
+
+/**
+ * Claim a reward.
+ */
+export async function claimReward(rewardId: number): Promise<ClaimRewardResponse> {
+  return authFetch<ClaimRewardResponse>(`/api/v1/rewards/${rewardId}/claim`, {
+    method: "POST",
+  });
 }
 
 // ============================================================================

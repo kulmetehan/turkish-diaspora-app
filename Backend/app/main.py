@@ -64,6 +64,9 @@ from api.routers.gamification import router as gamification_router
 from api.routers.privacy import router as privacy_router
 from api.routers.favorites import location_favorites_router, favorites_router
 from api.routers.profiles import router as profiles_router
+from api.routers.user_roles import router as user_roles_router
+from api.routers.leaderboards import router as leaderboards_router
+from api.routers.rewards import router as rewards_router
 from api.routers.auth import router as auth_router
 from api.routers.stats import router as stats_router
 from api.routers.referrals import router as referrals_router
@@ -264,6 +267,9 @@ api_v1_router.include_router(privacy_router)
 api_v1_router.include_router(location_favorites_router)
 api_v1_router.include_router(favorites_router)
 api_v1_router.include_router(profiles_router)
+api_v1_router.include_router(user_roles_router)
+api_v1_router.include_router(leaderboards_router)
+api_v1_router.include_router(rewards_router)
 api_v1_router.include_router(auth_router)
 api_v1_router.include_router(stats_router)
 api_v1_router.include_router(referrals_router)

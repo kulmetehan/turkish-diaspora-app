@@ -7,6 +7,7 @@
 
 import type { NewsCategoryKey } from "@/lib/routing/newsCategories";
 import type { NewsFeedKey } from "@/lib/routing/newsFeed";
+import type { EventCategoryKey } from "@/lib/routing/eventCategories";
 import { useSyncExternalStore } from "react";
 
 // ---------- Types ----------
@@ -52,11 +53,13 @@ export interface EventsNavigationState {
     selectedId: number | null;
     /** Currently opened detail event id. */
     detailId: number | null;
+    /** Active category filters. */
+    categories: EventCategoryKey[];
     /** Scroll position of the events list. */
     scrollTop: number;
 }
 
-export type TabId = "map" | "news" | "events" | "feed" | "account";
+export type TabId = "map" | "news" | "events" | "feed";
 
 export interface NavigationState {
     activeTab: TabId;
@@ -91,6 +94,7 @@ let state: NavigationState = {
         viewMode: "list",
         selectedId: null,
         detailId: null,
+        categories: [],
         scrollTop: 0,
     },
 };
@@ -207,6 +211,7 @@ export function __resetNavigationState() {
             viewMode: "list",
             selectedId: null,
             detailId: null,
+            categories: [],
             scrollTop: 0,
         },
     };

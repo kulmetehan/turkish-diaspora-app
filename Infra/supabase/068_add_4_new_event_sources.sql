@@ -58,3 +58,5 @@ END $$;
 
 COMMENT ON TABLE public.event_sources IS 'Added 4 new event sources: podiummozaiek_events, tivolivredenburg_events, bitterzoet_events, muziekgebouw_events (2025-01-XX)';
 
+
+

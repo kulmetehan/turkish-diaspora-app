@@ -46,3 +46,5 @@ WHERE er.processing_state = 'enriched'
      AND NOT is_location_blocked(ec.location_text))
   );
 
+
+

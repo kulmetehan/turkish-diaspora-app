@@ -33,7 +33,7 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
     try {
       const pollStats = await getPollStats(poll.id);
       setStats(pollStats);
-      setShowStats(pollStats.privacy_threshold_met);
+      setShowStats(!!pollStats);
     } catch (err) {
       console.error("Failed to load poll stats:", err);
     }
@@ -165,17 +165,14 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
                 Totaal {totalResponses} {totalResponses === 1 ? "stem" : "stemmen"}
               </p>
             )}
-            {!showStats && totalResponses > 0 && (
-              <p className="text-xs text-muted-foreground text-center">
-                Resultaten worden getoond bij 10+ stemmen ({totalResponses}/10)
-              </p>
-            )}
           </>
         )}
       </CardContent>
     </Card>
   );
 }
+
+
 
 
 

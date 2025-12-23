@@ -1,6 +1,8 @@
 // Frontend/src/components/feed/FeedCard.tsx
 import type { ActivityItem, ReactionType } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+import { roleDisplayName } from "@/lib/roleDisplay";
+import { labelDisplayName } from "@/lib/labelDisplay";
 import { Bookmark } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -13,6 +15,9 @@ export interface FeedCardProps {
   user: {
     avatar: string | null;
     name: string;
+    primary_role?: string | null;
+    secondary_role?: string | null;
+    id?: string | null;
   };
   locationName: string | null;
   locationId?: number | null;
@@ -28,12 +33,13 @@ export interface FeedCardProps {
   userReaction?: ReactionType | null;
   type: ActivityItem["activity_type"];
   isPromoted?: boolean;
+  labels?: string[] | null;
   onReactionToggle?: (reactionType: ReactionType) => void;
   onBookmark?: () => void;
-  onClick?: () => void;
   onImageClick?: (imageUrl: string) => void;
   onLocationClick?: (locationId: number) => void;
   onPollClick?: (pollId: number) => void;
+  onUserClick?: (userId: string) => void;
   className?: string;
 }
 
@@ -96,12 +102,13 @@ export function FeedCard({
   userReaction,
   type,
   isPromoted,
+  labels,
   onReactionToggle,
   onBookmark,
-  onClick,
   onImageClick,
   onLocationClick,
   onPollClick,
+  onUserClick,
   className,
 }: FeedCardProps) {
   const navigate = useNavigate();
@@ -119,39 +126,31 @@ export function FeedCard({
     onBookmark?.();
   };
 
-  const handleClick = () => {
-    onClick?.();
-  };
-
-  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      handleClick();
-    }
-  };
-
   const handleLocationClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (locationId && onLocationClick) {
       onLocationClick(locationId);
     } else if (locationId) {
-      navigate(`/#/locations/${locationId}`);
+      navigate(`/locations/${locationId}`);
+    }
+  };
+
+  const handleUserClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (user.id && onUserClick) {
+      onUserClick(user.id);
+    } else if (user.id) {
+      navigate("/account");
     }
   };
 
   return (
     <div
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
       className={cn(
         "rounded-xl bg-card overflow-hidden",
         "border border-border/50 shadow-soft",
         "transition-all duration-200 ease-in-out",
         "hover:border-border/30 hover:shadow-[0_2px_6px_rgba(15,23,42,0.02),0_1px_2px_rgba(15,23,42,0.01)]",
-        onClick && "cursor-pointer",
-        onClick && "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
         className
       )}
     >
@@ -163,10 +162,14 @@ export function FeedCard({
             <img
               src={user.avatar}
               alt={user.name}
-              className="w-10 h-10 rounded-full object-cover"
+              className="w-10 h-10 rounded-full object-cover cursor-pointer"
+              onClick={handleUserClick}
             />
           ) : (
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-gilroy font-semibold text-sm">
+            <div 
+              className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-gilroy font-semibold text-sm cursor-pointer"
+              onClick={handleUserClick}
+            >
               {getInitials(user.name)}
             </div>
           )}
@@ -175,7 +178,21 @@ export function FeedCard({
         {/* Name + Meta */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-gilroy font-medium text-foreground">{user.name}</p>
+            <button
+              type="button"
+              onClick={handleUserClick}
+              className="text-sm font-gilroy font-medium text-foreground hover:text-primary hover:underline transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 rounded"
+            >
+              {user.name}
+            </button>
+            {user.primary_role && (
+              <>
+                <span className="text-xs font-gilroy font-normal text-muted-foreground">·</span>
+                <p className="text-xs font-gilroy font-normal text-muted-foreground">
+                  {roleDisplayName(user.primary_role)}
+                </p>
+              </>
+            )}
             {locationName && (
               <>
                 <span className="text-xs font-gilroy font-normal text-muted-foreground">·</span>
@@ -233,6 +250,18 @@ export function FeedCard({
                   noteContent
                 )}
               </p>
+              {labels && labels.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap mt-2">
+                  {labels.map((label) => (
+                    <span
+                      key={label}
+                      className="inline-flex items-center rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-xs font-gilroy font-medium text-muted-foreground"
+                    >
+                      {labelDisplayName(label)}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ) : type === "poll_response" && pollId ? (
             <div className="space-y-1">
@@ -302,6 +331,8 @@ export function FeedCard({
     </div>
   );
 }
+
+
 
 
 

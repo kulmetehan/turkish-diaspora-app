@@ -9,6 +9,7 @@ import { OnboardingScreen2 } from "./OnboardingScreen2";
 import { OnboardingScreen3 } from "./OnboardingScreen3";
 import { OnboardingScreen4 } from "./OnboardingScreen4";
 import { OnboardingScreen5 } from "./OnboardingScreen5";
+import { OnboardingScreen6 } from "./OnboardingScreen6";
 
 export interface OnboardingFlowProps {
   onComplete: () => void;
@@ -62,6 +63,67 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       gender: data.gender,
     }));
     setCurrentScreen(5);
+  };
+
+  const handleScreen5Next = () => {
+    setCurrentScreen(6);
+  };
+
+  const handleScreen6Complete = async () => {
+    // Screen 6 handles its own profile update, so we just complete onboarding
+    if (isCompleting) return;
+
+    setIsCompleting(true);
+
+    try {
+      const data: OnboardingData = {
+        home_city: onboardingData.home_city || null,
+        home_region: onboardingData.home_region || null,
+        home_city_key: onboardingData.home_city_key || null,
+        memleket: onboardingData.memleket || null,
+        gender: (onboardingData.gender as "male" | "female" | "prefer_not_to_say" | null) || null,
+      };
+
+      // Save to backend API (with localStorage fallback)
+      await completeOnboarding(data);
+
+      // Set news city preferences from onboarding data
+      if (data.home_city_key || data.memleket) {
+        const cityPreferences = {
+          nl: data.home_city_key ? [data.home_city_key.toLowerCase()] : [],
+          tr: data.memleket ? data.memleket.slice(0, 2).map(key => key.toLowerCase()) : [],
+        };
+
+        // Remember city labels for the selected cities
+        if (data.home_city_key) {
+          rememberCityLabels([{
+            key: data.home_city_key.toLowerCase(),
+            name: data.home_city || "",
+            country: "nl",
+          }]);
+        }
+
+        if (data.memleket && data.memleket.length > 0) {
+          // Note: We don't have the full city info here, but the labels will be loaded
+          // when the user visits the news page. For now, we just save the keys.
+          rememberCityLabels(data.memleket.slice(0, 2).map(key => ({
+            key: key.toLowerCase(),
+            name: key, // Will be replaced when city data is loaded
+            country: "tr",
+          })));
+        }
+
+        // Save preferences
+        savePreferences(cityPreferences);
+      }
+
+      toast.success("Onboarding voltooid!");
+      onComplete();
+    } catch (error) {
+      console.error("Failed to complete onboarding:", error);
+      toast.error("Kon onboarding niet voltooien. Probeer het opnieuw.");
+      setIsCompleting(false);
+    }
   };
 
   const handleScreen5Complete = async () => {
@@ -133,11 +195,16 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     case 4:
       return <OnboardingScreen4 onNext={handleScreen4Next} />;
     case 5:
-      return <OnboardingScreen5 onComplete={handleScreen5Complete} />;
+      return <OnboardingScreen5 onNext={handleScreen5Next} />;
+    case 6:
+      return <OnboardingScreen6 onComplete={handleScreen6Complete} />;
     default:
       return null;
   }
 }
+
+
+
 
 
 

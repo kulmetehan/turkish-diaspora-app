@@ -14,6 +14,7 @@ import {
     createNote,
     deleteNote,
     getCheckInStats,
+    getLocationMahallelisi,
     getLocationReactions,
     getNotes,
     isFavorite,
@@ -21,12 +22,16 @@ import {
     toggleLocationReaction,
     updateNote,
     type CheckInStats,
+    type MahallelisiResponse,
     type NoteResponse,
     type ReactionStats,
     type ReactionType,
 } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { roleDisplayName } from "@/lib/roleDisplay";
+import { labelDisplayName } from "@/lib/labelDisplay";
+import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
 
 type Props = {
     location: LocationMarker;
@@ -37,6 +42,7 @@ type Props = {
 
 export default function LocationDetail({ location, onBackToList }: Props) {
     const locationId = parseInt(location.id);
+    const { showMascotteFeedback } = useMascotteFeedback();
 
     // State for check-ins
     const [checkInStats, setCheckInStats] = useState<CheckInStats | null>(null);
@@ -59,8 +65,32 @@ export default function LocationDetail({ location, onBackToList }: Props) {
     const [isFavorited, setIsFavorited] = useState(false);
     const [favoriteLoading, setFavoriteLoading] = useState(false);
 
+    // State for mahallelisi
+    const [mahallelisi, setMahallelisi] = useState<MahallelisiResponse | null>(null);
+
     // State for loading initial data
     const [initialLoading, setInitialLoading] = useState(true);
+
+    // Track notes created by user in this session (for popular note detection)
+    const userCreatedNotesRef = useRef<Set<number>>(new Set());
+    const popularNotesNotifiedRef = useRef<Set<number>>(new Set());
+
+    // Check for popular notes when notes are updated
+    useEffect(() => {
+        // Check if any user-created notes have reached >= 5 reactions
+        userCreatedNotesRef.current.forEach((noteId) => {
+            // Skip if already notified
+            if (popularNotesNotifiedRef.current.has(noteId)) {
+                return;
+            }
+
+            const note = notes.find((n) => n.id === noteId);
+            if (note && (note.reaction_count || 0) >= 5) {
+                showMascotteFeedback("note_popular");
+                popularNotesNotifiedRef.current.add(noteId);
+            }
+        });
+    }, [notes, showMascotteFeedback]);
 
     // Load initial data
     useEffect(() => {
@@ -81,13 +111,22 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                 // Set user reaction from API response
                 setUserReaction(reactionData.user_reaction || null);
 
-                // Load notes
-                const notesData = await getNotes(locationId);
+                // Load notes (sorted by reactions by default)
+                const notesData = await getNotes(locationId, 50, 0, "reactions_desc");
                 setNotes(notesData);
 
                 // Check favorite status
                 const favorited = await isFavorite(locationId);
                 setIsFavorited(favorited);
+
+                // Load mahallelisi
+                try {
+                    const mahallelisiData = await getLocationMahallelisi(locationId);
+                    setMahallelisi(mahallelisiData);
+                } catch (error: any) {
+                    console.error("Failed to load mahallelisi:", error);
+                    // Don't show error toast, just silently fail
+                }
             } catch (error: any) {
                 console.error("Failed to load location data:", error);
                 toast.error("Fout bij laden van locatie data");
@@ -107,6 +146,8 @@ export default function LocationDetail({ location, onBackToList }: Props) {
         try {
             await createCheckIn(locationId);
             toast.success("Check-in succesvol!");
+            // Show mascotte feedback
+            showMascotteFeedback("check_in");
             // Refresh stats
             const stats = await getCheckInStats(locationId);
             setCheckInStats(stats);
@@ -188,11 +229,15 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                 setNotes((prevNotes) => [tempNote, ...prevNotes]);
 
                 const newNote = await createNote(locationId, content);
+                // Track this note as user-created for popular note detection
+                userCreatedNotesRef.current.add(newNote.id);
                 // Replace temporary note with real one from server
                 setNotes((prevNotes) =>
                     prevNotes.map((note) => (note.id === tempNote.id ? newNote : note))
                 );
                 toast.success("Notitie toegevoegd");
+                // Show mascotte feedback
+                showMascotteFeedback("note_created");
             }
 
             setIsNoteDialogOpen(false);
@@ -300,9 +345,14 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                     <div className="space-y-3">
                         {/* Name */}
                         <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <h2 className="text-xl font-semibold">{location.name}</h2>
-                                {location.has_verified_badge && <VerifiedBadge size="md" />}
+                            <div className="flex flex-col gap-1 flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-xl font-semibold">{location.name}</h2>
+                                    {location.has_verified_badge && <VerifiedBadge size="md" />}
+                                </div>
+                                {checkInStats?.status_text && (
+                                    <p className="text-sm text-foreground/60 italic">{checkInStats.status_text}</p>
+                                )}
                             </div>
                         </div>
 
@@ -396,6 +446,32 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                             </div>
                         </Card>
 
+                        {/* Mahallelisi Card */}
+                        <Card className="p-4 mb-4">
+                            <h3 className="font-medium text-sm mb-3">Bu haftanın Mahallelisi</h3>
+                            {mahallelisi ? (
+                                <div className="space-y-1">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">{mahallelisi.name}</span>
+                                        {mahallelisi.primary_role && (
+                                            <Badge variant="secondary" className="text-xs">
+                                                {roleDisplayName(mahallelisi.primary_role)}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    {mahallelisi.secondary_role && (
+                                        <Badge variant="outline" className="text-xs">
+                                            {roleDisplayName(mahallelisi.secondary_role)}
+                                        </Badge>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-foreground/60">
+                                    Bu hafta henüz kimse uğramadı
+                                </p>
+                            )}
+                        </Card>
+
                         {/* Check-in Stats Card */}
                         {checkInStats && (
                             <Card className="p-4 mb-4">
@@ -406,6 +482,16 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                                 <div className="text-sm text-foreground/70">
                                     {checkInStats.check_ins_today} vandaag • {checkInStats.unique_users_today} gebruikers
                                 </div>
+                            </Card>
+                        )}
+
+                        {/* Activity Section */}
+                        {checkInStats && checkInStats.check_ins_today > 0 && (
+                            <Card className="p-4 mb-4">
+                                <h3 className="font-medium text-sm mb-2">Aktiviteit</h3>
+                                <p className="text-sm text-foreground/70">
+                                    Bugün {checkInStats.unique_users_today} kişi uğradı
+                                </p>
                             </Card>
                         )}
 
@@ -475,6 +561,19 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                                             className="border rounded-lg p-3 space-y-2 bg-muted/30"
                                         >
                                             <div className="text-sm whitespace-pre-wrap text-foreground">{note.content}</div>
+                                            {note.labels && note.labels.length > 0 && (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {note.labels.map((label) => (
+                                                        <Badge
+                                                            key={label}
+                                                            variant="secondary"
+                                                            className="text-xs"
+                                                        >
+                                                            {labelDisplayName(label)}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            )}
                                             <div className="flex items-center justify-between text-xs text-foreground/60">
                                                 <span>
                                                     {new Date(note.created_at).toLocaleDateString("nl-NL", {

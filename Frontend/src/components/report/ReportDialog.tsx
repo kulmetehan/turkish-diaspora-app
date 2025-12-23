@@ -16,7 +16,7 @@ interface ReportDialogProps {
 }
 
 const REPORT_REASONS: Record<string, string[]> = {
-  location: ["Spam", "Incorrect Information", "Inappropriate Content", "Duplicate", "Other"],
+  location: ["Geen Turkse affiniteit", "Permanent gesloten", "Locatie is fake/spam", "Anders"],
   note: ["Spam", "Inappropriate Content", "Harassment", "False Information", "Other"],
   reaction: ["Spam", "Inappropriate", "Harassment", "Other"],
   user: ["Spam", "Harassment", "Impersonation", "Inappropriate Behavior", "Other"],
@@ -85,7 +85,10 @@ export function ReportDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent 
+        className="sm:max-w-[500px] z-[80]"
+        overlayClassName="z-[79]"
+      >
         <DialogHeader>
           <DialogTitle>Rapporteer {typeLabels[reportType]}</DialogTitle>
           <DialogDescription>
@@ -104,7 +107,7 @@ export function ReportDialog({
               <SelectTrigger id="reason">
                 <SelectValue placeholder="Selecteer een reden" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[81]">
                 {reasons.map((r) => (
                   <SelectItem key={r} value={r}>
                     {r}
@@ -140,6 +143,8 @@ export function ReportDialog({
     </Dialog>
   );
 }
+
+
 
 
 

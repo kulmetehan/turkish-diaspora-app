@@ -45,11 +45,12 @@ async def verify_admin_user(authorization: Optional[str] = Header(None)) -> Admi
     try:
         # Supabase access tokens include an "aud": "authenticated".
         # Disable audience verification only; keep signature/expiry checks.
+        # Also disable iat (issued at) verification to handle clock skew.
         payload = jwt.decode(
             token_only,
             secret,
             algorithms=["HS256"],
-            options={"verify_aud": False},
+            options={"verify_aud": False, "verify_iat": False},
         )  # type: ignore[arg-type]
     except Exception as e:  # broad to log any decode failure
         logger.info("auth_debug_decode_failed", error=str(e), has_secret=bool(secret))

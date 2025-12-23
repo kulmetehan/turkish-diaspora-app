@@ -1,7 +1,7 @@
 # Backend/api/routers/gamification.py
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Response
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
@@ -11,6 +11,14 @@ from fastapi import HTTPException
 from services.db_service import fetch
 
 router = APIRouter(prefix="/users", tags=["gamification"])
+
+# Deprecation notice
+DEPRECATION_MESSAGE = (
+    "This gamification endpoint is deprecated and will be removed in 3 months. "
+    "The XP/badges/streaks system is being replaced with a role-based gamification system. "
+    "See /docs for migration guide."
+)
+DEPRECATION_DATE = "2025-04-XX"  # 3 months from implementation
 
 
 class UserProfile(BaseModel):
@@ -41,9 +49,21 @@ class LeaderboardEntry(BaseModel):
 @router.get("/{user_id}/profile", response_model=UserProfile)
 async def get_user_profile(
     user_id: str = Path(..., description="User ID"),
+    response: Response = None,
 ):
-    """Get user profile with XP and streaks."""
+    """
+    Get user profile with XP and streaks.
+    
+    **DEPRECATED**: This endpoint is deprecated and will be removed on {DEPRECATION_DATE}.
+    The XP/badges/streaks system is being replaced with a role-based gamification system.
+    """.format(DEPRECATION_DATE=DEPRECATION_DATE)
     require_feature("gamification_enabled")
+    
+    # Add deprecation headers
+    if response:
+        response.headers["X-API-Deprecated"] = "true"
+        response.headers["X-API-Deprecation-Date"] = DEPRECATION_DATE
+        response.headers["X-API-Deprecation-Message"] = DEPRECATION_MESSAGE
     
     # Get user profile and streaks
     sql = """
@@ -78,9 +98,21 @@ async def get_user_profile(
 @router.get("/{user_id}/badges", response_model=List[Badge])
 async def get_user_badges(
     user_id: str = Path(..., description="User ID"),
+    response: Response = None,
 ):
-    """Get user badges."""
+    """
+    Get user badges.
+    
+    **DEPRECATED**: This endpoint is deprecated and will be removed on {DEPRECATION_DATE}.
+    The XP/badges/streaks system is being replaced with a role-based gamification system.
+    """.format(DEPRECATION_DATE=DEPRECATION_DATE)
     require_feature("gamification_enabled")
+    
+    # Add deprecation headers
+    if response:
+        response.headers["X-API-Deprecated"] = "true"
+        response.headers["X-API-Deprecation-Date"] = DEPRECATION_DATE
+        response.headers["X-API-Deprecation-Message"] = DEPRECATION_MESSAGE
     
     sql = """
         SELECT id, badge_type, city_key, earned_at
@@ -106,9 +138,21 @@ async def get_user_badges(
 async def get_leaderboard(
     city_key: str = Path(..., description="City key"),
     limit: int = Query(100, le=200),
+    response: Response = None,
 ):
-    """Get leaderboard for a city."""
+    """
+    Get leaderboard for a city.
+    
+    **DEPRECATED**: This endpoint is deprecated and will be removed on {DEPRECATION_DATE}.
+    The XP/badges/streaks system is being replaced with a role-based gamification system.
+    """.format(DEPRECATION_DATE=DEPRECATION_DATE)
     require_feature("gamification_enabled")
+    
+    # Add deprecation headers
+    if response:
+        response.headers["X-API-Deprecated"] = "true"
+        response.headers["X-API-Deprecation-Date"] = DEPRECATION_DATE
+        response.headers["X-API-Deprecation-Message"] = DEPRECATION_MESSAGE
     
     sql = """
         SELECT 

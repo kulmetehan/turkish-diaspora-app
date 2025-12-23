@@ -16,7 +16,6 @@ const tabs: TabConfig[] = [
   { to: "/news", icon: "Newspaper", label: "NIEUWS" },
   { to: "/map", icon: "Map", label: "KAART", end: true },
   { to: "/events", icon: "CalendarCheck", label: "Events" },
-  { to: "/account", icon: "User2", label: "Account" },
 ];
 
 export const FooterTabs = forwardRef<HTMLDivElement, ComponentProps<"div">>(

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from typing import Any, List, Optional, Tuple
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path, Query
 from pydantic import BaseModel
 
-from services.db_service import fetch
+from services.db_service import fetch, fetchrow
 from app.services.category_map import normalize_category
 # Import shared filter definition (single source of truth for Admin metrics and public API)
 from app.core.location_filters import get_verified_filter_sql
@@ -412,4 +412,139 @@ async def list_categories() -> List[CategoryItem]:
         return items
     except Exception as e:
         print(f"[categories] query failed: {e}")
+        raise HTTPException(status_code=503, detail="database unavailable")
+
+
+@router.get("/{location_id}", response_model=dict)
+async def get_location(
+    location_id: int = Path(..., description="Location ID"),
+):
+    """
+    Get a single location by ID.
+    
+    Uses the same visibility rules as the list endpoint:
+    - VERIFIED locations with confidence_score >= 0.80, not retired
+    - OR PENDING_VERIFICATION/CANDIDATE with confidence_score >= 0.90, not retired
+    
+    Returns 404 if location not found or doesn't meet visibility criteria.
+    """
+    # Use the same visibility filter logic as list_locations
+    # For a single location, we don't need bbox filtering
+    verified_filter_sql, verified_params = get_verified_filter_sql(bbox=None, alias="l")
+    
+    # High-confidence PENDING/CANDIDATE filter
+    # Note: These don't use parameters, so no shifting needed
+    pending_conditions = [
+        "l.state IN ('PENDING_VERIFICATION', 'CANDIDATE')",
+        "(l.confidence_score IS NOT NULL AND l.confidence_score >= 0.90)",
+        "(l.is_retired = false OR l.is_retired IS NULL)",
+        "l.lat IS NOT NULL",
+        "l.lng IS NOT NULL",
+    ]
+    pending_filter_sql = " AND ".join(pending_conditions)
+    
+    # Shift parameter numbers in verified_filter_sql
+    # location_id is $1, so verified_params start at $2
+    num_verified_params = len(verified_params)
+    if num_verified_params > 0:
+        # Replace $1, $2, ... with $2, $3, ... in verified_filter_sql
+        # Do this in reverse order to avoid replacing $10 when we want to replace $1
+        for i in range(num_verified_params, 0, -1):
+            verified_filter_sql = verified_filter_sql.replace(f"${i}", f"${i + 1}")
+    
+    # Combine both filters with OR and add location_id filter
+    sql = f"""
+        SELECT
+            l.id,
+            l.name,
+            l.address,
+            l.lat,
+            l.lng,
+            l.category,
+            l.rating,
+            l.state,
+            l.confidence_score,
+            COALESCE(blc.status::text, NULL) as claim_status
+        FROM locations l
+        LEFT JOIN business_location_claims blc ON l.id = blc.location_id
+        WHERE l.id = $1
+          AND (({verified_filter_sql}) OR ({pending_filter_sql}))
+        LIMIT 1
+    """
+    
+    # Combine parameters: location_id first, then verified_params
+    all_params = [location_id] + list(verified_params)
+    
+    try:
+        row = await fetchrow(sql, *all_params)
+        if not row:
+            raise HTTPException(status_code=404, detail="Location not found or not visible")
+        
+        r = dict(row)
+        
+        # Normalize field types for the frontend (same as list_locations)
+        # force id to string for React key stability
+        r["id"] = str(r.get("id"))
+        
+        # lat / lng to floats
+        if r.get("lat") is not None:
+            try:
+                r["lat"] = float(r["lat"])
+            except Exception:
+                r["lat"] = None
+        else:
+            r["lat"] = None
+        
+        if r.get("lng") is not None:
+            try:
+                r["lng"] = float(r["lng"])
+            except Exception:
+                r["lng"] = None
+        else:
+            r["lng"] = None
+        
+        # numeric fields that might come back as Decimal / str
+        if r.get("rating") is not None:
+            try:
+                r["rating"] = float(r["rating"])
+            except Exception:
+                r["rating"] = None
+        
+        if r.get("confidence_score") is not None:
+            try:
+                r["confidence_score"] = float(r["confidence_score"])
+            except Exception:
+                pass
+        
+        # Category normalization enrichment for frontend
+        try:
+            cat_info = normalize_category(str(r.get("category") or ""))
+            r["category_raw"] = cat_info.get("category_raw")
+            r["category_key"] = cat_info.get("category_key")
+            r["category_label"] = cat_info.get("category_label")
+        except Exception:
+            # Best-effort fallback to raw values if normalization fails
+            raw = r.get("category")
+            r["category_raw"] = raw
+            r["category_key"] = str(raw).strip().lower().replace("/", "_").replace(" ", "_") if raw else "other"
+            # Simple labelization
+            try:
+                tmp = str(raw or "").replace("/", " ").replace("_", " ").strip()
+                r["category_label"] = " ".join([t[:1].upper() + t[1:].lower() for t in tmp.split()]) or "Overig"
+            except Exception:
+                r["category_label"] = "Overig"
+        
+        # Verified badge based on claim status
+        claim_status = r.get("claim_status")
+        r["has_verified_badge"] = (claim_status == "approved")
+        
+        # Add is_turkish field (always true for visible locations in this app)
+        r["is_turkish"] = True
+        
+        return r
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[locations/{location_id}] query failed: {e}")
         raise HTTPException(status_code=503, detail="database unavailable")

@@ -13,3 +13,5 @@ class EventCategory(str, Enum):
     concert = "concert"
     familie = "familie"
 
+
+

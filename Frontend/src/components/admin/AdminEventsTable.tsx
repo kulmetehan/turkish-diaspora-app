@@ -1,7 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventCategoryKey } from "@/lib/routing/eventCategories";
 import type { AdminEventCandidate } from "@/lib/apiAdmin";
 
 const STATE_LABELS: Record<AdminEventCandidate["state"], string> = {
@@ -26,6 +28,8 @@ type AdminEventsTableProps = {
     onPublish: (id: number) => void;
     onReject: (id: number) => void;
     onInspectDuplicates?: (id: number) => void;
+    onCategoryChange?: (id: number, category: string) => void;
+    categoryUpdatingId: number | null;
 };
 
 export function AdminEventsTable({
@@ -36,6 +40,8 @@ export function AdminEventsTable({
     onPublish,
     onReject,
     onInspectDuplicates,
+    onCategoryChange,
+    categoryUpdatingId,
 }: AdminEventsTableProps) {
     if (loading) {
         return (
@@ -68,6 +74,7 @@ export function AdminEventsTable({
                             <th className="px-4 py-3 min-w-[200px]">Title</th>
                             <th className="px-4 py-3">Source</th>
                             <th className="px-4 py-3">Start</th>
+                            <th className="px-4 py-3">Category</th>
                             <th className="px-4 py-3">Duplicate Status</th>
                             <th className="px-4 py-3">State</th>
                             <th className="px-4 py-3">Updated</th>
@@ -101,6 +108,40 @@ export function AdminEventsTable({
                                         {Number.isNaN(startDate.getTime())
                                             ? "—"
                                             : startDate.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-3 align-top">
+                                        {onCategoryChange ? (
+                                            <Select
+                                                value={event.event_category || undefined}
+                                                onValueChange={(value) => {
+                                                    if (value !== event.event_category) {
+                                                        onCategoryChange(event.id, value);
+                                                    }
+                                                }}
+                                                disabled={categoryUpdatingId === event.id}
+                                            >
+                                                <SelectTrigger className="w-[120px]">
+                                                    <SelectValue placeholder="—">
+                                                        {event.event_category
+                                                            ? EVENT_CATEGORY_LABELS[event.event_category as EventCategoryKey] || event.event_category
+                                                            : "—"}
+                                                    </SelectValue>
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {EVENT_CATEGORIES.map((cat) => (
+                                                        <SelectItem key={cat} value={cat}>
+                                                            {EVENT_CATEGORY_LABELS[cat]}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        ) : (
+                                            <span className="text-sm">
+                                                {event.event_category
+                                                    ? EVENT_CATEGORY_LABELS[event.event_category as EventCategoryKey] || event.event_category
+                                                    : "—"}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 align-top space-y-1">
                                         {isDuplicate ? (

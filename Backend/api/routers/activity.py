@@ -10,6 +10,7 @@ import json
 
 from app.core.client_id import get_client_id
 from app.core.feature_flags import require_feature
+from app.deps.auth import get_current_user_optional, User
 from services.db_service import fetch, execute
 
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -19,6 +20,8 @@ class ActivityUser(BaseModel):
     id: str  # UUID as string
     name: Optional[str] = None  # display_name
     avatar_url: Optional[str] = None
+    primary_role: Optional[str] = None
+    secondary_role: Optional[str] = None
 
 
 class ActivityItem(BaseModel):
@@ -36,6 +39,7 @@ class ActivityItem(BaseModel):
     is_bookmarked: bool = False
     reactions: Optional[dict] = None  # Reaction counts: {"fire": 5, "heart": 3, ...}
     user_reaction: Optional[str] = None  # Current user's reaction type, if any
+    labels: Optional[List[str]] = None  # Labels like "sözü_dinlenir", "yerinde_tespit"
 
 
 def _parse_payload(payload: Any) -> dict:
@@ -67,23 +71,66 @@ def _parse_reactions(reactions: Any) -> Optional[Dict[str, int]]:
     return None
 
 
+def _calculate_labels(activity_type: str, reactions: Optional[Dict[str, int]]) -> List[str]:
+    """Calculate labels for activity items based on criteria."""
+    labels = []
+    
+    if activity_type == "note" and reactions:
+        # Calculate total reaction count
+        total_reactions = sum(reactions.values())
+        
+        # Sözü Dinlenir: Average reactions >= 5
+        # For now, we use total reactions >= 5 as a simple threshold
+        # In the future, we could calculate average per reaction type
+        if total_reactions >= 5:
+            labels.append("sözü_dinlenir")
+        
+        # Yerinde Tespit: Future implementation requires "nuttig" markers in database
+        # For now, we skip this label
+    
+    return labels
+
+
+def _normalize_user_name(user_name: Optional[str], user_id: Optional[str]) -> Optional[str]:
+    """
+    Normalize user_name: if it equals user_id (UUID), treat it as None.
+    This fixes cases where display_name was incorrectly set to user_id.
+    """
+    if not user_name or not user_id:
+        return user_name
+    
+    # If display_name equals user_id, treat it as if no username was set
+    if user_name.strip() == str(user_id):
+        return None
+    
+    return user_name
+
+
 @router.get("", response_model=List[ActivityItem])
 async def get_own_activity(
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
     activity_type: Optional[str] = Query(None, description="Filter by activity type (check_in, reaction, note, poll_response, favorite)"),
     client_id: Optional[str] = Depends(get_client_id),
-    # TODO: current_user: Optional[User] = Depends(get_current_user_optional),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get own activity stream (user_id or client_id)."""
     require_feature("check_ins_enabled")  # Or create separate flag
     
-    if not client_id:
+    user_id = user.user_id if user else None
+    
+    # Require either user_id or client_id
+    if not user_id and not client_id:
         return []
     
     # Build WHERE clause with optional activity_type filter
-    conditions = ["ast.client_id = $1"]
-    params = [client_id]
+    # Use user_id if authenticated, otherwise fallback to client_id
+    if user_id:
+        conditions = ["ast.actor_id = $1 AND ast.actor_type = 'user'"]
+        params = [user_id]
+    else:
+        conditions = ["ast.client_id = $1"]
+        params = [client_id]
     param_num = 2
     
     if activity_type:
@@ -124,6 +171,8 @@ async def get_own_activity(
             up.id as user_id,
             up.display_name as user_name,
             up.avatar_url as user_avatar_url,
+            ur.primary_role as user_primary_role,
+            ur.secondary_role as user_secondary_role,
             COALESCE(like_counts.like_count, 0) as like_count,
             CASE WHEN al.id IS NOT NULL THEN true ELSE false END as is_liked,
             CASE WHEN ab.id IS NOT NULL THEN true ELSE false END as is_bookmarked,
@@ -157,6 +206,7 @@ async def get_own_activity(
         LEFT JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
         LEFT JOIN user_profiles up ON ast.actor_id = up.id AND ast.actor_type = 'user'
+        LEFT JOIN user_roles ur ON up.id = ur.user_id
         LEFT JOIN (
             SELECT activity_id, COUNT(*) as like_count
             FROM activity_likes
@@ -173,29 +223,36 @@ async def get_own_activity(
     
     rows = await fetch(sql, *params)
     
-    result = [
-        ActivityItem(
-            id=row["id"],
-            activity_type=row["activity_type"],
-            location_id=row.get("location_id"),
-            location_name=row.get("location_name"),
-            payload=_parse_payload(row.get("payload")),
-            created_at=row["created_at"],
-            is_promoted=row.get("is_promoted", False),
-            media_url=row.get("media_url"),
-            user=ActivityUser(
-                id=str(row["user_id"]),
-                name=row.get("user_name"),
-                avatar_url=row.get("user_avatar_url"),
-            ) if row.get("user_id") else None,
-            like_count=row.get("like_count", 0) or 0,
-            is_liked=row.get("is_liked", False) or False,
-            is_bookmarked=row.get("is_bookmarked", False) or False,
-            reactions=_parse_reactions(row.get("reactions")),
-            user_reaction=row.get("user_reaction"),
+    result = []
+    for row in rows:
+        parsed_reactions = _parse_reactions(row.get("reactions"))
+        labels = _calculate_labels(row["activity_type"], parsed_reactions)
+        
+        result.append(
+            ActivityItem(
+                id=row["id"],
+                activity_type=row["activity_type"],
+                location_id=row.get("location_id"),
+                location_name=row.get("location_name"),
+                payload=_parse_payload(row.get("payload")),
+                created_at=row["created_at"],
+                is_promoted=row.get("is_promoted", False),
+                media_url=row.get("media_url"),
+                user=ActivityUser(
+                    id=str(row["user_id"]),
+                    name=_normalize_user_name(row.get("user_name"), str(row["user_id"]) if row.get("user_id") else None),
+                    avatar_url=row.get("user_avatar_url"),
+                    primary_role=row.get("user_primary_role"),
+                    secondary_role=row.get("user_secondary_role"),
+                ) if row.get("user_id") else None,
+                like_count=row.get("like_count", 0) or 0,
+                is_liked=row.get("is_liked", False) or False,
+                is_bookmarked=row.get("is_bookmarked", False) or False,
+                reactions=parsed_reactions,
+                user_reaction=row.get("user_reaction"),
+                labels=labels if labels else None,
+            )
         )
-        for row in rows
-    ]
     
     return result
 
@@ -308,6 +365,8 @@ async def get_nearby_activity(
             up.id as user_id,
             up.display_name as user_name,
             up.avatar_url as user_avatar_url,
+            ur.primary_role as user_primary_role,
+            ur.secondary_role as user_secondary_role,
             COALESCE(like_counts.like_count, 0) as like_count,
             CASE WHEN al.id IS NOT NULL THEN true ELSE false END as is_liked,
             CASE WHEN ab.id IS NOT NULL THEN true ELSE false END as is_bookmarked,
@@ -341,6 +400,7 @@ async def get_nearby_activity(
         INNER JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
         LEFT JOIN user_profiles up ON ast.actor_id = up.id AND ast.actor_type = 'user'
+        LEFT JOIN user_roles ur ON up.id = ur.user_id
         LEFT JOIN (
             SELECT activity_id, COUNT(*) as like_count
             FROM activity_likes
@@ -356,29 +416,36 @@ async def get_nearby_activity(
     
     rows = await fetch(sql, *params)
     
-    result = [
-        ActivityItem(
-            id=row["id"],
-            activity_type=row["activity_type"],
-            location_id=row.get("location_id"),
-            location_name=row.get("location_name"),
-            payload=_parse_payload(row.get("payload")),
-            created_at=row["created_at"],
-            is_promoted=row.get("is_promoted", False),
-            media_url=row.get("media_url"),
-            user=ActivityUser(
-                id=str(row["user_id"]),
-                name=row.get("user_name"),
-                avatar_url=row.get("user_avatar_url"),
-            ) if row.get("user_id") else None,
-            like_count=row.get("like_count", 0) or 0,
-            is_liked=row.get("is_liked", False) or False,
-            is_bookmarked=row.get("is_bookmarked", False) or False,
-            reactions=_parse_reactions(row.get("reactions")),
-            user_reaction=row.get("user_reaction"),
+    result = []
+    for row in rows:
+        parsed_reactions = _parse_reactions(row.get("reactions"))
+        labels = _calculate_labels(row["activity_type"], parsed_reactions)
+        
+        result.append(
+            ActivityItem(
+                id=row["id"],
+                activity_type=row["activity_type"],
+                location_id=row.get("location_id"),
+                location_name=row.get("location_name"),
+                payload=_parse_payload(row.get("payload")),
+                created_at=row["created_at"],
+                is_promoted=row.get("is_promoted", False),
+                media_url=row.get("media_url"),
+                user=ActivityUser(
+                    id=str(row["user_id"]),
+                    name=_normalize_user_name(row.get("user_name"), str(row["user_id"]) if row.get("user_id") else None),
+                    avatar_url=row.get("user_avatar_url"),
+                    primary_role=row.get("user_primary_role"),
+                    secondary_role=row.get("user_secondary_role"),
+                ) if row.get("user_id") else None,
+                like_count=row.get("like_count", 0) or 0,
+                is_liked=row.get("is_liked", False) or False,
+                is_bookmarked=row.get("is_bookmarked", False) or False,
+                reactions=parsed_reactions,
+                user_reaction=row.get("user_reaction"),
+                labels=labels if labels else None,
+            )
         )
-        for row in rows
-    ]
     
     return result
 
@@ -417,6 +484,8 @@ async def get_location_activity(
             up.id as user_id,
             up.display_name as user_name,
             up.avatar_url as user_avatar_url,
+            ur.primary_role as user_primary_role,
+            ur.secondary_role as user_secondary_role,
             COALESCE(like_counts.like_count, 0) as like_count,
             CASE WHEN al.id IS NOT NULL THEN true ELSE false END as is_liked,
             CASE WHEN ab.id IS NOT NULL THEN true ELSE false END as is_bookmarked,
@@ -450,6 +519,7 @@ async def get_location_activity(
         LEFT JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
         LEFT JOIN user_profiles up ON ast.actor_id = up.id AND ast.actor_type = 'user'
+        LEFT JOIN user_roles ur ON up.id = ur.user_id
         LEFT JOIN (
             SELECT activity_id, COUNT(*) as like_count
             FROM activity_likes
@@ -464,44 +534,53 @@ async def get_location_activity(
     
     rows = await fetch(sql, location_id, limit, offset)
     
-    return [
-        ActivityItem(
-            id=row["id"],
-            activity_type=row["activity_type"],
-            location_id=row.get("location_id"),
-            location_name=row.get("location_name"),
-            payload=_parse_payload(row.get("payload")),
-            created_at=row["created_at"],
-            is_promoted=row.get("is_promoted", False),
-            media_url=row.get("media_url"),
-            user=ActivityUser(
-                id=str(row["user_id"]),
-                name=row.get("user_name"),
-                avatar_url=row.get("user_avatar_url"),
-            ) if row.get("user_id") else None,
-            like_count=row.get("like_count", 0) or 0,
-            is_liked=row.get("is_liked", False) or False,
-            is_bookmarked=row.get("is_bookmarked", False) or False,
-            reactions=row.get("reactions") if isinstance(row.get("reactions"), dict) else None,
-            user_reaction=row.get("user_reaction"),
+    result = []
+    for row in rows:
+        parsed_reactions = _parse_reactions(row.get("reactions"))
+        labels = _calculate_labels(row["activity_type"], parsed_reactions)
+        
+        result.append(
+            ActivityItem(
+                id=row["id"],
+                activity_type=row["activity_type"],
+                location_id=row.get("location_id"),
+                location_name=row.get("location_name"),
+                payload=_parse_payload(row.get("payload")),
+                created_at=row["created_at"],
+                is_promoted=row.get("is_promoted", False),
+                media_url=row.get("media_url"),
+                user=ActivityUser(
+                    id=str(row["user_id"]),
+                    name=_normalize_user_name(row.get("user_name"), str(row["user_id"]) if row.get("user_id") else None),
+                    avatar_url=row.get("user_avatar_url"),
+                    primary_role=row.get("user_primary_role"),
+                    secondary_role=row.get("user_secondary_role"),
+                ) if row.get("user_id") else None,
+                like_count=row.get("like_count", 0) or 0,
+                is_liked=row.get("is_liked", False) or False,
+                is_bookmarked=row.get("is_bookmarked", False) or False,
+                reactions=parsed_reactions,
+                user_reaction=row.get("user_reaction"),
+                labels=labels if labels else None,
+            )
         )
-        for row in rows
-    ]
+    
+    return result
 
 
 @router.post("/{activity_id}/bookmark", response_model=dict)
 async def toggle_activity_bookmark(
     activity_id: int = Path(..., description="Activity ID"),
     client_id: Optional[str] = Depends(get_client_id),
-    # TODO: user_id: Optional[UUID] = Depends(get_current_user_optional),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Toggle bookmark on activity item."""
     require_feature("check_ins_enabled")
     
-    if not client_id:
-        raise HTTPException(status_code=400, detail="client_id required")
+    user_id = user.user_id if user else None
     
-    user_id = None  # TODO: Extract from auth session
+    if not user_id and not client_id:
+        raise HTTPException(status_code=400, detail="Either authentication or client_id required")
     
     # Check if activity exists
     check_sql = "SELECT id FROM activity_stream WHERE id = $1"
@@ -546,13 +625,15 @@ async def toggle_activity_reaction(
     activity_id: int = Path(..., description="Activity ID"),
     request: ReactionToggleRequest = ...,
     client_id: Optional[str] = Depends(get_client_id),
-    # TODO: user_id: Optional[UUID] = Depends(get_current_user_optional),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Toggle emoji reaction on activity item."""
     require_feature("check_ins_enabled")
     
-    if not client_id:
-        raise HTTPException(status_code=400, detail="client_id required")
+    user_id = user.user_id if user else None
+    
+    if not user_id and not client_id:
+        raise HTTPException(status_code=400, detail="Either authentication or client_id required")
     
     # Basic validation: ensure reaction_type is a non-empty string
     if not request.reaction_type or not isinstance(request.reaction_type, str) or len(request.reaction_type.strip()) == 0:
@@ -567,8 +648,6 @@ async def toggle_activity_reaction(
             status_code=400,
             detail="reaction_type too long (max 10 characters)"
         )
-    
-    user_id = None  # TODO: Extract from auth session
     
     # Check if activity exists
     check_sql = "SELECT id FROM activity_stream WHERE id = $1"

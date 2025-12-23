@@ -16,10 +16,17 @@ import asyncpg
 # --------------------------------------------------------------------
 # DB config
 # --------------------------------------------------------------------
-load_dotenv()
+from pathlib import Path
+# Ensure .env is loaded from Backend directory
+_backend_root = Path(__file__).resolve().parents[1]  # services/db_service.py -> Backend/
+_env_file = _backend_root / ".env"
+load_dotenv(_env_file, override=False)
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    raise RuntimeError("DATABASE_URL not set in environment/.env")
+    raise RuntimeError(
+        f"DATABASE_URL not set in environment/.env. "
+        f"Expected .env file at: {_env_file}"
+    )
 
 
 def normalize_database_url(raw_dsn: str) -> str:
@@ -64,31 +71,70 @@ async def ensure_pool() -> asyncpg.Pool:
             return _pool
 
         raw_dsn = os.getenv("DATABASE_URL", "").strip()
+        if not raw_dsn:
+            raise RuntimeError(
+                "DATABASE_URL is not set or is empty. "
+                "Please check your .env file in the Backend directory."
+            )
+        
         final_dsn = normalize_database_url(raw_dsn)
+        
+        # Validate DSN format before attempting connection
+        parsed = urlparse(final_dsn)
+        if not parsed.hostname:
+            raise RuntimeError(
+                f"Invalid DATABASE_URL: missing hostname. "
+                f"DSN format should be: postgresql://user:password@host:port/database"
+            )
+        
+        if not parsed.scheme or parsed.scheme not in ("postgresql", "postgres"):
+            raise RuntimeError(
+                f"Invalid DATABASE_URL: scheme must be 'postgresql://' or 'postgres://'. "
+                f"Got: {parsed.scheme or 'missing'}"
+            )
 
         logger.info(
             "db_pool_initializing",
             extra={
-                "dsn_host": urlparse(final_dsn).hostname if final_dsn else None,
-                "dsn_port": urlparse(final_dsn).port if final_dsn else None,
+                "dsn_host": parsed.hostname,
+                "dsn_port": parsed.port,
+                "dsn_database": parsed.path.lstrip("/") if parsed.path else None,
                 "application_name": APPLICATION_NAME,
             },
         )
-        _pool = await asyncpg.create_pool(
-            dsn=final_dsn,
-            min_size=DB_POOL_MIN_SIZE,
-            max_size=DB_POOL_MAX_SIZE,
-            command_timeout=60,
-            timeout=60,
-            statement_cache_size=0,
-            max_inactive_connection_lifetime=30,
-            server_settings={
-                "application_name": APPLICATION_NAME,
-                "statement_timeout": str(STATEMENT_TIMEOUT_MS),
-                "idle_in_transaction_session_timeout": str(IDLE_IN_TX_TIMEOUT_MS),
-                "lock_timeout": str(LOCK_TIMEOUT_MS),
-            },
-        )
+        
+        try:
+            _pool = await asyncpg.create_pool(
+                dsn=final_dsn,
+                min_size=DB_POOL_MIN_SIZE,
+                max_size=DB_POOL_MAX_SIZE,
+                command_timeout=60,
+                timeout=60,
+                statement_cache_size=0,
+                max_inactive_connection_lifetime=30,
+                server_settings={
+                    "application_name": APPLICATION_NAME,
+                    "statement_timeout": str(STATEMENT_TIMEOUT_MS),
+                    "idle_in_transaction_session_timeout": str(IDLE_IN_TX_TIMEOUT_MS),
+                    "lock_timeout": str(LOCK_TIMEOUT_MS),
+                },
+            )
+        except Exception as e:
+            logger.error(
+                "db_pool_creation_failed",
+                extra={
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                    "dsn_host": parsed.hostname,
+                    "dsn_port": parsed.port,
+                },
+            )
+            raise RuntimeError(
+                f"Failed to create database connection pool: {type(e).__name__}: {e}. "
+                f"Please check your DATABASE_URL in the .env file. "
+                f"Host: {parsed.hostname}, Port: {parsed.port}"
+            ) from e
+        
         return _pool
 
 async def init_db_pool() -> asyncpg.Pool:

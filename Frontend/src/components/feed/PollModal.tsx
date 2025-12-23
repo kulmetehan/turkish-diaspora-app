@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { getPoll, getPollStats, submitPollResponse, type Poll, type PollStats } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 interface PollModalProps {
@@ -14,7 +13,6 @@ interface PollModalProps {
 }
 
 export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
-  const navigate = useNavigate();
   const [poll, setPoll] = useState<Poll | null>(null);
   const [stats, setStats] = useState<PollStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +66,11 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
     try {
       setIsSubmitting(true);
       await submitPollResponse(poll.id, selectedOption);
-      toast.success("Je stem is opgeslagen!");
+      
+      // Show gamification feedback message
+      toast.success("Diaspora Nabzı'na katkı sağladın", {
+        duration: 3000,
+      });
 
       // Fetch updated poll data and stats immediately
       const [updatedPoll, updatedStats] = await Promise.all([
@@ -84,13 +86,6 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
       toast.error("Kon niet stemmen");
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleViewDetails = () => {
-    if (poll) {
-      onOpenChange(false);
-      navigate(`/#/polls/${poll.id}`);
     }
   };
 
@@ -111,7 +106,7 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
             {poll.user_has_responded ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">Je hebt al gestemd op deze poll.</p>
-                {stats && stats.privacy_threshold_met && (
+                {stats && (
                   <div className="space-y-2">
                     <p className="text-sm font-gilroy font-medium">Resultaten:</p>
                     {poll.options.map((option) => {
@@ -165,14 +160,6 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
                 </Button>
               </div>
             )}
-
-            <Button
-              variant="outline"
-              onClick={handleViewDetails}
-              className="w-full"
-            >
-              Bekijk details
-            </Button>
           </div>
         ) : (
           <div className="py-8 text-center text-muted-foreground">Poll kon niet worden geladen</div>
@@ -181,6 +168,8 @@ export function PollModal({ pollId, open, onOpenChange }: PollModalProps) {
     </Dialog>
   );
 }
+
+
 
 
 

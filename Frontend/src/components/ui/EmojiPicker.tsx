@@ -76,14 +76,18 @@ export function EmojiPicker({ onEmojiSelect, trigger, className }: EmojiPickerPr
     return () => document.removeEventListener("mousedown", handleClickOutside, true);
   }, [open]);
 
-  const handleQuickEmojiClick = (emoji: string) => {
+  const handleQuickEmojiClick = (e: React.MouseEvent, emoji: string) => {
+    e.stopPropagation();
     onEmojiSelect(emoji);
     setOpen(false);
   };
 
   return (
-    <div className="relative inline-block">
-      <div ref={triggerRef} onClick={() => setOpen(!open)}>
+    <div className="relative inline-block" onClick={(e) => e.stopPropagation()}>
+      <div ref={triggerRef} onClick={(e) => {
+        e.stopPropagation();
+        setOpen(!open);
+      }}>
         {trigger || (
           <button
             type="button"
@@ -115,7 +119,7 @@ export function EmojiPicker({ onEmojiSelect, trigger, className }: EmojiPickerPr
               <button
                 key={emoji}
                 type="button"
-                onClick={() => handleQuickEmojiClick(emoji)}
+                onClick={(e) => handleQuickEmojiClick(e, emoji)}
                 className={cn(
                   "text-2xl p-2 rounded-lg hover:bg-muted transition-colors",
                   "focus:outline-none focus:ring-2 focus:ring-primary/30"

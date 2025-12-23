@@ -507,6 +507,12 @@ async def update_event_candidate_state(
             datetime.now(timezone.utc),
         )
         current.event_category = event_category
+        
+        # Synchronize category to event_raw.category_key
+        await sync_event_category_to_raw(
+            candidate_id=candidate_id,
+            category_key=event_category,
+        )
     else:
         await execute(
             """
@@ -530,6 +536,136 @@ async def update_event_candidate_state(
 
     current.state = new_state
     current.updated_at = datetime.now(timezone.utc)
+    return current
+
+
+async def sync_event_category_to_raw(
+    *,
+    candidate_id: int,
+    category_key: Optional[str],
+) -> None:
+    """
+    Synchronize event_category from events_candidate to event_raw.category_key.
+    This ensures both fields stay in sync.
+    """
+    row = await fetchrow(
+        """
+        SELECT event_raw_id
+        FROM events_candidate
+        WHERE id = $1
+        """,
+        candidate_id,
+    )
+    if not row:
+        logger.warning(
+            "sync_event_category_to_raw_candidate_not_found",
+            candidate_id=candidate_id,
+        )
+        return
+
+    event_raw_id = int(row["event_raw_id"])
+    await execute(
+        """
+        UPDATE event_raw
+        SET category_key = $1
+        WHERE id = $2
+        """,
+        category_key,
+        event_raw_id,
+    )
+    logger.debug(
+        "sync_event_category_to_raw_success",
+        candidate_id=candidate_id,
+        event_raw_id=event_raw_id,
+        category_key=category_key,
+    )
+
+
+async def update_event_category(
+    *,
+    candidate_id: int,
+    category_key: str,
+    actor_email: Optional[str] = None,
+) -> EventCandidateRecord:
+    """
+    Update event category for a candidate event.
+    Updates both events_candidate.event_category and event_raw.category_key.
+    """
+    # Validate category_key
+    from services.event_categories_service import get_event_category_keys
+    valid_keys = set(get_event_category_keys())
+    normalized = category_key.strip().lower().replace(" ", "_")
+    if normalized not in valid_keys:
+        raise ValueError(
+            f"Invalid category_key: {category_key}. Must be one of: {', '.join(sorted(valid_keys))}"
+        )
+
+    # Fetch current candidate
+    row = await fetchrow(
+        """
+        SELECT
+            ec.id,
+            ec.event_source_id,
+            ec.event_raw_id,
+            ec.title,
+            ec.description,
+            ec.duplicate_of_id,
+            ec.duplicate_score,
+            ec.start_time_utc,
+            ec.end_time_utc,
+            ec.location_text,
+            ec.url,
+            ec.source_key,
+            ec.ingest_hash,
+            ec.state,
+            ec.event_category,
+            ec.created_at,
+            ec.updated_at,
+            es.name AS source_name,
+            EXISTS (
+                SELECT 1 FROM events_candidate dup WHERE dup.duplicate_of_id = ec.id
+            ) AS has_duplicates
+        FROM events_candidate ec
+        LEFT JOIN public.event_sources es ON es.id = ec.event_source_id
+        WHERE ec.id = $1
+        """,
+        candidate_id,
+    )
+    if row is None:
+        raise LookupError("event_candidate_not_found")
+
+    current = EventCandidateRecord.from_row(dict(row))
+
+    # Update events_candidate.event_category
+    await execute(
+        """
+        UPDATE events_candidate
+        SET event_category = $1,
+            updated_at = $2
+        WHERE id = $3
+        """,
+        normalized,
+        datetime.now(timezone.utc),
+        candidate_id,
+    )
+
+    # Synchronize to event_raw.category_key
+    await sync_event_category_to_raw(
+        candidate_id=candidate_id,
+        category_key=normalized,
+    )
+
+    # Update current record
+    current.event_category = normalized
+    current.updated_at = datetime.now(timezone.utc)
+
+    logger.info(
+        "event_category_updated",
+        candidate_id=candidate_id,
+        category_key=normalized,
+        actor=actor_email,
+    )
+
     return current
 
 

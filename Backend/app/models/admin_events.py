@@ -51,6 +51,7 @@ class AdminEventCandidateItem(BaseModel):
     duplicate_score: Optional[float] = None
     has_duplicates: bool = False
     state: EventCandidateState
+    event_category: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -98,5 +99,10 @@ class EventSourceDiagnostics(BaseModel):
     events_candidate_by_state: Dict[str, int] = Field(description="Candidates by state")
     events_published_count: int = Field(description="Published events from this source")
     events_visible_in_frontend: int = Field(description="Published events visible on frontend (future events)")
+
+
+class AdminEventCategoryUpdateRequest(BaseModel):
+    """Request model for updating event category."""
+    category: str = Field(..., description="Event category key (club, theater, concert, familie)")
 
 

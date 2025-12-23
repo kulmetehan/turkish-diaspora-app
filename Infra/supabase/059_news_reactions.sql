@@ -23,3 +23,5 @@ COMMENT ON COLUMN news_reactions.identity_key IS 'Generated column: user_id if a
 
 
 
+
+

@@ -9,7 +9,7 @@ from uuid import UUID
 from app.core.client_id import get_client_id
 from app.deps.auth import get_current_user_optional, User
 from app.deps.admin_auth import verify_admin_user, AdminUser
-from services.db_service import fetch, execute
+from services.db_service import fetch, execute, update_location_classification
 from app.core.logging import get_logger
 
 logger = get_logger()
@@ -32,6 +32,7 @@ class ReportResponse(BaseModel):
     details: Optional[str]
     status: str
     created_at: datetime
+    location_name: Optional[str] = None  # Only populated for location reports
 
 
 class ReportUpdate(BaseModel):
@@ -166,10 +167,19 @@ async def list_reports(
     params.append(offset)
     
     sql = f"""
-        SELECT id, report_type, target_id, reason, details, status, created_at
-        FROM reports
+        SELECT 
+            r.id, 
+            r.report_type, 
+            r.target_id, 
+            r.reason, 
+            r.details, 
+            r.status, 
+            r.created_at,
+            l.name AS location_name
+        FROM reports r
+        LEFT JOIN locations l ON r.report_type = 'location' AND r.target_id = l.id
         {where_clause}
-        ORDER BY created_at DESC
+        ORDER BY r.created_at DESC
         LIMIT ${param_num} OFFSET ${param_num + 1}
     """
     
@@ -192,13 +202,21 @@ async def update_report_status(
     # Update report
     update_sql = """
         UPDATE reports
-        SET status = $1,
+        SET status = $1::report_status,
             resolution_notes = $2,
             resolved_by = (SELECT id FROM auth.users WHERE email = $3 LIMIT 1),
-            resolved_at = CASE WHEN $1 != 'pending' THEN now() ELSE resolved_at END,
+            resolved_at = CASE WHEN $1::report_status != 'pending' THEN now() ELSE resolved_at END,
             updated_at = now()
         WHERE id = $4
-        RETURNING id, report_type, target_id, reason, details, status, created_at
+        RETURNING 
+            id, 
+            report_type, 
+            target_id, 
+            reason, 
+            details, 
+            status, 
+            created_at,
+            (SELECT name FROM locations WHERE id = reports.target_id AND reports.report_type = 'location') AS location_name
     """
     
     result = await fetch(
@@ -328,4 +346,128 @@ async def remove_reported_content(
         )
     
     raise HTTPException(status_code=500, detail="Failed to remove content")
+
+
+@router.post("/admin/{report_id}/retire-location")
+async def retire_reported_location(
+    report_id: int = Path(..., description="Report ID"),
+    admin: AdminUser = Depends(verify_admin_user),
+):
+    """
+    Retire the location that was reported (admin moderation action).
+    Works for location reports only.
+    Sets location state to RETIRED and marks report as resolved.
+    """
+    # Get report details
+    report_sql = """
+        SELECT report_type, target_id, status, reason, details
+        FROM reports
+        WHERE id = $1
+    """
+    report_rows = await fetch(report_sql, report_id)
+    
+    if not report_rows:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    report = report_rows[0]
+    report_type = report["report_type"]
+    target_id = report["target_id"]
+    
+    if report_type != "location":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot retire content for report_type: {report_type}. Only 'location' is supported."
+        )
+    
+    # Check if location exists
+    location_sql = """
+        SELECT id, state, name
+        FROM locations
+        WHERE id = $1
+    """
+    location_rows = await fetch(location_sql, target_id)
+    
+    if not location_rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Location with id {target_id} not found"
+        )
+    
+    location = location_rows[0]
+    current_state = location.get("state", "").upper()
+    
+    # Build reason text for notes
+    reason_text = f"Retired via report #{report_id}: {report.get('reason', 'N/A')}"
+    if report.get("details"):
+        reason_text += f" - {report['details']}"
+    
+    # Retire the location directly (bypass no-downgrade rule for admin actions)
+    # For VERIFIED locations, we need to force retirement by directly updating state
+    try:
+        if current_state == "VERIFIED":
+            # Direct state update for VERIFIED locations (admin override)
+            await execute(
+                """
+                UPDATE locations
+                SET state = 'RETIRED',
+                    is_retired = true,
+                    last_verified_at = NOW(),
+                    notes = COALESCE(notes, '') || CASE WHEN notes IS NULL OR notes = '' THEN '' ELSE E'\\n' END || $1
+                WHERE id = $2
+                """,
+                reason_text,
+                target_id,
+            )
+        else:
+            # Use canonical function for non-VERIFIED locations
+            await update_location_classification(
+                id=target_id,
+                action="ignore",  # This will set state to RETIRED
+                category=None,  # Preserve existing category
+                confidence_score=0.0,  # Not relevant for retirement
+                reason=reason_text,
+                allow_resurrection=False,
+            )
+        
+        # Mark report as resolved
+        update_sql = """
+            UPDATE reports
+            SET status = 'resolved',
+                resolution_notes = 'Location retired by admin moderation',
+                resolved_by = (SELECT id FROM auth.users WHERE email = $1 LIMIT 1),
+                resolved_at = now(),
+                updated_at = now()
+            WHERE id = $2
+            RETURNING id, report_type, target_id, reason, details, status, created_at
+        """
+        result = await fetch(update_sql, admin.email, report_id)
+        
+        logger.info(
+            "location_retired_by_moderation",
+            report_id=report_id,
+            location_id=target_id,
+            location_name=location.get("name"),
+            previous_state=current_state,
+            admin_email=admin.email,
+        )
+        
+        if result:
+            return {
+                "ok": True,
+                "retired": True,
+                "report": ReportResponse(**result[0])
+            }
+    except Exception as e:
+        logger.error(
+            "location_retirement_failed",
+            report_id=report_id,
+            location_id=target_id,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retire location: {str(e)}"
+        )
+    
+    raise HTTPException(status_code=500, detail="Failed to retire location")
 

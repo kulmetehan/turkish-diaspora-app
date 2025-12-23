@@ -36,7 +36,7 @@ def extract_user_from_token(authorization: Optional[str]) -> Optional[User]:
             token_only,
             secret,
             algorithms=["HS256"],
-            options={"verify_aud": False},
+            options={"verify_aud": False, "verify_iat": False},
         )  # type: ignore[arg-type]
     except Exception as e:
         logger.debug("user_auth_token_invalid", error=str(e))
@@ -63,7 +63,19 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> User:
     Required auth dependency - raises 401 if not authenticated.
     Use this for endpoints that require authentication.
     """
+    # #region agent log
+    import json
+    from datetime import datetime, timezone
+    with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "auth.py:61", "message": "get_current_user: entry", "data": {"has_auth_header": bool(authorization), "auth_header_prefix": authorization[:20] if authorization else None}, "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000)}) + "\n")
+    # #endregion
+    
     user = extract_user_from_token(authorization)
+    
+    # #region agent log
+    with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
+        f.write(json.dumps({"sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "auth.py:68", "message": "get_current_user: after extract", "data": {"user_extracted": bool(user), "user_id": str(user.user_id) if user else None}, "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000)}) + "\n")
+    # #endregion
     
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -77,6 +89,7 @@ async def get_current_user_optional(authorization: Optional[str] = Header(None))
     Use this for endpoints that work for both authenticated and anonymous users.
     """
     return extract_user_from_token(authorization)
+
 
 
 

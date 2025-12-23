@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
+import { ProfileSection } from "@/components/account/ProfileSection";
+import { UserRolesSection } from "@/components/account/UserRolesSection";
+import { RhythmSection } from "@/components/account/RhythmSection";
+import { ContributionsSection } from "@/components/account/ContributionsSection";
+import { RecognitionSection } from "@/components/account/RecognitionSection";
 import { ActivityHistory } from "@/components/activity/ActivityHistory";
 import { AppHeader } from "@/components/feed/AppHeader";
 import { FooterTabs } from "@/components/FooterTabs";
@@ -11,9 +16,11 @@ import { AppViewportShell } from "@/components/layout";
 import { PushNotificationSettings } from "@/components/push/PushNotificationSettings";
 import { ReferralShare } from "@/components/referrals/ReferralShare";
 import { PrivacySettings } from "@/components/settings/PrivacySettings";
+import { RewardModal } from "@/components/rewards/RewardModal";
 import { Button } from "@/components/ui/button";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { supabase } from "@/lib/supabaseClient";
+import { getMyPendingRewards, type UserReward } from "@/lib/api";
 import { getTheme, setTheme, type ThemeSetting } from "@/lib/theme/darkMode";
 import { toast } from "sonner";
 
@@ -22,10 +29,53 @@ export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<AccountTabKey>("weergave");
   const { isAuthenticated, userId, email, isLoading } = useUserAuth();
   const navigate = useNavigate();
+  const [pendingReward, setPendingReward] = useState<UserReward | null>(null);
+  const [rewardModalOpen, setRewardModalOpen] = useState(false);
+  const rewardCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasCheckedRewardsRef = useRef(false);
 
   useEffect(() => {
     setThemeState(getTheme());
   }, []);
+
+  // Check for pending rewards on mount and periodically
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) {
+      return;
+    }
+
+    const checkRewards = async () => {
+      try {
+        const rewards = await getMyPendingRewards();
+        if (rewards.length > 0 && !hasCheckedRewardsRef.current) {
+          // Only show modal if we haven't checked before (first load)
+          setPendingReward(rewards[0]);
+          setRewardModalOpen(true);
+          hasCheckedRewardsRef.current = true;
+        } else if (rewards.length > 0) {
+          // Update pending reward if it exists but don't auto-open modal
+          setPendingReward(rewards[0]);
+        } else {
+          setPendingReward(null);
+        }
+      } catch (err) {
+        // Silently fail - rewards are optional
+        console.debug("Failed to check rewards:", err);
+      }
+    };
+
+    // Check immediately on mount
+    checkRewards();
+
+    // Check periodically (every 5 minutes)
+    rewardCheckIntervalRef.current = setInterval(checkRewards, 5 * 60 * 1000);
+
+    return () => {
+      if (rewardCheckIntervalRef.current) {
+        clearInterval(rewardCheckIntervalRef.current);
+      }
+    };
+  }, [isAuthenticated, isLoading]);
 
   const handleLogout = async () => {
     try {
@@ -66,42 +116,86 @@ export default function AccountPage() {
         <AppHeader onNotificationClick={handleNotificationClick} />
         <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
           <div className="max-w-4xl mx-auto py-4">
-            {!isLoading && (
-              <AccountLoginSection
-                isAuthenticated={isAuthenticated}
-                email={email}
-                userId={userId}
-                onLogout={handleLogout}
-                className="mb-4"
-              />
-            )}
-
             <AccountTabs value={activeTab} onChange={setActiveTab} className="mb-4" />
 
             {activeTab === "weergave" && (
-              <div className="rounded-xl bg-surface-muted/50 p-6">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div className="space-y-1">
-                    <h2 className="text-lg font-gilroy font-medium text-foreground">
-                      Weergave
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Beheer het thema van de app
-                    </p>
+              <>
+                {!isLoading && (
+                  <AccountLoginSection
+                    isAuthenticated={isAuthenticated}
+                    email={email}
+                    userId={userId}
+                    onLogout={handleLogout}
+                    className="mb-4"
+                  />
+                )}
+
+                {/* Profile section - only show when authenticated */}
+                {isAuthenticated && (
+                  <ProfileSection className="mb-4" />
+                )}
+
+                {/* Gamification sections - only show when authenticated */}
+                {isAuthenticated && (
+                  <>
+                    <UserRolesSection className="mb-4" />
+                    <RhythmSection className="mb-4" />
+                    <ContributionsSection className="mb-4" />
+                    <RecognitionSection className="mb-4" />
+                  </>
+                )}
+
+                <div className="rounded-xl bg-surface-muted/50 p-6 mb-4">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-1">
+                      <h2 className="text-lg font-gilroy font-medium text-foreground">
+                        Weergave
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        Beheer het thema van de app
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={cycleTheme}
+                      aria-label="Schakel thema"
+                      className="inline-flex items-center gap-2 text-foreground"
+                    >
+                      <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
+                      <span>Theme: {theme}</span>
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={cycleTheme}
-                    aria-label="Schakel thema"
-                    className="inline-flex items-center gap-2 text-foreground"
-                  >
-                    <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
-                    <span>Theme: {theme}</span>
-                  </Button>
                 </div>
-              </div>
+
+                {/* Legal section */}
+                <div className="rounded-xl bg-surface-muted/50 p-6">
+                  <div className="space-y-4">
+                    <h2 className="text-lg font-gilroy font-medium text-foreground">Legal</h2>
+                    <div className="flex flex-col gap-2">
+                      <a
+                        href="#/privacy"
+                        className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+                      >
+                        Privacybeleid
+                      </a>
+                      <a
+                        href="#/terms"
+                        className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+                      >
+                        Gebruiksvoorwaarden
+                      </a>
+                      <a
+                        href="#/guidelines"
+                        className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
+                      >
+                        Community Richtlijnen
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
 
             {activeTab === "privacy" && (
@@ -155,37 +249,19 @@ export default function AccountPage() {
                 <ActivityHistory />
               </div>
             )}
-
-            {/* Legal section at bottom without border */}
-            <div className="mt-6 rounded-xl bg-surface-muted/50 p-6">
-              <div className="space-y-4">
-                <h2 className="text-lg font-gilroy font-medium text-foreground">Legal</h2>
-                <div className="flex flex-col gap-2">
-                  <a
-                    href="#/privacy"
-                    className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-                  >
-                    Privacybeleid
-                  </a>
-                  <a
-                    href="#/terms"
-                    className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-                  >
-                    Gebruiksvoorwaarden
-                  </a>
-                  <a
-                    href="#/guidelines"
-                    className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
-                  >
-                    Community Richtlijnen
-                  </a>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
         <FooterTabs />
       </div>
+
+      {/* Reward Modal */}
+      {isAuthenticated && (
+        <RewardModal
+          open={rewardModalOpen}
+          onOpenChange={setRewardModalOpen}
+          reward={pendingReward}
+        />
+      )}
     </AppViewportShell>
   );
 }

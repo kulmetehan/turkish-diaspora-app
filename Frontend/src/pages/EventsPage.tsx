@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { EventItem } from "@/api/events";
 import { FooterTabs } from "@/components/FooterTabs";
+import { EventCategoryFilterBar } from "@/components/events/EventCategoryFilterBar";
 import { EventDateRangePicker } from "@/components/events/EventDateRangePicker";
 import { EventDetailOverlay } from "@/components/events/EventDetailOverlay";
 import { EventList } from "@/components/events/EventList";
@@ -12,12 +13,41 @@ import { eventHasCoordinates } from "@/components/events/eventFormatters";
 import { AppHeader } from "@/components/feed/AppHeader";
 import { AppViewportShell } from "@/components/layout";
 import { useEventsFeed } from "@/hooks/useEventsFeed";
+import {
+  readEventCategoriesFromHash,
+  subscribeToEventCategoriesHashChange,
+  writeEventCategoriesToHash,
+  type EventCategoryKey,
+} from "@/lib/routing/eventCategories";
 import { navigationActions, useEventsNavigation } from "@/state/navigation";
+
+function categoriesAreEqual(a: EventCategoryKey[], b: EventCategoryKey[]) {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
 
 export default function EventsPage() {
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+
+  // Use navigation store for events state
+  const eventsNavigation = useEventsNavigation();
+  
+  // Read hash params (for shareable URLs) - these take priority
+  const hashCategories = readEventCategoriesFromHash();
+  const hasHashCategories = hashCategories.length > 0;
+
+  // Priority: hash params (if present) > store values
+  // Initialize state: if hash has values, use them (and sync to store), otherwise use store
+  const [selectedCategories, setSelectedCategories] = useState<EventCategoryKey[]>(() => {
+    if (hasHashCategories) {
+      // Sync hash values to store
+      navigationActions.setEvents({ categories: hashCategories });
+      return hashCategories;
+    }
+    return eventsNavigation.categories;
+  });
 
   const {
     items,
@@ -27,10 +57,13 @@ export default function EventsPage() {
     hasMore,
     loadMore,
     reload,
-  } = useEventsFeed({ pageSize: 20, dateFrom, dateTo });
+  } = useEventsFeed({ 
+    pageSize: 20, 
+    dateFrom, 
+    dateTo,
+    categories: selectedCategories.length > 0 ? selectedCategories : undefined,
+  });
 
-  // Use navigation store for events state
-  const eventsNavigation = useEventsNavigation();
   const selectedId = eventsNavigation.selectedId;
   const detailId = eventsNavigation.detailId;
   const viewMode = eventsNavigation.viewMode;
@@ -53,6 +86,31 @@ export default function EventsPage() {
       navigationActions.setEvents({ detailId: null });
     }
   }, [items, detailId]);
+
+  // Handle hash change listener (like NewsPage)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const nextCategories = readEventCategoriesFromHash();
+      setSelectedCategories((current) => {
+        if (!categoriesAreEqual(current, nextCategories)) {
+          return nextCategories;
+        }
+        return current;
+      });
+    };
+    return subscribeToEventCategoriesHashChange(handleHashChange);
+  }, []);
+
+  // Sync categories to hash and store
+  useEffect(() => {
+    writeEventCategoriesToHash(selectedCategories);
+    // Also update store
+    navigationActions.setEvents({ categories: selectedCategories });
+  }, [selectedCategories]);
+
+  const handleCategoriesChange = useCallback((next: EventCategoryKey[]) => {
+    setSelectedCategories((current) => (categoriesAreEqual(current, next) ? current : next));
+  }, []);
 
   const handleSelect = useCallback((id: number | null) => {
     navigationActions.setEvents({ selectedId: id });
@@ -206,6 +264,11 @@ export default function EventsPage() {
           <EventMonthFilterBar
             selectedMonth={selectedMonth}
             onMonthSelect={handleMonthSelect}
+            className="mt-1"
+          />
+          <EventCategoryFilterBar
+            selected={selectedCategories}
+            onChange={handleCategoriesChange}
             className="mt-1"
           />
 

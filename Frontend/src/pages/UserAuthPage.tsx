@@ -155,7 +155,23 @@ export default function UserAuthPage() {
         if (!data.session) {
           setActiveTab("login");
         } else {
-          nav("/account", { replace: true });
+          // Check if user has username/profile setup
+          // If not, redirect to feed which will show onboarding
+          try {
+            const { getCurrentUser } = await import("@/lib/api");
+            const profile = await getCurrentUser();
+            if (!profile?.name) {
+              // User doesn't have username, redirect to feed (will show onboarding)
+              nav("/feed", { replace: true });
+            } else {
+              // User has profile, go to account page
+              nav("/account", { replace: true });
+            }
+          } catch (error) {
+            console.error("Failed to check profile:", error);
+            // Fallback to account page
+            nav("/account", { replace: true });
+          }
         }
       }
     } catch (err) {

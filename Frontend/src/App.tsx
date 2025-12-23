@@ -1,5 +1,5 @@
 // src/App.tsx
-// Unified HomePage container that mounts all five main tabs (Map, News, Events, Feed, Account)
+// Unified HomePage container that mounts all four main tabs (Map, News, Events, Feed)
 // as persistent layers with visibility toggling based on activeTab from navigation store.
 // The URL is the source of truth; activeTab reflects the current pathname.
 
@@ -8,7 +8,6 @@ import { useLocation } from "react-router-dom";
 
 import MapTab from "@/components/MapTab";
 import { cn } from "@/lib/ui/cn";
-import AccountPage from "@/pages/AccountPage";
 import EventsPage from "@/pages/EventsPage";
 import FeedPage from "@/pages/FeedPage";
 import NewsPage from "@/pages/NewsPage";
@@ -26,8 +25,7 @@ function HomePage({ initialTab }: HomePageProps) {
     location.pathname.startsWith("/news") ? "news" :
       location.pathname.startsWith("/events") ? "events" :
         location.pathname.startsWith("/map") ? "map" :
-          location.pathname.startsWith("/account") ? "account" :
-            "feed";
+          "feed";
 
   // Sync URL to navigation store on mount and route changes
   // URL is source of truth; initialTab is only a fallback if pathname doesn't match expected routes
@@ -81,16 +79,6 @@ function HomePage({ initialTab }: HomePageProps) {
         )}
       >
         <FeedPage />
-      </div>
-
-      {/* Account layer */}
-      <div
-        className={cn(
-          "absolute inset-0 overflow-auto",
-          activeTab === "account" ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        )}
-      >
-        <AccountPage />
       </div>
     </div>
   );

@@ -272,6 +272,7 @@ export type AdminEventCandidate = {
     duplicate_score?: number | null;
     has_duplicates?: boolean;
     state: "candidate" | "verified" | "published" | "rejected";
+    event_category?: string | null;
     created_at: string;
     updated_at: string;
 };
@@ -339,6 +340,20 @@ export async function rejectEventCandidateAdmin(id: number): Promise<AdminEventC
     return authFetch<AdminEventCandidate>(
         `/api/v1/admin/events/candidates/${id}/reject`,
         { method: "POST" },
+    );
+}
+
+export async function updateEventCategoryAdmin(
+    id: number,
+    category: string,
+): Promise<AdminEventCandidate> {
+    return authFetch<AdminEventCandidate>(
+        `/api/v1/admin/events/candidates/${id}/category`,
+        {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category }),
+        },
     );
 }
 
@@ -952,6 +967,7 @@ export type AdminReport = {
     details: string | null;
     status: "pending" | "resolved" | "dismissed";
     created_at: string;
+    location_name?: string | null;  // Only populated for location reports
 };
 
 export type AdminReportUpdateRequest = {
@@ -991,6 +1007,19 @@ export async function removeReportedContent(reportId: number): Promise<{
 }> {
     return authFetch<{ ok: boolean; removed: boolean; report: AdminReport }>(
         `/api/v1/reports/admin/${reportId}/remove-content`,
+        {
+            method: "POST",
+        }
+    );
+}
+
+export async function retireReportedLocation(reportId: number): Promise<{
+    ok: boolean;
+    retired: boolean;
+    report: AdminReport;
+}> {
+    return authFetch<{ ok: boolean; retired: boolean; report: AdminReport }>(
+        `/api/v1/reports/admin/${reportId}/retire-location`,
         {
             method: "POST",
         }

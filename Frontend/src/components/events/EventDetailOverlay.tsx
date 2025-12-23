@@ -13,6 +13,7 @@ import { getEventReactions, toggleEventReaction, type ReactionStats, type Reacti
 import { cn } from "@/lib/ui/cn";
 
 import { formatCityLabel, formatEventDateRange } from "./eventFormatters";
+import { EVENT_CATEGORY_LABELS, type EventCategoryKey } from "@/lib/routing/eventCategories";
 
 type EventDetailOverlayProps = {
   event: EventItem | null;
@@ -138,13 +139,21 @@ export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayPr
               <p className="mt-1 text-sm text-foreground/70">{dateLabel}</p>
             </div>
 
-            {/* City tag with share button */}
-            {event.city_key && (
+            {/* Category and City tags with share button */}
+            {(event.category_key || event.city_key) && (
               <div className="flex items-center gap-2">
-                <Badge className="bg-primary text-primary-foreground">
-                  <Icon name="MapPin" className="mr-1 h-3.5 w-3.5" aria-hidden />
-                  {formatCityLabel(event.city_key)}
-                </Badge>
+                {event.category_key && (
+                  <Badge className="bg-primary text-primary-foreground">
+                    <Icon name="Tags" className="mr-1 h-3.5 w-3.5" aria-hidden />
+                    {EVENT_CATEGORY_LABELS[event.category_key as EventCategoryKey] || event.category_key}
+                  </Badge>
+                )}
+                {event.city_key && (
+                  <Badge className="bg-primary text-primary-foreground">
+                    <Icon name="MapPin" className="mr-1 h-3.5 w-3.5" aria-hidden />
+                    {formatCityLabel(event.city_key)}
+                  </Badge>
+                )}
                 <ShareButton
                   event={{
                     id: eventId,

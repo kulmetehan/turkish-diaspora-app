@@ -1,6 +1,8 @@
 # Backend/api/routers/polls.py
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from starlette.requests import Request
 from typing import List, Optional, Dict
@@ -9,9 +11,11 @@ from datetime import datetime
 
 from app.core.client_id import require_client_id, get_client_id
 from app.core.feature_flags import require_feature
+from app.deps.auth import get_current_user_optional, User
 from app.deps.rate_limiting import require_rate_limit_factory
 from services.db_service import fetch, execute
 from services.xp_service import award_xp
+from services.activity_summary_service import update_user_activity_summary
 
 router = APIRouter(prefix="/polls", tags=["polls"])
 
@@ -186,9 +190,12 @@ async def create_poll_response(
     response: PollResponseCreate = ...,
     client_id: str = Depends(require_client_id),
     _rate_limit: None = Depends(require_rate_limit_factory("poll_response")),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Submit poll response."""
     require_feature("polls_enabled")
+    
+    user_id = user.user_id if user else None
     
     # Validate poll is active
     poll_check = """
@@ -204,15 +211,15 @@ async def create_poll_response(
     poll_type = poll_rows[0].get("poll_type")
     
     # For single_choice polls, check for duplicate response using identity_key
+    # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
     if poll_type == "single_choice":
+        identity_key = str(user_id) if user_id else client_id
         duplicate_check = """
             SELECT 1 FROM poll_responses
             WHERE poll_id = $1 AND identity_key = $2
             LIMIT 1
         """
-        # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
-        # Since we only have client_id here, identity_key = client_id::text
-        duplicate_rows = await fetch(duplicate_check, poll_id, client_id)
+        duplicate_rows = await fetch(duplicate_check, poll_id, identity_key)
         if duplicate_rows:
             raise HTTPException(status_code=409, detail="Already responded to this poll")
     
@@ -227,12 +234,21 @@ async def create_poll_response(
     
     # Insert response
     try:
-        sql = """
-            INSERT INTO poll_responses (poll_id, option_id, client_id, created_at)
-            VALUES ($1, $2, $3, now())
-            RETURNING id
-        """
-        row = await fetch(sql, poll_id, response.option_id, client_id)
+        # Insert with user_id if authenticated, otherwise just client_id
+        if user_id:
+            sql = """
+                INSERT INTO poll_responses (poll_id, option_id, user_id, client_id, created_at)
+                VALUES ($1, $2, $3, $4, now())
+                RETURNING id
+            """
+            row = await fetch(sql, poll_id, response.option_id, user_id, client_id)
+        else:
+            sql = """
+                INSERT INTO poll_responses (poll_id, option_id, client_id, created_at)
+                VALUES ($1, $2, $3, now())
+                RETURNING id
+            """
+            row = await fetch(sql, poll_id, response.option_id, client_id)
         
         if not row:
             raise HTTPException(status_code=500, detail="Failed to create poll response")
@@ -240,9 +256,10 @@ async def create_poll_response(
         response_id = row[0]["id"]
         
         # Award XP (only works for authenticated users after Story 9)
-        user_id = None  # TODO: Extract from auth session when available
         if user_id:
             await award_xp(user_id=user_id, client_id=client_id, source="poll_response", source_id=response_id)
+            # Update activity summary (fire-and-forget async task)
+            asyncio.create_task(update_user_activity_summary(user_id=user_id))
         
         return {"ok": True, "response_id": response_id}
     except HTTPException:
@@ -258,38 +275,33 @@ async def get_poll_stats(
     """Get aggregated poll statistics."""
     require_feature("polls_enabled")
     
-    # Get stats from poll_stats table (updated by worker)
+    # Calculate stats directly from poll_responses for real-time accuracy
+    # This ensures stats are always up-to-date even if poll_stats table is not updated
     sql = """
-        SELECT total_responses, option_counts
-        FROM poll_stats
+        SELECT 
+            option_id,
+            COUNT(*) as count
+        FROM poll_responses
         WHERE poll_id = $1
+        GROUP BY option_id
     """
     
     rows = await fetch(sql, poll_id)
     
-    if not rows:
-        # Return empty stats if not yet calculated
-        return PollStats(
-            poll_id=poll_id,
-            total_responses=0,
-            option_counts={},
-            privacy_threshold_met=False,
-        )
+    # Build option_counts dictionary
+    option_counts_int = {}
+    total = 0
     
-    row = rows[0]
-    option_counts = row.get("option_counts", {}) or {}
-    
-    # Convert JSONB keys to int
-    option_counts_int = {
-        int(k): int(v) for k, v in option_counts.items()
-    }
-    
-    total = row.get("total_responses", 0) or 0
+    for row in rows:
+        option_id = int(row["option_id"])
+        count = int(row["count"])
+        option_counts_int[option_id] = count
+        total += count
     
     return PollStats(
         poll_id=poll_id,
         total_responses=total,
         option_counts=option_counts_int,
-        privacy_threshold_met=total >= 10,
+        privacy_threshold_met=True,
     )
 

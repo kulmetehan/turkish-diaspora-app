@@ -56,7 +56,8 @@ export default {
         },
       },
       fontFamily: {
-        'gilroy': ['Gilroy', 'system-ui', 'sans-serif'],
+        sans: ['Gilroy', 'system-ui', 'sans-serif'],
+        gilroy: ['Gilroy', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius-lg)",

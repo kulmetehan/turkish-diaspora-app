@@ -92,7 +92,7 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
       <div className={cn("space-y-4 mt-2", className)}>
         {polls.map((poll) => {
           const stats = pollStats[poll.id];
-          const hasResults = poll.user_has_responded && stats && stats.privacy_threshold_met;
+          const hasResults = poll.user_has_responded && stats && stats.total_responses > 0;
 
           return (
             <Card
@@ -162,3 +162,6 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
     </>
   );
 }
+
+
+

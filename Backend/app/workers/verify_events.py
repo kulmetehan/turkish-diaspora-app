@@ -32,7 +32,10 @@ from app.core.logging import configure_logging, get_logger
 from app.core.request_id import with_run_id
 from services.db_service import init_db_pool, fetch, execute
 from services.event_classification_service import EventClassificationService
-from services.event_candidate_service import update_event_candidate_state
+from services.event_candidate_service import (
+    update_event_candidate_state,
+    sync_event_category_to_raw,
+)
 from services.audit_service import audit_service
 from app.models.ai import AIQuotaExceededError, AIEventClassification
 from app.models.event_categories import EventCategory
@@ -143,6 +146,12 @@ async def process_event(
                     new_state=new_state,
                     actor_email="verify_events_bot",
                     event_category=category,  # Save event_category when promoting to verified
+                )
+                
+                # Synchronize category to event_raw.category_key
+                await sync_event_category_to_raw(
+                    candidate_id=event_id,
+                    category_key=category,
                 )
                 
                 await audit_service.log(

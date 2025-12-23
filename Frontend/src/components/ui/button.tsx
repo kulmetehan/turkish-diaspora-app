@@ -10,8 +10,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "relative overflow-hidden bg-gradient-to-b from-brand-redSoft to-brand-red text-primary-foreground hover:from-brand-red hover:to-brand-red " +
-          "before:absolute before:inset-x-0 before:top-0 before:h-1/2 before:bg-[linear-gradient(to_bottom,rgba(255,255,255,0.45),transparent)] before:pointer-events-none",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
         secondary: "bg-secondary text-secondary-foreground hover:opacity-95",
         outline: "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground",
         ghost: "hover:bg-accent hover:text-accent-foreground",

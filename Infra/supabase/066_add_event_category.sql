@@ -10,3 +10,5 @@ ON public.events_candidate(event_category);
 COMMENT ON COLUMN public.events_candidate.event_category IS 
 'Event-specific category: club, theater, concert, or familie. Separate from location categories.';
 
+
+

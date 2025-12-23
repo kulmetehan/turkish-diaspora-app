@@ -85,9 +85,9 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
 
   const handleClick = () => {
     if (item.activity_type === "bulletin_post") {
-      navigate(`/#/feed?tab=bulletin&post=${item.payload?.bulletin_post_id || ''}`);
+      navigate(`/feed?tab=bulletin&post=${item.payload?.bulletin_post_id || ''}`);
     } else if (item.location_id) {
-      navigate(`/#/locations/${item.location_id}`);
+      navigate(`/locations/${item.location_id}`);
     }
   };
 
@@ -95,6 +95,13 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
     if ((event.key === "Enter" || event.key === " ") && (item.location_id || item.activity_type === "bulletin_post")) {
       event.preventDefault();
       handleClick();
+    }
+  };
+
+  const handleUserClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (item.user?.id) {
+      navigate("/account");
     }
   };
 
@@ -123,8 +130,20 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
+              {/* #region agent log */}
+              {(() => {
+                fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ActivityCard.tsx:127',message:'ActivityCard rendering user name',data:{user_id:item.user?.id,user_name:item.user?.name,user_name_is_null:item.user?.name === null,user_name_is_undefined:item.user?.name === undefined,displayed_name:item.user?.name || "Anonieme gebruiker"},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+                return null;
+              })()}
+              {/* #endregion */}
               <p className="text-sm font-gilroy font-normal text-foreground">
-                <span className="font-gilroy font-medium">Iemand</span> {activityMessage}
+                <button
+                  type="button"
+                  onClick={handleUserClick}
+                  className="font-gilroy font-medium hover:text-primary hover:underline transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 rounded"
+                >
+                  {item.user?.name || "Anonieme gebruiker"}
+                </button> {activityMessage}
               </p>
               {item.is_promoted && (
                 <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
