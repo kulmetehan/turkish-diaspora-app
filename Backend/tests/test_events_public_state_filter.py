@@ -245,3 +245,5 @@ async def test_events_public_filters_duplicates(db_pool) -> None:
     await execute("DELETE FROM event_raw WHERE event_source_id = $1", source_id)
     await execute("DELETE FROM event_sources WHERE key = 'test_dup'")
 
+
+

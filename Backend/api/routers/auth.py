@@ -39,6 +39,14 @@ async def get_current_user_info(
 ):
     """Get current authenticated user info."""
     
+    # Ensure user profile exists (auto-create if missing)
+    ensure_profile_sql = """
+        INSERT INTO user_profiles (id, created_at, updated_at)
+        VALUES ($1::uuid, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+    """
+    await execute(ensure_profile_sql, user.user_id)
+    
     # Check if user has profile
     profile_sql = """
         SELECT display_name
@@ -90,8 +98,17 @@ async def migrate_client_id(
     
     This should be called once after user signs up/logs in to transfer
     all their anonymous activity (check-ins, reactions, notes, etc.) to their user account.
+    Also ensures user profile exists.
     """
     try:
+        # Ensure user profile exists (auto-create if missing)
+        ensure_profile_sql = """
+            INSERT INTO user_profiles (id, created_at, updated_at)
+            VALUES ($1::uuid, NOW(), NOW())
+            ON CONFLICT (id) DO NOTHING
+        """
+        await execute(ensure_profile_sql, user.user_id)
+        
         client_id = request.client_id
         
         # Migrate check-ins

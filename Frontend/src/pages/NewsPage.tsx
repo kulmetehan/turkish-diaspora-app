@@ -153,24 +153,18 @@ export default function NewsPage() {
 
       setFeed((current) => {
         if (current !== nextFeed) {
-          // Sync to store when hash changes
-          navigationActions.setNews({ feed: nextFeed });
           return nextFeed;
         }
         return current;
       });
       setCategories((current) => {
         if (!categoriesAreEqual(current, nextCategories)) {
-          // Sync to store when hash changes
-          navigationActions.setNews({ categories: nextCategories });
           return nextCategories;
         }
         return current;
       });
       setSearchQuery((current) => {
         if (current !== nextSearchQuery) {
-          // Sync to store when hash changes
-          navigationActions.setNews({ searchQuery: nextSearchQuery });
           return nextSearchQuery;
         }
         return current;

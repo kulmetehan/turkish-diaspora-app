@@ -17,6 +17,7 @@ import {
   formatCityLabel,
   formatEventDateRange
 } from "./eventFormatters";
+import { EVENT_CATEGORY_LABELS, type EventCategoryKey } from "@/lib/routing/eventCategories";
 
 type EventCardProps = {
   event: EventItem;
@@ -180,6 +181,12 @@ export function EventCard({
             <p className="text-sm font-gilroy font-normal text-muted-foreground">{formatEventDateRange(event.start_time_utc, event.end_time_utc)}</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            {event.category_key ? (
+              <Badge variant="secondary" className="capitalize">
+                <Icon name="Tags" className="mr-1 h-3.5 w-3.5" aria-hidden />
+                {EVENT_CATEGORY_LABELS[event.category_key as EventCategoryKey] || event.category_key}
+              </Badge>
+            ) : null}
             {event.city_key ? (
               <Badge variant="secondary" className="capitalize">
                 <Icon name="MapPin" className="mr-1 h-3.5 w-3.5" aria-hidden />

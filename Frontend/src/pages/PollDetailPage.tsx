@@ -126,7 +126,7 @@ export default function PollDetailPage() {
           {poll.user_has_responded ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">Je hebt al gestemd op deze poll.</p>
-              {stats && stats.privacy_threshold_met ? (
+              {stats ? (
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm font-medium mb-2">
@@ -158,11 +158,7 @@ export default function PollDetailPage() {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Resultaten worden getoond wanneer er minimaal 10 stemmen zijn.
-                </p>
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="space-y-4">
@@ -201,6 +197,9 @@ export default function PollDetailPage() {
     </AppViewportShell>
   );
 }
+
+
+
 
 
 

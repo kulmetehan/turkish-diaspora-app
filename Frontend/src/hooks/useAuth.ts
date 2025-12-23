@@ -38,10 +38,15 @@ export function useAuth() {
         })();
 
         const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+            if (!active) return;
             setAccessToken(session?.access_token ?? null);
             setUserEmail(session?.user?.email ?? null);
         });
-        return () => { active = false; sub.subscription.unsubscribe(); };
+
+        return () => {
+            active = false;
+            sub.subscription.unsubscribe();
+        };
     }, []);
 
     return { userEmail, accessToken, isAuthenticated, isLoading };

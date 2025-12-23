@@ -29,6 +29,7 @@ async def verify_admin_user(request: Request) -> AdminUser:
             token,
             require_supabase_jwt(),
             algorithms=["HS256"],
+            options={"verify_aud": False, "verify_iat": False},
         )  # type: ignore[arg-type]
     except jwt.ExpiredSignatureError:  # type: ignore[attr-defined]
         logger.info("auth_token_expired")

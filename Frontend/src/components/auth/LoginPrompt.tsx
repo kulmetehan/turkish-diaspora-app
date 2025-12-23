@@ -52,3 +52,5 @@ export function LoginPrompt({ message, className, onLoginClick }: LoginPromptPro
     </div>
   );
 }
+
+

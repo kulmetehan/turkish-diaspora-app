@@ -51,7 +51,7 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
               showFirstText ? "opacity-100" : "opacity-0"
             )}
           >
-            Hallo, dünya!
+            Hoş geldin.
           </h1>
           <h2
             className={cn(
@@ -59,7 +59,7 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
               showSecondText ? "opacity-100" : "opacity-0"
             )}
           >
-            Welkom in de Turkse wereld.
+            Burası tek bir topluluk. Herkes burada.
           </h2>
         </div>
 
@@ -69,14 +69,17 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
           size="lg"
           variant="default"
           className="min-w-[200px]"
-          aria-label="Naar de Turkse wereld"
+          aria-label="Verder"
         >
-          Naar de Turkse wereld
+          Verder
         </Button>
       </div>
     </div>
   );
 }
+
+
+
 
 
 

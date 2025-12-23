@@ -21,7 +21,8 @@ export function EmojiReactions({
 }: EmojiReactionsProps) {
   const [isToggling, setIsToggling] = useState<ReactionType | null>(null);
 
-  const handleReactionClick = async (reactionType: ReactionType) => {
+  const handleReactionClick = async (e: React.MouseEvent, reactionType: ReactionType) => {
+    e.stopPropagation(); // Prevent event from bubbling to parent click handlers
     if (isToggling) return; // Prevent double clicks
 
     setIsToggling(reactionType);
@@ -49,7 +50,7 @@ export function EmojiReactions({
           <button
             key={emoji}
             type="button"
-            onClick={() => handleReactionClick(emoji)}
+            onClick={(e) => handleReactionClick(e, emoji)}
             disabled={isLoading}
             className={cn(
               "flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all",
@@ -76,13 +77,31 @@ export function EmojiReactions({
           </button>
         );
       })}
-      <EmojiPicker
-        onEmojiSelect={handleReactionClick}
-        className="text-foreground"
-      />
+      <div onClick={(e) => e.stopPropagation()}>
+        <EmojiPicker
+          onEmojiSelect={async (emoji) => {
+            // EmojiPicker doesn't pass event, but wrapper div stops propagation
+            if (isToggling) return;
+            setIsToggling(emoji as ReactionType);
+            try {
+              const result = onReactionToggle(emoji as ReactionType);
+              // Handle both sync and async callbacks
+              if (result && typeof result.then === 'function') {
+                await result;
+              }
+            } finally {
+              setIsToggling(null);
+            }
+          }}
+          className="text-foreground"
+        />
+      </div>
     </div>
   );
 }
+
+
+
 
 
 

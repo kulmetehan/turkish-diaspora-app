@@ -11,10 +11,14 @@ import { PollModal } from "@/components/feed/PollModal";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
-import { getActivityFeed, getActivityReactions, getCurrentUser, getOnboardingStatus, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type OnboardingStatus, type ReactionType } from "@/lib/api";
+import { getActivityFeed, getActivityReactions, getCurrentUser, getOnboardingStatus, getOneCikanlar, getWeekFeedback, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type OnboardingStatus, type ReactionType } from "@/lib/api";
+import { WeekFeedbackCard } from "@/components/feed/WeekFeedbackCard";
+import { PeriodTabs, type PeriodFilter } from "@/components/onecikanlar/PeriodTabs";
+import { LeaderboardCards } from "@/components/onecikanlar/LeaderboardCards";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
 
 const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
@@ -59,10 +63,10 @@ function transformActivityItem(
   item: ActivityItem,
   onReactionToggle: (id: number, reactionType: ReactionType) => void,
   onBookmark: (id: number) => void,
-  onClick: (item: ActivityItem) => void,
   onImageClick?: (imageUrl: string) => void,
   onLocationClick?: (locationId: number) => void,
-  onPollClick?: (pollId: number) => void
+  onPollClick?: (pollId: number) => void,
+  onUserClick?: (userId: string) => void
 ): FeedCardProps {
   const noteContent = item.activity_type === "note"
     ? (item.payload?.note_preview as string) || (item.payload?.content as string) || null
@@ -72,11 +76,18 @@ function transformActivityItem(
     ? (item.payload?.poll_id as number) || null
     : null;
 
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FeedPage.tsx:77',message:'transformActivityItem entry',data:{item_id:item.id,user_id:item.user?.id,user_name:item.user?.name,user_name_is_null:item.user?.name === null,user_name_is_undefined:item.user?.name === undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+  // #endregion
+
   const transformed = {
     id: item.id,
     user: {
       avatar: item.user?.avatar_url || null,
-      name: item.user?.name || "Iemand",
+      name: item.user?.name || "Anonieme gebruiker",
+      primary_role: item.user?.primary_role || null,
+      secondary_role: item.user?.secondary_role || null,
+      id: item.user?.id || null,
     },
     locationName: item.location_name || null,
     locationId: item.location_id || null,
@@ -92,13 +103,18 @@ function transformActivityItem(
     userReaction: item.user_reaction || null,
     type: item.activity_type,
     isPromoted: item.is_promoted,
+    labels: item.labels || null,
     onReactionToggle: (reactionType: ReactionType) => onReactionToggle(item.id, reactionType),
     onBookmark: () => onBookmark(item.id),
-    onClick: () => onClick(item),
     onImageClick,
     onLocationClick,
     onPollClick,
+    onUserClick: item.user?.id && onUserClick ? () => onUserClick(item.user!.id!) : undefined,
   };
+
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FeedPage.tsx:110',message:'transformActivityItem after transformation',data:{transformed_name:transformed.user.name,transformed_user_id:item.user?.id,original_user_name:item.user?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+  // #endregion
 
   // #region agent log
   if (item.reactions) {
@@ -112,6 +128,7 @@ function transformActivityItem(
 export default function FeedPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { showMascotteFeedback } = useMascotteFeedback();
 
   // State management
   // Check if filter is passed via navigation state
@@ -130,14 +147,34 @@ export default function FeedPage() {
   const [pollModalId, setPollModalId] = useState<number | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
+  const [weekFeedback, setWeekFeedback] = useState<{
+    should_show: boolean;
+    message: string;
+    week_start: string;
+  } | null>(null);
+  const [weekFeedbackDismissed, setWeekFeedbackDismissed] = useState(false);
+  
+  // Öne Çıkanlar state
+  const [period, setPeriod] = useState<PeriodFilter>("week");
+  const [cityKey, setCityKey] = useState<string | null>(null);
+  const [leaderboardData, setLeaderboardData] = useState<Awaited<ReturnType<typeof getOneCikanlar>> | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = useState<boolean>(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
 
   const hasProcessedNavigationStateRef = useRef(false);
 
-  // Fetch user profile and onboarding status on mount
+  // Fetch user profile, onboarding status, and week feedback on mount
   useEffect(() => {
     getCurrentUser()
       .then((user) => {
         setUserName(user?.name || null);
+        // Profile guard: Check if user is authenticated but missing username
+        // If so, show onboarding (which will include username setup)
+        if (user && !user.name) {
+          // User is authenticated but missing username - show onboarding
+          console.log("[FeedPage] User authenticated but missing username, showing onboarding");
+          setShowOnboarding(true);
+        }
       })
       .catch((error) => {
         console.error("Failed to load user profile:", error);
@@ -161,6 +198,24 @@ export default function FeedPage() {
       // Default to showing onboarding if we can't determine status
       setShowOnboarding(true);
     }
+
+    // Fetch week feedback
+    getWeekFeedback()
+      .then((feedback) => {
+        // Check localStorage to see if user has already seen feedback this week
+        const storageKey = `week_feedback_${feedback.week_start}`;
+        const hasSeen = localStorage.getItem(storageKey) === "true";
+        
+        if (feedback.should_show && !hasSeen) {
+          setWeekFeedback(feedback);
+        } else {
+          setWeekFeedbackDismissed(true);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load week feedback:", error);
+        // Silently fail - week feedback is optional
+      });
   }, []);
 
   // Load initial feed data
@@ -168,7 +223,10 @@ export default function FeedPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const activityType = activeFilter === "all" ? undefined : activeFilter;
+      // Don't pass "one_cikanlar" or "all" as activityType
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" 
+        ? undefined 
+        : activeFilter;
       const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
       // #region agent log
       if (data.length > 0) {
@@ -194,7 +252,10 @@ export default function FeedPage() {
 
     setIsLoadingMore(true);
     try {
-      const activityType = activeFilter === "all" ? undefined : activeFilter;
+      // Don't pass "one_cikanlar" or "all" as activityType
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar"
+        ? undefined
+        : activeFilter;
       const data = await getActivityFeed(LOAD_MORE_LIMIT, offset, activityType);
       if (data.length > 0) {
         setFeedItems((prev) => [...prev, ...data]);
@@ -229,11 +290,50 @@ export default function FeedPage() {
 
   // Reload when filter changes
   useEffect(() => {
-    setFeedItems([]);
-    setOffset(0);
-    setHasMore(true);
-    loadInitialData();
-  }, [loadInitialData]);
+    // Only load activity feed if not showing Öne Çıkanlar
+    if (activeFilter !== "one_cikanlar") {
+      setFeedItems([]);
+      setOffset(0);
+      setHasMore(true);
+      loadInitialData();
+    }
+  }, [loadInitialData, activeFilter]);
+
+  // Fetch leaderboard data when Öne Çıkanlar is active
+  useEffect(() => {
+    if (activeFilter !== "one_cikanlar") {
+      // Reset leaderboard state when switching away
+      setLeaderboardData(null);
+      setLeaderboardError(null);
+      return;
+    }
+
+    const fetchLeaderboardData = async () => {
+      setLeaderboardLoading(true);
+      setLeaderboardError(null);
+      try {
+        // Convert period filter to API period
+        const apiPeriod = period === "city" ? "week" : period; // Default to week for city filter
+        const result = await getOneCikanlar(apiPeriod, period === "city" ? cityKey : null);
+        setLeaderboardData(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Kon leaderboard niet laden";
+        setLeaderboardError(message);
+        toast.error(message);
+      } finally {
+        setLeaderboardLoading(false);
+      }
+    };
+
+    fetchLeaderboardData();
+  }, [activeFilter, period, cityKey]);
+
+  // Show mascotte feedback when week feedback card appears
+  useEffect(() => {
+    if (weekFeedback && !weekFeedbackDismissed) {
+      showMascotteFeedback("week_active");
+    }
+  }, [weekFeedback, weekFeedbackDismissed, showMascotteFeedback]);
 
   // Handle reaction toggle
   const handleReactionToggle = useCallback(async (activityId: number, reactionType: ReactionType) => {
@@ -280,17 +380,6 @@ export default function FeedPage() {
     }
   }, [loadInitialData]);
 
-  // Handle card click navigation
-  const handleCardClick = useCallback((item: ActivityItem) => {
-    if (item.activity_type === "bulletin_post") {
-      navigate(`/#/feed?tab=bulletin&post=${item.payload?.bulletin_post_id || ""}`);
-    } else if (item.activity_type === "note" && item.location_id) {
-      // Navigate to location detail for notes (note_id can be added later if needed)
-      navigate(`/#/locations/${item.location_id}`);
-    } else if (item.location_id) {
-      navigate(`/#/locations/${item.location_id}`);
-    }
-  }, [navigate]);
 
   // Handle image click
   const handleImageClick = useCallback((imageUrl: string) => {
@@ -300,7 +389,7 @@ export default function FeedPage() {
 
   // Handle location click
   const handleLocationClick = useCallback((locationId: number) => {
-    navigate(`/#/locations/${locationId}`);
+    navigate(`/locations/${locationId}`);
   }, [navigate]);
 
   // Handle poll click
@@ -309,12 +398,27 @@ export default function FeedPage() {
     setPollModalOpen(true);
   }, []);
 
+  // Handle period change for Öne Çıkanlar
+  const handlePeriodChange = useCallback((newPeriod: PeriodFilter) => {
+    setPeriod(newPeriod);
+    // Reset cityKey when switching away from city filter
+    if (newPeriod !== "city") {
+      setCityKey(null);
+    }
+  }, []);
+
+  // Handle user click
+  const handleUserClick = useCallback((userId: string) => {
+    // Navigate to account page (or future user profile page)
+    navigate("/account");
+  }, [navigate]);
+
   // Transform feed items to FeedCard props
   const feedCardProps = useMemo(() => {
     return feedItems.map((item) =>
-      transformActivityItem(item, handleReactionToggle, handleBookmark, handleCardClick, handleImageClick, handleLocationClick, handlePollClick)
+      transformActivityItem(item, handleReactionToggle, handleBookmark, handleImageClick, handleLocationClick, handlePollClick, handleUserClick)
     );
-  }, [feedItems, handleReactionToggle, handleBookmark, handleCardClick, handleImageClick, handleLocationClick, handlePollClick]);
+  }, [feedItems, handleReactionToggle, handleBookmark, handleImageClick, handleLocationClick, handlePollClick, handleUserClick]);
 
   // Handle notification click (placeholder)
   const handleNotificationClick = useCallback(() => {
@@ -350,7 +454,44 @@ export default function FeedPage() {
         <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
           <GreetingBlock userName={userName} />
           <FeedFilterTabs activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-          {activeFilter === "all" ? (
+          {activeFilter === "one_cikanlar" && (
+            <PeriodTabs 
+              activePeriod={period} 
+              onPeriodChange={handlePeriodChange} 
+              className="mt-2" 
+            />
+          )}
+          {weekFeedback && !weekFeedbackDismissed && activeFilter !== "one_cikanlar" && (
+            <WeekFeedbackCard
+              message={weekFeedback.message}
+              onDismiss={() => {
+                // Save to localStorage that user has seen feedback this week
+                const storageKey = `week_feedback_${weekFeedback.week_start}`;
+                localStorage.setItem(storageKey, "true");
+                setWeekFeedbackDismissed(true);
+              }}
+              className="mt-2"
+            />
+          )}
+          {activeFilter === "one_cikanlar" ? (
+            <>
+              {leaderboardLoading && (
+                <div className="mt-4 text-center py-8 text-muted-foreground">Laden...</div>
+              )}
+              {leaderboardError && (
+                <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
+                  <p className="text-foreground">{leaderboardError}</p>
+                </div>
+              )}
+              {!leaderboardLoading && !leaderboardError && leaderboardData && (
+                <LeaderboardCards
+                  cards={leaderboardData.cards}
+                  onUserClick={handleUserClick}
+                  className="mt-2"
+                />
+              )}
+            </>
+          ) : activeFilter === "all" ? (
             <DashboardOverview className="mt-2" />
           ) : activeFilter === "poll_response" ? (
             <PollFeed className="mt-2" />

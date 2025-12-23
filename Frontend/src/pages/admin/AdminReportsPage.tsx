@@ -25,6 +25,7 @@ import {
   listAdminReports,
   updateAdminReport,
   removeReportedContent,
+  retireReportedLocation,
   type AdminReport,
   type AdminReportUpdateRequest,
 } from "@/lib/apiAdmin";
@@ -44,6 +45,9 @@ export default function AdminReportsPage() {
   const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const [reportToRemove, setReportToRemove] = useState<number | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [retireConfirmOpen, setRetireConfirmOpen] = useState(false);
+  const [reportToRetire, setReportToRetire] = useState<number | null>(null);
+  const [retiring, setRetiring] = useState(false);
 
   const loadReports = async () => {
     setLoading(true);
@@ -112,6 +116,28 @@ export default function AdminReportsPage() {
       toast.error("Kon content niet verwijderen", { description: err.message });
     } finally {
       setRemoving(false);
+    }
+  };
+
+  const handleRetireClick = (reportId: number) => {
+    setReportToRetire(reportId);
+    setRetireConfirmOpen(true);
+  };
+
+  const confirmRetire = async () => {
+    if (reportToRetire === null) return;
+
+    setRetiring(true);
+    try {
+      await retireReportedLocation(reportToRetire);
+      toast.success("Locatie geretired en report opgelost");
+      setRetireConfirmOpen(false);
+      setReportToRetire(null);
+      await loadReports();
+    } catch (err: any) {
+      toast.error("Kon locatie niet retiren", { description: err.message });
+    } finally {
+      setRetiring(false);
     }
   };
 
@@ -204,6 +230,9 @@ export default function AdminReportsPage() {
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Target ID: {report.target_id} ({report.report_type})
+                            {report.report_type === "location" && report.location_name && (
+                              <> • {report.location_name}</>
+                            )}
                           </p>
                           {report.details && (
                             <p className="text-sm text-muted-foreground mt-1">
@@ -224,6 +253,16 @@ export default function AdminReportsPage() {
                           >
                             <Icon name="Trash2" sizeRem={1} className="mr-2" />
                             Verwijder
+                          </Button>
+                        )}
+                        {report.report_type === "location" && report.status === "pending" && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRetireClick(report.id)}
+                          >
+                            <Icon name="XCircle" sizeRem={1} className="mr-2" />
+                            Retire
                           </Button>
                         )}
                         <Button
@@ -304,6 +343,27 @@ export default function AdminReportsPage() {
             </Button>
             <Button variant="destructive" onClick={confirmRemove} disabled={removing}>
               {removing ? "Verwijderen..." : "Verwijderen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={retireConfirmOpen} onOpenChange={setRetireConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Locatie Retiren</DialogTitle>
+            <DialogDescription>
+              Weet je zeker dat je deze locatie wilt retiren? De locatie wordt niet meer getoond in de app.
+              Deze actie kan niet ongedaan worden gemaakt zonder expliciete admin actie.
+              Het report zal automatisch als "resolved" gemarkeerd worden.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRetireConfirmOpen(false)} disabled={retiring}>
+              Annuleren
+            </Button>
+            <Button variant="destructive" onClick={confirmRetire} disabled={retiring}>
+              {retiring ? "Retiren..." : "Retire"}
             </Button>
           </DialogFooter>
         </DialogContent>

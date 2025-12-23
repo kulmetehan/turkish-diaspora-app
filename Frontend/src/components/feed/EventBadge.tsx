@@ -29,3 +29,5 @@ export function EventBadge({ label = "Event", className }: EventBadgeProps) {
 
 
 
+
+

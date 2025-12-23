@@ -12,13 +12,10 @@ OTHER_CATEGORY_KEY = "other"
 logger = get_logger()
 
 _FALLBACK_CATEGORIES: List[Dict[str, str]] = [
-    {"key": "community", "label": "Community"},
-    {"key": "religion", "label": "Religion"},
-    {"key": "culture", "label": "Culture"},
-    {"key": "business", "label": "Business"},
-    {"key": "education", "label": "Education"},
-    {"key": "sports", "label": "Sports"},
-    {"key": OTHER_CATEGORY_KEY, "label": "Other"},
+    {"key": "club", "label": "Club"},
+    {"key": "theater", "label": "Theater"},
+    {"key": "concert", "label": "Concert"},
+    {"key": "familie", "label": "Familie"},
 ]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

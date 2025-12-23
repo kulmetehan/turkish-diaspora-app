@@ -550,7 +550,10 @@ export default function UnifiedLocationDetail({
                                     return (
                                         <Button
                                             key={reactionType}
-                                            onClick={() => handleReaction(reactionType)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleReaction(reactionType);
+                                            }}
                                             disabled={isLoading}
                                             variant={isActive ? "default" : "outline"}
                                             size="sm"
@@ -827,7 +830,10 @@ export default function UnifiedLocationDetail({
                                     return (
                                         <Button
                                             key={reactionType}
-                                            onClick={() => handleReaction(reactionType)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleReaction(reactionType);
+                                            }}
                                             disabled={isLoading}
                                             variant={isActive ? "default" : "outline"}
                                             size="sm"
@@ -978,6 +984,9 @@ export default function UnifiedLocationDetail({
         </>
     );
 }
+
+
+
 
 
 

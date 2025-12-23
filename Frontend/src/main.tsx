@@ -36,6 +36,7 @@ const AdminReportsPage = React.lazy(() => import("@/pages/admin/AdminReportsPage
 const AdminBulletinModeration = React.lazy(() => import("@/pages/admin/AdminBulletinModeration"));
 const DiasporaPulsePage = React.lazy(() => import("@/pages/DiasporaPulsePage"));
 const PollDetailPage = React.lazy(() => import("@/pages/PollDetailPage"));
+const LocationDetailPage = React.lazy(() => import("@/pages/LocationDetailPage"));
 
 // Vite base path is configured in vite.config.ts (defaults to "/" for Render deployment)
 
@@ -64,6 +65,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/events" element={<App initialTab="events" />} />
           <Route path="/feed" element={<App initialTab="feed" />} />
           <Route path="/account" element={<App initialTab="account" />} />
+          <Route path="/locations/:id" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <LocationDetailPage />
+            </Suspense>
+          } />
         </Route>
         <Route path="/ui-kit" element={<UiKit />} />
         <Route path="/login" element={<LoginPage />} />

@@ -1,17 +1,20 @@
 # Backend/api/routers/profiles.py
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from starlette.requests import Request
 from typing import Optional, List, Literal
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from app.core.feature_flags import require_feature
 from app.core.client_id import get_client_id
-from services.db_service import fetch, execute
+from app.deps.auth import get_current_user, get_current_user_optional, User
+from services.db_service import fetch, fetchrow, execute
 from services.xp_service import award_xp
 from services.badge_service import _award_badge
+from services.activity_summary_service import update_user_activity_summary
+from services.role_service import assign_role, ROLE_YENI_GELEN
 
 router = APIRouter(prefix="/users", tags=["profiles"])
 
@@ -63,17 +66,54 @@ class OnboardingCompleteResponse(BaseModel):
     badge_earned: Optional[str] = None
 
 
+class ActivitySummaryResponse(BaseModel):
+    user_id: str
+    last_4_weeks_active_days: int
+    last_activity_date: Optional[datetime]
+    total_söz_count: int
+    total_check_in_count: int
+    total_poll_response_count: int
+    city_key: Optional[str]
+    updated_at: datetime
+
+
+class WeekFeedbackResponse(BaseModel):
+    should_show: bool
+    message: str
+    week_start: datetime
+
+
 @router.get("/me", response_model=CurrentUserResponse)
-async def get_current_user(
+async def get_user_profile(
     request: Request,
-    # TODO: user_id: UUID = Depends(get_current_user_required),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Get current user profile (name and avatar).
     Returns null values for anonymous users or if no profile exists.
     """
-    # TODO: Extract user_id from auth session when available
-    user_id = None
+    # #region agent log
+    import json
+    log_data = {
+        "location": "profiles.py:87",
+        "message": "get_user_profile entry",
+        "data": {
+            "user_exists": user is not None,
+            "user_id": str(user.user_id) if user else None,
+        },
+        "timestamp": int(__import__("time").time() * 1000),
+        "sessionId": "debug-session",
+        "runId": "run1",
+        "hypothesisId": "D"
+    }
+    try:
+        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
+            f.write(json.dumps(log_data) + "\n")
+    except:
+        pass
+    # #endregion
+    
+    user_id = user.user_id if user else None
     
     if not user_id:
         # Return null values for anonymous users
@@ -87,10 +127,85 @@ async def get_current_user(
     """
     rows = await fetch(sql, user_id)
     
+    # #region agent log
+    log_data = {
+        "location": "profiles.py:107",
+        "message": "get_user_profile after fetch",
+        "data": {
+            "user_id": str(user_id),
+            "rows_count": len(rows) if rows else 0,
+            "row_display_name": rows[0].get("display_name") if rows and len(rows) > 0 else None,
+            "row_avatar_url": rows[0].get("avatar_url") if rows and len(rows) > 0 else None,
+            "row_avatar_url_length": len(rows[0].get("avatar_url")) if rows and len(rows) > 0 and rows[0].get("avatar_url") else 0,
+        },
+        "timestamp": int(__import__("time").time() * 1000),
+        "sessionId": "debug-session",
+        "runId": "run1",
+        "hypothesisId": "D"
+    }
+    try:
+        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
+            f.write(json.dumps(log_data) + "\n")
+    except:
+        pass
+    # #endregion
+    
     if not rows:
         return CurrentUserResponse(name=None, avatar_url=None)
     
     row = rows[0]
+    # #region agent log
+    import json
+    import os
+    from datetime import datetime, timezone
+    log_data = {
+        "location": "profiles.py:107",
+        "message": "get_user_profile after fetch",
+        "data": {
+            "user_id": str(user_id),
+            "rows_count": len(rows),
+            "row_display_name": row.get("display_name"),
+            "row_avatar_url": row.get("avatar_url"),
+            "row_avatar_url_length": len(row.get("avatar_url")) if row.get("avatar_url") else 0,
+        },
+        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+        "sessionId": "debug-session",
+        "runId": "run3",
+        "hypothesisId": "H"
+    }
+    try:
+        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
+            f.write(json.dumps(log_data) + "\n")
+    except:
+        pass
+    # #endregion
+    # #region agent log
+    log_data = {
+        "location": "profiles.py:180",
+        "message": "get_user_profile returning",
+        "data": {
+            "user_id": str(user_id),
+            "display_name": row.get("display_name"),
+            "display_name_type": type(row.get("display_name")).__name__,
+            "display_name_length": len(row.get("display_name")) if row.get("display_name") else 0,
+            "avatar_url": row.get("avatar_url"),
+            "avatar_url_length": len(row.get("avatar_url")) if row.get("avatar_url") else 0,
+        },
+        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+        "sessionId": "debug-session",
+        "runId": "run3",
+        "hypothesisId": "I"
+    }
+    try:
+        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
+            f.write(json.dumps(log_data) + "\n")
+    except:
+        pass
+    # #endregion
+    # NOTE: We do NOT normalize display_name here (unlike in activity endpoints)
+    # because users should see their actual display_name in their profile,
+    # even if it's a UUID. The normalization only happens in activity feeds
+    # where we want to show "Anonieme gebruiker" instead of UUIDs.
     return CurrentUserResponse(
         name=row.get("display_name"),
         avatar_url=row.get("avatar_url"),
@@ -134,22 +249,120 @@ async def get_user_profile(
     )
 
 
+@router.get("/me/check-username")
+async def check_username_available(
+    username: str = Query(..., min_length=2, max_length=50),
+    user: User = Depends(get_current_user),
+):
+    """Check if username is available (case-insensitive, excluding current user)."""
+    require_feature("check_ins_enabled")
+    
+    # Normalize username (trim and lowercase for comparison)
+    normalized_username = username.strip().lower()
+    
+    # Check if username exists for other users
+    sql = """
+        SELECT id FROM user_profiles 
+        WHERE LOWER(TRIM(display_name)) = $1 
+        AND id != $2::uuid
+    """
+    rows = await fetch(sql, normalized_username, user.user_id)
+    return {"available": len(rows) == 0}
+
+
+class UsernameChangeStatusResponse(BaseModel):
+    can_change: bool
+    last_change: Optional[datetime] = None
+    next_change_available: Optional[datetime] = None
+    days_remaining: int = 0
+
+
+@router.get("/me/username-change-status", response_model=UsernameChangeStatusResponse)
+async def get_username_change_status(
+    user: User = Depends(get_current_user),
+):
+    """Check if user can change username (1x per month limit)."""
+    require_feature("check_ins_enabled")
+    
+    sql = """
+        SELECT display_name, last_username_change
+        FROM user_profiles
+        WHERE id = $1::uuid
+    """
+    rows = await fetch(sql, user.user_id)
+    
+    if not rows:
+        return UsernameChangeStatusResponse(
+            can_change=True,
+            last_change=None,
+            next_change_available=None,
+            days_remaining=0,
+        )
+    
+    row = rows[0]
+    display_name = row.get("display_name")
+    last_change = row.get("last_username_change")
+    
+    # Special case: If display_name equals user_id (UUID), allow change regardless of limit
+    # This fixes cases where UUID was accidentally saved as display_name
+    current_is_uuid = display_name and display_name.strip() == str(user.user_id)
+    
+    if current_is_uuid:
+        return UsernameChangeStatusResponse(
+            can_change=True,
+            last_change=last_change,
+            next_change_available=None,
+            days_remaining=0,
+        )
+    
+    if not last_change:
+        return UsernameChangeStatusResponse(
+            can_change=True,
+            last_change=None,
+            next_change_available=None,
+            days_remaining=0,
+        )
+    
+    # Parse datetime if it's a string
+    if isinstance(last_change, str):
+        from dateutil import parser
+        last_change = parser.parse(last_change)
+    
+    # Ensure timezone-aware
+    if last_change.tzinfo is None:
+        last_change = last_change.replace(tzinfo=timezone.utc)
+    else:
+        last_change = last_change.astimezone(timezone.utc)
+    
+    # Calculate days since change
+    now = datetime.now(timezone.utc)
+    days_since_change = (now - last_change).days
+    
+    can_change = days_since_change >= 30
+    days_remaining = max(0, 30 - days_since_change) if not can_change else 0
+    next_change_available = (last_change + timedelta(days=30)) if not can_change else None
+    
+    return UsernameChangeStatusResponse(
+        can_change=can_change,
+        last_change=last_change,
+        next_change_available=next_change_available,
+        days_remaining=days_remaining,
+    )
+
+
 @router.put("/me/profile", response_model=UserProfile)
 async def update_user_profile(
     request: Request,
     profile: UserProfileUpdate,
-    # TODO: user_id: UUID = Depends(get_current_user_required),
+    user: User = Depends(get_current_user),
 ):
     """Update own user profile. Requires authentication."""
     require_feature("check_ins_enabled")
     
-    user_id = None  # TODO: Extract from auth session when available
+    user_id = user.user_id
     
-    if not user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required to update profile"
-        )
+    # Track if username changed (will be used later to update last_username_change)
+    username_changed = False
     
     # Validate display_name if provided
     if profile.display_name is not None:
@@ -164,6 +377,62 @@ async def update_user_profile(
                 status_code=400,
                 detail="Display name must be at most 50 characters"
             )
+        
+        # Check username uniqueness (case-insensitive)
+        check_sql = """
+            SELECT id FROM user_profiles 
+            WHERE LOWER(TRIM(display_name)) = LOWER(TRIM($1)) 
+            AND id != $2::uuid
+        """
+        existing = await fetch(check_sql, display_name, user_id)
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail="Username already taken"
+            )
+        
+        # Check if username actually changed and enforce 1x per month limit
+        current_sql = """
+            SELECT display_name, last_username_change
+            FROM user_profiles
+            WHERE id = $1::uuid
+        """
+        current_rows = await fetch(current_sql, user_id)
+        current_display_name = current_rows[0].get("display_name") if current_rows else None
+        
+        # Check if username actually changed
+        if current_display_name and current_display_name.strip().lower() != display_name.lower():
+            username_changed = True
+            
+            # Special case: If current display_name equals user_id (UUID), allow change regardless of limit
+            # This fixes cases where UUID was accidentally saved as display_name
+            current_is_uuid = current_display_name.strip() == str(user_id)
+            
+            if not current_is_uuid:
+                # Only enforce 30-day limit if current display_name is NOT a UUID
+                last_change = current_rows[0].get("last_username_change")
+                if last_change:
+                    # Parse datetime if it's a string
+                    if isinstance(last_change, str):
+                        from dateutil import parser
+                        last_change = parser.parse(last_change)
+                    
+                    # Ensure timezone-aware
+                    if last_change.tzinfo is None:
+                        last_change = last_change.replace(tzinfo=timezone.utc)
+                    else:
+                        last_change = last_change.astimezone(timezone.utc)
+                    
+                    # Check if 30 days have passed
+                    now = datetime.now(timezone.utc)
+                    days_since_change = (now - last_change).days
+                    
+                    if days_since_change < 30:
+                        days_remaining = 30 - days_since_change
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Username can only be changed once per month. Next change available in {days_remaining} days."
+                        )
     
     # Validate language_pref if provided
     if profile.language_pref is not None:
@@ -176,7 +445,8 @@ async def update_user_profile(
     # Build update SQL dynamically
     updates = []
     values = []
-    param_num = 1
+    # Start parameter numbering at 6 because INSERT uses $1-$5
+    param_num = 6
     
     if profile.display_name is not None:
         updates.append(f"display_name = ${param_num}")
@@ -222,6 +492,10 @@ async def update_user_profile(
         updates.append(f"gender = ${param_num}")
         values.append(profile.gender)
         param_num += 1
+    
+    # Add last_username_change if username changed
+    if username_changed:
+        updates.append("last_username_change = now()")
     
     if not updates:
         raise HTTPException(
@@ -273,15 +547,93 @@ async def update_user_profile(
         "language_pref": profile.language_pref if profile.language_pref is not None else current["language_pref"],
     }
     
+    # #region agent log
+    import json
+    from datetime import datetime, timezone
+    log_data = {
+        "location": "profiles.py:490",
+        "message": "update_user_profile final_values before upsert",
+        "data": {
+            "user_id": str(user_id),
+            "profile_display_name_provided": profile.display_name,
+            "current_display_name": current["display_name"],
+            "final_display_name": final_values["display_name"],
+            "final_display_name_length": len(final_values["display_name"]) if final_values["display_name"] else 0,
+        },
+        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+        "sessionId": "debug-session",
+        "runId": "run3",
+        "hypothesisId": "J"
+    }
+    try:
+        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
+            f.write(json.dumps(log_data) + "\n")
+    except:
+        pass
+    # #endregion
+    
+    # #region agent log
+    import json
+    import os
+    log_data = {
+        "location": "profiles.py:422",
+        "message": "final_values before upsert",
+        "data": {
+            "user_id": str(user_id),
+            "avatar_url_provided": profile.avatar_url,
+            "avatar_url_final": final_values["avatar_url"],
+            "avatar_url_final_length": len(final_values["avatar_url"]) if final_values["avatar_url"] else 0,
+            "current_avatar_url": current["avatar_url"],
+        },
+        "timestamp": int(__import__("time").time() * 1000),
+        "sessionId": "debug-session",
+        "runId": "run1",
+        "hypothesisId": "A"
+    }
+    try:
+        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
+            f.write(json.dumps(log_data) + "\n")
+    except:
+        pass
+    # #endregion
+    
     # Execute upsert
-    result_rows = await fetch(
-        upsert_sql,
-        user_id,
-        final_values["display_name"],
-        final_values["avatar_url"],
-        final_values["city_key"],
-        final_values["language_pref"],
-    )
+    # Parameters: $1-$5 for INSERT, $6+ for UPDATE SET
+    all_params = [
+        user_id,  # $1
+        final_values["display_name"],  # $2
+        final_values["avatar_url"],  # $3
+        final_values["city_key"],  # $4
+        final_values["language_pref"],  # $5
+    ] + values  # $6+ for UPDATE SET
+    
+    result_rows = await fetch(upsert_sql, *all_params)
+    
+    # #region agent log
+    import json
+    from datetime import datetime, timezone
+    log_data = {
+        "location": "profiles.py:540",
+        "message": "update_user_profile upsert result",
+        "data": {
+            "user_id": str(user_id),
+            "result_rows_count": len(result_rows) if result_rows else 0,
+            "returned_display_name": result_rows[0].get("display_name") if result_rows and len(result_rows) > 0 else None,
+            "returned_display_name_length": len(result_rows[0].get("display_name")) if result_rows and len(result_rows) > 0 and result_rows[0].get("display_name") else 0,
+            "returned_avatar_url": result_rows[0].get("avatar_url") if result_rows and len(result_rows) > 0 else None,
+            "returned_avatar_url_length": len(result_rows[0].get("avatar_url")) if result_rows and len(result_rows) > 0 and result_rows[0].get("avatar_url") else 0,
+        },
+        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+        "sessionId": "debug-session",
+        "runId": "run3",
+        "hypothesisId": "K"
+    }
+    try:
+        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
+            f.write(json.dumps(log_data) + "\n")
+    except:
+        pass
+    # #endregion
     
     if not result_rows:
         raise HTTPException(status_code=500, detail="Failed to update profile")
@@ -302,13 +654,13 @@ async def update_user_profile(
 async def get_onboarding_status(
     request: Request,
     client_id: Optional[str] = Depends(get_client_id),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Get onboarding status for current user.
     Returns first_run=true for anonymous users or if no profile exists.
     """
-    # TODO: Extract user_id from auth session when available
-    user_id = None
+    user_id = user.user_id if user else None
     
     if not user_id:
         # Anonymous users or no profile: return first_run=true
@@ -347,14 +699,14 @@ async def complete_onboarding(
     request: Request,
     data: OnboardingCompleteRequest,
     client_id: Optional[str] = Depends(get_client_id),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """
     Complete onboarding flow.
     Updates user profile (authenticated) or onboarding_responses (anonymous) with onboarding data.
     Awards XP and badge for authenticated users.
     """
-    # TODO: Extract user_id from auth session when available
-    user_id = None
+    user_id = user.user_id if user else None
     
     # Require either user_id (authenticated) or client_id (anonymous)
     if not user_id and not client_id:
@@ -443,6 +795,55 @@ async def complete_onboarding(
                 from app.core.logging import get_logger
                 logger = get_logger()
                 logger.warning("onboarding_badge_award_failed", user_id=user_id, error=str(e))
+            
+            # Assign "yeni_gelen" role (only for authenticated users)
+            role_assigned = False
+            try:
+                await assign_role(
+                    user_id=user_id,
+                    role=ROLE_YENI_GELEN,
+                    city_key=home_city_key,
+                    is_primary=True
+                )
+                # Verify role was assigned successfully
+                verify_sql = """
+                    SELECT primary_role FROM user_roles WHERE user_id = $1
+                """
+                verify_row = await fetchrow(verify_sql, user_id)
+                if verify_row and verify_row.get("primary_role") == ROLE_YENI_GELEN:
+                    role_assigned = True
+                    from app.core.logging import get_logger
+                    logger = get_logger()
+                    logger.info(
+                        "onboarding_role_assignment_success",
+                        user_id=str(user_id),
+                        role=ROLE_YENI_GELEN,
+                        city_key=home_city_key
+                    )
+                else:
+                    from app.core.logging import get_logger
+                    logger = get_logger()
+                    logger.error(
+                        "onboarding_role_assignment_verification_failed",
+                        user_id=str(user_id),
+                        expected_role=ROLE_YENI_GELEN,
+                        actual_role=verify_row.get("primary_role") if verify_row else None
+                    )
+            except Exception as e:
+                # Log with full details for debugging
+                from app.core.logging import get_logger
+                logger = get_logger()
+                logger.error(
+                    "onboarding_role_assignment_failed",
+                    extra={
+                        "user_id": str(user_id),
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "home_city_key": home_city_key,
+                        "role": ROLE_YENI_GELEN,
+                    },
+                    exc_info=True
+                )
         else:
             # Anonymous user: upsert onboarding_responses
             upsert_sql = """
@@ -500,6 +901,348 @@ async def complete_onboarding(
         )
 
 
+@router.get("/me/activity-summary", response_model=ActivitySummaryResponse)
+async def get_my_activity_summary(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """
+    Get activity summary for the current authenticated user.
+    Creates summary if it doesn't exist (lazy initialization).
+    """
+    require_feature("check_ins_enabled")
+    
+    user_id = user.user_id
+    
+    # Try to fetch existing summary
+    sql = """
+        SELECT 
+            user_id,
+            last_4_weeks_active_days,
+            last_activity_date,
+            total_söz_count,
+            total_check_in_count,
+            total_poll_response_count,
+            city_key,
+            updated_at
+        FROM user_activity_summary
+        WHERE user_id = $1
+    """
+    rows = await fetch(sql, user_id)
+    
+    if not rows:
+        # Summary doesn't exist, create it via service (lazy initialization)
+        await update_user_activity_summary(user_id=user_id)
+        
+        # Fetch again after creation
+        rows = await fetch(sql, user_id)
+        
+        if not rows:
+            # Still not found after creation, return empty summary
+            return ActivitySummaryResponse(
+                user_id=str(user_id),
+                last_4_weeks_active_days=0,
+                last_activity_date=None,
+                total_söz_count=0,
+                total_check_in_count=0,
+                total_poll_response_count=0,
+                city_key=None,
+                updated_at=datetime.now(),
+            )
+    
+    row = rows[0]
+    return ActivitySummaryResponse(
+        user_id=str(row["user_id"]),
+        last_4_weeks_active_days=int(row.get("last_4_weeks_active_days", 0) or 0),
+        last_activity_date=row.get("last_activity_date"),
+        total_söz_count=int(row.get("total_söz_count", 0) or 0),
+        total_check_in_count=int(row.get("total_check_in_count", 0) or 0),
+        total_poll_response_count=int(row.get("total_poll_response_count", 0) or 0),
+        city_key=row.get("city_key"),
+        updated_at=row.get("updated_at"),
+    )
+
+
+@router.get("/me/week-feedback", response_model=WeekFeedbackResponse)
+async def get_week_feedback(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """
+    Get week-feedback status for the current authenticated user.
+    Returns whether to show the week-feedback card in the feed.
+    """
+    require_feature("check_ins_enabled")
+    
+    user_id = str(user.user_id)
+    
+    # Calculate current week start (Monday 00:00:00 UTC)
+    now = datetime.now(timezone.utc)
+    days_since_monday = now.weekday()  # Monday = 0
+    week_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+    
+    # Fetch activity summary
+    sql = """
+        SELECT 
+            last_4_weeks_active_days,
+            last_activity_date
+        FROM user_activity_summary
+        WHERE user_id = $1
+    """
+    rows = await fetch(sql, user_id)
+    
+    if not rows:
+        # No activity summary, user hasn't been active
+        return WeekFeedbackResponse(
+            should_show=False,
+            message="Bu hafta aktiftin. Mahalle seni gördü.",
+            week_start=week_start,
+        )
+    
+    row = rows[0]
+    last_activity_date = row.get("last_activity_date")
+    last_4_weeks_active_days = int(row.get("last_4_weeks_active_days", 0) or 0)
+    
+    # Normalize last_activity_date to UTC-aware datetime if it exists
+    if last_activity_date:
+        if isinstance(last_activity_date, datetime):
+            # If naive, assume UTC; if aware, convert to UTC
+            if last_activity_date.tzinfo is None:
+                last_activity_date = last_activity_date.replace(tzinfo=timezone.utc)
+            else:
+                last_activity_date = last_activity_date.astimezone(timezone.utc)
+    
+    # Check if user was active this week
+    # User is considered active this week if:
+    # 1. They have at least 1 active day in last 4 weeks
+    # 2. Their last activity was within the current week
+    should_show = False
+    if last_4_weeks_active_days >= 1 and last_activity_date:
+        # Check if last activity was within current week
+        if last_activity_date >= week_start:
+            should_show = True
+    
+        return WeekFeedbackResponse(
+            should_show=should_show,
+            message="Bu hafta aktiftin. Mahalle seni gördü.",
+            week_start=week_start,
+        )
+
+
+class NoteSummary(BaseModel):
+    id: int
+    location_id: int
+    location_name: str
+    content_preview: str
+    created_at: datetime
+
+
+class CheckInSummary(BaseModel):
+    id: int
+    location_id: int
+    location_name: str
+    created_at: datetime
+
+
+class ContributionsResponse(BaseModel):
+    last_notes: List[NoteSummary]
+    last_check_ins: List[CheckInSummary]
+    poll_response_count: int
+
+
+@router.get("/me/contributions", response_model=ContributionsResponse)
+async def get_my_contributions(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """
+    Get recent contributions for the current authenticated user.
+    Returns last 3 notes, last 3 check-ins, and poll response count.
+    """
+    require_feature("check_ins_enabled")
+    
+    user_id = user.user_id
+    
+    # Fetch last 3 notes
+    notes_sql = """
+        SELECT 
+            ln.id,
+            ln.location_id,
+            l.name as location_name,
+            LEFT(ln.content, 50) as content_preview,
+            ln.created_at
+        FROM location_notes ln
+        JOIN locations l ON ln.location_id = l.id
+        WHERE ln.user_id = $1
+        ORDER BY ln.created_at DESC
+        LIMIT 3
+    """
+    notes_rows = await fetch(notes_sql, user_id)
+    last_notes = [
+        NoteSummary(
+            id=row["id"],
+            location_id=row["location_id"],
+            location_name=row.get("location_name", "Unknown"),
+            content_preview=row.get("content_preview", ""),
+            created_at=row["created_at"],
+        )
+        for row in notes_rows
+    ]
+    
+    # Fetch last 3 check-ins
+    check_ins_sql = """
+        SELECT 
+            ci.id,
+            ci.location_id,
+            l.name as location_name,
+            ci.created_at
+        FROM check_ins ci
+        JOIN locations l ON ci.location_id = l.id
+        WHERE ci.user_id = $1
+        ORDER BY ci.created_at DESC
+        LIMIT 3
+    """
+    check_ins_rows = await fetch(check_ins_sql, user_id)
+    last_check_ins = [
+        CheckInSummary(
+            id=row["id"],
+            location_id=row["location_id"],
+            location_name=row.get("location_name", "Unknown"),
+            created_at=row["created_at"],
+        )
+        for row in check_ins_rows
+    ]
+    
+    # Count poll responses
+    poll_sql = """
+        SELECT COUNT(*) as count
+        FROM activity_stream
+        WHERE actor_id = $1
+        AND actor_type = 'user'
+        AND activity_type = 'poll_response'
+    """
+    poll_rows = await fetch(poll_sql, user_id)
+    poll_response_count = int(poll_rows[0].get("count", 0) or 0) if poll_rows else 0
+    
+    return ContributionsResponse(
+        last_notes=last_notes,
+        last_check_ins=last_check_ins,
+        poll_response_count=poll_response_count,
+    )
+
+
+class RecognitionEntry(BaseModel):
+    category: str
+    title: str
+    period: str
+    rank: int
+    context: Optional[str] = None
+
+
+class RecognitionResponse(BaseModel):
+    recognitions: List[RecognitionEntry]
+
+
+def _get_category_title(category: str) -> str:
+    """Get display title for a leaderboard category."""
+    titles = {
+        "soz_hafta": "Bu Haftanın Sözü",
+        "mahalle_gururu": "Mahallenin Gururu",
+        "sessiz_guç": "Sessiz Güç",
+        "diaspora_nabzı": "Diaspora Nabzı",
+    }
+    return titles.get(category, category)
+
+
+def _determine_period(period_start: datetime, period_end: datetime) -> str:
+    """Determine period string from period bounds."""
+    now = datetime.now(timezone.utc)
+    
+    # Calculate time differences
+    time_since_start = now - period_start
+    time_until_end = period_end - now
+    
+    # If period started today, it's "today"
+    if time_since_start.days == 0:
+        return "today"
+    # If period started within last 7 days, it's "week"
+    elif time_since_start.days < 7:
+        return "week"
+    # Otherwise, it's "month"
+    else:
+        return "month"
+
+
+@router.get("/me/recognition", response_model=RecognitionResponse)
+async def get_my_recognition(
+    request: Request,
+    user: User = Depends(get_current_user),
+):
+    """
+    Get active recognitions for the current authenticated user.
+    Returns leaderboard entries where the user is currently ranked.
+    """
+    require_feature("check_ins_enabled")
+    
+    user_id = user.user_id
+    
+    # Query active leaderboard entries for this user
+    sql = """
+        SELECT 
+            le.category,
+            le.rank,
+            le.period_start,
+            le.period_end,
+            le.context_data
+        FROM leaderboard_entries le
+        WHERE le.user_id = $1
+        AND le.period_start <= NOW()
+        AND le.period_end >= NOW()
+        AND le.rank IS NOT NULL
+        ORDER BY le.period_start DESC
+    """
+    
+    rows = await fetch(sql, user_id)
+    
+    recognitions: List[RecognitionEntry] = []
+    for row in rows:
+        category = row.get("category")
+        rank = row.get("rank")
+        period_start = row.get("period_start")
+        period_end = row.get("period_end")
+        context_data = row.get("context_data") or {}
+        
+        # Determine period string
+        period = _determine_period(period_start, period_end)
+        
+        # Get display title
+        title = _get_category_title(category)
+        
+        # Extract context from context_data
+        context = None
+        if isinstance(context_data, dict):
+            if context_data.get("location_id"):
+                # Try to get location name
+                loc_sql = "SELECT name FROM locations WHERE id = $1"
+                loc_rows = await fetch(loc_sql, context_data.get("location_id"))
+                if loc_rows:
+                    context = loc_rows[0].get("name")
+            elif context_data.get("note_id"):
+                context = f"Söz #{context_data.get('note_id')}"
+            elif context_data.get("poll_id"):
+                context = f"Poll #{context_data.get('poll_id')}"
+        
+        recognitions.append(
+            RecognitionEntry(
+                category=category,
+                title=title,
+                period=period,
+                rank=rank,
+                context=context,
+            )
+        )
+    
+    return RecognitionResponse(recognitions=recognitions)
 
 
 

@@ -11,6 +11,7 @@ from app.deps.admin_auth import AdminUser, verify_admin_user
 from app.models.admin_events import (
     AdminEventCandidateItem,
     AdminEventCandidateListResponse,
+    AdminEventCategoryUpdateRequest,
     AdminEventRawItem,
     AdminEventRawListResponse,
     AdminEventDuplicateCluster,
@@ -25,6 +26,7 @@ from services.event_candidate_service import (
     list_event_candidates,
     list_candidate_duplicates,
     update_event_candidate_state,
+    update_event_category,
 )
 from services.event_enrichment_service import EventEnrichmentService
 from services.event_raw_service import (
@@ -161,6 +163,7 @@ def _record_to_candidate_item(record: EventCandidateRecord) -> AdminEventCandida
         duplicate_score=record.duplicate_score,
         has_duplicates=record.has_duplicates,
         state=record.state,  # type: ignore[arg-type]
+        event_category=record.event_category,
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
@@ -417,6 +420,51 @@ async def bulk_publish_event_candidates(
         "success_count": len(published),
         "error_count": len(errors),
     }
+
+
+@router.patch(
+    "/candidates/{candidate_id}/category",
+    response_model=AdminEventCandidateItem,
+)
+async def update_event_category_endpoint(
+    candidate_id: int = Path(..., description="Event candidate ID"),
+    request: AdminEventCategoryUpdateRequest = Body(...),
+    admin: AdminUser = Depends(verify_admin_user),
+) -> AdminEventCandidateItem:
+    """
+    Update event category for a candidate event.
+    Updates both events_candidate.event_category and event_raw.category_key.
+    """
+    try:
+        record = await update_event_category(
+            candidate_id=candidate_id,
+            category_key=request.category,
+            actor_email=admin.email,
+        )
+        
+        logger.info(
+            "admin_event_category_updated",
+            candidate_id=candidate_id,
+            category=request.category,
+            admin=admin.email,
+        )
+        
+        return _record_to_candidate_item(record)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="event candidate not found") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error(
+            "admin_event_category_update_failed",
+            candidate_id=candidate_id,
+            error=str(exc),
+            admin=admin.email,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to update event category: {str(exc)}",
+        ) from exc
 
 
 @router.get(

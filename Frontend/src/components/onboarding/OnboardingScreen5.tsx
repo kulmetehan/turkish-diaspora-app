@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 import { MascotteAvatar } from "./MascotteAvatar";
 
 export interface OnboardingScreen5Props {
-  onComplete: () => void;
+  onComplete?: () => void;
+  onNext?: () => void;
 }
 
-export function OnboardingScreen5({ onComplete }: OnboardingScreen5Props) {
+export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props) {
   const [showFirstText, setShowFirstText] = useState(false);
   const [showSecondText, setShowSecondText] = useState(false);
 
@@ -82,32 +83,30 @@ export function OnboardingScreen5({ onComplete }: OnboardingScreen5Props) {
       </div>
 
       {/* Badge display */}
-      <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 px-6 py-4">
+      <div className="mb-8 rounded-lg border border-primary/20 bg-primary/5 px-6 py-4">
         <div className="text-center">
           <div className="mb-2 text-2xl">🎉</div>
-          <div className="font-semibold text-foreground">Titel ontgrendeld</div>
+          <div className="font-semibold text-foreground">Artık bu mahallenin bir parçasısın</div>
           <div className="text-lg text-primary">Nieuwkomer</div>
         </div>
       </div>
 
-      {/* XP hint */}
-      <div className="mb-8 text-center">
-        <div className="text-sm text-muted-foreground">+10 XP</div>
-      </div>
-
       {/* Primary CTA */}
       <Button
-        onClick={onComplete}
+        onClick={onNext || onComplete}
         size="lg"
         variant="default"
         className="min-w-[200px] font-gilroy"
-        aria-label="Naar de feed"
+        aria-label={onNext ? "Verder" : "Naar de feed"}
       >
-        Naar de feed
+        {onNext ? "Verder" : "Naar de feed"}
       </Button>
     </div>
   );
 }
+
+
+
 
 
 

@@ -11,12 +11,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAdminEventSources } from "@/hooks/useAdminEventSources";
 import {
+    EVENT_CATEGORY_LABELS,
+    type EventCategoryKey,
+} from "@/lib/routing/eventCategories";
+import {
     flushAllEventsAdmin,
     getEventCandidateDuplicatesAdmin,
     getEventStateMetricsAdmin,
     listEventCandidatesAdmin,
     publishEventCandidateAdmin,
     rejectEventCandidateAdmin,
+    updateEventCategoryAdmin,
     verifyEventCandidateAdmin,
     type AdminEventCandidate,
     type AdminEventDuplicateCluster,
@@ -47,6 +52,7 @@ export default function AdminEventsPage() {
     const [events, setEvents] = useState<AdminEventCandidate[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [actionPendingId, setActionPendingId] = useState<number | null>(null);
+    const [categoryUpdatingId, setCategoryUpdatingId] = useState<number | null>(null);
     const [offset, setOffset] = useState<number>(0);
     const [total, setTotal] = useState<number>(0);
     const [duplicatesDialogOpen, setDuplicatesDialogOpen] = useState<boolean>(false);
@@ -187,6 +193,25 @@ export default function AdminEventsPage() {
             setDuplicatesDialogOpen(false);
         } finally {
             setDuplicatesLoading(false);
+        }
+    };
+
+    const handleCategoryChange = async (id: number, category: string) => {
+        setCategoryUpdatingId(id);
+        try {
+            const updated = await updateEventCategoryAdmin(id, category);
+            // Update the event in the local state
+            setEvents((prev) =>
+                prev.map((event) => (event.id === id ? updated : event))
+            );
+            const categoryLabel = category
+                ? EVENT_CATEGORY_LABELS[category as EventCategoryKey] || category
+                : "—";
+            toast.success(`Category updated to ${categoryLabel}`);
+        } catch (err: any) {
+            toast.error(err?.message || "Failed to update category");
+        } finally {
+            setCategoryUpdatingId(null);
         }
     };
 
@@ -338,6 +363,8 @@ export default function AdminEventsPage() {
                 onPublish={(id) => handleAction(id, "publish")}
                 onReject={(id) => handleAction(id, "reject")}
                 onInspectDuplicates={handleInspectDuplicates}
+                onCategoryChange={handleCategoryChange}
+                categoryUpdatingId={categoryUpdatingId}
             />
 
             <div className="flex items-center justify-between">
