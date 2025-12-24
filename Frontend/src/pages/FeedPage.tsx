@@ -168,13 +168,6 @@ export default function FeedPage() {
     getCurrentUser()
       .then((user) => {
         setUserName(user?.name || null);
-        // Profile guard: Check if user is authenticated but missing username
-        // If so, show onboarding (which will include username setup)
-        if (user && !user.name) {
-          // User is authenticated but missing username - show onboarding
-          console.log("[FeedPage] User authenticated but missing username, showing onboarding");
-          setShowOnboarding(true);
-        }
       })
       .catch((error) => {
         console.error("Failed to load user profile:", error);

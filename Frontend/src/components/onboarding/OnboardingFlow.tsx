@@ -1,7 +1,8 @@
 // Onboarding Flow - Main orchestrator component
 import { useNewsCityPreferences } from "@/hooks/useNewsCityPreferences";
+import { useUserAuth } from "@/hooks/useUserAuth";
 import { completeOnboarding, type OnboardingData } from "@/lib/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { OnboardingScreen0 } from "./OnboardingScreen0";
 import { OnboardingScreen1 } from "./OnboardingScreen1";
@@ -30,6 +31,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   // Hook for managing news city preferences
   const { savePreferences, rememberCityLabels } = useNewsCityPreferences();
+  
+  // Check authentication status to conditionally show Screen 6
+  const { isAuthenticated } = useUserAuth();
 
   const handleScreen0Next = () => {
     setCurrentScreen(1);
@@ -66,7 +70,13 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleScreen5Next = () => {
-    setCurrentScreen(6);
+    // Only proceed to Screen 6 if user is authenticated
+    if (isAuthenticated) {
+      setCurrentScreen(6);
+    } else {
+      // For anonymous users, complete onboarding directly
+      handleScreen5Complete();
+    }
   };
 
   const handleScreen6Complete = async () => {
@@ -182,6 +192,13 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   };
 
+  // Safety check: If we're on Screen 6 but user is not authenticated, complete onboarding
+  useEffect(() => {
+    if (currentScreen === 6 && !isAuthenticated) {
+      handleScreen5Complete();
+    }
+  }, [currentScreen, isAuthenticated]);
+
   // Render current screen
   switch (currentScreen) {
     case 0:
@@ -195,9 +212,20 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     case 4:
       return <OnboardingScreen4 onNext={handleScreen4Next} />;
     case 5:
-      return <OnboardingScreen5 onNext={handleScreen5Next} />;
+      return (
+        <OnboardingScreen5 
+          onNext={isAuthenticated ? handleScreen5Next : undefined}
+          onComplete={handleScreen5Complete}
+        />
+      );
     case 6:
-      return <OnboardingScreen6 onComplete={handleScreen6Complete} />;
+      // Screen 6 only for authenticated users
+      if (isAuthenticated) {
+        return <OnboardingScreen6 onComplete={handleScreen6Complete} />;
+      } else {
+        // Fallback: return null (useEffect will handle completing onboarding)
+        return null;
+      }
     default:
       return null;
   }

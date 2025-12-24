@@ -86,7 +86,7 @@ export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props
       <div className="mb-8 rounded-lg border border-primary/20 bg-primary/5 px-6 py-4">
         <div className="text-center">
           <div className="mb-2 text-2xl">🎉</div>
-          <div className="font-semibold text-foreground">Artık bu mahallenin bir parçasısın</div>
+          <div className="font-semibold text-foreground">Gelukt. Welkom in de app.</div>
           <div className="text-lg text-primary">Nieuwkomer</div>
         </div>
       </div>
@@ -97,9 +97,9 @@ export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props
         size="lg"
         variant="default"
         className="min-w-[200px] font-gilroy"
-        aria-label={onNext ? "Verder" : "Naar de feed"}
+        aria-label="Naar de App"
       >
-        {onNext ? "Verder" : "Naar de feed"}
+        Naar de App
       </Button>
     </div>
   );

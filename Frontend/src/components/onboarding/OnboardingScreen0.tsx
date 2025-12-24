@@ -59,7 +59,7 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
               showSecondText ? "opacity-100" : "opacity-0"
             )}
           >
-            Burası tek bir topluluk. Herkes burada.
+            Welkom in de Turkse wereld.
           </h2>
         </div>
 
