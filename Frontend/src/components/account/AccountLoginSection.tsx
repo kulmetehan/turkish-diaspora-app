@@ -27,14 +27,8 @@ export function AccountLoginSection({
 
   useEffect(() => {
     if (isAuthenticated) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AccountLoginSection.tsx:28',message:'AccountLoginSection loadProfile START',data:{isAuthenticated,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       getCurrentUser()
         .then((user) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'AccountLoginSection.tsx:31',message:'AccountLoginSection getCurrentUser returned',data:{name:user?.name,avatar_url:user?.avatar_url,avatar_url_length:user?.avatar_url?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
           setProfile(user);
         })
         .catch((error) => {

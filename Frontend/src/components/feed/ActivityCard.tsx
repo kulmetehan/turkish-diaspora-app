@@ -130,12 +130,6 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              {/* #region agent log */}
-              {(() => {
-                fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ActivityCard.tsx:127',message:'ActivityCard rendering user name',data:{user_id:item.user?.id,user_name:item.user?.name,user_name_is_null:item.user?.name === null,user_name_is_undefined:item.user?.name === undefined,displayed_name:item.user?.name || "Anonieme gebruiker"},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-                return null;
-              })()}
-              {/* #endregion */}
               <p className="text-sm font-gilroy font-normal text-foreground">
                 <button
                   type="button"
