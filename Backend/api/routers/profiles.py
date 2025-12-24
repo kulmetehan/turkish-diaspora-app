@@ -92,27 +92,6 @@ async def get_user_profile(
     Get current user profile (name and avatar).
     Returns null values for anonymous users or if no profile exists.
     """
-    # #region agent log
-    import json
-    log_data = {
-        "location": "profiles.py:87",
-        "message": "get_user_profile entry",
-        "data": {
-            "user_exists": user is not None,
-            "user_id": str(user.user_id) if user else None,
-        },
-        "timestamp": int(__import__("time").time() * 1000),
-        "sessionId": "debug-session",
-        "runId": "run1",
-        "hypothesisId": "D"
-    }
-    try:
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
-    
     user_id = user.user_id if user else None
     
     if not user_id:
@@ -127,81 +106,10 @@ async def get_user_profile(
     """
     rows = await fetch(sql, user_id)
     
-    # #region agent log
-    log_data = {
-        "location": "profiles.py:107",
-        "message": "get_user_profile after fetch",
-        "data": {
-            "user_id": str(user_id),
-            "rows_count": len(rows) if rows else 0,
-            "row_display_name": rows[0].get("display_name") if rows and len(rows) > 0 else None,
-            "row_avatar_url": rows[0].get("avatar_url") if rows and len(rows) > 0 else None,
-            "row_avatar_url_length": len(rows[0].get("avatar_url")) if rows and len(rows) > 0 and rows[0].get("avatar_url") else 0,
-        },
-        "timestamp": int(__import__("time").time() * 1000),
-        "sessionId": "debug-session",
-        "runId": "run1",
-        "hypothesisId": "D"
-    }
-    try:
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
-    
     if not rows:
         return CurrentUserResponse(name=None, avatar_url=None)
     
     row = rows[0]
-    # #region agent log
-    import json
-    import os
-    from datetime import datetime, timezone
-    log_data = {
-        "location": "profiles.py:107",
-        "message": "get_user_profile after fetch",
-        "data": {
-            "user_id": str(user_id),
-            "rows_count": len(rows),
-            "row_display_name": row.get("display_name"),
-            "row_avatar_url": row.get("avatar_url"),
-            "row_avatar_url_length": len(row.get("avatar_url")) if row.get("avatar_url") else 0,
-        },
-        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-        "sessionId": "debug-session",
-        "runId": "run3",
-        "hypothesisId": "H"
-    }
-    try:
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
-    # #region agent log
-    log_data = {
-        "location": "profiles.py:180",
-        "message": "get_user_profile returning",
-        "data": {
-            "user_id": str(user_id),
-            "display_name": row.get("display_name"),
-            "display_name_type": type(row.get("display_name")).__name__,
-            "display_name_length": len(row.get("display_name")) if row.get("display_name") else 0,
-            "avatar_url": row.get("avatar_url"),
-            "avatar_url_length": len(row.get("avatar_url")) if row.get("avatar_url") else 0,
-        },
-        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-        "sessionId": "debug-session",
-        "runId": "run3",
-        "hypothesisId": "I"
-    }
-    try:
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
     # NOTE: We do NOT normalize display_name here (unlike in activity endpoints)
     # because users should see their actual display_name in their profile,
     # even if it's a UUID. The normalization only happens in activity feeds
@@ -547,56 +455,6 @@ async def update_user_profile(
         "language_pref": profile.language_pref if profile.language_pref is not None else current["language_pref"],
     }
     
-    # #region agent log
-    import json
-    from datetime import datetime, timezone
-    log_data = {
-        "location": "profiles.py:490",
-        "message": "update_user_profile final_values before upsert",
-        "data": {
-            "user_id": str(user_id),
-            "profile_display_name_provided": profile.display_name,
-            "current_display_name": current["display_name"],
-            "final_display_name": final_values["display_name"],
-            "final_display_name_length": len(final_values["display_name"]) if final_values["display_name"] else 0,
-        },
-        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-        "sessionId": "debug-session",
-        "runId": "run3",
-        "hypothesisId": "J"
-    }
-    try:
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
-    
-    # #region agent log
-    import json
-    import os
-    log_data = {
-        "location": "profiles.py:422",
-        "message": "final_values before upsert",
-        "data": {
-            "user_id": str(user_id),
-            "avatar_url_provided": profile.avatar_url,
-            "avatar_url_final": final_values["avatar_url"],
-            "avatar_url_final_length": len(final_values["avatar_url"]) if final_values["avatar_url"] else 0,
-            "current_avatar_url": current["avatar_url"],
-        },
-        "timestamp": int(__import__("time").time() * 1000),
-        "sessionId": "debug-session",
-        "runId": "run1",
-        "hypothesisId": "A"
-    }
-    try:
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
-    
     # Execute upsert
     # Parameters: $1-$5 for INSERT, $6+ for UPDATE SET
     all_params = [
@@ -608,32 +466,6 @@ async def update_user_profile(
     ] + values  # $6+ for UPDATE SET
     
     result_rows = await fetch(upsert_sql, *all_params)
-    
-    # #region agent log
-    import json
-    from datetime import datetime, timezone
-    log_data = {
-        "location": "profiles.py:540",
-        "message": "update_user_profile upsert result",
-        "data": {
-            "user_id": str(user_id),
-            "result_rows_count": len(result_rows) if result_rows else 0,
-            "returned_display_name": result_rows[0].get("display_name") if result_rows and len(result_rows) > 0 else None,
-            "returned_display_name_length": len(result_rows[0].get("display_name")) if result_rows and len(result_rows) > 0 and result_rows[0].get("display_name") else 0,
-            "returned_avatar_url": result_rows[0].get("avatar_url") if result_rows and len(result_rows) > 0 else None,
-            "returned_avatar_url_length": len(result_rows[0].get("avatar_url")) if result_rows and len(result_rows) > 0 and result_rows[0].get("avatar_url") else 0,
-        },
-        "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-        "sessionId": "debug-session",
-        "runId": "run3",
-        "hypothesisId": "K"
-    }
-    try:
-        with open("/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log", "a") as f:
-            f.write(json.dumps(log_data) + "\n")
-    except:
-        pass
-    # #endregion
     
     if not result_rows:
         raise HTTPException(status_code=500, detail="Failed to update profile")

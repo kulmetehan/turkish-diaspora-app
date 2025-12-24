@@ -57,12 +57,6 @@ async def get_my_rewards(
     Returns list of user rewards, optionally filtered by status.
     """
     try:
-        # #region agent log
-        import json
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "rewards.py:59", "message": "get_my_rewards: entry", "data": {"user_id": str(user.user_id), "status": status}, "timestamp": int(datetime.now().timestamp() * 1000)}) + "\n")
-        # #endregion
-        
         sql = """
             SELECT 
                 ur.id,
@@ -82,17 +76,7 @@ async def get_my_rewards(
             ORDER BY ur.created_at DESC
         """
         
-        # #region agent log
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "rewards.py:79", "message": "get_my_rewards: before fetch", "data": {"sql": sql, "params": [str(user.user_id), status]}, "timestamp": int(datetime.now().timestamp() * 1000)}) + "\n")
-        # #endregion
-        
         rows = await fetch(sql, user.user_id, status)
-        
-        # #region agent log
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "rewards.py:81", "message": "get_my_rewards: after fetch", "data": {"row_count": len(rows) if rows else 0}, "timestamp": int(datetime.now().timestamp() * 1000)}) + "\n")
-        # #endregion
         
         rewards = []
         for row in rows:
@@ -119,20 +103,11 @@ async def get_my_rewards(
         return rewards
         
     except Exception as e:
-        # #region agent log
-        import json
         error_str = str(e)
         error_type = type(e).__name__
-        with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-            f.write(json.dumps({"sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "rewards.py:106", "message": "get_my_rewards: exception caught", "data": {"error": error_str, "error_type": error_type}, "timestamp": int(datetime.now().timestamp() * 1000)}) + "\n")
-        # #endregion
         
         # Graceful degradation: if tables don't exist, return empty list
         if "does not exist" in error_str.lower() or "UndefinedTableError" in error_type:
-            # #region agent log
-            with open('/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log', 'a') as f:
-                f.write(json.dumps({"sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "rewards.py:110", "message": "get_my_rewards: returning empty list (tables don't exist)", "data": {}, "timestamp": int(datetime.now().timestamp() * 1000)}) + "\n")
-            # #endregion
             return []
         
         raise HTTPException(status_code=500, detail=f"Failed to fetch rewards: {str(e)}")
