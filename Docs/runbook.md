@@ -1,7 +1,7 @@
 ---
 title: Turkish Diaspora App — Runbook
 status: active
-last_updated: 2025-11-04
+last_updated: 2025-01-15
 scope: runbook
 owners: [tda-core]
 ---
@@ -58,20 +58,42 @@ See [`Docs/env-config.md`](./env-config.md) for the authoritative variable list 
    print('✅ DATABASE_URL connected')
    PY
    ```
+   
+   For database schema information and migration conflicts, see [`Docs/db/schema-reconciliation.md`](./db/schema-reconciliation.md).
 
 ## 3. Workers & manual operations
 
 | Worker | Module | Typical use | Notes |
 | --- | --- | --- | --- |
 | Discovery | `app.workers.discovery_bot` | Fetch new candidates from OSM. | Uses OSM-only provider; configure rate limits via env vars. |
+| Discovery Train | `app.workers.discovery_train_bot` | Collect training data for discovery. | Training data collection for ML improvements. |
 | Classify | `app.workers.classify_bot` | Assign keep/ignore + category (OpenAI). | Respects `CLASSIFY_MIN_CONF`. Dry-run recommended for testing. |
+| Reclassify Other | `app.workers.reclassify_other` | Reclassify locations with "other" category. | Bulk reclassification for miscategorized locations. |
 | Verify & surface | `app.workers.verify_locations` | Promote high-confidence records to `VERIFIED`. | `--city`/`--source` flags exist but currently informational (filters handled in SQL). |
+| Task Verifier | `app.workers.task_verifier` | Heuristic-based location verification. | Auto-promotes high-confidence records with Turkish cues. |
+| Verification Consumer | `app.workers.verification_consumer` | Consumes verification tasks from queue. | Processes verification tasks enqueued by monitor_bot. |
 | Monitor | `app.workers.monitor_bot` | Refresh `next_check_at` for stale records. | Uses env-based caps (`MONITOR_MAX_PER_RUN`). |
 | Alert | `app.workers.alert_bot` | Emit alerts for error spikes, 429 bursts. | Configure webhook/channel via env vars. |
-| Push Notifications | `app.workers.push_notifications` | Send push notifications for polls, trending, activity. | Requires VAPID keys. Use `--type` to filter notification types. |
-| Google Business Sync | `app.workers.google_business_sync` | Sync location data from Google Business Profiles. | Requires Google OAuth credentials. Runs periodically for opted-in businesses. |
-| Promotion Expiry | `app.workers.promotion_expiry_worker` | Mark expired promotions as 'expired' status. | Runs daily to update promotion status. |
+| News Ingest | `app.workers.news_ingest_bot` | Ingest news from RSS feeds. | RSS feed ingestion pipeline. |
+| News Classify | `app.workers.news_classify_bot` | Classify news articles for relevance. | AI classification of ingested news. |
+| News AI Extractor | `app.workers.news_ai_extractor_bot` | Extract structured data from news articles. | AI extraction for news content. |
+| News Trending Scraper | `app.workers.news_trending_scraper_worker` | Scrape trending topics from X (Twitter). | X API integration for trending topics. |
+| Turkish News Scraper | `app.workers.turkish_news_scraper_bot` | Scrape Turkish news sources. | Turkish news source scraping. |
+| Event Scraper | `app.workers.event_scraper_bot` | Scrape events from configured sources. | Event source scraping into `event_raw`. |
+| Event Page Fetcher | `app.workers.event_page_fetcher_bot` | Fetch full HTML pages for AI extraction. | Fetches event detail pages. |
+| Event AI Extractor | `app.workers.event_ai_extractor_bot` | Extract structured event data via AI. | OpenAI extraction from event pages. |
+| Event Enrichment | `app.workers.event_enrichment_bot` | Enrich events with AI-generated metadata. | AI enrichment for event records. |
+| Event Normalization | `app.workers.event_normalization_bot` | Normalize events into candidate table. | Normalizes `event_raw` into `events_candidate`. |
 | Event Geocoding | `app.workers.event_geocoding_bot` | Geocode event locations to lat/lng coordinates. | Uses Nominatim API with fallback strategy. See [`Docs/events/ES-0.10-event-geocoding.md`](./events/ES-0.10-event-geocoding.md). |
+| Verify Events | `app.workers.verify_events` | Verify and promote events to public. | Promotes verified events to public API. |
+| Activity Stream Ingest | `app.workers.activity_stream_ingest_worker` | Process user activities into activity stream. | Ingests check-ins, reactions, notes into activity feed. |
+| Trending | `app.workers.trending_worker` | Calculate trending scores for locations. | Updates trending_locations table with scores. |
+| Content Curation | `app.workers.content_curation_bot` | Curate content for feed. | Content curation for activity feed. |
+| Poll Generator | `app.workers.poll_generator_bot` | Generate daily polls. | Creates daily poll questions. |
+| Digest | `app.workers.digest_worker` | Generate weekly digest emails. | Weekly email digest automation. |
+| Push Notifications | `app.workers.push_notifications` | Send push notifications for polls, trending, activity. | Requires VAPID keys. Use `--type` to filter notification types. |
+| Promotion Expiry | `app.workers.promotion_expiry_worker` | Mark expired promotions as 'expired' status. | Runs daily to update promotion status. |
+| Google Business Sync | `app.workers.google_business_sync` | Sync location data from Google Business Profiles. | Requires Google OAuth credentials. Runs periodically for opted-in businesses. |
 
 ### CLI examples
 

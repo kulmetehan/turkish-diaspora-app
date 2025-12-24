@@ -523,7 +523,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                                             {count > 0 && (
                                                 <Badge
                                                     variant="secondary"
-                                                    className="ml-2 h-5 min-w-5 px-1.5 text-xs"
+                                                    className="ml-2 h-5 min-w-5 px-1.5 text-xs bg-transparent"
                                                 >
                                                     {count}
                                                 </Badge>

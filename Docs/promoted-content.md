@@ -1,7 +1,7 @@
 ---
 title: Promoted Content (Locations & News)
 status: active
-last_updated: 2025-01-XX
+last_updated: 2025-01-15
 scope: monetization
 owners: [tda-core]
 ---
@@ -157,12 +157,12 @@ CREATE TABLE promoted_news (
 ### Promotion Expiry Worker
 
 **`Backend/app/workers/promotion_expiry_worker.py`**
-- Runs hourly via GitHub Actions (`.github/workflows/tda_promotion_expiry.yml`)
+- Runs daily at 00:00 UTC via GitHub Actions (`.github/workflows/tda_promotion_expiry.yml`)
 - Marks expired promotions as 'expired' status
 - Updates `promoted_locations` and `promoted_news` tables
 - Logs expiry events for monitoring
 
-**Schedule**: Hourly (`0 * * * *`)
+**Schedule**: Daily at 00:00 UTC (`0 0 * * *`)
 
 ## Payment Flow
 

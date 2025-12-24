@@ -8,9 +8,9 @@ Locations can be in one of the following states:
 
 - **CANDIDATE**: Raw discovered location, unreviewed. Default state for newly discovered locations.
 - **PENDING_VERIFICATION**: AI classified with confidence ≥0.80 but <0.90. Awaiting further verification.
-- **VERIFIED**: Approved and visible in the app. Confidence ≥0.90.
-- **RETIRED**: Explicitly considered not relevant / no longer valid.
-- **SUSPENDED**: Defined in enum but not actively used.
+- **VERIFIED**: Approved and visible in the app. Confidence ≥0.90. Terminal state - never demoted.
+- **RETIRED**: Explicitly considered not relevant / no longer valid. Terminal state - never resurrected (unless explicitly allowed).
+- **SUSPENDED**: Defined in enum but not actively used by any worker. Treated as a terminal state (excluded from processing) but no worker sets locations to this state.
 
 ## State Transitions
 

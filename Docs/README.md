@@ -1,7 +1,7 @@
 ---
 title: Documentation Index
 status: active
-last_updated: 2025-01-XX
+last_updated: 2025-01-15
 scope: overview
 owners: [tda-core]
 ---
@@ -19,6 +19,7 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 
 ## Backend & Data Pipeline
 
+- [`Docs/api/api-surface-map.md`](./api/api-surface-map.md) — complete API router and endpoint reference.
 - [`Docs/discovery-osm.md`](./discovery-osm.md) — OSM discovery provider integration and rate limiting strategy.
 - [`Docs/discovery-config.md`](./discovery-config.md) — category mappings (to be updated for OSM-first configs).
 - [`Docs/automation.md`](./automation.md) — GitHub Actions matrix for discovery runs.
@@ -28,6 +29,7 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 - [`Docs/verify-locations-runbook.md`](./verify-locations-runbook.md) — promote & surface workflow.
 - [`Docs/ai-schemas.md`](./ai-schemas.md) — AI payload schemas, validation helpers.
 - [`Backend/OSM_Discovery_Report_Rotterdam_Production.md`](../Backend/OSM_Discovery_Report_Rotterdam_Production.md) — example production rollout report.
+- [`Docs/db/schema-reconciliation.md`](./db/schema-reconciliation.md) — database schema conflicts and authoritative migration set.
 
 ### Events Pipeline
 
@@ -64,6 +66,7 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 ## Observability & Metrics
 
 - [`Infra/monitoring/metrics_dashboard.md`](../Infra/monitoring/metrics_dashboard.md) — KPI definitions and SQL sources.
+- [`Docs/ops/feature-flags.md`](./ops/feature-flags.md) — feature flags matrix mapping flags to endpoints, pages, and DB tables.
 - [`Docs/infra-audit.md`](./infra-audit.md) — inventory of services, secrets, and compliance checks.
 - [`Docs/self-verify-loop.md`](./self-verify-loop.md) — state machine overview for automated verification cycles.
 
@@ -83,9 +86,9 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 
 - [`Docs/docs_inventory.md`](./docs_inventory.md) — full inventory with statuses.
 - [`Docs/NEXT_STEPS.md`](./NEXT_STEPS.md) — actionable next steps and implementation guide for continuing development.
+- [`Docs/roadmap/index.md`](./roadmap/index.md) — roadmap artifacts index and relationships.
 - [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) — overall project status and timeline.
 - [`Docs/docs_gap_analysis.md`](./docs_gap_analysis.md) — open gaps and planned updates per doc.
-- [`PROJECT_CONTEXT.md`](../PROJECT_CONTEXT.md) — historical context and architecture narrative (update pending).
-- [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) — roadmap / epic tracker (update pending).
+- [`PROJECT_CONTEXT.md`](../PROJECT_CONTEXT.md) — historical context and architecture narrative.
 
 Use this index as the entry point for PR reviews and onboarding; update it whenever documentation moves or new guides are added.

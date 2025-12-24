@@ -4,6 +4,8 @@ Versie 3.0 – Geïntegreerd met Roadmap V2 + Cursor Analyse
 Auteur: Metehan Kul
 Laatste update: 2025
 
+> **Roadmap Index**: For an overview of all roadmap artifacts and their relationships, see [`Docs/roadmap/index.md`](./roadmap/index.md).
+
 ⸻
 
 1. 🎯 Startup Vision

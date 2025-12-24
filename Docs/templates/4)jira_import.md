@@ -210,3 +210,5 @@ issue type,summary,description,status,priority,labels,story points,issue id,pare
 ✔️ Geen deprecated velden (Epic Link, Epic Name, Components etc.)
 ✔️ Custom fields worden automatisch aangemaakt
 ✔️ Stories koppelen automatisch aan de Epic via parent
+
+**Note**: De actuele backlog die klaar is voor import staat in [`Docs/Roadmap_Backlog.md`](../Roadmap_Backlog.md). Deze gebruikt het bovenstaande formaat zonder "Epic Name" kolom.

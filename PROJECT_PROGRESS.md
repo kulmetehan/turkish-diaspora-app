@@ -1,7 +1,7 @@
 ---
 title: Turkish Diaspora App — Progress Log
 status: active
-last_updated: 2025-01-XX
+last_updated: 2025-01-15
 scope: overview
 owners: [tda-core]
 ---
@@ -59,7 +59,7 @@ Tracks major epics, delivered stories, and near-term roadmap items. Use this doc
 
 ### Documentation & maintenance
 
-- Finalize doc refactor (runbook, worker guides, design system, CI/CD notes).
+- ✅ Documentation refactor completed (January 2025): API surface map, feature flags matrix, worker inventory, schema reconciliation, roadmap index.
 - Dry-run discovery/verification on next city grid with new env template.
 - Update frontend documentation (remove Vite boilerplate, document admin flows, QA scenarios).
 - Confirm Render/GitHub Actions secrets post-rotation using new template.
@@ -82,7 +82,7 @@ Tracks major epics, delivered stories, and near-term roadmap items. Use this doc
   - API: `/api/v1/promotions` endpoints for creating, listing, and canceling promotions
   - Ranking: Trending endpoint boosts promoted locations by 1.5x, activity feed prioritizes promoted content
   - Frontend: `BusinessPromotionsPage` with forms for location/news promotion, visual indicators in feeds
-  - Worker: `promotion_expiry_worker.py` runs hourly via GitHub Actions to mark expired promotions
+  - Worker: `promotion_expiry_worker.py` runs daily at 00:00 UTC via GitHub Actions to mark expired promotions
   - Documentation: Added to `Docs/env-config.md` (pricing config), `Docs/runbook.md` (worker schedule)
 
 - **Promoted News**: One-time payment system for promoting news posts at top of feed
@@ -124,7 +124,11 @@ Tracks major epics, delivered stories, and near-term roadmap items. Use this doc
 
 - Architecture overview — [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)
 - Roadmap & backlog — [`Docs/Roadmap_Backlog.md`](./Docs/Roadmap_Backlog.md)
+- Roadmap index — [`Docs/roadmap/index.md`](./Docs/roadmap/index.md)
 - Runbook (operations) — [`Docs/runbook.md`](./Docs/runbook.md)
+- API reference — [`Docs/api/api-surface-map.md`](./Docs/api/api-surface-map.md)
+- Feature flags — [`Docs/ops/feature-flags.md`](./Docs/ops/feature-flags.md)
+- Database schema — [`Docs/db/schema-reconciliation.md`](./Docs/db/schema-reconciliation.md)
 - Metrics snapshot — [`Infra/monitoring/metrics_dashboard.md`](./Infra/monitoring/metrics_dashboard.md)
 - Environment guide — [`Docs/env-config.md`](./Docs/env-config.md)
 - Documentation inventory — [`Docs/docs_inventory.md`](./Docs/docs_inventory.md)

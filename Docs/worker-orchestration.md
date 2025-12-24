@@ -1,7 +1,7 @@
 ---
 title: Worker Orchestration
 status: active
-last_updated: 2025-01-XX
+last_updated: 2025-01-15
 scope: operations
 owners: [tda-core]
 ---
@@ -72,11 +72,29 @@ The orchestrator maps API bot names to worker functions:
 | `monitor` | `app.workers.monitor_bot` | `main_async(limit, dry_run, worker_run_id)` | Direct function call |
 | `news_ingest` | `app.workers.news_ingest_bot` | `main_async()` | RSS ingest pipeline |
 | `news_classify` | `app.workers.news_classify_bot` | `main_async()` | Classifies `raw_ingested_news` rows |
+| `news_ai_extractor` | `app.workers.news_ai_extractor_bot` | `main_async()` | AI extraction for news articles |
+| `news_trending_scraper` | `app.workers.news_trending_scraper_worker` | `main_async()` | Scrapes trending topics from X (Twitter) |
+| `turkish_news_scraper` | `app.workers.turkish_news_scraper_bot` | `main_async()` | Scrapes Turkish news sources |
 | `event_scraper` | `app.workers.event_scraper_bot` | `main_async()` | Scrapes event_sources into `event_raw` |
 | `event_page_fetcher` | `app.workers.event_page_fetcher_bot` | `main_async()` | Fetches full HTML pages for AI extraction |
 | `event_ai_extractor` | `app.workers.event_ai_extractor_bot` | `main_async()` | Runs OpenAI extraction and inserts `event_raw` rows |
 | `event_enrichment` | `app.workers.event_enrichment_bot` | `main_async()` | AI enrichment for `event_raw` rows |
 | `event_normalization` | `app.workers.event_normalization_bot` | `main_async()` | Normalizes `event_raw` rows into `events_candidate` |
+| `event_geocoding` | `app.workers.event_geocoding_bot` | `main_async()` | Geocodes event locations to lat/lng |
+| `verify_events` | `app.workers.verify_events` | `main_async()` | Verifies and promotes events to public |
+| `activity_stream_ingest` | `app.workers.activity_stream_ingest_worker` | `main_async()` | Processes user activities into activity stream |
+| `trending` | `app.workers.trending_worker` | `main_async()` | Calculates trending scores for locations |
+| `content_curation` | `app.workers.content_curation_bot` | `main_async()` | Curates content for feed |
+| `poll_generator` | `app.workers.poll_generator_bot` | `main()` | Generates daily polls |
+| `digest` | `app.workers.digest_worker` | `main_async()` | Generates weekly digest emails |
+| `push_notifications` | `app.workers.push_notifications` | `main_async()` | Sends push notifications |
+| `promotion_expiry` | `app.workers.promotion_expiry_worker` | `main()` | Marks expired promotions |
+| `google_business_sync` | `app.workers.google_business_sync` | `main_async()` | Syncs Google Business Profile data |
+| `alert` | `app.workers.alert_bot` | `main_async()` | Monitors errors and sends alerts |
+| `task_verifier` | `app.workers.task_verifier` | `main_async()` | Heuristic-based location verification |
+| `verification_consumer` | `app.workers.verification_consumer` | `main_async()` | Consumes verification tasks from queue |
+| `discovery_train` | `app.workers.discovery_train_bot` | `main_async()` | Training data collection for discovery |
+| `reclassify_other` | `app.workers.reclassify_other` | `main_async()` | Reclassifies locations with "other" category |
 
 ### Worker Argument Construction
 
