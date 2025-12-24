@@ -18,28 +18,28 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
       <div className="mb-8 space-y-6 w-full max-w-md">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-2xl font-gilroy font-semibold text-foreground">
-            Uğradım
+            Nieuws
           </div>
           <div className="text-lg font-gilroy font-normal text-muted-foreground">
-            → ben buradaydım
+            → Uit Turkije & Nederland
           </div>
         </div>
 
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-2xl font-gilroy font-semibold text-foreground">
-            Söz
+            Locaties
           </div>
           <div className="text-lg font-gilroy font-normal text-muted-foreground">
-            → deneyim & bilgi
+            → Alle Turkse hotspots in Nederland
           </div>
         </div>
 
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-2xl font-gilroy font-semibold text-foreground">
-            Nabız
+            Events
           </div>
           <div className="text-lg font-gilroy font-normal text-muted-foreground">
-            → ne hissediyoruz
+            → Wat is er deze week te doen?
           </div>
         </div>
       </div>
@@ -50,9 +50,9 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
         size="lg"
         variant="default"
         className="min-w-[200px] font-gilroy"
-        aria-label="Klaar → Feed"
+        aria-label="Open de App"
       >
-        Klaar → Feed
+        Open de App
       </Button>
     </div>
   );
