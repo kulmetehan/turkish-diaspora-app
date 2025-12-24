@@ -1,7 +1,7 @@
 ---
 title: Location State Pipeline
 status: active
-last_updated: 2025-01-XX
+last_updated: 2025-01-15
 scope: backend, workers, data-quality
 owners: [tda-core]
 ---
@@ -79,9 +79,9 @@ This is the **single source of truth** for state transitions. All workers must u
 
 ### MonitorBot
 - **Input**: `VERIFIED`
-- **Output**: `VERIFIED`, `SUSPENDED`
+- **Output**: `VERIFIED` (updates `next_check_at`, enqueues verification tasks)
 - **File**: `Backend/app/workers/monitor_bot.py`
-- **Notes**: Monitors freshness of verified locations. Can suspend stale locations.
+- **Notes**: Monitors freshness of verified locations. Updates `next_check_at` and enqueues verification tasks. Does NOT set locations to SUSPENDED. SUSPENDED is a terminal state defined in the enum but not actively used by any worker.
 
 ## Preventing Stuck Records
 

@@ -38,14 +38,26 @@ Het outreach systeem vereist een solide foundation:
 - [ ] **Stap 2.4**: Confidence scoring logica
 - [ ] **Stap 2.5**: Contact discovery service integratie test
 
-### Fase 3: Token-based Claim System Foundation
-- [ ] **Stap 3.1**: Analyse verschil tussen business_account claims en token-based claims
-- [ ] **Stap 3.2**: Database schema voor token-based location_claims
-- [ ] **Stap 3.3**: Token generation en validatie service
-- [ ] **Stap 3.4**: Token-based claim API endpoints foundation
-- [ ] **Stap 3.5**: Frontend routing voor token-based claim pagina
+### Fase 3: Authenticated Claim System Foundation
+- [ ] **Stap 3.1**: Analyse claim systemen (business_account, authenticated, token-based)
+- [ ] **Stap 3.2**: Database schema voor authenticated location_claims
+- [ ] **Stap 3.3**: Claim API endpoints voor authenticated users
+- [ ] **Stap 3.4**: Claim knop in location detail card
+- [ ] **Stap 3.5**: Claim form UI (1 scherm met logo/Google Business link)
+- [ ] **Stap 3.6**: Admin dashboard voor claim requests
+- [ ] **Stap 3.7**: Admin claim detail page (logo/Google link preview)
+- [ ] **Stap 3.8**: Owner rol systeem en toekenning
+- [ ] **Stap 3.9**: Logo en Google Business link opslag
+- [ ] **Stap 3.10**: Email bevestigingen voor claim toekenning/afwijzing
+- [ ] **Stap 3.11**: "Senin" sectie op account pagina
 
-### Fase 4: Outreach Infrastructure Foundation
+### Fase 4: Token-based Claim System Foundation (voor Outreach)
+- [ ] **Stap 4.1**: Database schema voor token-based location_claims
+- [ ] **Stap 4.2**: Token generation en validatie service
+- [ ] **Stap 4.3**: Token-based claim API endpoints foundation
+- [ ] **Stap 4.4**: Frontend routing voor token-based claim pagina
+
+### Fase 5: Outreach Infrastructure Foundation
 - [ ] **Stap 4.1**: Outreach queue database schema
 - [ ] **Stap 4.2**: Rate limiting service voor emails
 - [ ] **Stap 4.3**: Outreach tracking en metrics foundation
@@ -480,30 +492,42 @@ class ContactInfo(BaseModel):
 
 ---
 
-### FASE 3: Token-based Claim System Foundation
+### FASE 3: Authenticated Claim System Foundation
 
-#### Stap 3.1: Analyse Verschil tussen business_account Claims en Token-based Claims
+#### Stap 3.1: Analyse Claim Systemen
 
-**Doel**: Duidelijk maken wat het verschil is tussen beide claim systemen.
+**Doel**: Duidelijk maken wat het verschil is tussen alle claim systemen.
 
 **Bestaand Systeem** (`business_location_claims`):
 - Voor authenticated users met business_accounts
 - Status: pending → approved/rejected (admin approval)
 - Gekoppeld aan business_account_id
 - Vereist login en business account
+- **Gebruik**: Premium/verified claims (toekomstig)
 
-**Nieuw Systeem** (`location_claims` - uit outreach plan):
+**Nieuw Systeem 1: Authenticated Claims** (`authenticated_location_claims`):
+- Voor authenticated users (geen business account nodig)
+- Status: pending → approved/rejected (admin approval)
+- Gekoppeld aan user_id
+- Vereist login
+- Optioneel: Logo upload, Google Business link
+- Bij toekenning: gebruiker krijgt owner rol
+- **Gebruik**: Primaire claim flow voor outreach emails
+
+**Nieuw Systeem 2: Token-based Claims** (`location_claims` - uit outreach plan):
 - Token-based (geen login vereist)
 - Status: unclaimed → claimed_free → expired/removed
 - Gekoppeld aan email (niet user_id)
 - Gratis periode met expiratie
 - Geen admin approval nodig
+- **Gebruik**: Fallback voor niet-ingelogde gebruikers via outreach
 
 **Conclusie**:
-- Twee verschillende systemen voor verschillende use cases
-- Beide kunnen naast elkaar bestaan
+- Drie verschillende systemen voor verschillende use cases
+- Alle drie kunnen naast elkaar bestaan
 - `business_location_claims` = premium/verified claims (toekomstig)
-- `location_claims` = gratis outreach claims (outreach plan)
+- `authenticated_location_claims` = primaire outreach claim flow (nieuwe visie)
+- `location_claims` = token-based fallback (outreach plan)
 
 **Acceptatie Criteria**:
 - [ ] Verschil is duidelijk gedocumenteerd
@@ -515,22 +539,371 @@ class ContactInfo(BaseModel):
 
 ---
 
-#### Stap 3.2: Database Schema voor Token-based location_claims
+#### Stap 3.2: Database Schema voor Authenticated location_claims
+
+**Doel**: Database tabel aanmaken voor authenticated claims (nieuwe visie).
+
+**Database Changes**:
+- Nieuwe ENUM type `authenticated_claim_status`:
+  - `pending` (wachtend op admin approval)
+  - `approved` (toegekend, gebruiker is owner)
+  - `rejected` (afgewezen)
+
+- Nieuwe tabel `authenticated_location_claims`:
+  - `id` bigserial PRIMARY KEY
+  - `location_id` bigint (FK naar locations, UNIQUE)
+  - `user_id` UUID (FK naar auth.users, NOT NULL)
+  - `status` authenticated_claim_status DEFAULT 'pending'
+  - `google_business_link` text (optioneel, van gebruiker)
+  - `logo_url` text (optioneel, van gebruiker, voor preview)
+  - `logo_storage_path` text (optioneel, definitieve opslag na approval)
+  - `submitted_at` timestamptz DEFAULT NOW()
+  - `reviewed_by` UUID (FK naar auth.users, admin die reviewed)
+  - `reviewed_at` timestamptz
+  - `rejection_reason` text (optioneel)
+  - `created_at` timestamptz DEFAULT NOW()
+  - `updated_at` timestamptz DEFAULT NOW()
+
+- Nieuwe tabel `location_owners`:
+  - `id` bigserial PRIMARY KEY
+  - `location_id` bigint (FK naar locations, UNIQUE)
+  - `user_id` UUID (FK naar auth.users, NOT NULL)
+  - `google_business_link` text (definitief, na approval)
+  - `logo_url` text (definitief, na approval)
+  - `claimed_at` timestamptz DEFAULT NOW()
+  - `created_at` timestamptz DEFAULT NOW()
+  - `updated_at` timestamptz DEFAULT NOW()
+
+**Indexen**:
+- Index op `location_id` in beide tabellen (UNIQUE constraint)
+- Index op `user_id` in authenticated_location_claims
+- Index op `status` in authenticated_location_claims
+- Index op `user_id` in location_owners
+
+**Acceptatie Criteria**:
+- [ ] ENUM type bestaat
+- [ ] Tabellen bestaan met correcte constraints
+- [ ] Indexen zijn aangemaakt
+- [ ] Migration script in `Infra/supabase/`
+
+**Bestanden om aan te maken**:
+- `Infra/supabase/073_authenticated_location_claims.sql` (nieuwe migration)
+
+---
+
+#### Stap 3.3: Claim API Endpoints voor Authenticated Users
+
+**Doel**: Backend endpoints voor authenticated claim flow.
+
+**Endpoints**:
+- `POST /api/v1/locations/{location_id}/claim` - Submit claim request (authenticated)
+- `GET /api/v1/locations/{location_id}/claim-status` - Check claim status voor locatie
+- `GET /api/v1/my-claims` - List eigen claims (authenticated user)
+
+**Request/Response Models**:
+- Claim Request:
+  - `google_business_link` (optioneel, string)
+  - `logo` (optioneel, file upload)
+- Claim Response:
+  - `id`, `location_id`, `status`, `submitted_at`, etc.
+
+**Implementatie Details**:
+- Gebruikersaccount data (naam, email) automatisch uit auth context
+- Logo upload via file upload endpoint
+- Validatie: locatie moet bestaan, niet al geclaimed
+- Status tracking: pending → approved/rejected
+
+**Acceptatie Criteria**:
+- [ ] Alle endpoints bestaan
+- [ ] Authenticatie vereist
+- [ ] Logo upload werkt
+- [ ] Pydantic models zijn correct
+- [ ] Error handling werkt
+- [ ] Gebruikersdata wordt automatisch opgehaald
+
+**Bestanden om aan te maken**:
+- `Backend/api/routers/authenticated_claims.py` (nieuw)
+- Update `Backend/app/main.py` om router te includen
+
+---
+
+#### Stap 3.4: Claim Knop in Location Detail Card
+
+**Doel**: "Claim" knop toevoegen aan location detail card (naast Google zoek knop).
+
+**UI Vereisten**:
+- Knop verschijnt in `UnifiedLocationDetail.tsx` en `OverlayDetailCard.tsx`
+- Plaatsing: naast Google zoek knop
+- Alleen zichtbaar als:
+  - Gebruiker is ingelogd
+  - Locatie is nog niet geclaimed door deze gebruiker
+  - Locatie is claimable
+- Bij klik: start claim flow (Stap 3.5)
+
+**Design**:
+- Volg design system
+- Duidelijke "Claim" tekst of icon
+- Disabled state als al geclaimed
+
+**Acceptatie Criteria**:
+- [ ] Knop bestaat in location detail cards
+- [ ] Correct geplaatst naast Google zoek knop
+- [ ] Alleen zichtbaar voor ingelogde gebruikers
+- [ ] Correcte disabled states
+- [ ] Click handler start claim flow
+
+**Bestanden om aan te maken/wijzigen**:
+- `Frontend/src/components/UnifiedLocationDetail.tsx` (update, claim knop)
+- `Frontend/src/components/OverlayDetailCard.tsx` (update, claim knop)
+
+---
+
+#### Stap 3.5: Claim Form UI (1 Scherm)
+
+**Doel**: Claim form component met logo upload en Google Business link.
+
+**UI Vereisten**:
+- 1 scherm met alle velden
+- Automatisch ingevuld: naam, email (uit gebruikersaccount, niet weergegeven)
+- Optioneel veld: Google Business link (text input)
+- Optioneel veld: Logo upload (file input met preview)
+- Submit/Indienen knop
+- Loading state tijdens submit
+- Success/error feedback
+
+**Form Validatie**:
+- Google Business link: URL format validatie
+- Logo: file type validatie (images only), size limit
+- Minimaal 1 veld ingevuld (Google link OF logo)
+
+**Acceptatie Criteria**:
+- [ ] Form component bestaat
+- [ ] Alle velden werken
+- [ ] Logo upload met preview
+- [ ] Validatie werkt
+- [ ] Submit werkt
+- [ ] Loading en error states
+- [ ] Responsive design
+
+**Bestanden om aan te maken**:
+- `Frontend/src/components/claim/ClaimForm.tsx` (nieuw)
+- `Frontend/src/components/claim/ClaimDialog.tsx` (nieuw, dialog wrapper)
+
+---
+
+#### Stap 3.6: Admin Dashboard voor Claim Requests
+
+**Doel**: Admin dashboard pagina om claim requests te beheren.
+
+**UI Vereisten**:
+- Lijst van alle pending claims
+- Sorteerbaar/filterbaar op:
+  - Status (pending, approved, rejected)
+  - Datum (nieuwste eerst)
+  - Locatie naam
+- Per claim: locatie naam, gebruiker naam/email, submitted_at
+- Link naar claim detail page (Stap 3.7)
+
+**Acceptatie Criteria**:
+- [ ] Admin dashboard pagina bestaat
+- [ ] Lijst toont alle claims
+- [ ] Sorteer/filter functionaliteit
+- [ ] Link naar detail page
+- [ ] Admin authenticatie vereist
+
+**Bestanden om aan te maken**:
+- `Frontend/src/pages/admin/AdminClaimsPage.tsx` (nieuw)
+- Update `Frontend/src/main.tsx` om route toe te voegen
+- Update admin navigation
+
+---
+
+#### Stap 3.7: Admin Claim Detail Page (Logo/Google Link Preview)
+
+**Doel**: Admin detail pagina om claim request te reviewen en goedkeuren/afwijzen.
+
+**UI Vereisten**:
+- Locatie informatie
+- Gebruiker informatie (naam, email)
+- Google Business link (als ingevuld):
+  - Link preview/display
+  - Externe link knop om te openen
+- Logo (als geüpload):
+  - Image preview
+  - Download knop (optioneel)
+- Actie knoppen:
+  - "Toekennen" (approve)
+  - "Afwijzen" (reject) met optioneel reden veld
+- Bevestiging dialogs voor acties
+
+**Acceptatie Criteria**:
+- [ ] Detail page bestaat
+- [ ] Alle informatie wordt getoond
+- [ ] Logo preview werkt
+- [ ] Google link preview werkt
+- [ ] Approve/reject acties werken
+- [ ] Bevestiging dialogs
+- [ ] Admin authenticatie vereist
+
+**Bestanden om aan te maken**:
+- `Frontend/src/pages/admin/AdminClaimDetailPage.tsx` (nieuw)
+- `Frontend/src/components/admin/ClaimReviewActions.tsx` (nieuw)
+
+---
+
+#### Stap 3.8: Owner Rol Systeem en Toekenning
+
+**Doel**: Rol systeem voor location owners en automatische toekenning bij claim approval.
+
+**Database Changes**:
+- Nieuwe ENUM type `user_role` (als nog niet bestaat):
+  - `user` (standaard gebruiker)
+  - `location_owner` (eigenaar van locatie(s))
+  - `admin` (admin gebruiker)
+  - etc.
+
+- Update `auth.users` of nieuwe tabel `user_roles`:
+  - `user_id` UUID (FK naar auth.users)
+  - `role` user_role
+  - `granted_at` timestamptz
+  - `granted_by` UUID (FK naar auth.users, admin)
+
+**Logica bij Claim Approval**:
+1. Update `authenticated_location_claims.status` → 'approved'
+2. Maak entry in `location_owners` tabel
+3. Kopieer `google_business_link` en `logo_storage_path` naar `location_owners`
+4. Verplaats logo van temp storage naar definitieve storage
+5. Update gebruiker rol naar `location_owner` (als nog niet)
+6. Update `locations` tabel met owner info (optioneel, voor snelle queries)
+
+**Acceptatie Criteria**:
+- [ ] Rol systeem bestaat
+- [ ] Bij approval wordt owner rol toegekend
+- [ ] Location_owners entry wordt aangemaakt
+- [ ] Logo wordt verplaatst naar definitieve storage
+- [ ] Google link wordt opgeslagen
+
+**Bestanden om aan te maken/wijzigen**:
+- `Infra/supabase/074_user_roles.sql` (nieuwe migration, als nodig)
+- `Backend/services/claim_approval_service.py` (nieuw)
+- `Backend/api/routers/admin_claims.py` (nieuw, admin endpoints)
+
+---
+
+#### Stap 3.9: Logo en Google Business Link Opslag
+
+**Doel**: Architectuur voor logo opslag en Google Business link definitieve opslag.
+
+**Logo Opslag Strategie**:
+- **Tijdens claim submission**: Upload naar temp storage (bijv. `claims/temp/{claim_id}/`)
+- **Na approval**: Verplaats naar definitieve storage (bijv. `locations/{location_id}/logo.{ext}`)
+- **Na rejection**: Verwijder temp storage (cleanup)
+
+**Storage Opties**:
+- Supabase Storage (aanbevolen)
+- Of: AWS S3 / andere object storage
+
+**Database Schema**:
+- `authenticated_location_claims.logo_storage_path`: Temp path tijdens review
+- `location_owners.logo_url`: Definitieve public URL na approval
+- `location_owners.google_business_link`: Definitieve link na approval
+
+**Acceptatie Criteria**:
+- [ ] Logo upload naar temp storage werkt
+- [ ] Logo verplaatsing naar definitieve storage werkt
+- [ ] Google Business link wordt opgeslagen
+- [ ] Cleanup van temp files bij rejection
+- [ ] Public URLs werken correct
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/services/storage_service.py` (nieuw, logo opslag)
+- `Backend/api/routers/authenticated_claims.py` (update, logo upload endpoint)
+- `Backend/services/claim_approval_service.py` (update, logo verplaatsing)
+
+---
+
+#### Stap 3.10: Email Bevestigingen voor Claim Toekenning/Afwijzing
+
+**Doel**: Email bevestigingen verzenden na claim approval/rejection.
+
+**Email Templates Vereist**:
+- **Claim Approved**:
+  - Subject: "Uw claim is goedgekeurd - {location_name}"
+  - Body: Bevestiging, locatie is nu van jou, link naar account pagina
+- **Claim Rejected**:
+  - Subject: "Uw claim is afgewezen - {location_name}"
+  - Body: Vriendelijke afwijzing, optioneel reden (als opgegeven)
+
+**Implementatie**:
+- Trigger email na admin approval/rejection actie
+- Gebruik email service (Fase 1)
+- Gebruik email templates (Fase 1)
+- Verzend naar gebruiker email (uit auth.users)
+
+**Acceptatie Criteria**:
+- [ ] Email templates bestaan
+- [ ] Emails worden verzonden bij approval
+- [ ] Emails worden verzonden bij rejection
+- [ ] Templates bevatten correcte informatie
+- [ ] Error handling (email failure blokkeert niet de actie)
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/templates/emails/claim_approved.j2` (nieuw)
+- `Backend/templates/emails/claim_rejected.j2` (nieuw)
+- `Backend/services/claim_approval_service.py` (update, email triggers)
+
+---
+
+#### Stap 3.11: "Senin" Sectie op Account Pagina
+
+**Doel**: Sectie op account pagina die geclaimde locaties toont.
+
+**UI Vereisten**:
+- Nieuwe sectie "Senin" (Turks voor "Jouw")
+- Alleen zichtbaar als gebruiker `location_owner` rol heeft
+- Toont lijst van geclaimde locaties:
+  - Locatie naam (link naar location detail)
+  - Locatie categorie
+  - Claim datum
+  - Status (actief)
+- Plaatsing: Onder rollen scherm op account pagina
+
+**Data Fetching**:
+- API endpoint: `GET /api/v1/my-locations` (geclaimde locaties voor user)
+- Query `location_owners` tabel voor user_id
+
+**Acceptatie Criteria**:
+- [ ] Sectie bestaat op account pagina
+- [ ] Alleen zichtbaar voor location_owners
+- [ ] Lijst toont geclaimde locaties
+- [ ] Links naar location details werken
+- [ ] Responsive design
+
+**Bestanden om aan te maken/wijzigen**:
+- `Frontend/src/components/account/SeninSection.tsx` (nieuw)
+- `Frontend/src/pages/AccountPage.tsx` (update, integratie Senin sectie)
+- `Backend/api/routers/authenticated_claims.py` (update, my-locations endpoint)
+
+---
+
+### FASE 4: Token-based Claim System Foundation (voor Outreach)
+
+#### Stap 4.1: Database Schema voor Token-based location_claims
 
 **Doel**: Database tabel aanmaken voor token-based claims (uit outreach plan Stap 2.3).
 
 **Database Changes** (uit outreach plan):
-- Nieuwe ENUM type `claim_status`:
+- Nieuwe ENUM type `token_claim_status`:
   - `unclaimed` (nog niet geclaimed)
   - `claimed_free` (geclaimed, gratis periode actief)
   - `expired` (gratis periode verlopen)
   - `removed` (verwijderd door eigenaar)
 
-- Nieuwe tabel `location_claims`:
+- Nieuwe tabel `token_location_claims`:
   - `id` bigserial PRIMARY KEY
   - `location_id` bigint (FK naar locations, UNIQUE)
   - `claim_token` text (UNIQUE, voor token-based access)
-  - `claim_status` claim_status DEFAULT 'unclaimed'
+  - `claim_status` token_claim_status DEFAULT 'unclaimed'
   - `claimed_by_email` text
   - `claimed_at` timestamptz
   - `free_until` timestamptz (einde gratis periode)
@@ -551,13 +924,13 @@ class ContactInfo(BaseModel):
 - [ ] Migration script in `Infra/supabase/`
 
 **Bestanden om aan te maken**:
-- `Infra/supabase/073_location_claims.sql` (nieuwe migration)
+- `Infra/supabase/075_token_location_claims.sql` (nieuwe migration)
 
-**Noot**: Dit komt uit outreach plan Stap 2.3, maar moet nu gebeuren als foundation.
+**Noot**: Dit komt uit outreach plan Stap 2.3, maar moet nu gebeuren als foundation. Naam gewijzigd naar `token_location_claims` om verwarring te voorkomen met `authenticated_location_claims`.
 
 ---
 
-#### Stap 3.3: Token Generation en Validatie Service
+#### Stap 4.2: Token Generation en Validatie Service
 
 **Doel**: Service voor het genereren en valideren van claim tokens.
 
@@ -588,7 +961,7 @@ class ContactInfo(BaseModel):
 
 ---
 
-#### Stap 3.4: Token-based Claim API Endpoints Foundation
+#### Stap 4.3: Token-based Claim API Endpoints Foundation
 
 **Doel**: Backend endpoints voor token-based claims (uit outreach plan Stap 7.2).
 
@@ -618,7 +991,7 @@ class ContactInfo(BaseModel):
 
 ---
 
-#### Stap 3.5: Frontend Routing voor Token-based Claim Pagina
+#### Stap 4.4: Frontend Routing voor Token-based Claim Pagina
 
 **Doel**: Frontend routing en basis pagina structuur voor `/claim/{token}`.
 
@@ -648,9 +1021,9 @@ class ContactInfo(BaseModel):
 
 ---
 
-### FASE 4: Outreach Infrastructure Foundation
+### FASE 5: Outreach Infrastructure Foundation
 
-#### Stap 4.1: Outreach Queue Database Schema
+#### Stap 5.1: Outreach Queue Database Schema
 
 **Doel**: Database schema voor outreach queue (uit outreach plan Stap 2.1 en 2.2).
 
@@ -702,14 +1075,14 @@ class ContactInfo(BaseModel):
 - [ ] Migration script in `Infra/supabase/`
 
 **Bestanden om aan te maken**:
-- `Infra/supabase/074_outreach_contacts.sql` (nieuwe migration)
-- `Infra/supabase/075_outreach_emails.sql` (nieuwe migration)
+- `Infra/supabase/076_outreach_contacts.sql` (nieuwe migration)
+- `Infra/supabase/077_outreach_emails.sql` (nieuwe migration)
 
 **Noot**: Dit komt uit outreach plan Fase 2, maar moet nu als foundation.
 
 ---
 
-#### Stap 4.2: Rate Limiting Service voor Emails
+#### Stap 5.2: Rate Limiting Service voor Emails
 
 **Doel**: Service die rate limiting beheert voor email verzending (uit outreach plan Stap 4.2).
 
@@ -738,7 +1111,7 @@ class ContactInfo(BaseModel):
 
 ---
 
-#### Stap 4.3: Outreach Tracking en Metrics Foundation
+#### Stap 5.3: Outreach Tracking en Metrics Foundation
 
 **Doel**: Foundation voor outreach tracking en metrics (uit outreach plan Fase 9).
 
@@ -767,7 +1140,7 @@ class ContactInfo(BaseModel):
 
 ---
 
-#### Stap 4.4: Outreach Infrastructure Integratie Test
+#### Stap 5.4: Outreach Infrastructure Integratie Test
 
 **Doel**: End-to-end test van outreach infrastructure.
 
@@ -942,6 +1315,34 @@ Leg de beslissing over Google Places API gebruik voor aan de gebruiker.
 
 **Laatste Update**: 2025-01-XX  
 **Huidige Status**: 🔴 Niet Gestart  
-**Volgende Stap**: Fase 0 - Google Places Service Beslissing (Stap 0.1: Analyse Google Places API vereisten)
+**Volgende Stap**: Fase 3 - Authenticated Claim System Foundation (Stap 3.1: Analyse claim systemen)
+
+---
+
+## 📝 Nieuwe Visie Integratie Notities
+
+### Authenticated Claim Flow (Nieuwe Visie)
+De nieuwe visie introduceert een **authenticated claim flow** die de primaire claim methode wordt voor outreach emails:
+- Gebruikers moeten inloggen om te claimen
+- Admin approval vereist
+- Logo en Google Business link kunnen worden geüpload
+- Bij approval krijgt gebruiker `location_owner` rol
+- "Senin" sectie op account pagina toont geclaimde locaties
+
+### Email Link naar Mapview
+Outreach emails bevatten een link naar de mapview met:
+- Locatie gecentreerd op de kaart
+- Tooltip automatisch open
+- Gebruiker kan dan doorklikken naar location detail en claim knop zien
+
+### Claim Knop in Location Detail
+- Nieuwe "Claim" knop naast Google zoek knop
+- Alleen zichtbaar voor ingelogde gebruikers
+- Start authenticated claim flow
+
+### Drie Claim Systemen
+1. **business_location_claims**: Premium/verified claims (toekomstig)
+2. **authenticated_location_claims**: Primaire outreach claim flow (nieuwe visie)
+3. **token_location_claims**: Token-based fallback (outreach plan)
 
 

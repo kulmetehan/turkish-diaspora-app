@@ -47,15 +47,15 @@ Het outreach systeem volgt deze principes:
 
 ### Fase 6: Outreach Mailer Bot
 - [ ] **Stap 6.1**: Email template systeem
-- [ ] **Stap 6.2**: SES mailer service
-- [ ] **Stap 6.3**: Email status tracking & error handling
-- [ ] **Stap 6.4**: Outreach mailer worker/bot
+- [ ] **Stap 6.2**: Mapview link generatie (locatie gecentreerd, tooltip open)
+- [ ] **Stap 6.3**: SES mailer service
+- [ ] **Stap 6.4**: Email status tracking & error handling
+- [ ] **Stap 6.5**: Outreach mailer worker/bot
 
-### Fase 7: Claim & Consent Pagina
-- [ ] **Stap 7.1**: Token-based claim page (frontend)
-- [ ] **Stap 7.2**: Claim API endpoints (backend)
-- [ ] **Stap 7.3**: Claim flow UI (claim, correctie, verwijderen)
-- [ ] **Stap 7.4**: Email bevestigingen voor acties
+### Fase 7: Claim Flow Integratie
+- [ ] **Stap 7.1**: Authenticated claim flow integratie (gebruik bestaande flow uit pre-claim plan)
+- [ ] **Stap 7.2**: Token-based claim fallback (optioneel, voor niet-ingelogde gebruikers)
+- [ ] **Stap 7.3**: Email bevestigingen voor acties (claim, correctie, verwijderen)
 
 ### Fase 8: Expiry & Reminder Bot
 - [ ] **Stap 8.1**: Expiry reminder service
@@ -529,8 +529,9 @@ async def send_email(
 - **Outreach email** (eerste contact):
   - Subject: "Uw locatie staat op Turkspot"
   - Body: Informatief, vriendelijk, AVG-compliant
-  - Token link naar claim pagina
+  - **Link naar mapview** (locatie gecentreerd, tooltip open) - primaire CTA
   - Opt-out link
+  - **Noot**: Token link wordt niet meer gebruikt (authenticated claim flow is primair)
 
 - **Claim bevestiging** (na claim actie)
 - **Removal bevestiging** (na verwijdering)
@@ -538,14 +539,14 @@ async def send_email(
 
 **Template Features**:
 - Plain text + HTML versies
-- Token variabelen (location_name, claim_token, etc.)
+- Variabelen (location_name, mapview_link, etc.)
 - Geen tracking pixels (privacy-first)
 
 **Acceptatie Criteria**:
 - [ ] Template systeem bestaat
 - [ ] Alle templates zijn geïmplementeerd
 - [ ] AVG-compliant teksten
-- [ ] Token variabelen werken
+- [ ] Variabelen werken
 - [ ] Plain text + HTML versies
 
 **Bestanden om aan te maken/wijzigen**:
@@ -557,13 +558,48 @@ async def send_email(
 
 ---
 
-#### Stap 6.2: SES Mailer Service
+#### Stap 6.2: Mapview Link Generatie (Locatie Gecentreerd, Tooltip Open)
+
+**Doel**: Service die mapview links genereert met locatie gecentreerd en tooltip open.
+
+**Link Format**:
+- URL: `{frontend_url}/#/map?location={location_id}&center={lat},{lng}&zoom={zoom}&tooltip={location_id}`
+- Of: `{frontend_url}/#/map?focus={location_id}` (als focus parameter ondersteund wordt)
+
+**Implementatie**:
+- Service functie: `generate_mapview_link(location_id, location_lat, location_lng)`
+- Berekent optimale zoom level voor locatie
+- Genereert URL met query parameters
+- Test dat link correct werkt (locatie gecentreerd, tooltip open)
+
+**Mapview Integratie**:
+- Frontend moet query parameters lezen
+- Bij `focus={location_id}`: center map op locatie, open tooltip
+- Bij `tooltip={location_id}`: open tooltip voor locatie
+
+**Acceptatie Criteria**:
+- [ ] Link generatie service bestaat
+- [ ] Links bevatten correcte parameters
+- [ ] Frontend leest parameters correct
+- [ ] Mapview centreert op locatie
+- [ ] Tooltip opent automatisch
+- [ ] Test met verschillende locaties
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/services/mapview_link_service.py` (nieuw)
+- `Frontend/src/components/MapTab.tsx` (update, query parameter handling)
+- `Frontend/src/components/MapView.tsx` (update, focus/tooltip parameters)
+
+---
+
+#### Stap 6.3: SES Mailer Service
 
 **Doel**: Service die emails verzendt via SES en status bijwerkt.
 
 **Functionaliteit**:
 - Haal queued emails op
-- Render templates met context
+- Genereer mapview link voor locatie (via Stap 6.2)
+- Render templates met context (inclusief mapview_link)
 - Verzend via email_service (Stap 5.3)
 - Update outreach_emails status naar 'sent'
 - Sla SES message_id op
@@ -572,16 +608,18 @@ async def send_email(
 **Acceptatie Criteria**:
 - [ ] Mailer service bestaat
 - [ ] Integratie met email_service
+- [ ] Mapview link generatie werkt
 - [ ] Template rendering werkt
 - [ ] Status updates zijn correct
 - [ ] Error handling en logging
 
 **Bestanden om aan te maken/wijzigen**:
 - `Backend/services/outreach_mailer_service.py` (nieuw)
+- Integratie met `mapview_link_service.py` (Stap 6.2)
 
 ---
 
-#### Stap 6.3: Email Status Tracking & Error Handling
+#### Stap 6.4: Email Status Tracking & Error Handling
 
 **Doel**: Systeem dat email status bijwerkt op basis van SES events.
 
@@ -610,7 +648,7 @@ async def send_email(
 
 ---
 
-#### Stap 6.4: Outreach Mailer Worker/Bot
+#### Stap 6.5: Outreach Mailer Worker/Bot
 
 **Doel**: Worker die automatisch emails verzendt uit de queue.
 
@@ -634,133 +672,105 @@ async def send_email(
 
 ---
 
-### FASE 7: Claim & Consent Pagina
+### FASE 7: Claim Flow Integratie
 
-#### Stap 7.1: Token-based Claim Page (Frontend)
+#### Stap 7.1: Authenticated Claim Flow Integratie
 
-**Doel**: Frontend pagina waar ondernemers kunnen claimen/corrigeren/verwijderen via token.
+**Doel**: Zorg dat authenticated claim flow (uit pre-claim plan Fase 3) werkt met outreach emails.
 
-**UI Vereisten**:
-- Toegang via unieke token in URL: `/claim/{token}`
-- Geen login vereist
-- 4 acties:
-  1. "Claim mijn locatie"
-  2. "Correctie doorgeven"
-  3. "Verwijderen uit app"
-  4. "Niets doen" (sluit pagina)
+**Integratie**:
+- Gebruiker klikt op mapview link in email
+- Mapview opent met locatie gecentreerd en tooltip open
+- Gebruiker klikt op tooltip → location detail card opent
+- Gebruiker ziet "Claim" knop (als ingelogd)
+- Gebruiker klikt "Claim" → authenticated claim flow start
+- Claim form met logo/Google Business link
+- Submit → claim request naar admin
+- Admin keurt goed/af → gebruiker krijgt email bevestiging
+- Bij goedkeuring: gebruiker krijgt owner rol, "Senin" sectie verschijnt
 
-**Design**:
-- Vriendelijk, duidelijk, vertrouwenwekkend
-- Duidelijke uitleg van elke actie
-- Bevestiging per actie
+**Flow Validatie**:
+- Test complete flow van email → mapview → claim
+- Test met ingelogde gebruiker
+- Test met niet-ingelogde gebruiker (moet login prompt zien)
 
 **Acceptatie Criteria**:
-- [ ] Claim pagina bestaat
-- [ ] Token validatie werkt
-- [ ] Alle 4 acties zijn beschikbaar
-- [ ] Design volgt design system
-- [ ] Responsive design
+- [ ] Mapview link werkt correct
+- [ ] Tooltip opent automatisch
+- [ ] Claim knop is zichtbaar in location detail
+- [ ] Authenticated claim flow werkt
+- [ ] Email bevestigingen werken
+- [ ] Owner rol wordt toegekend
+- [ ] "Senin" sectie verschijnt
 
 **Bestanden om aan te maken/wijzigen**:
-- `Frontend/src/pages/ClaimPage.tsx` (nieuw)
-- `Frontend/src/components/claim/ClaimActions.tsx` (nieuw)
-- `Frontend/src/components/claim/CorrectionForm.tsx` (nieuw)
-- Update routing in `Frontend/src/main.tsx`
+- Geen nieuwe bestanden (gebruik bestaande authenticated claim flow uit pre-claim plan)
+- Test integratie tussen email → mapview → claim flow
 
 ---
 
-#### Stap 7.2: Claim API Endpoints (Backend)
+#### Stap 7.2: Token-based Claim Fallback (Optioneel)
 
-**Doel**: Backend endpoints voor claim acties.
+**Doel**: Token-based claim flow als fallback voor niet-ingelogde gebruikers (optioneel).
 
-**Endpoints**:
-- `GET /api/v1/claims/{token}` - Haal claim info op (location details)
-- `POST /api/v1/claims/{token}/claim` - Claim locatie
-- `POST /api/v1/claims/{token}/remove` - Verwijder locatie
-- `POST /api/v1/claims/{token}/correct` - Stuur correctie door
+**⚠️ BESLUIT NODIG**: Token-based claim flow implementeren als fallback?
 
-**Request/Response**:
-- Claim: email, logo (optioneel), description (optioneel)
-- Remove: reason (optioneel)
-- Correct: correction_details (text)
+**Opties**:
+- **Optie A**: Skip token-based flow (alleen authenticated claims)
+  - ✅ Simpler architectuur
+  - ✅ Minder code te onderhouden
+  - ❌ Niet-ingelogde gebruikers kunnen niet claimen via email
+- **Optie B**: Implementeer token-based fallback
+  - ✅ Niet-ingelogde gebruikers kunnen claimen
+  - ✅ Meer flexibiliteit
+  - ❌ Extra complexiteit, twee claim flows
+
+**💡 Suggestie**: Optie A (Skip token-based flow)
+- **Motivatie**: Focus op authenticated claims, gebruikers kunnen altijd inloggen
+- Authenticated claims zijn primair, token-based is alleen nodig als we echt niet-ingelogde claims willen ondersteunen
+
+**Als Optie B gekozen**:
+- Implementeer token-based claim endpoints (uit pre-claim plan Fase 4)
+- Token-based claim pagina
+- Fallback logica: authenticated eerst, token als fallback
 
 **Acceptatie Criteria**:
-- [ ] Alle endpoints bestaan
-- [ ] Token validatie werkt
-- [ ] State updates zijn correct
-- [ ] Email bevestigingen worden getriggerd
-- [ ] Error handling
+- [ ] Beslissing genomen
+- [ ] Token-based flow werkt (als gekozen)
+- [ ] Fallback logica werkt (als gekozen)
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/api/routers/claims.py` (nieuw)
-- Update `Backend/app/main.py` om router te includen
+- `Backend/api/routers/outreach_claims.py` (alleen als Optie B)
+- `Frontend/src/pages/ClaimPage.tsx` (alleen als Optie B)
 
 ---
 
-#### Stap 7.3: Claim Flow UI
-
-**Doel**: Complete UI flow voor claim acties.
-
-**Claim Flow**:
-1. Gebruiker klikt "Claim mijn locatie"
-2. Formulier: email, logo upload (optioneel), beschrijving (optioneel)
-3. Submit → backend claim endpoint
-4. Success: "Uw locatie is geclaimed. Gratis tot {free_until}"
-5. Email bevestiging wordt verzonden
-
-**Remove Flow**:
-1. Gebruiker klikt "Verwijderen uit app"
-2. Bevestiging: "Weet u het zeker?"
-3. Optioneel: reden opgeven
-4. Submit → backend remove endpoint
-5. Success: "Uw locatie wordt verwijderd"
-6. Email bevestiging wordt verzonden
-
-**Correction Flow**:
-1. Gebruiker klikt "Correctie doorgeven"
-2. Formulier: correction details
-3. Submit → backend correct endpoint
-4. Success: "Bedankt, we verwerken uw correctie"
-5. Email bevestiging wordt verzonden
-
-**Acceptatie Criteria**:
-- [ ] Alle flows werken
-- [ ] Formulieren zijn gebruiksvriendelijk
-- [ ] Bevestigingen zijn duidelijk
-- [ ] Error states worden getoond
-- [ ] Loading states
-
-**Bestanden om aan te maken/wijzigen**:
-- `Frontend/src/components/claim/ClaimForm.tsx` (nieuw)
-- `Frontend/src/components/claim/RemoveConfirmation.tsx` (nieuw)
-- `Frontend/src/components/claim/CorrectionForm.tsx` (update, volledige flow)
-- `Frontend/src/pages/ClaimPage.tsx` (update, integratie flows)
-
----
-
-#### Stap 7.4: Email Bevestigingen voor Acties
+#### Stap 7.3: Email Bevestigingen voor Acties
 
 **Doel**: Email bevestigingen verzenden na elke claim actie.
 
 **Bevestigingen**:
-- **Claim**: "Uw locatie is geclaimed. Gratis tot {free_until}"
-- **Remove**: "Uw locatie wordt verwijderd. Bedankt voor uw feedback."
-- **Correction**: "Bedankt voor uw correctie. We verwerken dit zo snel mogelijk."
+- **Claim Approved** (uit pre-claim plan Stap 3.10): "Uw claim is goedgekeurd - {location_name}"
+- **Claim Rejected** (uit pre-claim plan Stap 3.10): "Uw claim is afgewezen - {location_name}"
+- **Remove** (optioneel, als remove functionaliteit wordt toegevoegd): "Uw locatie wordt verwijderd. Bedankt voor uw feedback."
+- **Correction** (optioneel, als correction functionaliteit wordt toegevoegd): "Bedankt voor uw correctie. We verwerken dit zo snel mogelijk."
 
 **Implementatie**:
-- Trigger email na succesvolle backend actie
+- Claim approval/rejection emails worden al getriggerd in authenticated claim flow (pre-claim plan Stap 3.10)
+- Optionele remove/correction emails kunnen worden toegevoegd als functionaliteit wordt geïmplementeerd
 - Gebruik email templates (Stap 6.1)
 - Verzend via email_service
 
 **Acceptatie Criteria**:
-- [ ] Bevestigingen worden verzonden
+- [ ] Claim approval/rejection emails werken (al geïmplementeerd in pre-claim plan)
+- [ ] Optionele remove/correction emails werken (als geïmplementeerd)
 - [ ] Templates zijn correct
 - [ ] Email bevat relevante informatie
 - [ ] Error handling (email failure blokkeert niet de actie)
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/api/routers/claims.py` (update, email triggers)
-- `Backend/services/outreach_mailer_service.py` (update, bevestiging emails)
+- Geen nieuwe bestanden (claim emails al in pre-claim plan)
+- Optioneel: remove/correction email templates (als functionaliteit wordt toegevoegd)
 
 ---
 
@@ -1130,5 +1140,38 @@ Maak dan de nieuwe migration volgens de specificatie.
 **Laatste Update**: 2025-01-XX  
 **Huidige Status**: 🔴 Niet Gestart  
 **Volgende Stap**: Fase 1 - Voorbereiding & Randvoorwaarden (Stap 1.1: Functionele scope vastleggen)
+
+---
+
+## 📝 Nieuwe Visie Integratie Notities
+
+### Email Link naar Mapview (Nieuwe Visie)
+Outreach emails bevatten nu een **link naar mapview** in plaats van direct naar claim pagina:
+- Link format: `/#/map?focus={location_id}` of `/#/map?location={location_id}&center={lat},{lng}&tooltip={location_id}`
+- Mapview centreert automatisch op locatie
+- Tooltip opent automatisch
+- Gebruiker kan dan doorklikken naar location detail
+- In location detail ziet gebruiker "Claim" knop (als ingelogd)
+- Claim flow start via authenticated claim systeem
+
+### Authenticated Claim Flow als Primaire Methode
+De nieuwe visie maakt **authenticated claims** de primaire claim methode:
+- Gebruikers moeten inloggen om te claimen
+- Admin approval vereist
+- Logo en Google Business link kunnen worden geüpload
+- Bij approval krijgt gebruiker `location_owner` rol
+- "Senin" sectie op account pagina toont geclaimde locaties
+- Token-based claims zijn nu optioneel fallback (beslissing nodig)
+
+### Claim Knop in Location Detail
+- Nieuwe "Claim" knop naast Google zoek knop
+- Alleen zichtbaar voor ingelogde gebruikers
+- Start authenticated claim flow
+- Geïmplementeerd in pre-claim plan Fase 3
+
+### Drie Claim Systemen
+1. **business_location_claims**: Premium/verified claims (toekomstig)
+2. **authenticated_location_claims**: Primaire outreach claim flow (nieuwe visie)
+3. **token_location_claims**: Token-based fallback (optioneel, beslissing nodig)
 
 
