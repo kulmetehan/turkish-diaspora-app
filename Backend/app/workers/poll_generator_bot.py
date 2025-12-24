@@ -189,7 +189,6 @@ Zorg dat de poll:
         }
 
 
-@with_run_id
 async def main():
     """CLI entry point for poll generator."""
     parser = argparse.ArgumentParser(description="Generate a daily poll using AI")
@@ -199,37 +198,39 @@ async def main():
     args = parser.parse_args()
     dry_run = bool(args.dry_run)
     
-    logger.info("poll_generator_start", dry_run=dry_run, model=args.model)
-    
-    # Initialize database pool
-    await init_db_pool()
-    
-    try:
-        result = await generate_daily_poll(model=args.model, dry_run=dry_run)
+    with with_run_id():
+        logger.info("poll_generator_start", dry_run=dry_run, model=args.model)
         
-        if result.get("ok"):
-            if dry_run:
-                print(f"[PollGeneratorBot] DRY RUN: Would create poll:")
-                print(f"  Title: {result.get('title')}")
-                print(f"  Question: {result.get('question')}")
-                print(f"  Options: {result.get('options_count')}")
-            else:
-                print(f"[PollGeneratorBot] Successfully created poll ID: {result.get('poll_id')}")
-                print(f"  Title: {result.get('title')}")
-        else:
-            print(f"[PollGeneratorBot] Failed: {result.get('error')}")
-            sys.exit(1)
+        # Initialize database pool
+        await init_db_pool()
+        
+        try:
+            result = await generate_daily_poll(model=args.model, dry_run=dry_run)
             
-    except Exception as e:
-        logger.error("poll_generator_fatal", error=str(e))
-        print(f"[PollGeneratorBot] Fatal error: {e}")
-        sys.exit(1)
-    finally:
-        # DB pool cleanup handled by context manager
-        pass
+            if result.get("ok"):
+                if dry_run:
+                    print(f"[PollGeneratorBot] DRY RUN: Would create poll:")
+                    print(f"  Title: {result.get('title')}")
+                    print(f"  Question: {result.get('question')}")
+                    print(f"  Options: {result.get('options_count')}")
+                else:
+                    print(f"[PollGeneratorBot] Successfully created poll ID: {result.get('poll_id')}")
+                    print(f"  Title: {result.get('title')}")
+            else:
+                print(f"[PollGeneratorBot] Failed: {result.get('error')}")
+                sys.exit(1)
+                
+        except Exception as e:
+            logger.error("poll_generator_fatal", error=str(e))
+            print(f"[PollGeneratorBot] Fatal error: {e}")
+            sys.exit(1)
+        finally:
+            # DB pool cleanup handled by context manager
+            pass
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
