@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import TurkSpotBot from "@/assets/turkspotbot.png";
 import { Icon } from "@/components/Icon";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { useNavigate } from "react-router-dom";
 import { useUserAuth } from "@/hooks/useUserAuth";
@@ -126,20 +127,17 @@ export function AppHeader({
             </span>
           </button>
         ) : (
-          <button
+          <Button
             type="button"
             onClick={() => setLoginModalOpen(true)}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-full",
-              "text-muted-foreground transition-colors",
-              "hover:bg-muted hover:text-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2"
-            )}
+            variant="default"
+            size="md"
+            className="gap-2"
             aria-label="Inloggen / Registreren"
           >
             <Icon name="LogIn" sizeRem={1.1} decorative={false} title="Inloggen" />
-            <span className="hidden sm:inline text-sm font-medium">Inloggen</span>
-          </button>
+            <span className="text-sm font-medium">Inloggen</span>
+          </Button>
         )}
       </header>
 
