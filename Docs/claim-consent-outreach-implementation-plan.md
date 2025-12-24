@@ -40,10 +40,10 @@ Het outreach systeem volgt deze principes:
 - [ ] **Stap 4.2**: Rate limiting service
 - [ ] **Stap 4.3**: Queue management systeem
 
-### Fase 5: Amazon SES Setup
+### Fase 5: Amazon SES Setup (voor Outreach)
 - [ ] **Stap 5.1**: SES domain verification (SPF, DKIM, DMARC)
 - [ ] **Stap 5.2**: SES production access request
-- [ ] **Stap 5.3**: Email service abstraction layer
+- [ ] **Stap 5.3**: SES provider implementatie (email service abstraction bestaat al uit pre-claim plan Fase 0.5.1)
 
 ### Fase 6: Outreach Mailer Bot
 - [ ] **Stap 6.1**: Email template systeem
@@ -486,75 +486,90 @@ Het outreach systeem volgt deze principes:
 
 ---
 
-#### Stap 5.3: Email Service Abstraction Layer
+#### Stap 5.3: SES Provider Implementatie (voor Outreach)
 
-**Doel**: Abstracte email service die SES gebruikt, maar later uitbreidbaar is naar Brevo.
+**Doel**: SES provider volledig implementeren voor outreach emails (email service abstraction bestaat al uit pre-claim plan Fase 0.5.1).
 
-**Interface**:
-```python
-async def send_email(
-    to: str,
-    subject: str,
-    html_body: str,
-    text_body: str,
-    reply_to: str = None
-) -> str:  # Returns message_id
-```
+**Prerequisite**: 
+- Email service abstraction layer bestaat al (pre-claim plan Fase 0.5.1)
+- Provider pattern bestaat al
+- SMTP provider werkt al
 
 **Implementatie**:
+- Volledige SES provider implementatie (skeleton bestaat al uit Fase 0.5.1)
 - SES client setup (boto3)
 - Error handling (bounces, throttling)
 - Response tracking (message_id)
+- Rate limiting voor outreach volumes
 
 **Acceptatie Criteria**:
-- [ ] Email service bestaat met abstracte interface
+- [ ] SES provider implementatie is compleet
 - [ ] SES integratie werkt
 - [ ] Error handling is robuust
 - [ ] Message ID wordt geretourneerd
 - [ ] Configuratie via env vars (AWS credentials)
+- [ ] Rate limiting werkt voor outreach volumes
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/services/email_service.py` (nieuw)
-- Update `.env.example` met AWS SES config
+- `Backend/services/email/ses_provider.py` (update, volledige implementatie - skeleton bestaat al uit pre-claim plan Fase 0.5.1)
+- `Backend/services/email_service.py` (update, SES provider configuratie voor outreach)
+- Update `.env.example` met AWS SES config (`AWS_SES_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+
+**Noot**: 
+- Email service abstraction bestaat al uit pre-claim plan Fase 0.5.1
+- Template systeem bestaat al uit pre-claim plan Fase 0.5.2
+- Focus hier is op SES setup specifiek voor outreach (hogere volumes, rate limiting)
 
 ---
 
 ### FASE 6: Outreach Mailer Bot
 
-#### Stap 6.1: Email Template Systeem
+#### Stap 6.1: Email Template Systeem (voor Outreach)
 
-**Doel**: Template systeem voor outreach emails.
+**Doel**: Outreach-specifieke email templates maken (template systeem bestaat al uit pre-claim plan Fase 0.5.2).
+
+**Prerequisite**: 
+- Template systeem foundation bestaat al (pre-claim plan Fase 0.5.2)
+- Base templates bestaan al
 
 **Templates Vereist**:
 - **Outreach email** (eerste contact):
-  - Subject: "Uw locatie staat op Turkspot"
+  - Subject: "Uw locatie staat op Turkspot" (NL) / "Konumunuz Turkspot'ta" (TR) / "Your location is on Turkspot" (EN)
   - Body: Informatief, vriendelijk, AVG-compliant
   - **Link naar mapview** (locatie gecentreerd, tooltip open) - primaire CTA
   - Opt-out link
   - **Noot**: Token link wordt niet meer gebruikt (authenticated claim flow is primair)
 
-- **Claim bevestiging** (na claim actie)
-- **Removal bevestiging** (na verwijdering)
-- **Correction bevestiging** (na correctie)
+- **Claim bevestiging** (na claim actie) - gebruikt al bestaande templates uit pre-claim plan Stap 3.10
+- **Removal bevestiging** (na verwijdering) - optioneel
+- **Correction bevestiging** (na correctie) - optioneel
 
-**Template Features**:
+**Template Features** (uitbreiding op Fase 0.5.2):
+- Outreach-specifieke variabelen (location_name, mapview_link, opt_out_link)
+- AVG-compliant teksten
+- Meertaligheid (NL/TR/EN)
 - Plain text + HTML versies
-- Variabelen (location_name, mapview_link, etc.)
 - Geen tracking pixels (privacy-first)
 
 **Acceptatie Criteria**:
-- [ ] Template systeem bestaat
+- [ ] Outreach email template bestaat
 - [ ] Alle templates zijn geïmplementeerd
 - [ ] AVG-compliant teksten
 - [ ] Variabelen werken
 - [ ] Plain text + HTML versies
+- [ ] Meertaligheid werkt
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/templates/emails/outreach_email.j2` (nieuw)
-- `Backend/templates/emails/claim_confirmation.j2` (nieuw)
-- `Backend/templates/emails/removal_confirmation.j2` (nieuw)
-- `Backend/templates/emails/correction_confirmation.j2` (nieuw)
-- `Backend/services/email_template_service.py` (nieuw)
+- `Backend/templates/emails/outreach_email.html.j2` (nieuw)
+- `Backend/templates/emails/outreach_email.txt.j2` (nieuw)
+- `Backend/templates/emails/removal_confirmation.html.j2` (nieuw, optioneel)
+- `Backend/templates/emails/correction_confirmation.html.j2` (nieuw, optioneel)
+- `Backend/services/email_template_service.py` (update, outreach variabelen - bestaat al uit Fase 0.5.2)
+
+**Noot**: 
+- Template systeem foundation bestaat al uit pre-claim plan Fase 0.5.2
+- Base templates bestaan al
+- Claim confirmation templates bestaan al uit pre-claim plan Stap 3.10
 
 ---
 
@@ -749,28 +764,33 @@ async def send_email(
 
 **Doel**: Email bevestigingen verzenden na elke claim actie.
 
+**Prerequisite**: Transactionele email foundation (pre-claim plan Fase 0.5) moet voltooid zijn.
+
 **Bevestigingen**:
-- **Claim Approved** (uit pre-claim plan Stap 3.10): "Uw claim is goedgekeurd - {location_name}"
-- **Claim Rejected** (uit pre-claim plan Stap 3.10): "Uw claim is afgewezen - {location_name}"
-- **Remove** (optioneel, als remove functionaliteit wordt toegevoegd): "Uw locatie wordt verwijderd. Bedankt voor uw feedback."
-- **Correction** (optioneel, als correction functionaliteit wordt toegevoegd): "Bedankt voor uw correctie. We verwerken dit zo snel mogelijk."
+- **Claim Approved** (uit pre-claim plan Stap 3.10): "Uw claim is goedgekeurd - {location_name}" (NL) / "Talebiniz onaylandı - {location_name}" (TR) / "Your claim has been approved - {location_name}" (EN)
+- **Claim Rejected** (uit pre-claim plan Stap 3.10): "Uw claim is afgewezen - {location_name}" (NL) / "Talebiniz reddedildi - {location_name}" (TR) / "Your claim has been rejected - {location_name}" (EN)
+- **Remove** (optioneel, als remove functionaliteit wordt toegevoegd): "Uw locatie wordt verwijderd. Bedankt voor uw feedback." (NL/TR/EN)
+- **Correction** (optioneel, als correction functionaliteit wordt toegevoegd): "Bedankt voor uw correctie. We verwerken dit zo snel mogelijk." (NL/TR/EN)
 
 **Implementatie**:
 - Claim approval/rejection emails worden al getriggerd in authenticated claim flow (pre-claim plan Stap 3.10)
+- Gebruik transactionele email foundation (pre-claim plan Fase 0.5)
 - Optionele remove/correction emails kunnen worden toegevoegd als functionaliteit wordt geïmplementeerd
 - Gebruik email templates (Stap 6.1)
-- Verzend via email_service
+- Verzend via email_service (pre-claim plan Fase 0.5.1)
 
 **Acceptatie Criteria**:
-- [ ] Claim approval/rejection emails werken (al geïmplementeerd in pre-claim plan)
+- [ ] Claim approval/rejection emails werken (al geïmplementeerd in pre-claim plan Stap 3.10)
 - [ ] Optionele remove/correction emails werken (als geïmplementeerd)
 - [ ] Templates zijn correct
 - [ ] Email bevat relevante informatie
+- [ ] Meertaligheid werkt
 - [ ] Error handling (email failure blokkeert niet de actie)
 
 **Bestanden om aan te maken/wijzigen**:
-- Geen nieuwe bestanden (claim emails al in pre-claim plan)
-- Optioneel: remove/correction email templates (als functionaliteit wordt toegevoegd)
+- Geen nieuwe bestanden voor claim emails (al in pre-claim plan Stap 3.10)
+- Optioneel: `Backend/templates/emails/removal_confirmation.html.j2` (als remove functionaliteit wordt toegevoegd)
+- Optioneel: `Backend/templates/emails/correction_confirmation.html.j2` (als correction functionaliteit wordt toegevoegd)
 
 ---
 
@@ -1127,6 +1147,7 @@ Maak dan de nieuwe migration volgens de specificatie.
 
 ## 📚 Referenties
 
+- **Pre-Claim Plan**: `Docs/pre-claim-outreach-implementation-plan.md` (Fase 0.5: Transactionele Email Foundation)
 - AWS SES Documentation: https://docs.aws.amazon.com/ses/
 - AVG/GDPR Guidelines: https://autoriteitpersoonsgegevens.nl/
 - Design System: `Docs/design-system.md`
@@ -1139,6 +1160,7 @@ Maak dan de nieuwe migration volgens de specificatie.
 
 **Laatste Update**: 2025-01-XX  
 **Huidige Status**: 🔴 Niet Gestart  
+**Prerequisite**: Pre-Claim & Consent Outreach Implementation Plan (Fase 0.5: Transactionele Email Foundation) moet voltooid zijn  
 **Volgende Stap**: Fase 1 - Voorbereiding & Randvoorwaarden (Stap 1.1: Functionele scope vastleggen)
 
 ---
@@ -1173,5 +1195,12 @@ De nieuwe visie maakt **authenticated claims** de primaire claim methode:
 1. **business_location_claims**: Premium/verified claims (toekomstig)
 2. **authenticated_location_claims**: Primaire outreach claim flow (nieuwe visie)
 3. **token_location_claims**: Token-based fallback (optioneel, beslissing nodig)
+
+### Transactionele Email Foundation (Prerequisite)
+Voordat outreach emails kunnen worden geïmplementeerd, moet de **transactionele email foundation** (pre-claim plan Fase 0.5) voltooid zijn:
+- Email service abstraction layer (provider pattern)
+- Template systeem met base templates
+- Welkom emails bij account registratie
+- Deze foundation wordt gebruikt door zowel claim emails als outreach emails
 
 
