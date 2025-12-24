@@ -137,6 +137,15 @@ python -m app.workers.google_business_sync --limit 50 --dry-run 0
 # Promotion expiry (marks expired promotions)
 python -m app.workers.promotion_expiry_worker
 
+# Poll generator (dry-run to test without creating poll)
+python -m app.workers.poll_generator_bot --dry-run 1
+
+# Poll generator (production - creates poll in database)
+python -m app.workers.poll_generator_bot
+
+# Poll generator (with model override)
+python -m app.workers.poll_generator_bot --model gpt-4
+
 # Event geocoding (geocode event locations to lat/lng)
 python -m app.workers.event_geocoding_bot --limit 50
 ```

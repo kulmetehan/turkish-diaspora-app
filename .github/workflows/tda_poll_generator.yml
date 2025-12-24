@@ -1,0 +1,62 @@
+name: TDA Poll Generator (Daily 06:00 UTC)
+
+# Poll Generator Worker
+#
+# Generates a new daily poll using AI for the Turkish diaspora community in the Netherlands.
+# Creates polls with 2-5 options that expire after 7 days.
+#
+# Frequency: Daily at 06:00 UTC
+# Timeout: 10 minutes
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # Daily at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "tda-poll-generator"
+  cancel-in-progress: false
+
+jobs:
+  poll_generator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Poll Generator
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PYTHONUNBUFFERED: "1"
+          PYTHONPATH: .
+        run: >
+          python -m app.workers.poll_generator_bot
+
