@@ -25,7 +25,7 @@ export function MapListToggle({ viewMode, onViewModeChange }: MapListToggleProps
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
           viewMode === "map"
             ? "bg-primary text-primary-foreground shadow-soft"
-            : "bg-transparent text-foreground hover:bg-surface-muted"
+            : "bg-transparent text-gray-900 hover:bg-primary hover:text-primary-foreground"
         )}
         aria-pressed={viewMode === "map"}
         aria-label="Kaartweergave"
@@ -45,7 +45,7 @@ export function MapListToggle({ viewMode, onViewModeChange }: MapListToggleProps
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
           viewMode === "list"
             ? "bg-primary text-primary-foreground shadow-soft dark:text-black"
-            : "bg-transparent text-foreground hover:bg-surface-muted"
+            : "bg-transparent text-gray-900 hover:bg-primary hover:text-primary-foreground"
         )}
         aria-pressed={viewMode === "list"}
         aria-label="Lijstweergave"
@@ -56,6 +56,7 @@ export function MapListToggle({ viewMode, onViewModeChange }: MapListToggleProps
     </div>
   );
 }
+
 
 
 

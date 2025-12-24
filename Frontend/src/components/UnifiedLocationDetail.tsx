@@ -388,7 +388,7 @@ export default function UnifiedLocationDetail({
                             e.stopPropagation();
                             onBack();
                         }}
-                        className="flex items-center gap-2 text-foreground hover:text-primary hover:bg-transparent transition-colors font-gilroy"
+                        className="flex items-center gap-2 text-foreground dark:text-gray-900 hover:text-primary hover:bg-transparent transition-colors font-gilroy"
                     >
                         <Icon name="ArrowUp" className="h-4 w-4" />
                         {backButtonText}
@@ -399,12 +399,12 @@ export default function UnifiedLocationDetail({
                         targetName={location.name}
                         size="sm"
                         variant="ghost"
-                        className="text-foreground hover:text-primary hover:bg-transparent transition-colors font-gilroy"
+                        className="text-foreground dark:text-gray-900 hover:text-primary hover:bg-transparent transition-colors font-gilroy"
                     />
                 </div>
 
                 {/* Title */}
-                <h2 className="text-base font-gilroy font-semibold text-foreground">{location.name}</h2>
+                <h2 className="text-base font-gilroy font-semibold text-foreground dark:text-gray-900">{location.name}</h2>
 
                 {/* Category, Favorite, Share on same row */}
                 <div className="flex items-center gap-2 flex-wrap">
@@ -449,7 +449,7 @@ export default function UnifiedLocationDetail({
                         size="sm"
                         aria-label="Open route in Maps"
                         title="Open route in Maps"
-                        className="border-white/20 text-foreground hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                        className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
                     >
                         <a href={routeUrl} {...routeLinkProps}>
                             <Icon name="Navigation" className="h-4 w-4 mr-2" />
@@ -462,7 +462,7 @@ export default function UnifiedLocationDetail({
                         size="sm"
                         aria-label="Search on Google"
                         title="Search on Google"
-                        className="border-white/20 text-foreground hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                        className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
                     >
                         <a href={googleSearchUrl} {...googleLinkProps}>
                             <Icon name="Search" className="h-4 w-4 mr-2" />
@@ -506,21 +506,21 @@ export default function UnifiedLocationDetail({
                     <>
                         {/* Stats Overview */}
                         <div>
-                            <h3 className="text-sm font-gilroy font-medium text-foreground mb-3">Interacties</h3>
+                            <h3 className="text-sm font-gilroy font-medium text-foreground dark:text-gray-900 mb-3">Interacties</h3>
                             <div className="grid grid-cols-3 gap-4 text-center">
                                 <div>
                                     <div className="text-2xl font-gilroy font-semibold text-primary">
                                         {checkInStats?.total_check_ins ?? 0}
                                     </div>
-                                    <div className="text-xs font-gilroy font-normal text-muted-foreground">Check-ins</div>
+                                    <div className="text-xs font-gilroy font-normal text-muted-foreground dark:text-gray-900">Check-ins</div>
                                 </div>
                                 <div>
                                     <div className="text-2xl font-gilroy font-semibold text-primary">{totalReactions}</div>
-                                    <div className="text-xs font-gilroy font-normal text-muted-foreground">Reactions</div>
+                                    <div className="text-xs font-gilroy font-normal text-muted-foreground dark:text-gray-900">Reactions</div>
                                 </div>
                                 <div>
                                     <div className="text-2xl font-gilroy font-semibold text-primary">{notes.length}</div>
-                                    <div className="text-xs font-gilroy font-normal text-muted-foreground">Notities</div>
+                                    <div className="text-xs font-gilroy font-normal text-muted-foreground dark:text-gray-900">Notities</div>
                                 </div>
                             </div>
                         </div>
@@ -529,7 +529,7 @@ export default function UnifiedLocationDetail({
                         {checkInStats && (
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-gilroy font-medium text-foreground">Check-ins</h3>
+                                    <h3 className="text-sm font-gilroy font-medium text-foreground dark:text-gray-900">Check-ins</h3>
                                     <Badge variant="secondary">{checkInStats.total_check_ins} totaal</Badge>
                                 </div>
                                 <div className="text-sm font-gilroy font-normal text-muted-foreground">
@@ -540,7 +540,7 @@ export default function UnifiedLocationDetail({
 
                         {/* Reactions Section */}
                         <div>
-                            <h3 className="text-sm font-gilroy font-medium text-foreground mb-3">Reactions</h3>
+                            <h3 className="text-sm font-gilroy font-medium text-foreground dark:text-gray-900 mb-3">Reactions</h3>
                             <div className="flex flex-row gap-1.5 flex-nowrap overflow-x-auto">
                                 {(Object.keys(REACTION_EMOJIS) as ReactionType[]).map((reactionType) => {
                                     const count = reactionStats?.reactions[reactionType] ?? 0;
@@ -582,12 +582,12 @@ export default function UnifiedLocationDetail({
                         {/* Notes Section */}
                         <div>
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-sm font-gilroy font-medium text-foreground">Notities</h3>
+                                <h3 className="text-sm font-gilroy font-medium text-foreground dark:text-gray-900">Notities</h3>
                                 <Button
                                     onClick={handleAddNote}
                                     size="sm"
                                     variant="outline"
-                                    className="text-foreground hover:!bg-red-600 hover:!text-white hover:!border-red-600 transition-colors"
+                                    className="text-foreground dark:text-gray-900 hover:!bg-red-600 hover:!text-white hover:!border-red-600 transition-colors"
                                 >
                                     <Icon name="Plus" className="h-4 w-4 mr-2" />
                                     Notitie toevoegen
@@ -665,7 +665,7 @@ export default function UnifiedLocationDetail({
                             e.stopPropagation();
                             onBack();
                         }}
-                        className="flex items-center gap-2 text-foreground hover:text-primary hover:bg-transparent transition-colors font-gilroy"
+                        className="flex items-center gap-2 text-foreground dark:text-gray-900 hover:text-primary hover:bg-transparent transition-colors font-gilroy"
                     >
                         <Icon name="ArrowUp" className="h-4 w-4" />
                         {backButtonText}
@@ -676,12 +676,12 @@ export default function UnifiedLocationDetail({
                         targetName={location.name}
                         size="sm"
                         variant="ghost"
-                        className="text-foreground hover:text-primary hover:bg-transparent transition-colors font-gilroy"
+                        className="text-foreground dark:text-gray-900 hover:text-primary hover:bg-transparent transition-colors font-gilroy"
                     />
                 </div>
 
                 {/* Title */}
-                <h2 className="text-lg font-gilroy font-semibold text-foreground">{location.name}</h2>
+                <h2 className="text-lg font-gilroy font-semibold text-foreground dark:text-gray-900">{location.name}</h2>
 
                 {/* Category, Favorite, Share on same row */}
                 <div className="flex items-center gap-2 flex-wrap">
@@ -726,7 +726,7 @@ export default function UnifiedLocationDetail({
                         size="sm"
                         aria-label="Open route in Maps"
                         title="Open route in Maps"
-                        className="border-white/20 text-foreground hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                        className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
                     >
                         <a href={routeUrl} {...routeLinkProps}>
                             <Icon name="Navigation" className="h-4 w-4 mr-2" />
@@ -739,7 +739,7 @@ export default function UnifiedLocationDetail({
                         size="sm"
                         aria-label="Search on Google"
                         title="Search on Google"
-                        className="border-white/20 text-foreground hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                        className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
                     >
                         <a href={googleSearchUrl} {...googleLinkProps}>
                             <Icon name="Search" className="h-4 w-4 mr-2" />
@@ -786,21 +786,21 @@ export default function UnifiedLocationDetail({
 
                         {/* Stats Overview */}
                         <div>
-                            <h3 className="text-sm font-gilroy font-medium text-foreground mb-3">Interacties</h3>
+                            <h3 className="text-sm font-gilroy font-medium text-foreground dark:text-gray-900 mb-3">Interacties</h3>
                             <div className="grid grid-cols-3 gap-4 text-center">
                                 <div>
                                     <div className="text-2xl font-gilroy font-semibold text-primary">
                                         {checkInStats?.total_check_ins ?? 0}
                                     </div>
-                                    <div className="text-xs font-gilroy font-normal text-muted-foreground">Check-ins</div>
+                                    <div className="text-xs font-gilroy font-normal text-muted-foreground dark:text-gray-900">Check-ins</div>
                                 </div>
                                 <div>
                                     <div className="text-2xl font-gilroy font-semibold text-primary">{totalReactions}</div>
-                                    <div className="text-xs font-gilroy font-normal text-muted-foreground">Reactions</div>
+                                    <div className="text-xs font-gilroy font-normal text-muted-foreground dark:text-gray-900">Reactions</div>
                                 </div>
                                 <div>
                                     <div className="text-2xl font-gilroy font-semibold text-primary">{notes.length}</div>
-                                    <div className="text-xs font-gilroy font-normal text-muted-foreground">Notities</div>
+                                    <div className="text-xs font-gilroy font-normal text-muted-foreground dark:text-gray-900">Notities</div>
                                 </div>
                             </div>
                         </div>
@@ -809,7 +809,7 @@ export default function UnifiedLocationDetail({
                         {checkInStats && (
                             <div>
                                 <div className="flex items-center justify-between mb-2">
-                                    <h3 className="text-sm font-gilroy font-medium text-foreground">Check-ins</h3>
+                                    <h3 className="text-sm font-gilroy font-medium text-foreground dark:text-gray-900">Check-ins</h3>
                                     <Badge variant="secondary">{checkInStats.total_check_ins} totaal</Badge>
                                 </div>
                                 <div className="text-sm font-gilroy font-normal text-muted-foreground">
@@ -820,7 +820,7 @@ export default function UnifiedLocationDetail({
 
                         {/* Reactions Section */}
                         <div>
-                            <h3 className="text-sm font-gilroy font-medium text-foreground mb-3">Reactions</h3>
+                            <h3 className="text-sm font-gilroy font-medium text-foreground dark:text-gray-900 mb-3">Reactions</h3>
                             <div className="flex flex-row gap-1.5 flex-nowrap overflow-x-auto">
                                 {(Object.keys(REACTION_EMOJIS) as ReactionType[]).map((reactionType) => {
                                     const count = reactionStats?.reactions[reactionType] ?? 0;
