@@ -76,10 +76,6 @@ function transformActivityItem(
     ? (item.payload?.poll_id as number) || null
     : null;
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FeedPage.tsx:77',message:'transformActivityItem entry',data:{item_id:item.id,user_id:item.user?.id,user_name:item.user?.name,user_name_is_null:item.user?.name === null,user_name_is_undefined:item.user?.name === undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-  // #endregion
-
   const transformed = {
     id: item.id,
     user: {
@@ -111,16 +107,6 @@ function transformActivityItem(
     onPollClick,
     onUserClick: item.user?.id && onUserClick ? () => onUserClick(item.user!.id!) : undefined,
   };
-
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FeedPage.tsx:110',message:'transformActivityItem after transformation',data:{transformed_name:transformed.user.name,transformed_user_id:item.user?.id,original_user_name:item.user?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-
-  // #region agent log
-  if (item.reactions) {
-    fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'FeedPage.tsx:101', message: 'transformActivityItem: reactions in transformed', data: { activityId: item.id, reactions: item.reactions, userReaction: item.user_reaction, transformedReactions: transformed.reactions }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-  }
-  // #endregion
 
   return transformed;
 }
@@ -221,12 +207,6 @@ export default function FeedPage() {
         ? undefined 
         : activeFilter;
       const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
-      // #region agent log
-      if (data.length > 0) {
-        const sampleItem = data[0];
-        fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'FeedPage.tsx:166', message: 'loadInitialData: sample item reactions', data: { activityId: sampleItem.id, reactions: sampleItem.reactions, userReaction: sampleItem.user_reaction }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-      }
-      // #endregion
       setFeedItems(data);
       setOffset(data.length);
       setHasMore(data.length >= INITIAL_LIMIT);

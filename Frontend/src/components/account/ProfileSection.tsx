@@ -43,13 +43,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
 
   const loadProfile = async () => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:44',message:'loadProfile START',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       const user = await getCurrentUser();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:46',message:'getCurrentUser returned',data:{name:user?.name,avatar_url:user?.avatar_url,avatar_url_length:user?.avatar_url?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       setProfile(user);
       setUsername(user?.name || "");
     } catch (error) {
@@ -61,18 +55,9 @@ export function ProfileSection({ className }: ProfileSectionProps) {
 
   const loadUsernameChangeStatus = async () => {
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:62',message:'loadUsernameChangeStatus START',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'L'})}).catch(()=>{});
-      // #endregion
       const status = await getUsernameChangeStatus();
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:65',message:'getUsernameChangeStatus returned',data:{can_change:status.can_change,days_remaining:status.days_remaining,last_change:status.last_change,next_change_available:status.next_change_available},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'M'})}).catch(()=>{});
-      // #endregion
       setUsernameChangeStatus(status);
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:68',message:'loadUsernameChangeStatus ERROR',data:{error:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'N'})}).catch(()=>{});
-      // #endregion
       console.error("Failed to load username change status:", error);
     }
   };
@@ -132,17 +117,8 @@ export function ProfileSection({ className }: ProfileSectionProps) {
 
     setIsUploadingAvatar(true);
     try {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:115',message:'handleSaveAvatar START',data:{userId,fileName:avatarFile.name,fileSize:avatarFile.size},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       const avatarUrl = await uploadAvatar(avatarFile, userId);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:120',message:'uploadAvatar returned URL',data:{avatarUrl,urlLength:avatarUrl?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       await updateProfile({ avatar_url: avatarUrl });
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:122',message:'updateProfile completed',data:{avatarUrl},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       setProfile((prev) => prev ? { ...prev, avatar_url: avatarUrl } : null);
       setAvatarFile(null);
       setAvatarPreview(null);
@@ -151,9 +127,6 @@ export function ProfileSection({ className }: ProfileSectionProps) {
       }
       toast.success("Profielfoto bijgewerkt!");
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:130',message:'handleSaveAvatar ERROR',data:{error:error instanceof Error ? error.message : String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       console.error("Failed to upload avatar:", error);
       toast.error(error instanceof Error ? error.message : "Upload mislukt");
     } finally {
@@ -366,9 +339,6 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  // #region agent log
-                  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:364',message:'Wijzigen button clicked',data:{usernameChangeStatus,can_change:usernameChangeStatus?.can_change,isDisabled:usernameChangeStatus && !usernameChangeStatus.can_change},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'O'})}).catch(()=>{});
-                  // #endregion
                   setIsEditingUsername(true);
                 }}
                 disabled={usernameChangeStatus && !usernameChangeStatus.can_change}
@@ -381,12 +351,6 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                   Volgende wijziging mogelijk over {usernameChangeStatus.days_remaining} dag{usernameChangeStatus.days_remaining !== 1 ? "en" : ""}
                 </p>
               )}
-              {/* #region agent log */}
-              {(() => {
-                fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'ProfileSection.tsx:370',message:'Wijzigen button render',data:{usernameChangeStatus_exists:!!usernameChangeStatus,can_change:usernameChangeStatus?.can_change,isDisabled:usernameChangeStatus && !usernameChangeStatus.can_change,profile_name:profile?.name},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'P'})}).catch(()=>{});
-                return null;
-              })()}
-              {/* #endregion */}
             </>
           )}
         </div>

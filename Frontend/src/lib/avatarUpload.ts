@@ -42,10 +42,6 @@ export async function uploadAvatar(file: File, userId: string): Promise<string> 
     .from(AVATAR_BUCKET)
     .getPublicUrl(fileName);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'avatarUpload.ts:41',message:'getPublicUrl result',data:{urlData,publicUrl:urlData?.publicUrl,fileName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
-
   if (!urlData?.publicUrl) {
     throw new Error("Kon public URL niet ophalen");
   }
