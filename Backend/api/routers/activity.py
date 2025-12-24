@@ -124,14 +124,36 @@ async def get_own_activity(
         return []
     
     # Build WHERE clause with optional activity_type filter
-    # Use user_id if authenticated, otherwise fallback to client_id
+    # Match activities by user_id OR client_id to find activities regardless of login state
+    # when they were created (e.g., check-ins made while logged in should still appear when not logged in)
+    conditions = []
+    params = []
+    
     if user_id:
-        conditions = ["ast.actor_id = $1 AND ast.actor_type = 'user'"]
-        params = [user_id]
+        # Match activities created while logged in (actor_type = 'user')
+        conditions.append("(ast.actor_id = $1 AND ast.actor_type = 'user')")
+        params.append(user_id)
+    
+    if client_id:
+        # Also match activities by client_id (works for both logged in and anonymous)
+        if user_id:
+            conditions.append("ast.client_id = $2")
+            params.append(client_id)
+            param_num = 3
+        else:
+            conditions.append("ast.client_id = $1")
+            params.append(client_id)
+            param_num = 2
     else:
-        conditions = ["ast.client_id = $1"]
-        params = [client_id]
-    param_num = 2
+        param_num = 2 if user_id else 1
+    
+    # Combine conditions with OR if both user_id and client_id exist
+    if len(conditions) > 1:
+        where_clause_base = "(" + ") OR (".join(conditions) + ")"
+    else:
+        where_clause_base = conditions[0]
+    
+    conditions = [where_clause_base]
     
     if activity_type:
         # Validate activity_type
