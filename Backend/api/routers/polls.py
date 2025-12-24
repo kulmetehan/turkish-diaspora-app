@@ -95,29 +95,35 @@ async def list_polls(
             for opt in options_rows
         ]
         
-        # Check if user has responded (using identity_key)
-        # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
-        # Check both user_id and client_id to find responses regardless of login state
+        # Check if user has responded
+        # Check both user_id and client_id columns directly to find responses
+        # regardless of login state when response was created
         has_responded = False
-        if user_id:
-            # Check by user_id (for responses made while logged in)
-            response_check = """
-                SELECT 1 FROM poll_responses
-                WHERE poll_id = $1 AND identity_key = $2
-                LIMIT 1
-            """
-            response_rows = await fetch(response_check, row["id"], str(user_id))
-            has_responded = len(response_rows) > 0
-        
-        if not has_responded and client_id:
-            # Also check by client_id (for responses made while not logged in, or with same client_id)
-            response_check = """
-                SELECT 1 FROM poll_responses
-                WHERE poll_id = $1 AND identity_key = $2
-                LIMIT 1
-            """
-            response_rows = await fetch(response_check, row["id"], client_id)
-            has_responded = len(response_rows) > 0
+        if user_id or client_id:
+            # Build conditions for checking response
+            conditions = []
+            params = [row["id"]]
+            param_num = 2
+            
+            if user_id:
+                conditions.append(f"user_id = ${param_num}")
+                params.append(user_id)
+                param_num += 1
+            
+            if client_id:
+                conditions.append(f"client_id = ${param_num}")
+                params.append(client_id)
+                param_num += 1
+            
+            if conditions:
+                where_clause = " OR ".join(conditions)
+                response_check = f"""
+                    SELECT 1 FROM poll_responses
+                    WHERE poll_id = $1 AND ({where_clause})
+                    LIMIT 1
+                """
+                response_rows = await fetch(response_check, *params)
+                has_responded = len(response_rows) > 0
         
         polls.append(PollResponse(
             id=row["id"],
@@ -174,29 +180,35 @@ async def get_poll(
         for opt in options_rows
     ]
     
-    # Check if user has responded (using identity_key)
-    # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
-    # Check both user_id and client_id to find responses regardless of login state
+    # Check if user has responded
+    # Check both user_id and client_id columns directly to find responses
+    # regardless of login state when response was created
     has_responded = False
-    if user_id:
-        # Check by user_id (for responses made while logged in)
-        response_check = """
-            SELECT 1 FROM poll_responses
-            WHERE poll_id = $1 AND identity_key = $2
-            LIMIT 1
-        """
-        response_rows = await fetch(response_check, poll_id, str(user_id))
-        has_responded = len(response_rows) > 0
-    
-    if not has_responded and client_id:
-        # Also check by client_id (for responses made while not logged in, or with same client_id)
-        response_check = """
-            SELECT 1 FROM poll_responses
-            WHERE poll_id = $1 AND identity_key = $2
-            LIMIT 1
-        """
-        response_rows = await fetch(response_check, poll_id, client_id)
-        has_responded = len(response_rows) > 0
+    if user_id or client_id:
+        # Build conditions for checking response
+        conditions = []
+        params = [poll_id]
+        param_num = 2
+        
+        if user_id:
+            conditions.append(f"user_id = ${param_num}")
+            params.append(user_id)
+            param_num += 1
+        
+        if client_id:
+            conditions.append(f"client_id = ${param_num}")
+            params.append(client_id)
+            param_num += 1
+        
+        if conditions:
+            where_clause = " OR ".join(conditions)
+            response_check = f"""
+                SELECT 1 FROM poll_responses
+                WHERE poll_id = $1 AND ({where_clause})
+                LIMIT 1
+            """
+            response_rows = await fetch(response_check, *params)
+            has_responded = len(response_rows) > 0
     
     return PollResponse(
         id=row["id"],
@@ -238,29 +250,33 @@ async def create_poll_response(
     
     poll_type = poll_rows[0].get("poll_type")
     
-    # For single_choice polls, check for duplicate response using identity_key
-    # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
-    # Check both user_id and client_id to catch duplicates regardless of login state
+    # For single_choice polls, check for duplicate response
+    # Check both user_id and client_id columns directly to catch duplicates
+    # regardless of login state when response was created
     if poll_type == "single_choice":
-        # Check by user_id first if authenticated
-        if user_id:
-            duplicate_check = """
-                SELECT 1 FROM poll_responses
-                WHERE poll_id = $1 AND identity_key = $2
-                LIMIT 1
-            """
-            duplicate_rows = await fetch(duplicate_check, poll_id, str(user_id))
-            if duplicate_rows:
-                raise HTTPException(status_code=409, detail="Already responded to this poll")
+        # Build conditions for checking duplicates
+        conditions = []
+        params = [poll_id]
+        param_num = 2
         
-        # Also check by client_id (in case response was made with same client_id but different login state)
+        if user_id:
+            conditions.append(f"user_id = ${param_num}")
+            params.append(user_id)
+            param_num += 1
+        
         if client_id:
-            duplicate_check = """
+            conditions.append(f"client_id = ${param_num}")
+            params.append(client_id)
+            param_num += 1
+        
+        if conditions:
+            where_clause = " OR ".join(conditions)
+            duplicate_check = f"""
                 SELECT 1 FROM poll_responses
-                WHERE poll_id = $1 AND identity_key = $2
+                WHERE poll_id = $1 AND ({where_clause})
                 LIMIT 1
             """
-            duplicate_rows = await fetch(duplicate_check, poll_id, client_id)
+            duplicate_rows = await fetch(duplicate_check, *params)
             if duplicate_rows:
                 raise HTTPException(status_code=409, detail="Already responded to this poll")
     
