@@ -55,9 +55,12 @@ async def list_polls(
     city_key: Optional[str] = Query(None, description="Filter by city"),
     limit: int = Query(10, le=50),
     client_id: Optional[str] = Depends(get_client_id),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """List active polls for user/city."""
     require_feature("polls_enabled")
+    
+    user_id = user.user_id if user else None
     
     sql = """
         SELECT p.id, p.title, p.question, p.poll_type, p.is_sponsored, 
@@ -93,15 +96,26 @@ async def list_polls(
         ]
         
         # Check if user has responded (using identity_key)
+        # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
+        # Check both user_id and client_id to find responses regardless of login state
         has_responded = False
-        if client_id:
+        if user_id:
+            # Check by user_id (for responses made while logged in)
             response_check = """
                 SELECT 1 FROM poll_responses
                 WHERE poll_id = $1 AND identity_key = $2
                 LIMIT 1
             """
-            # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
-            # Since we only have client_id here, identity_key = client_id::text
+            response_rows = await fetch(response_check, row["id"], str(user_id))
+            has_responded = len(response_rows) > 0
+        
+        if not has_responded and client_id:
+            # Also check by client_id (for responses made while not logged in, or with same client_id)
+            response_check = """
+                SELECT 1 FROM poll_responses
+                WHERE poll_id = $1 AND identity_key = $2
+                LIMIT 1
+            """
             response_rows = await fetch(response_check, row["id"], client_id)
             has_responded = len(response_rows) > 0
         
@@ -124,9 +138,12 @@ async def list_polls(
 async def get_poll(
     poll_id: int = Path(..., description="Poll ID"),
     client_id: Optional[str] = Depends(get_client_id),
+    user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get poll details."""
     require_feature("polls_enabled")
+    
+    user_id = user.user_id if user else None
     
     sql = """
         SELECT id, title, question, poll_type, is_sponsored, starts_at, ends_at
@@ -158,15 +175,26 @@ async def get_poll(
     ]
     
     # Check if user has responded (using identity_key)
+    # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
+    # Check both user_id and client_id to find responses regardless of login state
     has_responded = False
-    if client_id:
+    if user_id:
+        # Check by user_id (for responses made while logged in)
         response_check = """
             SELECT 1 FROM poll_responses
             WHERE poll_id = $1 AND identity_key = $2
             LIMIT 1
         """
-        # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
-        # Since we only have client_id here, identity_key = client_id::text
+        response_rows = await fetch(response_check, poll_id, str(user_id))
+        has_responded = len(response_rows) > 0
+    
+    if not has_responded and client_id:
+        # Also check by client_id (for responses made while not logged in, or with same client_id)
+        response_check = """
+            SELECT 1 FROM poll_responses
+            WHERE poll_id = $1 AND identity_key = $2
+            LIMIT 1
+        """
         response_rows = await fetch(response_check, poll_id, client_id)
         has_responded = len(response_rows) > 0
     
@@ -212,16 +240,29 @@ async def create_poll_response(
     
     # For single_choice polls, check for duplicate response using identity_key
     # identity_key is automatically set by trigger as COALESCE(user_id::text, client_id::text)
+    # Check both user_id and client_id to catch duplicates regardless of login state
     if poll_type == "single_choice":
-        identity_key = str(user_id) if user_id else client_id
-        duplicate_check = """
-            SELECT 1 FROM poll_responses
-            WHERE poll_id = $1 AND identity_key = $2
-            LIMIT 1
-        """
-        duplicate_rows = await fetch(duplicate_check, poll_id, identity_key)
-        if duplicate_rows:
-            raise HTTPException(status_code=409, detail="Already responded to this poll")
+        # Check by user_id first if authenticated
+        if user_id:
+            duplicate_check = """
+                SELECT 1 FROM poll_responses
+                WHERE poll_id = $1 AND identity_key = $2
+                LIMIT 1
+            """
+            duplicate_rows = await fetch(duplicate_check, poll_id, str(user_id))
+            if duplicate_rows:
+                raise HTTPException(status_code=409, detail="Already responded to this poll")
+        
+        # Also check by client_id (in case response was made with same client_id but different login state)
+        if client_id:
+            duplicate_check = """
+                SELECT 1 FROM poll_responses
+                WHERE poll_id = $1 AND identity_key = $2
+                LIMIT 1
+            """
+            duplicate_rows = await fetch(duplicate_check, poll_id, client_id)
+            if duplicate_rows:
+                raise HTTPException(status_code=409, detail="Already responded to this poll")
     
     # Verify option belongs to poll
     option_check = """

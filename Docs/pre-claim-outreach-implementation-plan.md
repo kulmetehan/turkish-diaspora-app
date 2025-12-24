@@ -11,7 +11,8 @@ Dit document beschrijft de incrementele implementatie van de foundation die nodi
 
 Het outreach systeem vereist een solide foundation:
 - **Google Places Service Beslissing**: Contact discovery vereist Google Places API of alternatief
-- **Email Service Foundation**: Amazon SES setup en email service abstraction
+- **Transactionele Email Foundation**: Algemene email infrastructuur voor account registratie, welkom emails, etc.
+- **Email Service Foundation**: Amazon SES setup en email service abstraction (voor outreach)
 - **Contact Discovery Service**: Service voor het ontdekken van contactgegevens (email, website)
 - **Token-based Claim System**: Verschillend van bestaand business_account claims systeem
 - **Outreach Infrastructure**: Queue, rate limiting, en tracking systemen
@@ -25,7 +26,14 @@ Het outreach systeem vereist een solide foundation:
 - [ ] **Stap 0.2**: Beslissing over Google Places API gebruik (herintroduceren of alternatief)
 - [ ] **Stap 0.3**: Implementeer gekozen approach
 
-### Fase 1: Email Service Foundation
+### Fase 0.5: Transactionele Email Foundation
+- [ ] **Stap 0.5.1**: Email service migratie (SMTP → SES abstraction)
+- [ ] **Stap 0.5.2**: Transactionele email template systeem
+- [ ] **Stap 0.5.3**: Welkom email bij account registratie
+- [ ] **Stap 0.5.4**: Email verificatie systeem (optioneel)
+- [ ] **Stap 0.5.5**: Password reset email (optioneel)
+
+### Fase 1: Email Service Foundation (voor Outreach)
 - [ ] **Stap 1.1**: AWS SES account setup en domain verification planning
 - [ ] **Stap 1.2**: Email service abstraction layer (SES provider)
 - [ ] **Stap 1.3**: Email template systeem foundation
@@ -191,7 +199,197 @@ Het outreach systeem vereist een solide foundation:
 
 ---
 
-### FASE 1: Email Service Foundation
+### FASE 0.5: Transactionele Email Foundation
+
+**Doel**: Algemene transactionele email infrastructuur opzetten die nodig is voor account registratie, welkom emails, en claim flows. Deze foundation wordt gebruikt door zowel de claim flow als outreach emails.
+
+**Prerequisite**: Deze fase moet worden voltooid voordat claim emails (Stap 3.10) kunnen worden geïmplementeerd.
+
+---
+
+#### Stap 0.5.1: Email Service Migratie (SMTP → SES Abstraction)
+
+**Doel**: Bestaande SMTP-based email service migreren naar provider pattern met SES support, terwijl SMTP als fallback behouden blijft.
+
+**Huidige Situatie**:
+- `Backend/services/email_service.py` gebruikt SMTP (SendGrid/Mailgun/Gmail)
+- Template systeem bestaat al (Jinja2)
+- Digest emails werken al
+
+**Migratie Strategie**:
+- Refactor `EmailService` naar provider pattern
+- Abstracte `EmailProvider` interface
+- `SMTPEmailProvider` (bestaande functionaliteit)
+- `SESEmailProvider` (nieuw, uit Fase 1.2)
+- Factory pattern voor provider selectie
+- Configuratie via env vars: `EMAIL_PROVIDER=smtp|ses`
+
+**Implementatie**:
+- Maak `Backend/services/email/` package
+- Abstracte base class `EmailProvider`
+- `SMTPEmailProvider` (refactor bestaande code)
+- `SESEmailProvider` (nieuw, maar kan later worden geïmplementeerd in Fase 1.2)
+- `EmailService` factory die provider selecteert
+- Backward compatible: SMTP blijft default
+
+**Acceptatie Criteria**:
+- [ ] Provider pattern is geïmplementeerd
+- [ ] SMTP provider werkt (bestaande functionaliteit behouden)
+- [ ] SES provider interface bestaat (implementatie kan later in Fase 1.2)
+- [ ] Factory pattern werkt
+- [ ] Configuratie via env vars
+- [ ] Bestaande digest emails blijven werken
+- [ ] Geen breaking changes
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/services/email/__init__.py` (nieuw, package)
+- `Backend/services/email/base.py` (nieuw, abstract interface)
+- `Backend/services/email/smtp_provider.py` (nieuw, refactor bestaande code)
+- `Backend/services/email/ses_provider.py` (nieuw, skeleton - volledige implementatie in Fase 1.2)
+- `Backend/services/email_service.py` (refactor, factory pattern)
+- Update `.env.example` met `EMAIL_PROVIDER=smtp`
+
+---
+
+#### Stap 0.5.2: Transactionele Email Template Systeem
+
+**Doel**: Template systeem uitbreiden voor transactionele emails met base templates en meertaligheid.
+
+**Template Structuur**:
+- Base templates voor consistentie:
+  - `base.html.j2` (HTML base)
+  - `base.txt.j2` (plain text base)
+- Template service voor rendering
+- Meertaligheid support (NL/TR/EN)
+- Variabelen systeem
+
+**Template Features**:
+- Consistent branding (Turkspot logo, colors)
+- Responsive design
+- Plain text fallback
+- Privacy-first (geen tracking pixels)
+- Meertaligheid via context variabele
+
+**Acceptatie Criteria**:
+- [ ] Base templates bestaan
+- [ ] Template service kan templates renderen
+- [ ] Variabelen worden correct geïnjecteerd
+- [ ] Plain text + HTML versies werken
+- [ ] Meertaligheid werkt (NL/TR/EN)
+- [ ] Responsive design
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/services/email_template_service.py` (nieuw, of update bestaande)
+- `Backend/templates/emails/base.html.j2` (nieuw, base template)
+- `Backend/templates/emails/base.txt.j2` (nieuw, plain text base)
+- Update `Backend/requirements.txt` met `jinja2` (als nog niet aanwezig)
+
+---
+
+#### Stap 0.5.3: Welkom Email bij Account Registratie
+
+**Doel**: Welkom email verzenden na succesvolle account registratie.
+
+**Trigger**:
+- Na succesvolle signup via Supabase Auth
+- Integratie in signup flow (frontend of backend hook)
+
+**Email Template**:
+- Subject: "Welkom bij Turkspot!" (NL) / "Turkspot'a Hoş Geldiniz!" (TR) / "Welcome to Turkspot!" (EN)
+- Body: Vriendelijke welkom, introductie tot platform, eerste stappen
+- Taal: Gebaseerd op user preference of browser taal
+
+**Implementatie**:
+- Template: `welcome_email.html.j2` en `welcome_email.txt.j2`
+- Trigger na signup (Supabase Auth hook of backend endpoint)
+- Gebruik email service (Stap 0.5.1)
+- Gebruik template service (Stap 0.5.2)
+
+**Integratie Opties**:
+- **Optie A**: Supabase Database Trigger (aanbevolen)
+  - Trigger op `auth.users` INSERT
+  - Call backend endpoint of Edge Function
+- **Optie B**: Backend Endpoint na signup
+  - Frontend roept `/api/v1/auth/send-welcome-email` aan na signup
+- **Optie C**: Supabase Edge Function
+  - Auth hook trigger
+
+**Acceptatie Criteria**:
+- [ ] Welkom email template bestaat
+- [ ] Email wordt verzonden na signup
+- [ ] Meertaligheid werkt
+- [ ] Email bevat correcte informatie
+- [ ] Error handling (email failure blokkeert niet signup)
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/templates/emails/welcome_email.html.j2` (nieuw)
+- `Backend/templates/emails/welcome_email.txt.j2` (nieuw)
+- `Backend/api/routers/auth.py` (update, welkom email trigger)
+- Of: `Infra/supabase/078_welcome_email_trigger.sql` (nieuw, database trigger)
+
+---
+
+#### Stap 0.5.4: Email Verificatie Systeem (Optioneel)
+
+**Doel**: Email verificatie systeem voor nieuwe accounts (als Supabase dit niet al doet).
+
+**⚠️ BESLUIT NODIG**: Is email verificatie nodig, of doet Supabase Auth dit al?
+
+**Als Supabase Auth dit al doet**:
+- Skip deze stap
+- Documenteer dat Supabase email verificatie gebruikt
+
+**Als email verificatie nodig is**:
+- Verificatie token generatie
+- Verificatie email template
+- Verificatie endpoint
+- Status tracking in database
+
+**Acceptatie Criteria**:
+- [ ] Beslissing genomen
+- [ ] Email verificatie werkt (als geïmplementeerd)
+- [ ] Verificatie link werkt
+- [ ] Status wordt bijgewerkt
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/templates/emails/email_verification.html.j2` (alleen als nodig)
+- `Backend/api/routers/auth.py` (update, verificatie endpoint)
+- Database schema voor verificatie tokens (als nodig)
+
+---
+
+#### Stap 0.5.5: Password Reset Email (Optioneel)
+
+**Doel**: Password reset email systeem (als Supabase dit niet al doet).
+
+**⚠️ BESLUIT NODIG**: Is password reset email nodig, of doet Supabase Auth dit al?
+
+**Als Supabase Auth dit al doet**:
+- Skip deze stap
+- Documenteer dat Supabase password reset gebruikt
+
+**Als password reset nodig is**:
+- Reset token generatie
+- Reset email template
+- Reset endpoint
+- Security best practices (token expiry, one-time use)
+
+**Acceptatie Criteria**:
+- [ ] Beslissing genomen
+- [ ] Password reset email werkt (als geïmplementeerd)
+- [ ] Reset link werkt
+- [ ] Security best practices gevolgd
+
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/templates/emails/password_reset.html.j2` (alleen als nodig)
+- `Backend/api/routers/auth.py` (update, reset endpoint)
+- Database schema voor reset tokens (als nodig)
+
+---
+
+### FASE 1: Email Service Foundation (voor Outreach)
+
+**Noot**: Deze fase bouwt voort op de transactionele email foundation (Fase 0.5). Focus hier is op SES setup specifiek voor outreach emails (hogere volumes, rate limiting, etc.).
 
 #### Stap 1.1: AWS SES Account Setup en Domain Verification Planning
 
@@ -224,7 +422,7 @@ Het outreach systeem vereist een solide foundation:
 
 #### Stap 1.2: Email Service Abstraction Layer (SES Provider)
 
-**Doel**: Abstracte email service die SES gebruikt, maar later uitbreidbaar is naar Brevo.
+**Doel**: SES provider volledig implementeren voor de email service abstraction (interface bestaat al uit Fase 0.5.1).
 
 **Interface**:
 ```python
@@ -254,53 +452,53 @@ class EmailProvider(ABC):
 - Network errors
 
 **Acceptatie Criteria**:
-- [ ] Abstracte interface bestaat
-- [ ] SES provider implementatie werkt
+- [ ] SES provider implementatie is compleet (interface bestaat al uit Fase 0.5.1)
+- [ ] SES provider werkt correct
 - [ ] Error handling is robuust
 - [ ] Configuratie via env vars
 - [ ] Message ID wordt geretourneerd
 - [ ] Unit tests voor provider
+- [ ] Integratie met email service factory werkt
 
-**Bestanden om aan te maken**:
-- `Backend/services/email/__init__.py` (nieuw, package)
-- `Backend/services/email/base.py` (nieuw, abstract interface)
-- `Backend/services/email/ses_provider.py` (nieuw, SES implementatie)
-- `Backend/services/email_service.py` (nieuw, factory en main service)
-- Update `.env.example` met AWS SES config
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/services/email/ses_provider.py` (update, volledige implementatie - skeleton bestaat al uit Fase 0.5.1)
+- `Backend/services/email_service.py` (update, SES provider registratie)
+- Update `.env.example` met AWS SES config (`AWS_SES_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
 
-**Noot**: Voor nu alleen SES provider. Brevo provider komt later (Fase 10 van outreach plan).
+**Noot**: 
+- Abstracte interface en factory pattern bestaan al uit Fase 0.5.1
+- Voor nu alleen SES provider. Brevo provider komt later (Fase 10 van outreach plan)
+- SMTP provider blijft beschikbaar als fallback
 
 ---
 
-#### Stap 1.3: Email Template Systeem Foundation
+#### Stap 1.3: Email Template Systeem Foundation (voor Outreach)
 
-**Doel**: Template systeem voor email rendering (Jinja2).
+**Doel**: Template systeem uitbreiden voor outreach-specifieke templates (base templates bestaan al uit Fase 0.5.2).
 
-**Template Features**:
-- Jinja2 template engine
-- Plain text + HTML versies
-- Token variabelen (location_name, claim_token, etc.)
-- Geen tracking pixels (privacy-first)
+**Template Features** (uitbreiding op Fase 0.5.2):
+- Outreach-specifieke variabelen (location_name, mapview_link, claim_token, etc.)
+- AVG-compliant teksten
+- Opt-out links
+- Mapview link generatie
 
 **Template Structuur**:
-- `Backend/templates/emails/` directory
-- Base template voor consistentie
-- Template service voor rendering
+- Base templates bestaan al (Fase 0.5.2)
+- Outreach-specifieke templates komen in outreach plan (Fase 6)
 
 **Acceptatie Criteria**:
-- [ ] Template systeem bestaat
-- [ ] Jinja2 is geconfigureerd
-- [ ] Template service kan templates renderen
-- [ ] Variabelen worden correct geïnjecteerd
-- [ ] Plain text + HTML versies werken
+- [ ] Template systeem ondersteunt outreach variabelen
+- [ ] Base templates kunnen worden gebruikt voor outreach templates
+- [ ] Template service is klaar voor outreach templates
 
-**Bestanden om aan te maken**:
-- `Backend/services/email_template_service.py` (nieuw)
-- `Backend/templates/emails/base.html.j2` (nieuw, base template)
-- `Backend/templates/emails/base.txt.j2` (nieuw, plain text base)
-- Update `Backend/requirements.txt` met `jinja2`
+**Bestanden om aan te maken/wijzigen**:
+- `Backend/services/email_template_service.py` (update, outreach variabelen support)
+- Base templates bestaan al uit Fase 0.5.2
 
-**Noot**: Specifieke email templates (outreach, claim confirmation, etc.) komen later in outreach plan (Fase 6).
+**Noot**: 
+- Base template systeem bestaat al uit Fase 0.5.2
+- Specifieke outreach email templates komen later in outreach plan (Fase 6)
+- Claim confirmation templates komen in Stap 3.10
 
 ---
 
@@ -826,30 +1024,36 @@ class ContactInfo(BaseModel):
 
 **Doel**: Email bevestigingen verzenden na claim approval/rejection.
 
+**Prerequisite**: Transactionele email foundation (Fase 0.5) moet voltooid zijn.
+
 **Email Templates Vereist**:
 - **Claim Approved**:
-  - Subject: "Uw claim is goedgekeurd - {location_name}"
-  - Body: Bevestiging, locatie is nu van jou, link naar account pagina
+  - Subject: "Uw claim is goedgekeurd - {location_name}" (NL) / "Talebiniz onaylandı - {location_name}" (TR) / "Your claim has been approved - {location_name}" (EN)
+  - Body: Bevestiging, locatie is nu van jou, link naar account pagina ("Senin" sectie)
 - **Claim Rejected**:
-  - Subject: "Uw claim is afgewezen - {location_name}"
+  - Subject: "Uw claim is afgewezen - {location_name}" (NL) / "Talebiniz reddedildi - {location_name}" (TR) / "Your claim has been rejected - {location_name}" (EN)
   - Body: Vriendelijke afwijzing, optioneel reden (als opgegeven)
 
 **Implementatie**:
 - Trigger email na admin approval/rejection actie
-- Gebruik email service (Fase 1)
-- Gebruik email templates (Fase 1)
+- Gebruik email service (Fase 0.5.1)
+- Gebruik email templates (Fase 0.5.2)
 - Verzend naar gebruiker email (uit auth.users)
+- Meertaligheid support (NL/TR/EN)
 
 **Acceptatie Criteria**:
 - [ ] Email templates bestaan
 - [ ] Emails worden verzonden bij approval
 - [ ] Emails worden verzonden bij rejection
 - [ ] Templates bevatten correcte informatie
+- [ ] Meertaligheid werkt
 - [ ] Error handling (email failure blokkeert niet de actie)
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/templates/emails/claim_approved.j2` (nieuw)
-- `Backend/templates/emails/claim_rejected.j2` (nieuw)
+- `Backend/templates/emails/claim_approved.html.j2` (nieuw)
+- `Backend/templates/emails/claim_approved.txt.j2` (nieuw)
+- `Backend/templates/emails/claim_rejected.html.j2` (nieuw)
+- `Backend/templates/emails/claim_rejected.txt.j2` (nieuw)
 - `Backend/services/claim_approval_service.py` (update, email triggers)
 
 ---
@@ -1315,7 +1519,7 @@ Leg de beslissing over Google Places API gebruik voor aan de gebruiker.
 
 **Laatste Update**: 2025-01-XX  
 **Huidige Status**: 🔴 Niet Gestart  
-**Volgende Stap**: Fase 3 - Authenticated Claim System Foundation (Stap 3.1: Analyse claim systemen)
+**Volgende Stap**: Fase 0.5 - Transactionele Email Foundation (Stap 0.5.1: Email service migratie)
 
 ---
 
