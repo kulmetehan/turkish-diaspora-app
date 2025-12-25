@@ -5,6 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/ui/cn";
 import { getActivityFeed, type ActivityItem } from "@/lib/api";
 import { ActivityCard } from "./ActivityCard";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
+import { useUserAuth } from "@/hooks/useUserAuth";
 import { toast } from "sonner";
 
 // Helper function to get Dutch label for activity type
@@ -29,6 +31,7 @@ const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
 
 export function ActivityFeed({ className, activityType }: ActivityFeedProps) {
+  const { isAuthenticated } = useUserAuth();
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -117,6 +120,23 @@ export function ActivityFeed({ className, activityType }: ActivityFeedProps) {
   }
 
   if (items.length === 0) {
+    // Show login prompt if user is not authenticated (they might have activity that requires login)
+    if (!isAuthenticated) {
+      const loginMessage = activityType
+        ? activityType === "check_in"
+          ? "Log in om je check-ins te zien"
+          : activityType === "note"
+          ? "Log in om je notities te zien"
+          : `Log in om je ${getActivityTypeLabel(activityType)} activiteit te zien`
+        : "Log in om je activiteit te zien";
+      return (
+        <div className={cn("", className)}>
+          <LoginPrompt message={loginMessage} />
+        </div>
+      );
+    }
+
+    // If authenticated, show empty state message
     const emptyMessage = activityType
       ? `Geen ${getActivityTypeLabel(activityType)} activiteit gevonden.`
       : "Er is nog geen activiteit. Begin met check-ins, reacties of notities!";

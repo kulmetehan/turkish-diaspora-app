@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
+import { useUserAuth } from "@/hooks/useUserAuth";
 
 const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
@@ -115,6 +116,7 @@ export default function FeedPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showMascotteFeedback } = useMascotteFeedback();
+  const { isAuthenticated } = useUserAuth();
 
   // State management
   // Check if filter is passed via navigation state
@@ -481,6 +483,14 @@ export default function FeedPage() {
               onLoadMore={handleLoadMore}
               emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
               className="mt-2"
+              showLoginPrompt={!isAuthenticated && feedItems.length === 0 && !isLoading}
+              loginMessage={
+                activeFilter === "check_in"
+                  ? "Log in om je check-ins te zien"
+                  : activeFilter === "note"
+                  ? "Log in om je notities te zien"
+                  : "Log in om je activiteit te zien"
+              }
             />
           )}
         </div>
