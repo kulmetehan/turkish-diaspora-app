@@ -16,7 +16,7 @@ router = APIRouter(prefix="/admin/outreach/contacts", tags=["admin-outreach-cont
 
 class AdminContactCreate(BaseModel):
     location_id: int = Field(..., description="Location ID")
-    email: str = Field(..., regex=r'^[^\s@]+@[^\s@]+\.[^\s@]+$', description="Email address")
+    email: str = Field(..., pattern=r'^[^\s@]+@[^\s@]+\.[^\s@]+$', description="Email address")
     confidence_score: int = Field(default=100, ge=0, le=100, description="Confidence score (0-100)")
 
 
