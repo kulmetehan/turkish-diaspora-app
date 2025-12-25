@@ -37,7 +37,7 @@ const FALLBACK_CATEGORIES: CategoryOption[] = [
   { key: "butcher", label: "Slager" },
   { key: "fast_food", label: "Fastfood" },
   { key: "cafe", label: "Café" },
-  { key: "car_dealer", label: "Autodealer" },
+  { key: "automotive", label: "Automotive" },
   { key: "insurance", label: "Verzekering" },
   { key: "tailor", label: "Kleermaker" },
   { key: "events_venue", label: "Trouwzaal" },

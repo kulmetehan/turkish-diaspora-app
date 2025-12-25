@@ -199,20 +199,19 @@ CATEGORY_NORMALIZATION_MAP = {
     "acente": "travel_agency",
     "acenta": "travel_agency",
 
-    # --- CAR DEALER / GARAGE ---
-    "car dealer": "car_dealer",
-    "car dealer": "car_dealer",
-    "autodealer": "car_dealer",
-    "auto dealer": "car_dealer",
-    "garage": "car_dealer",
-    "car repair": "car_dealer",
-    "auto reparatie": "car_dealer",
+    # --- AUTOMOTIVE ---
+    "car dealer": "automotive",
+    "autodealer": "automotive",
+    "auto dealer": "automotive",
+    "garage": "automotive",
+    "car repair": "automotive",
+    "auto reparatie": "automotive",
     # Turkish
-    "oto galeri": "car_dealer",
-    "oto galerisi": "car_dealer",
-    "galeri": "car_dealer",
-    "otomobil": "car_dealer",
-    "otomobil galerisi": "car_dealer",
+    "oto galeri": "automotive",
+    "oto galerisi": "automotive",
+    "galeri": "automotive",
+    "otomobil": "automotive",
+    "otomobil galerisi": "automotive",
 
     # --- INSURANCE ---
     "insurance": "insurance",

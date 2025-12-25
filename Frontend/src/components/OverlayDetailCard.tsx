@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { ClaimDialog } from "@/components/claim/ClaimDialog";
 import { useViewportContext } from "@/contexts/viewport";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import {
@@ -19,10 +20,12 @@ import {
     isFavorite,
     removeFavorite,
     toggleLocationReaction,
+    getClaimStatus,
     type CheckInStats,
     type NoteResponse,
     type ReactionStats,
     type ReactionType,
+    type ClaimStatusResponse,
 } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { buildGoogleSearchUrl, buildRouteUrl, deriveCityForLocation } from "@/lib/urlBuilders";
@@ -124,6 +127,10 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
     // State for loading initial data
     const [initialLoading, setInitialLoading] = useState(true);
 
+    // State for claim
+    const [claimStatus, setClaimStatus] = useState<ClaimStatusResponse | null>(null);
+    const [isClaimDialogOpen, setIsClaimDialogOpen] = useState(false);
+
     // Load initial data when dialog opens
     useEffect(() => {
         if (!open) return;
@@ -154,6 +161,17 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                 // Check favorite status
                 const favorited = await isFavorite(locationId);
                 setIsFavorited(favorited);
+
+                // Load claim status (only if authenticated)
+                if (isAuthenticated) {
+                    try {
+                        const claimData = await getClaimStatus(locationId);
+                        setClaimStatus(claimData);
+                    } catch (error: any) {
+                        // Silently fail - claim status is optional
+                        console.error("Failed to load claim status:", error);
+                    }
+                }
             } catch (error: any) {
                 console.error("Failed to load location data:", error);
                 // Don't show toast here to avoid spam when feature flags are off
@@ -163,7 +181,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
         };
 
         loadData();
-    }, [locationId, open]);
+    }, [locationId, open, isAuthenticated]);
 
 
     // Check-in handler
@@ -381,6 +399,18 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                         <Icon name="Search" className="h-4 w-4" />
                                     </a>
                                 </Button>
+                                {isAuthenticated && claimStatus?.can_claim && (
+                                    <Button
+                                        variant="outline"
+                                        size="icon"
+                                        aria-label="Claim deze locatie"
+                                        title="Claim deze locatie"
+                                        onClick={() => setIsClaimDialogOpen(true)}
+                                        className="border-white/20 text-foreground hover:bg-white/10"
+                                    >
+                                        <Icon name="ShieldCheck" className="h-4 w-4" />
+                                    </Button>
+                                )}
                                 <DialogPrimitive.Close
                                     className="ml-1 rounded-full border border-white/10 p-2 text-brand-white/70 transition hover:border-white/30 hover:text-brand-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70"
                                     aria-label="Close details"
@@ -625,6 +655,22 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                         </div>
                     </DialogPrimitive.Content>
                 </DialogPrimitive.Portal>
+                <ClaimDialog
+                    location={location}
+                    open={isClaimDialogOpen}
+                    onClose={() => setIsClaimDialogOpen(false)}
+                    onSuccess={async () => {
+                        // Refresh claim status after successful submission
+                        if (isAuthenticated) {
+                            try {
+                                const claimData = await getClaimStatus(locationId);
+                                setClaimStatus(claimData);
+                            } catch (error: any) {
+                                console.error("Failed to refresh claim status:", error);
+                            }
+                        }
+                    }}
+                />
             </DialogPrimitive.Root>
 
         </>

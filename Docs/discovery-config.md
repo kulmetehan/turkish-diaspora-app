@@ -53,7 +53,7 @@ categories:
 
 ### Automotive coverage
 
-- The `car_dealer` category's `osm_tags.any` list now includes not only car/garage shops but also `amenity=car_wash`, `amenity=vehicle_inspection`, `craft=car_repair`, `shop=tyres`, `shop=car_parts`, and `shop=motorcycle`, ensuring carwash/detailing, APK stations, tyre + parts stores, and motorcycle dealers are all ingested under the existing automotive bucket.
+- The `automotive` category's `osm_tags.any` list now includes not only car/garage shops but also `amenity=car_wash`, `amenity=vehicle_inspection`, `craft=car_repair`, `shop=tyres`, `shop=car_parts`, and `shop=motorcycle`, ensuring carwash/detailing, APK stations, tyre + parts stores, and motorcycle dealers are all ingested under the existing automotive bucket.
 
 ## Catch-all discovery en de `other` categorie
 

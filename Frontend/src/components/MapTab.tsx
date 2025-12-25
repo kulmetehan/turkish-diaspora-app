@@ -20,7 +20,7 @@ import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, wr
 import { navigationActions, useMapNavigation } from "@/state/navigation";
 
 import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
-import { createNote, updateNote, type NoteResponse } from "@/lib/api";
+import { createNote, updateNote, trackOutreachClick, type NoteResponse } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function MapTab() {
@@ -91,6 +91,38 @@ export default function MapTab() {
         syncFromHash();
         return onHashChange(syncFromHash);
     }, []);
+
+    // Track outreach email clicks when mapview is opened from email link
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        
+        // Check for email_id in URL parameters
+        const hash = window.location.hash ?? "";
+        const queryIndex = hash.indexOf("?");
+        if (queryIndex < 0) return;
+        
+        const query = hash.slice(queryIndex + 1);
+        const params = new URLSearchParams(query);
+        const emailIdParam = params.get("email_id");
+        
+        if (!emailIdParam) return;
+        
+        const emailId = parseInt(emailIdParam, 10);
+        if (isNaN(emailId)) return;
+        
+        // Track click when focus is consumed (mapview has opened)
+        // Use a small delay to ensure mapview is ready
+        const timeoutId = setTimeout(async () => {
+            try {
+                await trackOutreachClick(emailId);
+            } catch (error) {
+                // Silently fail - tracking shouldn't break user experience
+                console.debug("Failed to track outreach click:", error);
+            }
+        }, 1000);
+        
+        return () => clearTimeout(timeoutId);
+    }, [pendingFocusId]); // Trigger when focus changes
 
     const handleViewModeChange = useCallback((mode: ViewMode) => {
         setViewMode(mode);

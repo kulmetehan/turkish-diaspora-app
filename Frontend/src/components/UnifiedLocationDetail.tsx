@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import NoteDialog from "@/components/location/NoteDialog";
 import { ReportButton } from "@/components/report/ReportButton";
 import { ShareButton } from "@/components/share/ShareButton";
+import { ClaimDialog } from "@/components/claim/ClaimDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,10 +25,12 @@ import {
     removeFavorite,
     toggleLocationReaction,
     updateNote,
+    getClaimStatus,
     type CheckInStats,
     type NoteResponse,
     type ReactionStats,
     type ReactionType,
+    type ClaimStatusResponse,
 } from "@/lib/api";
 import { getCategoryIcon } from "@/lib/map/marker-icons";
 import { cn } from "@/lib/ui/cn";
@@ -131,6 +134,11 @@ export default function UnifiedLocationDetail({
     // State for loading initial data
     const [initialLoading, setInitialLoading] = useState(true);
 
+    // State for claim
+    const [claimStatus, setClaimStatus] = useState<ClaimStatusResponse | null>(null);
+    const [claimStatusLoading, setClaimStatusLoading] = useState(false);
+    const [isClaimDialogOpen, setIsClaimDialogOpen] = useState(false);
+
     // Load initial data
     useEffect(() => {
         // For map view, only load when open
@@ -162,6 +170,17 @@ export default function UnifiedLocationDetail({
                 // Check favorite status
                 const favorited = await isFavorite(locationId);
                 setIsFavorited(favorited);
+
+                // Load claim status (only if authenticated)
+                if (isAuthenticated) {
+                    try {
+                        const claimData = await getClaimStatus(locationId);
+                        setClaimStatus(claimData);
+                    } catch (error: any) {
+                        // Silently fail - claim status is optional
+                        console.error("Failed to load claim status:", error);
+                    }
+                }
             } catch (error: any) {
                 console.error("Failed to load location data:", error);
                 if (viewMode === "list") {
@@ -173,7 +192,7 @@ export default function UnifiedLocationDetail({
         };
 
         loadData();
-    }, [locationId, viewMode, open]);
+    }, [locationId, viewMode, open, isAuthenticated]);
 
     // Check-in handler
     const handleCheckIn = async () => {
@@ -469,6 +488,19 @@ export default function UnifiedLocationDetail({
                             Google
                         </a>
                     </Button>
+                    {isAuthenticated && claimStatus?.can_claim && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label="Claim deze locatie"
+                            title="Claim deze locatie"
+                            onClick={() => setIsClaimDialogOpen(true)}
+                            className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                        >
+                            <Icon name="ShieldCheck" className="h-4 w-4 mr-2" />
+                            Claim
+                        </Button>
+                    )}
                 </div>
 
                 {/* Check-in button on own row, full width */}
@@ -746,6 +778,19 @@ export default function UnifiedLocationDetail({
                             Google
                         </a>
                     </Button>
+                    {isAuthenticated && claimStatus?.can_claim && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            aria-label="Claim deze locatie"
+                            title="Claim deze locatie"
+                            onClick={() => setIsClaimDialogOpen(true)}
+                            className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                        >
+                            <Icon name="ShieldCheck" className="h-4 w-4 mr-2" />
+                            Claim
+                        </Button>
+                    )}
                 </div>
 
                 {/* Check-in button on own row, full width */}
@@ -963,6 +1008,22 @@ export default function UnifiedLocationDetail({
                         </div>
                     </DialogPrimitive.Content>
                 </DialogPrimitive.Portal>
+                <ClaimDialog
+                    location={location}
+                    open={isClaimDialogOpen}
+                    onClose={() => setIsClaimDialogOpen(false)}
+                    onSuccess={async () => {
+                        // Refresh claim status after successful submission
+                        if (isAuthenticated) {
+                            try {
+                                const claimData = await getClaimStatus(locationId);
+                                setClaimStatus(claimData);
+                            } catch (error: any) {
+                                console.error("Failed to refresh claim status:", error);
+                            }
+                        }
+                    }}
+                />
             </DialogPrimitive.Root>
         );
     }
@@ -980,6 +1041,22 @@ export default function UnifiedLocationDetail({
                 onSubmit={handleSaveNote}
                 initialContent={editingNote?.content || ""}
                 locationName={location.name}
+            />
+            <ClaimDialog
+                location={location}
+                open={isClaimDialogOpen}
+                onClose={() => setIsClaimDialogOpen(false)}
+                onSuccess={async () => {
+                    // Refresh claim status after successful submission
+                    if (isAuthenticated) {
+                        try {
+                            const claimData = await getClaimStatus(locationId);
+                            setClaimStatus(claimData);
+                        } catch (error: any) {
+                            console.error("Failed to refresh claim status:", error);
+                        }
+                    }
+                }}
             />
         </>
     );

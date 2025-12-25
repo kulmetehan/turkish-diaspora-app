@@ -454,6 +454,62 @@ export async function enqueueDiscoveryJobs(
     });
 }
 
+// --- Authenticated Claims Admin ---
+
+export type AuthenticatedClaimResponse = {
+    id: number;
+    location_id: number;
+    location_name?: string | null;
+    user_id: string;
+    user_name?: string | null;
+    user_email?: string | null;
+    status: "pending" | "approved" | "rejected";
+    google_business_link?: string | null;
+    logo_url?: string | null;
+    logo_storage_path?: string | null;
+    submitted_at: string;
+    reviewed_by?: string | null;
+    reviewed_at?: string | null;
+    rejection_reason?: string | null;
+    created_at: string;
+    updated_at: string;
+};
+
+export async function listAuthenticatedClaims(params: {
+    status?: "pending" | "approved" | "rejected";
+    limit?: number;
+    offset?: number;
+}): Promise<AuthenticatedClaimResponse[]> {
+    const q = new URLSearchParams();
+    if (params.status) q.set("status", params.status);
+    if (params.limit) q.set("limit", String(params.limit));
+    if (params.offset) q.set("offset", String(params.offset));
+    return authFetch(`/api/v1/admin/authenticated-claims?${q.toString()}`);
+}
+
+export async function getAuthenticatedClaim(claimId: number): Promise<AuthenticatedClaimResponse> {
+    return authFetch(`/api/v1/admin/authenticated-claims/${claimId}`);
+}
+
+export async function approveAuthenticatedClaim(claimId: number): Promise<AuthenticatedClaimResponse> {
+    return authFetch(`/api/v1/admin/authenticated-claims/${claimId}/approve`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+    });
+}
+
+export async function rejectAuthenticatedClaim(
+    claimId: number,
+    rejectionReason?: string
+): Promise<AuthenticatedClaimResponse> {
+    return authFetch(`/api/v1/admin/authenticated-claims/${claimId}/reject`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rejection_reason: rejectionReason || null }),
+    });
+}
+
 export interface CityInfo {
     name: string;
     key: string;
@@ -1063,6 +1119,54 @@ export async function moderateBulletinPost(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, reason }),
+    });
+}
+
+// ============================================================================
+// Outreach Contacts API
+// ============================================================================
+
+export type AdminContactResponse = {
+    id: number;
+    location_id: number;
+    location_name: string | null;
+    email: string;
+    source: string;
+    confidence_score: number;
+    discovered_at: string;
+    created_at: string;
+};
+
+export type AdminContactCreate = {
+    location_id: number;
+    email: string;
+    confidence_score?: number;
+};
+
+export async function listOutreachContacts(params?: {
+    location_id?: number;
+    limit?: number;
+    offset?: number;
+}): Promise<AdminContactResponse[]> {
+    const q = new URLSearchParams();
+    if (params?.location_id) q.set("location_id", String(params.location_id));
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    
+    return authFetch(`/api/v1/admin/outreach/contacts?${q.toString()}`);
+}
+
+export async function createOutreachContact(data: AdminContactCreate): Promise<AdminContactResponse> {
+    return authFetch(`/api/v1/admin/outreach/contacts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+}
+
+export async function deleteOutreachContact(contactId: number): Promise<void> {
+    return authFetch(`/api/v1/admin/outreach/contacts/${contactId}`, {
+        method: "DELETE",
     });
 }
 

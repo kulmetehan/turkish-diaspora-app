@@ -1,0 +1,75 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Ücretsiz döneminiz yakında sona eriyor{% elif language == 'en' %}Your free period is ending soon{% else %}Uw gratis periode loopt bijna af{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        {{ location_name }} için ücretsiz dönem hatırlatması
+    {% elif language == 'en' %}
+        Free period reminder for {{ location_name }}
+    {% else %}
+        Gratis periode herinnering voor {{ location_name }}
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba,</p>
+
+<p><strong>{{ location_name }}</strong> işletmeniz için ücretsiz claim döneminiz yakında sona eriyor.</p>
+
+<p>Ücretsiz döneminiz <strong>{{ expiry_date }}</strong> tarihinde sona erecek. Bu tarihten sonra, claim durumunuz "expired" olarak işaretlenecek ve premium özellikler devre dışı kalacak. Temel listeleme bilgileriniz haritada görünmeye devam edecektir.</p>
+
+<p>İşletmenizi görüntülemek için:</p>
+
+<a href="{{ mapview_link }}" class="button">
+    Haritada Görüntüle
+</a>
+
+<p>Eğer premium özellikleri kullanmaya devam etmek isterseniz, gelecekte premium abonelik seçeneklerimiz hakkında bilgilendirileceksiniz.</p>
+
+<p>Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello,</p>
+
+<p>Your free claim period for <strong>{{ location_name }}</strong> is ending soon.</p>
+
+<p>Your free period will end on <strong>{{ expiry_date }}</strong>. After this date, your claim status will be marked as "expired" and premium features will be disabled. Your basic listing information will continue to be visible on the map.</p>
+
+<p>To view your business:</p>
+
+<a href="{{ mapview_link }}" class="button">View on Map</a>
+
+<p>If you would like to continue using premium features, you will be informed about our premium subscription options in the future.</p>
+
+<p>If you have any questions, please don't hesitate to contact us.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hallo,</p>
+
+<p>Uw gratis claim periode voor <strong>{{ location_name }}</strong> loopt bijna af.</p>
+
+<p>Uw gratis periode eindigt op <strong>{{ expiry_date }}</strong>. Na deze datum wordt uw claim status gemarkeerd als "expired" en worden premium functies uitgeschakeld. Uw basisvermelding blijft zichtbaar op de kaart.</p>
+
+<p>Om uw bedrijf te bekijken:</p>
+
+<a href="{{ mapview_link }}" class="button">Bekijk op Kaart</a>
+
+<p>Als u premium functies wilt blijven gebruiken, krijgt u in de toekomst informatie over onze premium abonnement opties.</p>
+
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+
+{% endblock %}
+

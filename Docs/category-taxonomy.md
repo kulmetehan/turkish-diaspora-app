@@ -20,7 +20,7 @@ This document describes where categories are defined and used throughout the Tur
 3. **`Backend/services/prompts/classify_system.txt`** - AI prompt enumeration
    - Lists allowed categories in the system prompt
    - AI model must see the category in the prompt to use it
-   - Example: `{"bakery","restaurant","supermarket","barber","butcher","mosque","travel_agency","fast_food","cafe","car_dealer","insurance","tailor"}`
+   - Example: `{"bakery","restaurant","supermarket","barber","butcher","mosque","travel_agency","fast_food","cafe","automotive","insurance","tailor"}`
 
 4. **`Backend/app/workers/classify_bot.py`** - Category normalization map
    - `CATEGORY_NORMALIZATION_MAP` maps raw AI outputs to canonical categories
@@ -59,7 +59,7 @@ This document describes where categories are defined and used throughout the Tur
 
 ## Category Expansion Checklist
 
-To fully add a new category (e.g., `car_dealer`, `insurance`, `tailor`), you must update:
+To fully add a new category (e.g., `automotive`, `insurance`, `tailor`), you must update:
 
 ### Backend
 
@@ -71,7 +71,7 @@ To fully add a new category (e.g., `car_dealer`, `insurance`, `tailor`), you mus
   - Set `discovery.priority: int` (higher = more important)
 
 - [ ] **`Backend/app/models/categories.py`**
-  - Add to `Category` enum (e.g., `car_dealer = "car_dealer"`)
+  - Add to `Category` enum (e.g., `automotive = "automotive"`)
   - Enum auto-loads from YAML, but explicit enum ensures type safety
 
 - [ ] **`Backend/services/prompts/classify_system.txt`**
@@ -81,7 +81,7 @@ To fully add a new category (e.g., `car_dealer`, `insurance`, `tailor`), you mus
 - [ ] **`Backend/app/workers/classify_bot.py`**
   - Add to `CATEGORY_NORMALIZATION_MAP`
   - Include Turkish aliases if applicable
-  - Example: `"oto galeri": "car_dealer"`, `"sigorta": "insurance"`, `"terzi": "tailor"`
+  - Example: `"oto galeri": "automotive"`, `"sigorta": "insurance"`, `"terzi": "tailor"`
 
 ### Discovery
 
@@ -107,7 +107,7 @@ To fully add a new category (e.g., `car_dealer`, `insurance`, `tailor`), you mus
   - Import icon component from lucide-react
   - Add case to `getCategoryIcon()` switch statement
 
-## Example: New Categories (car_dealer, insurance, tailor)
+## Example: New Categories (automotive, insurance, tailor)
 
 These categories were added following the checklist above:
 
@@ -122,8 +122,8 @@ These categories were added following the checklist above:
 - Discovery enabled for all three
 
 ### Frontend ✅
-- Added to `CATEGORY_ICON_MAP`: `car_dealer: "CarFront"`, `insurance: "ShieldCheck"`, `tailor: "Needle"`
-- Added to `RAW_CATEGORY_CONFIG`: `car_dealer: "car-front"`, `insurance: "shield-check"`, `tailor: "needle"`
+- Added to `CATEGORY_ICON_MAP`: `automotive: "CarFront"`, `insurance: "ShieldCheck"`, `tailor: "Needle"`
+- Added to `RAW_CATEGORY_CONFIG`: `automotive: "car-front"`, `insurance: "shield-check"`, `tailor: "needle"`
 - Added to `getCategoryIcon()`: cases for all three with imported Lucide components
 
 ## Notes
@@ -132,5 +132,5 @@ These categories were added following the checklist above:
 - Missing frontend icons will fall back to generic icons ("Store" for chips, "MapPin" for markers)
 - OSM tags must match real OSM data structure; test discovery before production use
 - Turkish aliases improve AI classification accuracy for Turkish business names
-- The `car_dealer` category now covers a broader automotive set (dealers, garages, car wash/detailing, APK/inspection stations, tyre + car parts shops, motorcycle dealers) via the expanded OSM tag list in `categories.yml`.
+- The `automotive` category now covers a broader automotive set (dealers, garages, car wash/detailing, APK/inspection stations, tyre + car parts shops, motorcycle dealers) via the expanded OSM tag list in `categories.yml`.
 

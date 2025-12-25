@@ -140,7 +140,7 @@ Query parameters:
 - `butcher` - Slagerij
 - `fast_food` - Fastfood
 - `cafe` - Café
-- `car_dealer` - Autodealer
+- `automotive` - Automotive
 - `insurance` - Verzekering
 - `tailor` - Kleermaker
 

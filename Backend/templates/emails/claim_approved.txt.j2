@@ -1,0 +1,52 @@
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+Harika haber! {{ location_name }} için yaptığınız claim talebi onaylandı. Artık bu konumun sahibisiniz.
+
+Şimdi yapabilecekleriniz:
+- Konumunuzu "Senin" bölümünden görüntüleyin
+- Konum bilgilerinizi güncelleyin
+- İşletmenizi yönetin
+
+Hesabınızı ziyaret edin: {{ base_url }}/#/account
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Great news! Your claim request for {{ location_name }} has been approved. You are now the owner of this location.
+
+What you can do now:
+- View your location in the "Senin" section
+- Update your location information
+- Manage your business
+
+Visit your account: {{ base_url }}/#/account
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Goed nieuws! Uw claim verzoek voor {{ location_name }} is goedgekeurd. U bent nu de eigenaar van deze locatie.
+
+Wat u nu kunt doen:
+- Bekijk uw locatie in de "Senin" sectie
+- Werk uw locatie informatie bij
+- Beheer uw bedrijf
+
+Bezoek uw account: {{ base_url }}/#/account
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

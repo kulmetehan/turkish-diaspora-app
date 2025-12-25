@@ -9,6 +9,7 @@ from uuid import UUID
 from app.deps.auth import get_current_user, User
 from services.db_service import fetch, execute
 from app.core.logging import get_logger
+from services.email_service import get_email_service
 
 logger = get_logger()
 
@@ -164,6 +165,117 @@ async def migrate_client_id(
     except Exception as e:
         logger.error("client_id_migration_failed", user_id=str(user.user_id), client_id=request.client_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to migrate client ID: {str(e)}")
+
+
+@router.post("/send-welcome-email")
+async def send_welcome_email(
+    user: User = Depends(get_current_user),
+    language: str = "nl",
+):
+    """
+    Send welcome email to newly registered user.
+    
+    This endpoint should be called after successful signup to send a welcome email.
+    The email failure does not block the signup process (non-blocking).
+    
+    Args:
+        user: Authenticated user (from token)
+        language: Language code (nl, tr, en). Defaults to 'nl'.
+    """
+    if not user.email:
+        logger.warning(
+            "welcome_email_no_email",
+            user_id=str(user.user_id),
+        )
+        return {
+            "ok": False,
+            "message": "User email not available",
+        }
+    
+    try:
+        # Get user display name from profile if available
+        profile_sql = """
+            SELECT display_name
+            FROM user_profiles
+            WHERE id = $1::uuid
+        """
+        profile_rows = await fetch(profile_sql, user.user_id)
+        display_name = profile_rows[0].get("display_name") if profile_rows else None
+        
+        # Use display_name or email as user_name
+        user_name = display_name or user.email.split("@")[0] or "Gebruiker"
+        
+        # Normalize language code
+        language = language.lower()[:2]
+        if language not in ["nl", "tr", "en"]:
+            language = "nl"
+        
+        # Prepare template context
+        context = {
+            "user_name": user_name,
+        }
+        
+        # Determine subject based on language
+        if language == "tr":
+            subject = "Turkspot'a Hoş Geldiniz!"
+        elif language == "en":
+            subject = "Welcome to Turkspot!"
+        else:
+            subject = "Welkom bij Turkspot!"
+        
+        # Render and send email
+        email_service = get_email_service()
+        html_body, text_body = email_service.render_template(
+            template_name="welcome_email",
+            context=context,
+            language=language,
+        )
+        
+        # Send email (non-blocking - don't fail if email fails)
+        email_sent = await email_service.send_email(
+            to_email=user.email,
+            subject=subject,
+            html_body=html_body,
+            text_body=text_body,
+        )
+        
+        if email_sent:
+            logger.info(
+                "welcome_email_sent",
+                user_id=str(user.user_id),
+                email=user.email,
+                language=language,
+            )
+            return {
+                "ok": True,
+                "message": "Welcome email sent successfully",
+            }
+        else:
+            logger.warning(
+                "welcome_email_failed",
+                user_id=str(user.user_id),
+                email=user.email,
+                language=language,
+            )
+            return {
+                "ok": False,
+                "message": "Failed to send welcome email (email service not configured)",
+            }
+            
+    except Exception as e:
+        # Log error but don't fail the request
+        logger.error(
+            "welcome_email_error",
+            user_id=str(user.user_id),
+            email=user.email,
+            language=language,
+            error=str(e),
+            exc_info=True,
+        )
+        return {
+            "ok": False,
+            "message": f"Error sending welcome email: {str(e)}",
+        }
 
 
 @router.post("/logout")

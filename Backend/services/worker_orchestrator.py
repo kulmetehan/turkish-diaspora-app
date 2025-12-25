@@ -86,6 +86,8 @@ async def start_worker_run(
             await _run_event_geocoding(run_id)
         elif bot == "verify_events":
             await _run_verify_events(run_id)
+        elif bot == "contact_discovery":
+            await _run_contact_discovery(run_id)
         else:
             raise ValueError(f"Unknown bot: {bot}")
             
@@ -339,5 +341,16 @@ async def _run_verify_events(run_id: UUID) -> None:
     logger.info("starting_verify_events_bot", run_id=str(run_id))
 
     argv = ["verify_events", "--worker-run-id", str(run_id)]
+    with mock_sys_argv(argv):
+        await main_async()
+
+
+async def _run_contact_discovery(run_id: UUID) -> None:
+    """Run contact_discovery_bot via CLI-compatible entrypoint."""
+    from app.workers.contact_discovery_bot import main_async
+
+    logger.info("starting_contact_discovery_bot", run_id=str(run_id))
+
+    argv = ["contact_discovery_bot", "--worker-run-id", str(run_id)]
     with mock_sys_argv(argv):
         await main_async()

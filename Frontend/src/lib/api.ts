@@ -285,6 +285,19 @@ export async function apiFetchWithOptionalAuth<T>(
   return apiFetch<T>(path, { ...init, headers }, timeoutMs);
 }
 
+/**
+ * Track click on outreach email link.
+ * Called when user opens mapview from an outreach email.
+ */
+export async function trackOutreachClick(emailId: number): Promise<{ ok: boolean; message: string }> {
+  return apiFetch<{ ok: boolean; message: string }>(
+    `/api/v1/outreach/track-click?email_id=${emailId}`,
+    {
+      method: "POST",
+    }
+  );
+}
+
 export async function whoAmI(): Promise<{ ok: boolean; admin_email: string }> {
   return authFetch("/api/v1/admin/whoami");
 }
@@ -2272,4 +2285,87 @@ export async function fetchLocationStats(): Promise<LocationStatsResponse> {
  */
 export async function fetchCuratedEvents(): Promise<CuratedEventsResponse> {
   return apiFetch<CuratedEventsResponse>("/api/v1/feed/curated/events");
+}
+
+// ============================================================================
+// Authenticated Location Claims API
+// ============================================================================
+
+export interface AuthenticatedClaim {
+  id: number;
+  location_id: number;
+  location_name: string | null;
+  user_id: string;
+  status: "pending" | "approved" | "rejected";
+  google_business_link: string | null;
+  logo_url: string | null;
+  submitted_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClaimStatusResponse {
+  claim: AuthenticatedClaim | null;
+  is_claimed: boolean;
+  can_claim: boolean;
+}
+
+export interface SubmitClaimRequest {
+  google_business_link?: string;
+}
+
+/**
+ * Submit a claim request for a location (authenticated users).
+ */
+export async function submitClaim(
+  locationId: number,
+  claim: SubmitClaimRequest
+): Promise<AuthenticatedClaim> {
+  return authFetch<AuthenticatedClaim>(`/api/v1/locations/${locationId}/claim`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(claim),
+  });
+}
+
+/**
+ * Get claim status for a specific location.
+ */
+export async function getClaimStatus(
+  locationId: number
+): Promise<ClaimStatusResponse> {
+  return authFetch<ClaimStatusResponse>(
+    `/api/v1/locations/${locationId}/claim-status`
+  );
+}
+
+/**
+ * List all claims for the authenticated user.
+ */
+export interface MyLocation {
+  location_id: number;
+  location_name: string | null;
+  category: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  claimed_at: string | null;
+  google_business_link: string | null;
+  logo_url: string | null;
+}
+
+export async function getMyLocations(): Promise<MyLocation[]> {
+  return authFetch<MyLocation[]>("/api/v1/locations/my-locations");
+}
+
+export async function getMyClaims(
+  status?: "pending" | "approved" | "rejected"
+): Promise<AuthenticatedClaim[]> {
+  const params = status ? `?status=${status}` : "";
+  return authFetch<AuthenticatedClaim[]>(`/api/v1/locations/my-claims${params}`);
 }

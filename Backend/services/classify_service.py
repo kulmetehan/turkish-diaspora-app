@@ -85,6 +85,7 @@ COLLAPSE_MAP: Dict[str, Category] = {
     "cafe": Category.cafe,
     "mosque": Category.mosque,
     "travel_agency": Category.travel_agency,
+    "automotive": Category.automotive,
 }
 
 

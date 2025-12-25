@@ -75,6 +75,26 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url_here
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
 # =============================================================================
+# EMAIL SERVICE CONFIGURATION
+# =============================================================================
+# Email provider: 'smtp' (default) or 'ses' for AWS SES
+EMAIL_PROVIDER=smtp
+
+# SMTP Configuration (used when EMAIL_PROVIDER=smtp)
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your_smtp_username
+SMTP_PASSWORD=your_smtp_password
+SMTP_FROM_EMAIL=noreply@turkspot.nl
+
+# AWS SES Configuration (used when EMAIL_PROVIDER=ses)
+# AWS_SES_REGION=eu-west-1
+# AWS_ACCESS_KEY_ID=your_aws_access_key_id
+# AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+# Note: If AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are not set,
+# boto3 will use default AWS credentials chain (IAM role, ~/.aws/credentials, etc.)
+
+# =============================================================================
 # FEATURE FLAGS (Identity & Activity Layer)
 # =============================================================================
 # Enable/disable features for phased rollout
