@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/ui/cn";
 import { FeedCard, type FeedCardProps } from "./FeedCard";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
 
 export interface FeedListProps {
   items: FeedCardProps[];
@@ -12,6 +13,8 @@ export interface FeedListProps {
   onLoadMore?: () => void;
   emptyMessage?: string;
   className?: string;
+  showLoginPrompt?: boolean;
+  loginMessage?: string;
 }
 
 export function FeedList({
@@ -22,6 +25,8 @@ export function FeedList({
   onLoadMore,
   emptyMessage = "Er is nog geen activiteit. Begin met check-ins, reacties of notities!",
   className,
+  showLoginPrompt = false,
+  loginMessage,
 }: FeedListProps) {
   if (isLoading) {
     return (
@@ -43,6 +48,16 @@ export function FeedList({
   }
 
   if (items.length === 0) {
+    // Show login prompt if requested (when user is not authenticated)
+    if (showLoginPrompt) {
+      return (
+        <div className={cn("", className)}>
+          <LoginPrompt message={loginMessage || "Log in om je activiteit te zien"} />
+        </div>
+      );
+    }
+
+    // Otherwise show empty state message
     return (
       <div className={cn(
         "rounded-xl border border-border/50 bg-card p-6 text-center text-muted-foreground shadow-soft",
@@ -79,6 +94,7 @@ export function FeedList({
     </div>
   );
 }
+
 
 
 

@@ -1003,7 +1003,9 @@ export async function getActivityFeed(
     params.set("activity_type", activityType);
   }
 
-  return apiFetch<ActivityItem[]>(
+  // Use apiFetchWithOptionalAuth to include auth token if user is logged in
+  // This ensures activities are matched by user_id when logged in, not just client_id
+  return apiFetchWithOptionalAuth<ActivityItem[]>(
     `/api/v1/activity?${params.toString()}`,
     {
       headers: {
