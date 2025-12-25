@@ -1,0 +1,75 @@
+{% extends "base.txt.j2" %}
+
+{% block content %}
+{% if language == 'tr' %}
+Merhaba,
+
+{{ location_name }} işletmeniz Türk diasporası topluluğu için önemli bir kaynak olarak Turkspot haritasında yer alıyor.
+
+Turkspot, Hollanda'daki Türk topluluğunun işletmelerini, restoranlarını ve hizmetlerini keşfetmek için kullanılan bir platformdur. İşletmeniz zaten haritamızda görünüyor ve topluluk üyeleri tarafından bulunabilir.
+
+İşletmenizi görüntülemek için:
+{{ mapview_link }}
+
+İşletmenizin bilgilerini güncellemek veya ek bilgiler eklemek isterseniz, haritadaki işletmenize tıklayarak "Claim" butonunu kullanabilirsiniz.
+
+VERİ KORUMA: Bu e-posta, işletmenizin iletişim bilgilerinin kamuya açık kaynaklardan (örneğin OSM) elde edildiğini bildirmek için gönderilmiştir. İşletmenizi haritadan kaldırmak isterseniz, lütfen aşağıdaki bağlantıyı kullanın.
+
+{% if opt_out_link %}
+Bu tür e-postaları almak istemiyorsanız, afmelden: {{ opt_out_link }}
+{% endif %}
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello,
+
+Your business {{ location_name }} is featured on the Turkspot map as an important resource for the Turkish diaspora community.
+
+Turkspot is a platform used to discover Turkish community businesses, restaurants, and services in the Netherlands. Your business is already visible on our map and can be found by community members.
+
+To view your business:
+{{ mapview_link }}
+
+If you would like to update your business information or add additional details, you can click on your business on the map and use the "Claim" button.
+
+DATA PROTECTION: This email is sent to inform you that your business contact information was obtained from publicly available sources (e.g., OSM). If you would like to remove your business from the map, please use the link below.
+
+{% if opt_out_link %}
+If you do not wish to receive these emails, unsubscribe: {{ opt_out_link }}
+{% endif %}
+
+If you have any questions, please don't hesitate to contact us.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hallo,
+
+Uw bedrijf {{ location_name }} staat op de Turkspot kaart als belangrijke bron voor de Turkse diaspora gemeenschap.
+
+Turkspot is een platform dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf staat al op onze kaart en kan door gemeenschapsleden worden gevonden.
+
+Om uw bedrijf te bekijken:
+{{ mapview_link }}
+
+Als u de informatie van uw bedrijf wilt bijwerken of aanvullende gegevens wilt toevoegen, kunt u op uw bedrijf op de kaart klikken en de "Claim" knop gebruiken.
+
+GEGEVENSBESCHERMING: Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen (bijvoorbeeld OSM). Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de onderstaande link.
+
+{% if opt_out_link %}
+Als u deze e-mails niet meer wilt ontvangen, afmelden: {{ opt_out_link }}
+{% endif %}
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+
+{% endblock %}
+

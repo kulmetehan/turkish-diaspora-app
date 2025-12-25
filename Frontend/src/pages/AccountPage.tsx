@@ -5,6 +5,7 @@ import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
 import { ProfileSection } from "@/components/account/ProfileSection";
 import { UserRolesSection } from "@/components/account/UserRolesSection";
+import { SeninSection } from "@/components/account/SeninSection";
 import { RhythmSection } from "@/components/account/RhythmSection";
 import { ContributionsSection } from "@/components/account/ContributionsSection";
 import { RecognitionSection } from "@/components/account/RecognitionSection";
@@ -139,6 +140,7 @@ export default function AccountPage() {
                 {isAuthenticated && (
                   <>
                     <UserRolesSection className="mb-4" />
+                    <SeninSection className="mb-4" />
                     <RhythmSection className="mb-4" />
                     <ContributionsSection className="mb-4" />
                     <RecognitionSection className="mb-4" />

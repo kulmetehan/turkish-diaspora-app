@@ -1,0 +1,49 @@
+{% if language == 'tr' %}
+Merhaba,
+
+{{ location_name }} için yaptığınız claim talebi kaldırıldı.
+
+{% if removal_reason %}
+Kaldırma nedeni: {{ removal_reason }}
+{% endif %}
+
+Geri bildiriminiz için teşekkür ederiz. Bu, platformumuzu iyileştirmemize yardımcı oluyor.
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello,
+
+Your claim request for {{ location_name }} has been removed.
+
+{% if removal_reason %}
+Removal reason: {{ removal_reason }}
+{% endif %}
+
+Thank you for your feedback. This helps us improve our platform.
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi,
+
+Uw claim verzoek voor {{ location_name }} is verwijderd.
+
+{% if removal_reason %}
+Verwijderingsreden: {{ removal_reason }}
+{% endif %}
+
+Bedankt voor uw feedback. Dit helpt ons om ons platform te verbeteren.
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

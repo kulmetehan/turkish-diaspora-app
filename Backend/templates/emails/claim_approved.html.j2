@@ -1,0 +1,78 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Talebiniz Onaylandı - {{ location_name }}{% elif language == 'en' %}Your Claim Has Been Approved - {{ location_name }}{% else %}Uw Claim is Goedgekeurd - {{ location_name }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Konum talebiniz onaylandı
+    {% elif language == 'en' %}
+        Your location claim has been approved
+    {% else %}
+        Uw locatie claim is goedgekeurd
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba {{ user_name }},</p>
+
+<p>Harika haber! <strong>{{ location_name }}</strong> için yaptığınız claim talebi onaylandı. Artık bu konumun sahibisiniz.</p>
+
+<p>Şimdi yapabilecekleriniz:</p>
+<ul>
+    <li>📍 Konumunuzu "Senin" bölümünden görüntüleyin</li>
+    <li>📝 Konum bilgilerinizi güncelleyin</li>
+    <li>💼 İşletmenizi yönetin</li>
+</ul>
+
+<p>Hesabınızı ziyaret edin:</p>
+<a href="{{ base_url }}/#/account" class="button">Hesabımı Görüntüle</a>
+
+<p>Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello {{ user_name }},</p>
+
+<p>Great news! Your claim request for <strong>{{ location_name }}</strong> has been approved. You are now the owner of this location.</p>
+
+<p>What you can do now:</p>
+<ul>
+    <li>📍 View your location in the "Senin" section</li>
+    <li>📝 Update your location information</li>
+    <li>💼 Manage your business</li>
+</ul>
+
+<p>Visit your account:</p>
+<a href="{{ base_url }}/#/account" class="button">View My Account</a>
+
+<p>If you have any questions, please don't hesitate to reach out to us.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi {{ user_name }},</p>
+
+<p>Goed nieuws! Uw claim verzoek voor <strong>{{ location_name }}</strong> is goedgekeurd. U bent nu de eigenaar van deze locatie.</p>
+
+<p>Wat u nu kunt doen:</p>
+<ul>
+    <li>📍 Bekijk uw locatie in de "Senin" sectie</li>
+    <li>📝 Werk uw locatie informatie bij</li>
+    <li>💼 Beheer uw bedrijf</li>
+</ul>
+
+<p>Bezoek uw account:</p>
+<a href="{{ base_url }}/#/account" class="button">Bekijk Mijn Account</a>
+
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

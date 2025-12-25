@@ -126,6 +126,39 @@ export default function UserAuthPage() {
             console.warn("Failed to migrate client_id:", migrationError);
           }
 
+          // Send welcome email (non-blocking)
+          try {
+            // Detect language from browser
+            const browserLang = navigator.language.toLowerCase();
+            let emailLang = "nl"; // default
+            if (browserLang.startsWith("tr")) {
+              emailLang = "tr";
+            } else if (browserLang.startsWith("en")) {
+              emailLang = "en";
+            }
+
+            const welcomeResponse = await fetch(
+              `${API_BASE}/api/v1/auth/send-welcome-email?language=${emailLang}`,
+              {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${data.session.access_token}`,
+                },
+              }
+            );
+
+            if (welcomeResponse.ok) {
+              // Email sent successfully (silent success)
+              console.log("Welcome email sent");
+            } else {
+              // Don't show error to user - email failure shouldn't block signup
+              console.warn("Failed to send welcome email:", await welcomeResponse.text());
+            }
+          } catch (emailError) {
+            // Don't fail signup if email fails
+            console.warn("Failed to send welcome email:", emailError);
+          }
+
           // Claim referral code if present
           if (referralCode && referralCode.trim()) {
             try {

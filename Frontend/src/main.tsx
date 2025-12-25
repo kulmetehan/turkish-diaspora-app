@@ -34,9 +34,13 @@ const UserAuthPage = React.lazy(() => import("@/pages/UserAuthPage"));
 const AdminPollsPage = React.lazy(() => import("@/pages/admin/AdminPollsPage"));
 const AdminReportsPage = React.lazy(() => import("@/pages/admin/AdminReportsPage"));
 const AdminBulletinModeration = React.lazy(() => import("@/pages/admin/AdminBulletinModeration"));
+const AdminAuthenticatedClaimsPage = React.lazy(() => import("@/pages/admin/AdminAuthenticatedClaimsPage"));
+const AdminOutreachContactsPage = React.lazy(() => import("@/pages/admin/AdminOutreachContactsPage"));
+const AdminAuthenticatedClaimDetailPage = React.lazy(() => import("@/pages/admin/AdminAuthenticatedClaimDetailPage"));
 const DiasporaPulsePage = React.lazy(() => import("@/pages/DiasporaPulsePage"));
 const PollDetailPage = React.lazy(() => import("@/pages/PollDetailPage"));
 const LocationDetailPage = React.lazy(() => import("@/pages/LocationDetailPage"));
+const ClaimPage = React.lazy(() => import("@/pages/ClaimPage"));
 
 // Vite base path is configured in vite.config.ts (defaults to "/" for Render deployment)
 
@@ -68,6 +72,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/locations/:id" element={
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <LocationDetailPage />
+            </Suspense>
+          } />
+          <Route path="/claim/:token" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <ClaimPage />
             </Suspense>
           } />
         </Route>
@@ -156,6 +165,20 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminBulletinModeration />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/authenticated-claims" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminAuthenticatedClaimsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/authenticated-claims/:claimId" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminAuthenticatedClaimDetailPage />
             </Suspense>
           </AdminRouteWrapper>
         } />

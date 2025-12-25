@@ -1,0 +1,25 @@
+🏛️ Turkspot
+{% block header_subtitle %}{% endblock %}
+
+{% block content %}{% endblock %}
+
+---
+{% if language == 'tr' %}
+Bu e-postayı Turkspot'tan alıyorsunuz.
+{% elif language == 'en' %}
+You are receiving this email from Turkspot.
+{% else %}
+Je ontvangt deze email van Turkspot.
+{% endif %}
+{% if unsubscribe_url %}
+{% if language == 'tr' %}
+E-posta tercihlerini değiştir: {{ unsubscribe_url }}
+{% elif language == 'en' %}
+Change email preferences: {{ unsubscribe_url }}
+{% else %}
+Wijzig je email voorkeuren: {{ unsubscribe_url }}
+{% endif %}
+{% endif %}
+
+© {{ "now"|date("%Y") }} Turkspot. {% if language == 'tr' %}Tüm hakları saklıdır.{% elif language == 'en' %}All rights reserved.{% else %}Alle rechten voorbehouden.{% endif %}
+

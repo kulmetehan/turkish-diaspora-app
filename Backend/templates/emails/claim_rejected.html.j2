@@ -1,0 +1,66 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Talebiniz Reddedildi - {{ location_name }}{% elif language == 'en' %}Your Claim Has Been Rejected - {{ location_name }}{% else %}Uw Claim is Afgewezen - {{ location_name }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Konum talebiniz reddedildi
+    {% elif language == 'en' %}
+        Your location claim has been rejected
+    {% else %}
+        Uw locatie claim is afgewezen
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba {{ user_name }},</p>
+
+<p>Maalesef, <strong>{{ location_name }}</strong> için yaptığınız claim talebi reddedildi.</p>
+
+{% if rejection_reason %}
+<p><strong>Red nedeni:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>Eğer bu karar hakkında sorularınız varsa veya yeni bilgiler paylaşmak isterseniz, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+
+<p>Başka bir konum için claim talebinde bulunabilirsiniz.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello {{ user_name }},</p>
+
+<p>Unfortunately, your claim request for <strong>{{ location_name }}</strong> has been rejected.</p>
+
+{% if rejection_reason %}
+<p><strong>Reason:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>If you have questions about this decision or would like to share additional information, please don't hesitate to reach out to us.</p>
+
+<p>You can submit a claim request for another location.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi {{ user_name }},</p>
+
+<p>Helaas is uw claim verzoek voor <strong>{{ location_name }}</strong> afgewezen.</p>
+
+{% if rejection_reason %}
+<p><strong>Reden:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>Als u vragen heeft over deze beslissing of aanvullende informatie wilt delen, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>U kunt een claim verzoek indienen voor een andere locatie.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

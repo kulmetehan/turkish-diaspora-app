@@ -1,0 +1,57 @@
+{% extends "base.txt.j2" %}
+
+{% block content %}
+{% if language == 'tr' %}
+Merhaba,
+
+{{ location_name }} işletmeniz için ücretsiz claim döneminiz yakında sona eriyor.
+
+Ücretsiz döneminiz {{ expiry_date }} tarihinde sona erecek. Bu tarihten sonra, claim durumunuz "expired" olarak işaretlenecek ve premium özellikler devre dışı kalacak. Temel listeleme bilgileriniz haritada görünmeye devam edecektir.
+
+İşletmenizi görüntülemek için:
+{{ mapview_link }}
+
+Eğer premium özellikleri kullanmaya devam etmek isterseniz, gelecekte premium abonelik seçeneklerimiz hakkında bilgilendirileceksiniz.
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello,
+
+Your free claim period for {{ location_name }} is ending soon.
+
+Your free period will end on {{ expiry_date }}. After this date, your claim status will be marked as "expired" and premium features will be disabled. Your basic listing information will continue to be visible on the map.
+
+To view your business:
+{{ mapview_link }}
+
+If you would like to continue using premium features, you will be informed about our premium subscription options in the future.
+
+If you have any questions, please don't hesitate to contact us.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hallo,
+
+Uw gratis claim periode voor {{ location_name }} loopt bijna af.
+
+Uw gratis periode eindigt op {{ expiry_date }}. Na deze datum wordt uw claim status gemarkeerd als "expired" en worden premium functies uitgeschakeld. Uw basisvermelding blijft zichtbaar op de kaart.
+
+Om uw bedrijf te bekijken:
+{{ mapview_link }}
+
+Als u premium functies wilt blijven gebruiken, krijgt u in de toekomst informatie over onze premium abonnement opties.
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+
+{% endblock %}
+

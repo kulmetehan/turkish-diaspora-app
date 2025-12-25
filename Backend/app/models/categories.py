@@ -33,7 +33,7 @@ class Category(str, Enum):
     butcher = "butcher"
     fast_food = "fast_food"
     cafe = "cafe"
-    car_dealer = "car_dealer"
+    automotive = "automotive"
     insurance = "insurance"
     tailor = "tailor"
     events_venue = "events_venue"

@@ -55,7 +55,7 @@ export function getCategoryIcon(categoryKey: string | null | undefined): LucideI
       return Coffee;
     case "mosque":
       return Building2;
-    case "car_dealer":
+    case "automotive":
       return CarFront;
     case "insurance":
       return ShieldCheck;

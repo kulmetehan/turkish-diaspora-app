@@ -179,11 +179,11 @@ categories:
       enabled: true
       priority: 6
 
-  car_dealer:
-    label: "autodealer"
-    description: "Autodealers en garages met Turkse eigenaren."
+  automotive:
+    label: "automotive"
+    description: "Automotive bedrijven met Turkse eigenaren."
     google_types:
-      - "car_dealer"
+      - "automotive"
       - "car_repair"
     osm_tags:
       any:
@@ -198,7 +198,7 @@ categories:
         - { shop: "car_parts" }
         - { shop: "motorcycle" }
     aliases:
-      - "autodealer"
+      - "automotive"
       - "garage"
       - "auto dealer"
       - "oto galeri"      # TR

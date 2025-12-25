@@ -1,0 +1,66 @@
+{% extends "base.txt.j2" %}
+
+{% block header_subtitle %}
+{% if language == 'tr' %}Turkish diaspora topluluğuna hoş geldiniz{% elif language == 'en' %}Welcome to the Turkish diaspora community{% else %}Welkom bij de Turkish diaspora community{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+Turkspot'a kaydolduğunuz için teşekkür ederiz! Türk diasporası topluluğunun bir parçası olduğunuz için mutluyuz.
+
+Turkspot ile şunları yapabilirsiniz:
+
+📍 Haritada keşfedin - Türk işletmelerini ve topluluk mekanlarını bulun
+📝 Notlar ekleyin - Favori yerleriniz hakkında deneyimlerinizi paylaşın
+💬 Etkileşimde bulunun - Toplulukla bağlantı kurun ve geri bildirim verin
+🏆 Kazançlar kazanın - Aktif olarak XP ve rozetler kazanın
+
+Başlamak için haritayı keşfedin: {{ base_url }}/#/map
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Tekrar hoş geldiniz!
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Thank you for signing up to Turkspot! We're excited to have you as part of the Turkish diaspora community.
+
+With Turkspot, you can:
+
+📍 Explore the map - Discover Turkish businesses and community spaces
+📝 Add notes - Share your experiences about your favorite places
+💬 Engage - Connect with the community and provide feedback
+🏆 Earn rewards - Gain XP and badges by being active
+
+To get started, explore the map: {{ base_url }}/#/map
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Welcome again!
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Bedankt voor je aanmelding bij Turkspot! We zijn blij dat je deel uitmaakt van de Turkish diaspora community.
+
+Met Turkspot kun je:
+
+📍 De kaart verkennen - Ontdek Turkse bedrijven en community plekken
+📝 Notities toevoegen - Deel je ervaringen over je favoriete plekken
+💬 Interacteren - Maak verbinding met de community en geef feedback
+🏆 Beloningen verdienen - Verzamel XP en badges door actief te zijn
+
+Om te beginnen, verken de kaart: {{ base_url }}/#/map
+
+Als je vragen hebt, aarzel dan niet om contact met ons op te nemen.
+
+Nogmaals welkom!
+Het Turkspot Team
+{% endif %}
+{% endblock %}
+

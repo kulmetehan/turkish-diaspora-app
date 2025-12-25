@@ -1,0 +1,60 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Düzeltmeniz İçin Teşekkürler - {{ location_name }}{% elif language == 'en' %}Thank You for Your Correction - {{ location_name }}{% else %}Bedankt voor Uw Correctie - {{ location_name }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Düzeltmeniz alındı
+    {% elif language == 'en' %}
+        Your correction has been received
+    {% else %}
+        Uw correctie is ontvangen
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba,</p>
+
+<p><strong>{{ location_name }}</strong> için gönderdiğiniz düzeltme talebi alındı.</p>
+
+<p>Düzeltmenizi en kısa sürede işleyeceğiz. Genellikle bu 1-2 iş günü içinde tamamlanır.</p>
+
+<p>Düzeltme işlendikten sonra size bilgi vereceğiz.</p>
+
+<p>Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello,</p>
+
+<p>We have received your correction request for <strong>{{ location_name }}</strong>.</p>
+
+<p>We will process your correction as soon as possible. This usually takes 1-2 business days.</p>
+
+<p>We will notify you once the correction has been processed.</p>
+
+<p>If you have any questions, please don't hesitate to reach out to us.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi,</p>
+
+<p>We hebben uw correctie verzoek voor <strong>{{ location_name }}</strong> ontvangen.</p>
+
+<p>We verwerken uw correctie zo snel mogelijk. Dit duurt meestal 1-2 werkdagen.</p>
+
+<p>We zullen u op de hoogte stellen zodra de correctie is verwerkt.</p>
+
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

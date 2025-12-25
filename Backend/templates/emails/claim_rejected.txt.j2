@@ -1,0 +1,49 @@
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+Maalesef, {{ location_name }} için yaptığınız claim talebi reddedildi.
+
+{% if rejection_reason %}
+Red nedeni: {{ rejection_reason }}
+{% endif %}
+
+Eğer bu karar hakkında sorularınız varsa veya yeni bilgiler paylaşmak isterseniz, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Başka bir konum için claim talebinde bulunabilirsiniz.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Unfortunately, your claim request for {{ location_name }} has been rejected.
+
+{% if rejection_reason %}
+Reason: {{ rejection_reason }}
+{% endif %}
+
+If you have questions about this decision or would like to share additional information, please don't hesitate to reach out to us.
+
+You can submit a claim request for another location.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Helaas is uw claim verzoek voor {{ location_name }} afgewezen.
+
+{% if rejection_reason %}
+Reden: {{ rejection_reason }}
+{% endif %}
+
+Als u vragen heeft over deze beslissing of aanvullende informatie wilt delen, aarzel dan niet om contact met ons op te nemen.
+
+U kunt een claim verzoek indienen voor een andere locatie.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

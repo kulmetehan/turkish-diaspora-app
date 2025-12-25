@@ -80,6 +80,20 @@ export const adminNavigation: NavGroup[] = [
         path: "/admin/news-ai",
         group: "dashboard",
       },
+      {
+        id: "authenticated-claims",
+        label: "Claims",
+        icon: "FileCheck",
+        path: "/admin/authenticated-claims",
+        group: "dashboard",
+      },
+      {
+        id: "outreach-contacts",
+        label: "Outreach Contacts",
+        icon: "Mail",
+        path: "/admin/outreach-contacts",
+        group: "dashboard",
+      },
     ],
   },
   {

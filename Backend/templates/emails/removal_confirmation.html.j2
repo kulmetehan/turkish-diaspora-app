@@ -1,0 +1,66 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Konumunuz Kaldırılıyor - {{ location_name }}{% elif language == 'en' %}Your Location is Being Removed - {{ location_name }}{% else %}Uw Locatie Wordt Verwijderd - {{ location_name }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Konum talebiniz kaldırıldı
+    {% elif language == 'en' %}
+        Your location claim has been removed
+    {% else %}
+        Uw locatie claim is verwijderd
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba,</p>
+
+<p><strong>{{ location_name }}</strong> için yaptığınız claim talebi kaldırıldı.</p>
+
+{% if removal_reason %}
+<p><strong>Kaldırma nedeni:</strong> {{ removal_reason }}</p>
+{% endif %}
+
+<p>Geri bildiriminiz için teşekkür ederiz. Bu, platformumuzu iyileştirmemize yardımcı oluyor.</p>
+
+<p>Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello,</p>
+
+<p>Your claim request for <strong>{{ location_name }}</strong> has been removed.</p>
+
+{% if removal_reason %}
+<p><strong>Removal reason:</strong> {{ removal_reason }}</p>
+{% endif %}
+
+<p>Thank you for your feedback. This helps us improve our platform.</p>
+
+<p>If you have any questions, please don't hesitate to reach out to us.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi,</p>
+
+<p>Uw claim verzoek voor <strong>{{ location_name }}</strong> is verwijderd.</p>
+
+{% if removal_reason %}
+<p><strong>Verwijderingsreden:</strong> {{ removal_reason }}</p>
+{% endif %}
+
+<p>Bedankt voor uw feedback. Dit helpt ons om ons platform te verbeteren.</p>
+
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

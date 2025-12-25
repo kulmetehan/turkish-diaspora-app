@@ -1,0 +1,43 @@
+{% if language == 'tr' %}
+Merhaba,
+
+{{ location_name }} için gönderdiğiniz düzeltme talebi alındı.
+
+Düzeltmenizi en kısa sürede işleyeceğiz. Genellikle bu 1-2 iş günü içinde tamamlanır.
+
+Düzeltme işlendikten sonra size bilgi vereceğiz.
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello,
+
+We have received your correction request for {{ location_name }}.
+
+We will process your correction as soon as possible. This usually takes 1-2 business days.
+
+We will notify you once the correction has been processed.
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi,
+
+We hebben uw correctie verzoek voor {{ location_name }} ontvangen.
+
+We verwerken uw correctie zo snel mogelijk. Dit duurt meestal 1-2 werkdagen.
+
+We zullen u op de hoogte stellen zodra de correctie is verwerkt.
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

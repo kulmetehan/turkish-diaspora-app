@@ -75,6 +75,10 @@ from api.routers.community import router as community_router
 from api.routers.reports import router as reports_router
 from api.routers.business_accounts import router as business_accounts_router
 from api.routers.claims import router as claims_router, claims_admin_router
+from api.routers.authenticated_claims import router as authenticated_claims_router
+from api.routers.admin_authenticated_claims import router as admin_authenticated_claims_router
+from api.routers.admin_outreach_contacts import router as admin_outreach_contacts_router
+from api.routers.outreach_claims import router as outreach_claims_router
 from api.routers.business_analytics import router as business_analytics_router
 from api.routers.premium import router as premium_router
 from api.routers.google_business import router as google_business_router
@@ -82,6 +86,8 @@ from api.routers.user_groups import router as user_groups_router
 from api.routers.promotions import router as promotions_router
 from api.routers.bulletin import router as bulletin_router
 from api.routers.feed import router as feed_router
+from api.routers.ses_webhooks import router as ses_webhooks_router
+from api.routers.outreach_tracking import router as outreach_tracking_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -279,6 +285,10 @@ api_v1_router.include_router(reports_router)
 api_v1_router.include_router(business_accounts_router)
 api_v1_router.include_router(claims_router)
 api_v1_router.include_router(claims_admin_router)
+api_v1_router.include_router(authenticated_claims_router)
+api_v1_router.include_router(admin_authenticated_claims_router)
+api_v1_router.include_router(admin_outreach_contacts_router)
+api_v1_router.include_router(outreach_claims_router)
 api_v1_router.include_router(business_analytics_router)
 api_v1_router.include_router(premium_router)
 api_v1_router.include_router(promotions_router)
@@ -286,6 +296,8 @@ api_v1_router.include_router(google_business_router)
 api_v1_router.include_router(user_groups_router)
 api_v1_router.include_router(bulletin_router)
 api_v1_router.include_router(feed_router)
+api_v1_router.include_router(ses_webhooks_router)
+api_v1_router.include_router(outreach_tracking_router)
 
 # Mount the versioned API once on the app
 app.include_router(api_v1_router)
