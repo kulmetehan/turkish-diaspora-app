@@ -45,6 +45,8 @@ export default function RunWorkerDialog({
     const [minConfidence, setMinConfidence] = useState<string>("0.8");
     const [dryRun, setDryRun] = useState<boolean>(false);
     const [maxJobs, setMaxJobs] = useState<string>("1");
+    const [batchSize, setBatchSize] = useState<string>("100");
+    const [maxLocations, setMaxLocations] = useState<string>("1000");
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     // Load categories on mount
@@ -72,6 +74,8 @@ export default function RunWorkerDialog({
             setMinConfidence("0.8");
             setDryRun(false);
             setMaxJobs("1");
+            setBatchSize("100");
+            setMaxLocations("1000");
             setErrors({});
         }
     }, [open, botId]);
@@ -115,6 +119,17 @@ export default function RunWorkerDialog({
             }
         }
 
+        if (botId === "contact_discovery") {
+            const batchSizeNum = parseInt(batchSize, 10);
+            if (Number.isNaN(batchSizeNum) || batchSizeNum < 1 || batchSizeNum > 1000) {
+                newErrors.batchSize = "Batch size must be between 1 and 1000";
+            }
+            const maxLocationsNum = parseInt(maxLocations, 10);
+            if (Number.isNaN(maxLocationsNum) || maxLocationsNum < 1 || maxLocationsNum > 10000) {
+                newErrors.maxLocations = "Max locations must be between 1 and 10000";
+            }
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -143,6 +158,15 @@ export default function RunWorkerDialog({
                 const maxJobsNum = parseInt(maxJobs, 10);
                 if (!Number.isNaN(maxJobsNum)) {
                     payload.max_jobs = maxJobsNum;
+                }
+            } else if (botId === "contact_discovery") {
+                const batchSizeNum = parseInt(batchSize, 10);
+                const maxLocationsNum = parseInt(maxLocations, 10);
+                if (!Number.isNaN(batchSizeNum)) {
+                    payload.batch_size = batchSizeNum;
+                }
+                if (!Number.isNaN(maxLocationsNum)) {
+                    payload.max_locations = maxLocationsNum;
                 }
             } else if (botId === "verify" || botId === "classify") {
                 // Note: Backend API currently only accepts city/category, not limit/min_confidence
@@ -372,6 +396,48 @@ export default function RunWorkerDialog({
         </div>
     );
 
+    const renderContactDiscoveryForm = () => (
+        <div className="space-y-4">
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="text-sm font-semibold text-blue-900 mb-1">
+                    ℹ️ Contact Discovery
+                </div>
+                <div className="text-xs text-blue-800">
+                    Discovers contact information (email) for verified locations via OSM tags and website scraping. Only processes locations that don't have a contact yet.
+                </div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="batch-size-contact">Batch Size *</Label>
+                <Input
+                    id="batch-size-contact"
+                    type="number"
+                    min="1"
+                    max="1000"
+                    value={batchSize}
+                    onChange={(e) => setBatchSize(e.target.value)}
+                />
+                {errors.batchSize && <div className="text-sm text-red-600">{errors.batchSize}</div>}
+                <div className="text-xs text-muted-foreground">Number of locations to process per batch (1-1000)</div>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="max-locations-contact">Max Locations *</Label>
+                <Input
+                    id="max-locations-contact"
+                    type="number"
+                    min="1"
+                    max="10000"
+                    value={maxLocations}
+                    onChange={(e) => setMaxLocations(e.target.value)}
+                />
+                {errors.maxLocations && <div className="text-sm text-red-600">{errors.maxLocations}</div>}
+                <div className="text-xs text-muted-foreground">Maximum total locations to process in this run (1-10000)</div>
+            </div>
+            <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
+                <strong>Note:</strong> The bot only processes verified locations that don't have a contact yet. With 1477 verified locations, you may want to set max_locations to 1477 or higher to process all of them.
+            </div>
+        </div>
+    );
+
     const renderDiscoveryTrainForm = () => (
         <div className="space-y-4">
             <div className="space-y-2">
@@ -408,6 +474,8 @@ export default function RunWorkerDialog({
                 return renderMonitorForm();
             case "verification_consumer":
                 return renderVerificationConsumerForm();
+            case "contact_discovery":
+                return renderContactDiscoveryForm();
             default:
                 return <div className="text-sm text-muted-foreground">Unknown bot type</div>;
         }
@@ -420,6 +488,7 @@ export default function RunWorkerDialog({
         classify: "Classify Bot",
         monitor: "Monitor Bot",
         verification_consumer: "Verification Tasks Consumer",
+        contact_discovery: "Contact Discovery Bot",
     };
 
     return (

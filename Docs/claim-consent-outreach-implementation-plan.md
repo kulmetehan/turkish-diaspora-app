@@ -1,7 +1,7 @@
 # Claim & Consent Outreach Bot Implementation Plan
 
-**Status**: 🟡 In Uitvoering  
-**Laatste Update**: 2025-01-16 (Stap 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4, 6.5, 7.1, 7.3, 8.1, 8.2, 8.3, 9.1, 9.2, 9.3 voltooid)  
+**Status**: 🟢 Voltooid  
+**Laatste Update**: 2025-01-16 (Alle stappen voltooid, inclusief Fase 7.2 en Fase 10)  
 **Epic**: Business Outreach & Claim System
 
 Dit document beschrijft de incrementele implementatie van het Claim & Consent Outreach Bot systeem voor Turkspot, zoals uitgewerkt in samenwerking met ChatGPT. Het plan is opgedeeld in logische stappen die incrementeel door Cursor kunnen worden uitgevoerd.
@@ -54,7 +54,7 @@ Het outreach systeem volgt deze principes:
 
 ### Fase 7: Claim Flow Integratie
 - [x] **Stap 7.1**: Authenticated claim flow integratie (gebruik bestaande flow uit pre-claim plan) ✅
-- [ ] **Stap 7.2**: Token-based claim fallback (optioneel, voor niet-ingelogde gebruikers)
+- [x] **Stap 7.2**: Token-based claim fallback (volledige UI geïmplementeerd) ✅
 - [x] **Stap 7.3**: Email bevestigingen voor acties (claim, correctie, verwijderen) ✅
 
 ### Fase 8: Expiry & Reminder Bot
@@ -68,9 +68,9 @@ Het outreach systeem volgt deze principes:
 - [x] **Stap 9.3**: Audit logging voor AVG compliance ✅
 
 ### Fase 10: Future-proofing
-- [ ] **Stap 10.1**: Mail abstraction layer (SES/Brevo)
-- [ ] **Stap 10.2**: Consent flags systeem
-- [ ] **Stap 10.3**: Migratiepad documentatie
+- [x] **Stap 10.1**: Mail abstraction layer (SES/Brevo) ✅
+- [x] **Stap 10.2**: Consent flags systeem ✅
+- [x] **Stap 10.3**: Migratiepad documentatie ✅
 
 ---
 
@@ -758,13 +758,14 @@ Het outreach systeem volgt deze principes:
 - Fallback logica: authenticated eerst, token als fallback
 
 **Acceptatie Criteria**:
-- [ ] Beslissing genomen
-- [ ] Token-based flow werkt (als gekozen)
-- [ ] Fallback logica werkt (als gekozen)
+- [x] Beslissing genomen ✅ Optie C: Volledige token-based claim UI geïmplementeerd
+- [x] Token-based flow werkt ✅ Volledige UI met claim, remove, en correction forms
+- [x] Fallback logica werkt ✅ ClaimPage.tsx met volledige functionaliteit
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/api/routers/outreach_claims.py` (alleen als Optie B)
-- `Frontend/src/pages/ClaimPage.tsx` (alleen als Optie B)
+- `Backend/api/routers/outreach_claims.py` ✅ (bestond al, volledig geïmplementeerd)
+- `Frontend/src/pages/ClaimPage.tsx` ✅ (volledige UI geïmplementeerd met claim, remove, correction forms)
+- `Frontend/src/lib/api.ts` ✅ (API functies toegevoegd: claimLocationByToken, removeLocationByToken, submitCorrectionByToken)
 
 ---
 
@@ -1007,18 +1008,18 @@ Het outreach systeem volgt deze principes:
 - Marketing mails (toekomstig) → Brevo
 
 **Acceptatie Criteria**:
-- [ ] Abstracte interface bestaat
-- [ ] SES provider werkt
-- [ ] Brevo provider skeleton (toekomstig)
-- [ ] Provider switching via config
-- [ ] Geen breaking changes
+- [x] Abstracte interface bestaat ✅ (bestond al uit pre-claim plan)
+- [x] SES provider werkt ✅ (volledig geïmplementeerd)
+- [x] Brevo provider skeleton ✅ (geïmplementeerd met NotImplementedError, klaar voor toekomstige implementatie)
+- [x] Provider switching via config ✅ (EMAIL_PROVIDER env var)
+- [x] Geen breaking changes ✅
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/services/email/__init__.py` (nieuw, package)
-- `Backend/services/email/base.py` (nieuw, abstract interface)
-- `Backend/services/email/ses_provider.py` (nieuw, SES implementatie)
-- `Backend/services/email/brevo_provider.py` (nieuw, skeleton)
-- `Backend/services/email_service.py` (refactor, gebruik providers)
+- `Backend/services/email/__init__.py` ✅ (bestond al, Brevo provider export toegevoegd)
+- `Backend/services/email/base.py` ✅ (bestond al uit pre-claim plan)
+- `Backend/services/email/ses_provider.py` ✅ (bestond al, volledig geïmplementeerd)
+- `Backend/services/email/brevo_provider.py` ✅ (nieuw, skeleton geïmplementeerd)
+- `Backend/services/email_service.py` ✅ (update, Brevo provider support toegevoegd)
 
 ---
 
@@ -1040,14 +1041,16 @@ Het outreach systeem volgt deze principes:
 - Opt-out = beide consents false
 
 **Acceptatie Criteria**:
-- [ ] Consent systeem bestaat
-- [ ] Flags worden correct bijgewerkt
-- [ ] Opt-out voorkomt verdere emails
-- [ ] Migratie van bestaande data
+- [x] Consent systeem bestaat ✅
+- [x] Flags worden correct bijgewerkt ✅
+- [x] Opt-out voorkomt verdere emails ✅
+- [x] Migratie van bestaande data ✅ (N/A - nieuwe tabel, geen migratie nodig)
 
 **Bestanden om aan te maken/wijzigen**:
-- `Infra/supabase/078_user_consents.sql` (nieuwe migration)
-- `Backend/services/consent_service.py` (nieuw)
+- `Infra/supabase/084_user_consents.sql` ✅ (nieuwe migration)
+- `Backend/services/consent_service.py` ✅ (nieuw, volledig geïmplementeerd)
+- `Backend/services/outreach_mailer_service.py` ✅ (consent checks toegevoegd)
+- `Backend/api/routers/outreach_tracking.py` ✅ (opt-out endpoint update met consent flags)
 
 ---
 
@@ -1062,12 +1065,12 @@ Het outreach systeem volgt deze principes:
 - Scaling considerations
 
 **Acceptatie Criteria**:
-- [ ] Documentatie bestaat
-- [ ] Migratiepad is duidelijk
-- [ ] Architectuur is toekomstbestendig
+- [x] Documentatie bestaat ✅
+- [x] Migratiepad is duidelijk ✅
+- [x] Architectuur is toekomstbestendig ✅
 
 **Bestanden om aan te maken/wijzigen**:
-- `Docs/claim-outreach-future-extensions.md` (nieuw, documentatie)
+- `Docs/claim-outreach-future-extensions.md` ✅ (nieuw, uitgebreide documentatie)
 
 ---
 
@@ -1183,9 +1186,9 @@ Maak dan de nieuwe migration volgens de specificatie.
 ---
 
 **Laatste Update**: 2025-01-16  
-**Huidige Status**: 🟡 In Uitvoering (Stap 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4, 6.5, 7.1, 7.3, 8.1, 8.2, 8.3, 9.1, 9.2, 9.3 voltooid)  
-**Prerequisite**: Pre-Claim & Consent Outreach Implementation Plan (Fase 0.5: Transactionele Email Foundation) moet voltooid zijn  
-**Volgende Stap**: Fase 7 - Stap 7.2 (Token-based claim fallback - optioneel, beslissing nodig), of Fase 10: Future-proofing
+**Huidige Status**: 🟢 Voltooid (Alle stappen zijn geïmplementeerd)  
+**Prerequisite**: Pre-Claim & Consent Outreach Implementation Plan (Fase 0.5: Transactionele Email Foundation) moet voltooid zijn ✅  
+**Volgende Stap**: N/A - Plan is volledig geïmplementeerd. Zie `Docs/claim-outreach-future-extensions.md` voor toekomstige uitbreidingen.
 
 ---
 

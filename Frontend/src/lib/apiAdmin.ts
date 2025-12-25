@@ -417,7 +417,7 @@ export interface RunWorkerResponse {
     detail?: string;
 }
 
-export async function runWorker(params: { bot: string; city?: string; category?: string; max_jobs?: number }): Promise<RunWorkerResponse> {
+export async function runWorker(params: { bot: string; city?: string; category?: string; max_jobs?: number; batch_size?: number; max_locations?: number }): Promise<RunWorkerResponse> {
     return authFetch<RunWorkerResponse>("/api/v1/admin/workers/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1168,5 +1168,24 @@ export async function deleteOutreachContact(contactId: number): Promise<void> {
     return authFetch(`/api/v1/admin/outreach/contacts/${contactId}`, {
         method: "DELETE",
     });
+}
+
+export type LocationWithoutContact = {
+    id: number;
+    name: string | null;
+    address: string | null;
+    category: string | null;
+    state: string;
+};
+
+export async function listLocationsWithoutContact(params?: {
+    limit?: number;
+    offset?: number;
+}): Promise<LocationWithoutContact[]> {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    
+    return authFetch(`/api/v1/admin/outreach/contacts/locations-without-contact?${q.toString()}`);
 }
 

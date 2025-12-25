@@ -13,7 +13,7 @@ import os
 from jinja2 import Template
 
 from app.core.logging import get_logger
-from services.email import EmailProvider, SMTPEmailProvider, SESEmailProvider
+from services.email import EmailProvider, SMTPEmailProvider, SESEmailProvider, BrevoEmailProvider
 from services.email_template_service import get_email_template_service
 
 logger = get_logger()
@@ -56,6 +56,11 @@ class EmailService:
         if self._provider is None:
             if self._provider_name == "ses":
                 self._provider = SESEmailProvider(
+                    from_email=self.from_email,
+                    from_name=self.from_name,
+                )
+            elif self._provider_name == "brevo":
+                self._provider = BrevoEmailProvider(
                     from_email=self.from_email,
                     from_name=self.from_name,
                 )

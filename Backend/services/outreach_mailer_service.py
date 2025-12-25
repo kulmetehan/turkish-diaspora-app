@@ -24,6 +24,7 @@ from services.email_template_service import get_email_template_service
 from services.mapview_link_service import generate_mapview_link
 from services.outreach_rate_limiting_service import get_outreach_rate_limiting_service
 from services.outreach_audit_service import log_outreach_action
+from services.consent_service import get_consent_service
 
 logger = get_logger()
 
@@ -177,6 +178,7 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
     rate_limiting_service = get_outreach_rate_limiting_service()
     email_service = get_email_service()
     template_service = get_email_template_service()
+    consent_service = get_consent_service()
     
     # Check if we can send emails today
     can_send = await rate_limiting_service.can_send_email()
@@ -208,7 +210,7 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
     failed_count = 0
     errors = []
     
-        for email_record in queued_emails:
+    for email_record in queued_emails:
         # Check rate limiting before each email
         if not await rate_limiting_service.can_send_email():
             logger.info(
@@ -216,6 +218,29 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
                 sent_so_far=sent_count,
             )
             break
+        
+        # Check consent before sending
+        email_address = email_record["email"]
+        has_consent = await consent_service.check_service_consent(email_address)
+        if not has_consent:
+            logger.info(
+                "outreach_email_skipped_no_consent",
+                location_id=email_record["location_id"],
+                email=email_address,
+            )
+            # Mark email as skipped (or update status accordingly)
+            sql_update_skipped = """
+                UPDATE outreach_emails
+                SET status = 'opted_out',
+                    updated_at = NOW()
+                WHERE id = $1
+            """
+            await execute(sql_update_skipped, email_record["id"])
+            failed_count += 1
+            continue
+        
+        # Ensure service consent record exists (implicit consent for outreach)
+        await consent_service.ensure_service_consent(email_address)
         
         try:
             # Generate opt-out token

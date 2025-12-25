@@ -200,3 +200,58 @@ async def delete_outreach_contact(
         email=existing_row["email"][:3] + "***"  # Log partially masked email
     )
 
+
+class LocationWithoutContact(BaseModel):
+    id: int
+    name: Optional[str]
+    address: Optional[str]
+    category: Optional[str]
+    state: str
+
+
+@router.get("/locations-without-contact", response_model=List[LocationWithoutContact])
+async def list_locations_without_contact(
+    limit: int = Query(500, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    admin: AdminUser = Depends(verify_admin_user),
+):
+    """
+    List verified locations that don't have a contact yet (admin only).
+    """
+    params = [limit, offset]
+    
+    sql = """
+        SELECT 
+            l.id,
+            l.name,
+            l.address,
+            l.category,
+            l.state
+        FROM locations l
+        WHERE l.state = 'VERIFIED'
+          AND (l.is_retired = false OR l.is_retired IS NULL)
+          AND (l.confidence_score IS NOT NULL AND l.confidence_score >= 0.80)
+          AND l.lat IS NOT NULL
+          AND l.lng IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 
+              FROM outreach_contacts oc 
+              WHERE oc.location_id = l.id
+          )
+        ORDER BY l.last_verified_at DESC NULLS LAST, l.id DESC
+        LIMIT $1 OFFSET $2
+    """
+    
+    rows = await fetch(sql, *params)
+    
+    return [
+        LocationWithoutContact(
+            id=row["id"],
+            name=row.get("name"),
+            address=row.get("address"),
+            category=row.get("category"),
+            state=row["state"],
+        )
+        for row in rows
+    ]
+

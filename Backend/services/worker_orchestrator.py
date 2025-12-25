@@ -41,6 +41,8 @@ async def start_worker_run(
     city: Optional[str] = None,
     category: Optional[str] = None,
     max_jobs: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    max_locations: Optional[int] = None,
 ) -> None:
     """
     Start a worker run in the background.
@@ -87,7 +89,7 @@ async def start_worker_run(
         elif bot == "verify_events":
             await _run_verify_events(run_id)
         elif bot == "contact_discovery":
-            await _run_contact_discovery(run_id)
+            await _run_contact_discovery(run_id, batch_size, max_locations)
         else:
             raise ValueError(f"Unknown bot: {bot}")
             
@@ -345,12 +347,26 @@ async def _run_verify_events(run_id: UUID) -> None:
         await main_async()
 
 
-async def _run_contact_discovery(run_id: UUID) -> None:
+async def _run_contact_discovery(
+    run_id: UUID,
+    batch_size: Optional[int] = None,
+    max_locations: Optional[int] = None,
+) -> None:
     """Run contact_discovery_bot via CLI-compatible entrypoint."""
     from app.workers.contact_discovery_bot import main_async
 
-    logger.info("starting_contact_discovery_bot", run_id=str(run_id))
+    logger.info(
+        "starting_contact_discovery_bot",
+        run_id=str(run_id),
+        batch_size=batch_size,
+        max_locations=max_locations,
+    )
 
     argv = ["contact_discovery_bot", "--worker-run-id", str(run_id)]
+    if batch_size is not None:
+        argv.extend(["--batch-size", str(batch_size)])
+    if max_locations is not None:
+        argv.extend(["--max-locations", str(max_locations)])
+    
     with mock_sys_argv(argv):
         await main_async()

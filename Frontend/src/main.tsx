@@ -182,6 +182,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             </Suspense>
           </AdminRouteWrapper>
         } />
+        <Route path="/admin/outreach-contacts" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminOutreachContactsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
         <Route path="/admin/workers/runs/:runId" element={
           <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>

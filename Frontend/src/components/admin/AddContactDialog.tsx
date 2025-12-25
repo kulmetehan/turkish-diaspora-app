@@ -17,6 +17,8 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
+  locationId?: number; // Optional pre-filled location ID
+  locationName?: string; // Optional location name for display
 };
 
 const EMPTY_FORM: AdminContactCreate = {
@@ -25,15 +27,21 @@ const EMPTY_FORM: AdminContactCreate = {
   confidence_score: 100,
 };
 
-export default function AddContactDialog({ open, onOpenChange, onCreated }: Props) {
+export default function AddContactDialog({ open, onOpenChange, onCreated, locationId, locationName }: Props) {
   const [form, setForm] = useState<AdminContactCreate>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!open) {
+    if (open) {
+      // Pre-fill location_id if provided
+      setForm({
+        ...EMPTY_FORM,
+        location_id: locationId || 0,
+      });
+    } else {
       setForm(EMPTY_FORM);
     }
-  }, [open]);
+  }, [open, locationId]);
 
   const handleChange = (field: keyof typeof form) => (
     event: ChangeEvent<HTMLInputElement>
@@ -98,7 +106,9 @@ export default function AddContactDialog({ open, onOpenChange, onCreated }: Prop
         <DialogHeader>
           <DialogTitle>Add Outreach Contact</DialogTitle>
           <DialogDescription>
-            Manually add a contact email for a location. This contact will be marked with source "manual".
+            {locationName
+              ? `Add contact email for "${locationName}". This contact will be marked with source "manual".`
+              : "Manually add a contact email for a location. This contact will be marked with source \"manual\"."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
@@ -111,7 +121,13 @@ export default function AddContactDialog({ open, onOpenChange, onCreated }: Prop
               onChange={handleChange("location_id")}
               placeholder="123"
               min="1"
+              disabled={!!locationId} // Disable if pre-filled
             />
+            {locationName && (
+              <p className="text-xs text-muted-foreground">
+                Location: {locationName}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label htmlFor="contact-email">Email *</Label>

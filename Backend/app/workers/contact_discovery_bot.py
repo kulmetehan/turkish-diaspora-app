@@ -85,7 +85,49 @@ async def fetch_locations_for_discovery(
     Returns:
         List of location dicts with id, name, status, etc.
     """
-    sql = """
+    # Check if is_claimable and claimed_status columns exist
+    check_columns_sql = """
+        SELECT 
+            EXISTS (
+                SELECT 1 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'locations' 
+                AND column_name = 'is_claimable'
+            ) as has_is_claimable,
+            EXISTS (
+                SELECT 1 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' 
+                AND table_name = 'locations' 
+                AND column_name = 'claimed_status'
+            ) as has_claimed_status
+    """
+    
+    column_check = await fetchrow(check_columns_sql)
+    has_is_claimable = column_check.get("has_is_claimable", False) if column_check else False
+    has_claimed_status = column_check.get("has_claimed_status", False) if column_check else False
+    
+    # Build WHERE clause conditionally
+    where_conditions = ["l.state = 'VERIFIED'"]
+    
+    if has_is_claimable:
+        where_conditions.append("(l.is_claimable IS NULL OR l.is_claimable = true)")
+    
+    if has_claimed_status:
+        where_conditions.append("(l.claimed_status IS NULL OR l.claimed_status = 'unclaimed')")
+    
+    where_conditions.append("""
+        NOT EXISTS (
+            SELECT 1 
+            FROM outreach_contacts oc 
+            WHERE oc.location_id = l.id
+        )
+    """)
+    
+    where_clause = " AND ".join(where_conditions)
+    
+    sql = f"""
         SELECT 
             l.id,
             l.name,
@@ -96,14 +138,7 @@ async def fetch_locations_for_discovery(
             l.place_id,
             l.source
         FROM locations l
-        WHERE l.state = 'VERIFIED'
-          AND (l.is_claimable IS NULL OR l.is_claimable = true)
-          AND (l.claimed_status IS NULL OR l.claimed_status = 'unclaimed')
-          AND NOT EXISTS (
-              SELECT 1 
-              FROM outreach_contacts oc 
-              WHERE oc.location_id = l.id
-          )
+        WHERE {where_clause}
         ORDER BY l.last_verified_at DESC NULLS LAST, l.id DESC
         LIMIT $1
     """
@@ -195,7 +230,9 @@ async def process_location(
         if contact_info:
             result.update({
                 "contact_found": True,
+                "email": contact_info.email,  # Full email for storage in sample_results
                 "contact_email": contact_info.email[:3] + "***",  # Partially masked for logging
+                "source": contact_info.source,  # Alias for frontend compatibility
                 "contact_source": contact_info.source,
                 "confidence_score": contact_info.confidence_score,
             })
@@ -313,20 +350,18 @@ async def run_contact_discovery(
     # OSM queries are fast, but we add a small delay to be safe
     for idx, location in enumerate(locations):
         try:
-            # Update progress
-            if worker_run_id and idx > 0 and idx % 10 == 0:
+            # Update progress more frequently (every 5 items or at milestones)
+            if worker_run_id:
                 progress = int((idx / len(locations)) * 100)
-                if progress != last_progress:
-                    await update_worker_run_progress(
-                        worker_run_id,
-                        progress,
-                        {
-                            "processed": idx,
-                            "total": len(locations),
-                            "contacts_found": contacts_found,
-                            "contacts_saved": contacts_saved,
-                        }
-                    )
+                # Update every 5 items, or at 25%, 50%, 75% milestones
+                should_update = (
+                    (idx > 0 and idx % 5 == 0) or
+                    (progress >= 25 and last_progress < 25) or
+                    (progress >= 50 and last_progress < 50) or
+                    (progress >= 75 and last_progress < 75)
+                )
+                if should_update and progress != last_progress:
+                    await update_worker_run_progress(worker_run_id, progress)
                     last_progress = progress
             
             # Process location
@@ -366,13 +401,25 @@ async def run_contact_discovery(
                 "error": str(e),
             })
     
+    # Prepare results summary for storage (limit to avoid huge JSON)
+    # Store sample of successful contacts, errors, and no-contact cases
+    sample_results = []
+    successful_samples = [r for r in results if r.get("contact_saved")][:5]
+    error_samples = [r for r in results if r.get("error")][:5]
+    no_contact_samples = [r for r in results if not r.get("error") and not r.get("contact_found")][:5]
+    
+    sample_results.extend(successful_samples)
+    sample_results.extend(error_samples)
+    sample_results.extend(no_contact_samples)
+    
     counters: Dict[str, Any] = {
         "total_processed": len(locations),
         "contacts_found": contacts_found,
         "contacts_saved": contacts_saved,
         "no_contact": no_contact,
         "errors": errors,
-        "results": results[:10],  # Only include first 10 results in response
+        "sample_results": sample_results[:15],  # Store up to 15 sample results
+        "results_count": len(results),
     }
     
     logger.info(
@@ -386,8 +433,7 @@ async def run_contact_discovery(
     print(f"[ContactDiscoveryBot] Completed: {len(locations)} processed, {contacts_found} contacts found, {contacts_saved} saved, {no_contact} no contact, {errors} errors")
     
     if worker_run_id:
-        storage_counters = {k: v for k, v in counters.items() if k != "results"}
-        await finish_worker_run(worker_run_id, "finished", 100, storage_counters, None)
+        await finish_worker_run(worker_run_id, "finished", 100, counters, None)
     
     return counters
 
@@ -423,40 +469,40 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-@with_run_id
 async def main_async():
     """Main entry point for contact discovery bot."""
-    args = parse_args()
-    
-    worker_run_id = args.worker_run_id
-    
-    # Initialize database pool
-    await init_db_pool()
-    
-    try:
-        # Mark as running if worker_run_id provided
-        if worker_run_id:
-            await mark_worker_run_running(worker_run_id)
+    with with_run_id():
+        args = parse_args()
         
-        # Run contact discovery
-        counters = await run_contact_discovery(
-            batch_size=args.batch_size,
-            max_locations=args.max_locations,
-            worker_run_id=worker_run_id,
-        )
+        worker_run_id = args.worker_run_id
         
-        print(f"[ContactDiscoveryBot] Summary: {counters}")
-        return counters
-    
-    except Exception as e:
-        logger.error(
-            "contact_discovery_bot_failed",
-            error=str(e),
-            exc_info=True
-        )
-        if worker_run_id:
-            await finish_worker_run(worker_run_id, "failed", 0, {}, str(e))
-        raise
+        # Initialize database pool
+        await init_db_pool()
+        
+        try:
+            # Mark as running if worker_run_id provided
+            if worker_run_id:
+                await mark_worker_run_running(worker_run_id)
+            
+            # Run contact discovery
+            counters = await run_contact_discovery(
+                batch_size=args.batch_size,
+                max_locations=args.max_locations,
+                worker_run_id=worker_run_id,
+            )
+            
+            print(f"[ContactDiscoveryBot] Summary: {counters}")
+            return counters
+        
+        except Exception as e:
+            logger.error(
+                "contact_discovery_bot_failed",
+                error=str(e),
+                exc_info=True
+            )
+            if worker_run_id:
+                await finish_worker_run(worker_run_id, "failed", 0, {}, str(e))
+            raise
 
 
 def main():
