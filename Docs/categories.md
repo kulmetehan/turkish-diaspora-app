@@ -22,7 +22,7 @@ Categories flow through three layers:
 
 The central category registry is defined in `Backend/app/models/categories.py`:
 
-- **Category Enum**: Canonical category keys (e.g., `bakery`, `restaurant`, `car_dealer`)
+- **Category Enum**: Canonical category keys (e.g., `bakery`, `restaurant`, `automotive`)
 - **CategoryMetadata**: Loads metadata from `categories.yml` at runtime
 - **Functions**:
   - `get_all_categories()` - Returns all categories, sorted by priority
