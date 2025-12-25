@@ -3,14 +3,13 @@
 Contact Discovery Service — Service voor het ontdekken van contactgegevens voor locaties.
 
 Strategie (in volgorde):
-1. OSM tags (email, contact:email)
-2. Officiële website (scraping van contact pagina) - TODO
-3. Google Business profile (via Google Places API) - TODO
-4. Social bio (Facebook / Instagram, indien beschikbaar) - TODO
+1. OSM tags (email, contact:email) - confidence: 90/85
+2. OSM website tag → website scraping → educated guess (info@[domein]) - confidence: 70/45
+3. Social bio (Facebook / Instagram, indien beschikbaar) - TODO
 
 Regels:
 - Alleen zichtbare e-mails (geen scraping achter logins)
-- Geen guessing (geen email@domain.com patterns)
+- Educated guess (info@[domein]) als fallback wanneer scraping faalt
 - Confidence score berekenen op basis van bron
 - Confidence < drempel → skip
 """
@@ -21,6 +20,7 @@ import os
 import re
 from typing import Optional
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 import httpx
 
@@ -34,6 +34,7 @@ logger = get_logger()
 
 # Configuration
 DEFAULT_CONFIDENCE_THRESHOLD = int(os.getenv("CONTACT_DISCOVERY_CONFIDENCE_THRESHOLD", "50"))
+GUESS_CONFIDENCE_THRESHOLD = int(os.getenv("CONTACT_DISCOVERY_GUESS_CONFIDENCE_THRESHOLD", "40"))
 GENERIC_EMAIL_PATTERNS = [
     r"^info@",
     r"^contact@",
@@ -54,6 +55,7 @@ class ContactDiscoveryService:
             confidence_threshold: Minimum confidence score (0-100) to accept a contact
         """
         self.confidence_threshold = confidence_threshold
+        self.guess_confidence_threshold = GUESS_CONFIDENCE_THRESHOLD
         self.osm_service = OsmPlacesService()
         self.website_scraper = get_website_scraper_service()
     
@@ -91,9 +93,10 @@ class ContactDiscoveryService:
             )
             return osm_contact
         
-        # Try website scraping (Stap 2.3)
+        # Try website scraping (OSM website tag → scrape → info@ fallback)
         website_contact = await self._discover_website_contact(location)
-        if website_contact and website_contact.confidence_score >= self.confidence_threshold:
+        if website_contact:
+            # Contact is already validated in _discover_website_contact (checks both thresholds)
             logger.info(
                 "contact_discovered",
                 location_id=location_id,
@@ -103,7 +106,6 @@ class ContactDiscoveryService:
             )
             return website_contact
         
-        # TODO: Try Google Places (niet geïmplementeerd - Optie A gekozen)
         # TODO: Try social media (niet geïmplementeerd)
         
         logger.debug(
@@ -269,20 +271,28 @@ class ContactDiscoveryService:
             # Scrape website for email
             email = await self.website_scraper.scrape_contact_email(website_url)
             
-            if not email or not self._is_valid_email(email):
-                return None
+            if email and self._is_valid_email(email):
+                # Base confidence: 70 for website scraping
+                confidence = 70
+                confidence = self._apply_email_penalties(email, confidence)
+                
+                if confidence >= self.confidence_threshold:
+                    return ContactInfo(
+                        email=email,
+                        source="website",
+                        confidence_score=confidence,
+                        discovered_at=datetime.now(timezone.utc)
+                    )
             
-            # Base confidence: 70 for website scraping
-            confidence = 70
-            confidence = self._apply_email_penalties(email, confidence)
-            
-            if confidence >= self.confidence_threshold:
-                return ContactInfo(
-                    email=email,
-                    source="website",
-                    confidence_score=confidence,
-                    discovered_at=datetime.now(timezone.utc)
-                )
+            # Fallback to educated guess (info@[domein]) if scraping failed
+            logger.debug(
+                "website_scraping_no_email_fallback_to_guess",
+                location_id=location.get("id"),
+                website_url=website_url[:50]
+            )
+            guess_contact = await self._discover_website_guess_contact(location, website_url)
+            if guess_contact:
+                return guess_contact
             
             return None
             
@@ -431,6 +441,140 @@ out body;"""
         
         # Ensure confidence doesn't go below 0
         return max(0, confidence)
+    
+    def _extract_domain_from_url(self, url: str) -> Optional[str]:
+        """
+        Extract domain from website URL.
+        
+        Examples:
+            http://www.kapsalonkanat.nl/ -> kapsalonkanat.nl
+            https://example.com/contact -> example.com
+            www.example.nl -> example.nl
+        
+        Args:
+            url: Website URL
+            
+        Returns:
+            Domain name (without www, protocol, path) or None if invalid
+        """
+        if not url or not isinstance(url, str):
+            return None
+        
+        url = url.strip()
+        if not url:
+            return None
+        
+        # Add protocol if missing (for urlparse to work correctly)
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc or parsed.path.split('/')[0]
+            
+            # Remove www. prefix
+            if domain.startswith('www.'):
+                domain = domain[4:]
+            
+            # Basic validation: must contain at least one dot
+            if '.' not in domain:
+                return None
+            
+            # Remove port if present
+            if ':' in domain:
+                domain = domain.split(':')[0]
+            
+            return domain.lower()
+        except Exception as e:
+            logger.debug(
+                "domain_extraction_error",
+                url=url[:50],  # Log first 50 chars only
+                error=str(e)
+            )
+            return None
+    
+    def _generate_educated_guess_email(self, domain: str) -> str:
+        """
+        Generate educated guess email (info@[domein]).
+        
+        Args:
+            domain: Domain name (e.g., "kapsalonkanat.nl")
+            
+        Returns:
+            Email address (e.g., "info@kapsalonkanat.nl")
+        """
+        return f"info@{domain}"
+    
+    async def _discover_website_guess_contact(
+        self, 
+        location: dict, 
+        website_url: str
+    ) -> Optional[ContactInfo]:
+        """
+        Generate educated guess email (info@[domein]) from website URL.
+        
+        This is a fallback strategy when website scraping doesn't find an email.
+        Confidence is lower (45) because it's an educated guess.
+        
+        Args:
+            location: Location dict with id, etc.
+            website_url: Website URL from OSM tags or Google Search
+            
+        Returns:
+            ContactInfo with info@[domein] if domain can be extracted, None otherwise
+        """
+        try:
+            domain = self._extract_domain_from_url(website_url)
+            if not domain:
+                logger.debug(
+                    "website_guess_skipped_no_domain",
+                    location_id=location.get("id"),
+                    website_url=website_url[:50]
+                )
+                return None
+            
+            # Generate info@[domein] email
+            guessed_email = self._generate_educated_guess_email(domain)
+            
+            # Validate the generated email
+            if not self._is_valid_email(guessed_email):
+                logger.debug(
+                    "website_guess_skipped_invalid_email",
+                    location_id=location.get("id"),
+                    guessed_email=guessed_email
+                )
+                return None
+            
+            # Base confidence: 45 for educated guess (lower than scraping)
+            # Note: info@ is already generic, so we don't apply generic penalty
+            confidence = 45
+            
+            if confidence >= self.guess_confidence_threshold:
+                logger.info(
+                    "educated_guess_email_generated",
+                    location_id=location.get("id"),
+                    website_url=website_url[:50],
+                    guessed_email=guessed_email[:3] + "***",
+                    confidence=confidence
+                )
+                return ContactInfo(
+                    email=guessed_email,
+                    source="website",  # Keep same source, but it's a guess
+                    confidence_score=confidence,
+                    discovered_at=datetime.now(timezone.utc)
+                )
+            
+            return None
+            
+        except Exception as e:
+            logger.error(
+                "website_guess_contact_error",
+                location_id=location.get("id"),
+                website_url=website_url[:50] if website_url else None,
+                error=str(e),
+                exc_info=True
+            )
+            return None
 
 
 # Global instance

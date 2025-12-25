@@ -6,6 +6,7 @@ import { Icon } from "@/components/Icon";
 import {
   listOutreachContacts,
   deleteOutreachContact,
+  bulkDeleteOutreachContacts,
   listLocationsWithoutContact,
   type AdminContactResponse,
   type LocationWithoutContact,
@@ -19,10 +20,14 @@ export default function OutreachContactsList() {
   const [filterMode, setFilterMode] = useState<FilterMode>("with_email");
   const [contacts, setContacts] = useState<AdminContactResponse[]>([]);
   const [locationsWithoutContact, setLocationsWithoutContact] = useState<LocationWithoutContact[]>([]);
+  const [locationsWithoutContactTotal, setLocationsWithoutContactTotal] = useState(0);
+  const [locationsWithoutContactOffset, setLocationsWithoutContactOffset] = useState(0);
+  const [locationsWithoutContactLimit] = useState(100); // Items per page
   const [loading, setLoading] = useState(false);
   const [locationIdFilter, setLocationIdFilter] = useState<string>("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<LocationWithoutContact | null>(null);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set());
 
   const loadContacts = async () => {
     setLoading(true);
@@ -46,14 +51,16 @@ export default function OutreachContactsList() {
     }
   };
 
-  const loadLocationsWithoutContact = async () => {
+  const loadLocationsWithoutContact = async (offset: number = 0) => {
     setLoading(true);
     try {
       const data = await listLocationsWithoutContact({
-        limit: 500,
-        offset: 0,
+        limit: locationsWithoutContactLimit,
+        offset: offset,
       });
-      setLocationsWithoutContact(data);
+      setLocationsWithoutContact(data.items);
+      setLocationsWithoutContactTotal(data.total);
+      setLocationsWithoutContactOffset(offset);
     } catch (error: any) {
       toast.error(`Failed to load locations: ${error.message}`);
     } finally {
@@ -66,7 +73,8 @@ export default function OutreachContactsList() {
     if (filterMode === "with_email") {
       loadContacts();
     } else {
-      loadLocationsWithoutContact();
+      setLocationsWithoutContactOffset(0); // Reset to first page
+      loadLocationsWithoutContact(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterMode]);
@@ -90,6 +98,51 @@ export default function OutreachContactsList() {
       loadContacts();
     } catch (error: any) {
       toast.error(`Failed to delete contact: ${error.message}`);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedContactIds.size === 0) {
+      return;
+    }
+
+    const count = selectedContactIds.size;
+    if (!confirm(`Are you sure you want to delete ${count} contact(s)?`)) {
+      return;
+    }
+
+    try {
+      const result = await bulkDeleteOutreachContacts(Array.from(selectedContactIds));
+      if (result.failed_count === 0) {
+        toast.success(`Successfully deleted ${result.deleted_count} contact(s)`);
+      } else {
+        toast.warning(`Deleted ${result.deleted_count} contact(s), ${result.failed_count} failed`);
+        if (result.errors.length > 0) {
+          console.error("Bulk delete errors:", result.errors);
+        }
+      }
+      setSelectedContactIds(new Set());
+      loadContacts();
+    } catch (error: any) {
+      toast.error(`Failed to delete contacts: ${error.message}`);
+    }
+  };
+
+  const handleToggleSelect = (contactId: number) => {
+    const newSelected = new Set(selectedContactIds);
+    if (newSelected.has(contactId)) {
+      newSelected.delete(contactId);
+    } else {
+      newSelected.add(contactId);
+    }
+    setSelectedContactIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedContactIds.size === contacts.length) {
+      setSelectedContactIds(new Set());
+    } else {
+      setSelectedContactIds(new Set(contacts.map(c => c.id)));
     }
   };
 
@@ -158,15 +211,27 @@ export default function OutreachContactsList() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Outreach Contacts</h2>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={filterMode === "with_email" ? loadContacts : loadLocationsWithoutContact}>
+                <Button variant="outline" size="sm" onClick={filterMode === "with_email" ? loadContacts : () => loadLocationsWithoutContact(locationsWithoutContactOffset)}>
                   <Icon name="RefreshCw" sizeRem={1} className="mr-2" />
                   Refresh
                 </Button>
                 {filterMode === "with_email" && (
-                  <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
-                    <Icon name="Plus" sizeRem={1} className="mr-2" />
-                    Add Contact
-                  </Button>
+                  <>
+                    {selectedContactIds.size > 0 && (
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={handleBulkDelete}
+                      >
+                        <Icon name="Trash2" sizeRem={1} className="mr-2" />
+                        Delete Selected ({selectedContactIds.size})
+                      </Button>
+                    )}
+                    <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+                      <Icon name="Plus" sizeRem={1} className="mr-2" />
+                      Add Contact
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -196,7 +261,7 @@ export default function OutreachContactsList() {
                         : "bg-background text-foreground hover:bg-muted"
                     }`}
                   >
-                    Zonder Email ({locationsWithoutContact.length})
+                    Zonder Email ({locationsWithoutContactTotal})
                   </button>
                 </div>
               </div>
@@ -227,10 +292,28 @@ export default function OutreachContactsList() {
                 </div>
               ) : (
                 <div className="space-y-2">
+                  {/* Select All Checkbox */}
+                  <div className="flex items-center gap-2 pb-2 border-b">
+                    <input
+                      type="checkbox"
+                      checked={selectedContactIds.size === contacts.length && contacts.length > 0}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <label className="text-sm font-medium">
+                      Select All ({contacts.length})
+                    </label>
+                  </div>
                   {contacts.map((contact) => (
                     <Card key={contact.id}>
                       <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedContactIds.has(contact.id)}
+                            onChange={() => handleToggleSelect(contact.id)}
+                            className="w-4 h-4 mt-1 rounded border-gray-300"
+                          />
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-3">
                               <h3 className="font-semibold">
@@ -275,49 +358,80 @@ export default function OutreachContactsList() {
                   <div className="text-muted-foreground">All verified locations have contacts</div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {locationsWithoutContact.map((location) => (
-                    <Card key={location.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-3">
-                              <h3 className="font-semibold">
-                                {location.name || `Location ${location.id}`}
-                              </h3>
-                              {location.category && (
-                                <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
-                                  {location.category}
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-sm text-muted-foreground space-y-1">
-                              {location.address && (
+                <>
+                  <div className="space-y-2">
+                    {locationsWithoutContact.map((location) => (
+                      <Card key={location.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 space-y-2">
+                              <div className="flex items-center gap-3">
+                                <h3 className="font-semibold">
+                                  {location.name || `Location ${location.id}`}
+                                </h3>
+                                {location.category && (
+                                  <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
+                                    {location.category}
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground space-y-1">
+                                {location.address && (
+                                  <div>
+                                    <strong>Address:</strong> {location.address}
+                                  </div>
+                                )}
                                 <div>
-                                  <strong>Address:</strong> {location.address}
+                                  <strong>Location ID:</strong> {location.id}
                                 </div>
-                              )}
-                              <div>
-                                <strong>Location ID:</strong> {location.id}
-                              </div>
-                              <div className="text-xs text-amber-600">
-                                ⚠️ Geen e-mailadres gevonden
+                                <div className="text-xs text-amber-600">
+                                  ⚠️ Geen e-mailadres gevonden
+                                </div>
                               </div>
                             </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddContactForLocation(location)}
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
+                            >
+                              <Icon name="Plus" sizeRem={1} className="mr-2" />
+                              Toevoegen
+                            </Button>
                           </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleAddContactForLocation(location)}
-                            className="bg-primary text-primary-foreground hover:bg-primary/90"
-                          >
-                            <Icon name="Plus" sizeRem={1} className="mr-2" />
-                            Toevoegen
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  {locationsWithoutContactTotal > locationsWithoutContactLimit && (
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Toont {locationsWithoutContactOffset + 1} - {Math.min(locationsWithoutContactOffset + locationsWithoutContactLimit, locationsWithoutContactTotal)} van {locationsWithoutContactTotal} locaties
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadLocationsWithoutContact(Math.max(0, locationsWithoutContactOffset - locationsWithoutContactLimit))}
+                          disabled={locationsWithoutContactOffset === 0 || loading}
+                        >
+                          <Icon name="ChevronLeft" sizeRem={1} className="mr-1" />
+                          Vorige
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadLocationsWithoutContact(locationsWithoutContactOffset + locationsWithoutContactLimit)}
+                          disabled={locationsWithoutContactOffset + locationsWithoutContactLimit >= locationsWithoutContactTotal || loading}
+                        >
+                          Volgende
+                          <Icon name="ChevronRight" sizeRem={1} className="ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )
             )}
           </div>

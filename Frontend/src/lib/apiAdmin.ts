@@ -1170,6 +1170,23 @@ export async function deleteOutreachContact(contactId: number): Promise<void> {
     });
 }
 
+export type BulkDeleteRequest = {
+    contact_ids: number[];
+};
+
+export type BulkDeleteResponse = {
+    deleted_count: number;
+    failed_count: number;
+    errors: string[];
+};
+
+export async function bulkDeleteOutreachContacts(contactIds: number[]): Promise<BulkDeleteResponse> {
+    return authFetch(`/api/v1/admin/outreach/contacts/bulk-delete`, {
+        method: "POST",
+        body: JSON.stringify({ contact_ids: contactIds }),
+    });
+}
+
 export type LocationWithoutContact = {
     id: number;
     name: string | null;
@@ -1178,10 +1195,17 @@ export type LocationWithoutContact = {
     state: string;
 };
 
+export type LocationsWithoutContactResponse = {
+    items: LocationWithoutContact[];
+    total: number;
+    limit: number;
+    offset: number;
+};
+
 export async function listLocationsWithoutContact(params?: {
     limit?: number;
     offset?: number;
-}): Promise<LocationWithoutContact[]> {
+}): Promise<LocationsWithoutContactResponse> {
     const q = new URLSearchParams();
     if (params?.limit) q.set("limit", String(params.limit));
     if (params?.offset) q.set("offset", String(params.offset));
