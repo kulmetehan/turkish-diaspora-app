@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Icon } from "@/components/Icon";
 import { getWorkerRunDetail, type WorkerRunDetail } from "@/lib/apiAdmin";
 import { cn } from "@/lib/ui/cn";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 // Status badge color mapping
@@ -67,7 +67,7 @@ export default function WorkerRunDetailPage() {
     const { runId } = useParams<{ runId: string }>();
     const [state, setState] = useState<RunDetailState>({ status: "loading" });
 
-    useEffect(() => {
+    const fetchRun = useCallback(async () => {
         if (!runId) {
             setState({
                 status: "error",
@@ -77,24 +77,35 @@ export default function WorkerRunDetailPage() {
             return;
         }
 
-        const fetchRun = async () => {
-            setState({ status: "loading" });
-            try {
-                const run = await getWorkerRunDetail(runId);
-                setState({ status: "success", run });
-            } catch (err: any) {
-                const errorMessage = err?.message || "Failed to load worker run";
-                const isNotFound = errorMessage.includes("404") || errorMessage.includes("not found");
-                setState({
-                    status: "error",
-                    errorMessage,
-                    notFound: isNotFound,
-                });
-            }
-        };
-
-        fetchRun();
+        try {
+            const run = await getWorkerRunDetail(runId);
+            setState({ status: "success", run });
+        } catch (err: any) {
+            const errorMessage = err?.message || "Failed to load worker run";
+            const isNotFound = errorMessage.includes("404") || errorMessage.includes("not found");
+            setState({
+                status: "error",
+                errorMessage,
+                notFound: isNotFound,
+            });
+        }
     }, [runId]);
+
+    useEffect(() => {
+        setState({ status: "loading" });
+        fetchRun();
+    }, [fetchRun]);
+
+    // Poll for updates if run is still running
+    useEffect(() => {
+        if (state.status === "success" && state.run?.status === "running") {
+            const interval = setInterval(() => {
+                fetchRun();
+            }, 3000); // Poll every 3 seconds
+
+            return () => clearInterval(interval);
+        }
+    }, [state.status, state.run?.status, fetchRun]); // fetchRun is stable from useCallback
 
     // No run ID provided
     if (!runId) {
@@ -349,24 +360,111 @@ export default function WorkerRunDetailPage() {
                 <CardContent>
                     {counterKeys.length > 0 ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {counterKeys.map((key) => (
-                                <div key={key}>
-                                    <div className="text-sm font-medium text-muted-foreground capitalize">
-                                        {key.replace(/_/g, " ")}
+                            {counterKeys
+                                .filter((key) => key !== "sample_results") // Exclude sample_results from summary, show in dedicated section
+                                .map((key) => (
+                                    <div key={key}>
+                                        <div className="text-sm font-medium text-muted-foreground capitalize">
+                                            {key.replace(/_/g, " ")}
+                                        </div>
+                                        <div className="text-sm">
+                                            {typeof counters[key] === "object"
+                                                ? JSON.stringify(counters[key])
+                                                : String(counters[key])}
+                                        </div>
                                     </div>
-                                    <div className="text-sm">
-                                        {typeof counters[key] === "object"
-                                            ? JSON.stringify(counters[key])
-                                            : String(counters[key])}
-                                    </div>
-                                </div>
-                            ))}
+                                ))}
                         </div>
                     ) : (
                         <div className="text-sm text-muted-foreground">No execution metrics recorded for this run.</div>
                     )}
                 </CardContent>
             </Card>
+
+            {/* Contact Discovery Results - Special section for contact_discovery bot */}
+            {run.bot === "contact_discovery" && (
+                <Card className="rounded-2xl shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Sample Results</CardTitle>
+                        <div className="text-sm text-muted-foreground">
+                            {counters.sample_results && Array.isArray(counters.sample_results) && counters.sample_results.length > 0
+                                ? `Showing sample of processed locations (${counters.sample_results.length} of ${counters.total_processed || 0} total)`
+                                : counters.total_processed
+                                  ? `Total processed: ${counters.total_processed}. No sample results available.`
+                                  : "No results available yet."}
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        {counters.sample_results && Array.isArray(counters.sample_results) && counters.sample_results.length > 0 ? (
+                            <div className="space-y-3 max-h-96 overflow-auto">
+                                {counters.sample_results.map((result: any, idx: number) => (
+                                <div
+                                    key={idx}
+                                    className={`p-3 rounded-lg border ${
+                                        result.contact_saved
+                                            ? "bg-emerald-50 border-emerald-200"
+                                            : result.error
+                                              ? "bg-red-50 border-red-200"
+                                              : "bg-slate-50 border-slate-200"
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="flex-1">
+                                            <div className="font-medium text-sm">
+                                                {result.location_name || `Location #${result.location_id || idx + 1}`}
+                                            </div>
+                                            {result.location_id && (
+                                                <div className="text-xs text-muted-foreground mt-1">
+                                                    ID: {result.location_id}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-xs">
+                                            {result.contact_saved ? (
+                                                <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-medium">
+                                                    Contact Saved
+                                                </span>
+                                            ) : result.error ? (
+                                                <span className="px-2 py-1 rounded bg-red-100 text-red-800 font-medium">
+                                                    Error
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-1 rounded bg-slate-100 text-slate-600 font-medium">
+                                                    No Contact
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {(result.email || result.contact_email) && (
+                                        <div className="mt-2 text-sm">
+                                            <span className="font-medium">Email:</span>{" "}
+                                            <span className="text-muted-foreground">{result.email || result.contact_email}</span>
+                                        </div>
+                                    )}
+                                    {(result.source || result.contact_source) && (
+                                        <div className="mt-1 text-xs text-muted-foreground">
+                                            Source: {result.source || result.contact_source}{" "}
+                                            {result.confidence_score && `(${result.confidence_score}% confidence)`}
+                                        </div>
+                                    )}
+                                    {result.error && (
+                                        <div className="mt-2 text-sm text-red-700">
+                                            <span className="font-medium">Error:</span> {result.error}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        ) : (
+                            <div className="text-sm text-muted-foreground">
+                                {run.status === "running"
+                                    ? "Results will appear here once the run completes."
+                                    : "No sample results available for this run."}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Diagnostics Card */}
             <Card className="rounded-2xl shadow-sm">

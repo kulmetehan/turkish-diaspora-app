@@ -39,6 +39,7 @@ BOT_CHOICES = {
     "event_normalization",
     "event_geocoding",
     "verify_events",
+    "contact_discovery",
 }
 
 THIS_FILE = Path(__file__).resolve()
@@ -98,6 +99,8 @@ class WorkerRunRequest(BaseModel):
     city: Optional[str] = None
     category: Optional[str] = None
     max_jobs: Optional[int] = None
+    batch_size: Optional[int] = None
+    max_locations: Optional[int] = None
 
     @field_validator("bot")
     @classmethod
@@ -242,6 +245,8 @@ async def create_worker_run(
         city=body.city,
         category=body.category,
         max_jobs=body.max_jobs,
+        batch_size=body.batch_size,
+        max_locations=body.max_locations,
     )
     
     logger.info(

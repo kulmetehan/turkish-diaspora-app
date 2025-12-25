@@ -1363,6 +1363,157 @@ async def _monitor_bot_status() -> WorkerStatus:
     )
 
 
+async def _contact_discovery_bot_status() -> WorkerStatus:
+    """Get status for Contact Discovery bot based on worker_runs."""
+    now = datetime.now(timezone.utc)
+    
+    # Query last worker run for contact_discovery
+    sql_last_run = """
+        SELECT
+            id,
+            started_at,
+            finished_at,
+            status,
+            counters,
+            error_message
+        FROM worker_runs
+        WHERE bot = 'contact_discovery'
+          AND status IN ('finished', 'failed')
+        ORDER BY finished_at DESC NULLS LAST, started_at DESC
+        LIMIT 1
+    """
+    
+    # Query recently processed runs (last 60 minutes)
+    sql_recent = """
+        SELECT 
+            COUNT(*)::int AS processed_count,
+            COALESCE(SUM((counters->>'total_processed')::int), 0)::int AS total_processed,
+            COALESCE(SUM((counters->>'contacts_found')::int), 0)::int AS contacts_found,
+            COALESCE(SUM((counters->>'contacts_saved')::int), 0)::int AS contacts_saved,
+            COALESCE(SUM((counters->>'errors')::int), 0)::int AS error_count
+        FROM worker_runs
+        WHERE bot = 'contact_discovery'
+          AND started_at >= NOW() - (($1::int || ' minutes')::interval)
+          AND status IN ('finished', 'failed')
+    """
+    
+    try:
+        last_run_rows = await fetch(sql_last_run)
+        last_run = None
+        last_finished = None
+        last_status = None
+        last_counters = None
+        
+        if last_run_rows:
+            row = dict(last_run_rows[0])
+            last_run = row.get("started_at")
+            last_finished = row.get("finished_at")
+            last_status = row.get("status")
+            # Parse counters if it's a JSON string
+            counters_raw = row.get("counters")
+            if isinstance(counters_raw, str):
+                try:
+                    last_counters = json.loads(counters_raw)
+                except (json.JSONDecodeError, TypeError):
+                    last_counters = None
+            else:
+                last_counters = counters_raw
+        
+        recent_rows = await fetch(sql_recent, int(WORKER_WINDOW_MINUTES))
+        processed_recent = 0
+        total_processed = 0
+        contacts_found = 0
+        contacts_saved = 0
+        error_recent = 0
+        
+        if recent_rows:
+            row = dict(recent_rows[0])
+            processed_recent = int(row.get("processed_count") or 0)
+            total_processed = int(row.get("total_processed") or 0)
+            contacts_found = int(row.get("contacts_found") or 0)
+            contacts_saved = int(row.get("contacts_saved") or 0)
+            error_recent = int(row.get("error_count") or 0)
+        
+        # Calculate duration from last run
+        duration_seconds: Optional[float] = None
+        if last_run and last_finished and isinstance(last_run, datetime) and isinstance(last_finished, datetime):
+            duration_seconds = max((last_finished - last_run).total_seconds(), 0.0)
+        
+        status = "ok"
+        notes: List[str] = ["Discovers contact information (email) for verified locations via OSM tags and website scraping."]
+        
+        if last_run is None:
+            status = "unknown"
+            notes.append("No contact discovery runs recorded yet.")
+        else:
+            # Check if last run was recent (within 24 hours)
+            hours_since_last = (now - last_run).total_seconds() / 3600 if isinstance(last_run, datetime) else None
+            if hours_since_last and hours_since_last > 24:
+                status = "warning"
+                notes.append(f"Last run was {int(hours_since_last)} hours ago.")
+            
+            if last_status == "failed":
+                status = "error"
+                notes.append("Last run failed.")
+            
+            if processed_recent == 0:
+                notes.append("0 locations processed in the last 60 minutes.")
+                if status == "ok":
+                    status = "warning"
+            else:
+                # Show recent stats
+                notes.append(f"Recent: {total_processed} processed, {contacts_found} contacts found, {contacts_saved} saved.")
+                
+                if error_recent > 0:
+                    error_ratio = error_recent / total_processed if total_processed > 0 else 0.0
+                    if error_ratio > 0.1:  # More than 10% errors
+                        status = "error"
+                        notes.append(f"High error rate: {error_recent} errors in {total_processed} processed.")
+                    else:
+                        status = "warning"
+                        notes.append(f"{error_recent} errors in recent runs.")
+        
+        # Compute diagnosis code
+        metrics = {
+            "processed_count": total_processed,
+            "contacts_found": contacts_found,
+            "contacts_saved": contacts_saved,
+            "error_count": error_recent,
+        }
+        diagnosis_code = _compute_diagnosis_code("contact_discovery_bot", status, last_run, metrics)
+        
+        return WorkerStatus(
+            id="contact_discovery_bot",
+            label="Contact Discovery Bot",
+            last_run=last_run,
+            duration_seconds=duration_seconds,
+            processed_count=total_processed,
+            error_count=error_recent,
+            status=status,  # type: ignore[arg-type]
+            window_label=f"last {WORKER_WINDOW_MINUTES} min",
+            quota_info=None,
+            notes=_build_notes(notes),
+            diagnosis_code=diagnosis_code,
+        )
+    except Exception as e:
+        logger.exception("contact_discovery_bot_status_failed", error=str(e))
+        metrics = {}
+        diagnosis_code = _compute_diagnosis_code("contact_discovery_bot", "error", None, metrics)
+        return WorkerStatus(
+            id="contact_discovery_bot",
+            label="Contact Discovery Bot",
+            last_run=None,
+            duration_seconds=None,
+            processed_count=None,
+            error_count=None,
+            status="error",
+            window_label=None,
+            quota_info=None,
+            notes="Failed to compute worker status; see logs.",
+            diagnosis_code=diagnosis_code,
+        )
+
+
 async def _verification_consumer_status() -> WorkerStatus:
     now = datetime.now(timezone.utc)
 
@@ -1539,6 +1690,7 @@ async def _worker_statuses(err_rate: float, g429: int) -> List[WorkerStatus]:
     await safe_call("task_verifier_bot", "Self-Verify Bot", _task_verifier_status)
     await safe_call("monitor_bot", "MonitorBot", _monitor_bot_status)
     await safe_call("verification_consumer", "Tasks Consumer", _verification_consumer_status)
+    await safe_call("contact_discovery_bot", "Contact Discovery Bot", _contact_discovery_bot_status)
     await safe_call("alert_bot", "AlertBot", lambda: _alert_bot_status(err_rate, g429))
 
     return statuses
