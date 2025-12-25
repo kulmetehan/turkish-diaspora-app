@@ -2369,3 +2369,80 @@ export async function getMyClaims(
   const params = status ? `?status=${status}` : "";
   return authFetch<AuthenticatedClaim[]>(`/api/v1/locations/my-claims${params}`);
 }
+
+// Token-based claim interfaces and functions
+export interface TokenClaimResponse {
+  location_id: number;
+  location_name: string | null;
+  location_address: string | null;
+  location_category: string | null;
+  claim_token: string;
+  claim_status: string;
+  claimed_by_email: string | null;
+  claimed_at: string | null;
+  free_until: string | null;
+  removed_at: string | null;
+  removal_reason: string | null;
+}
+
+export interface ClaimActionResponse {
+  success: boolean;
+  message: string;
+  claim_info: TokenClaimResponse | null;
+}
+
+/**
+ * Get claim information for a token.
+ */
+export async function getTokenClaimInfo(token: string): Promise<TokenClaimResponse> {
+  return apiFetch<TokenClaimResponse>(`/api/v1/claims/${token}`);
+}
+
+/**
+ * Claim a location using a token.
+ */
+export async function claimLocationByToken(
+  token: string,
+  email: string,
+  description?: string
+): Promise<ClaimActionResponse> {
+  return apiFetch<ClaimActionResponse>(`/api/v1/claims/${token}/claim`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, description }),
+  });
+}
+
+/**
+ * Remove a location claim using a token.
+ */
+export async function removeLocationByToken(
+  token: string,
+  reason?: string
+): Promise<ClaimActionResponse> {
+  return apiFetch<ClaimActionResponse>(`/api/v1/claims/${token}/remove`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ reason }),
+  });
+}
+
+/**
+ * Submit a correction for a location using a token.
+ */
+export async function submitCorrectionByToken(
+  token: string,
+  correction_details: string
+): Promise<ClaimActionResponse> {
+  return apiFetch<ClaimActionResponse>(`/api/v1/claims/${token}/correct`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ correction_details }),
+  });
+}

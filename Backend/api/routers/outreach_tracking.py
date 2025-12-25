@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.core.logging import get_logger
 from services.db_service import fetch, execute
 from services.outreach_audit_service import log_outreach_action
+from services.consent_service import get_consent_service
 
 logger = get_logger()
 
@@ -92,6 +93,13 @@ async def opt_out(
             WHERE id = $1
         """
         await execute(sql_update, email_id)
+        
+        # Update consent flags (opt out from all emails)
+        consent_service = get_consent_service()
+        await consent_service.opt_out(
+            email=email_record.get("email"),
+            reason=f"Opt-out via email link (token: {token[:10]}...)",
+        )
         
         logger.info(
             "opt_out_successful",
