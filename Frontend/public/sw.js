@@ -1,7 +1,7 @@
 // Frontend/public/sw.js
 // Service Worker for Push Notifications
 
-const CACHE_NAME = 'tda-v1';
+const CACHE_NAME = 'tda-v2';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -30,8 +30,18 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache, fallback to network
+// Fetch event - DO NOT cache API requests, only serve static assets from cache
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // Exclude API requests from caching - they're dynamic and user-specific
+  if (url.pathname.startsWith('/api/')) {
+    // Always fetch from network for API requests
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  
+  // For static assets, try cache first, then network
   event.respondWith(
     caches.match(event.request)
       .then((response) => {

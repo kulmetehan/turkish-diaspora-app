@@ -201,6 +201,86 @@ async def delete_outreach_contact(
     )
 
 
+class BulkDeleteRequest(BaseModel):
+    contact_ids: List[int] = Field(..., min_items=1, description="List of contact IDs to delete")
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted_count: int
+    failed_count: int
+    errors: List[str] = Field(default_factory=list)
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+async def bulk_delete_outreach_contacts(
+    request: BulkDeleteRequest,
+    admin: AdminUser = Depends(verify_admin_user),
+):
+    """
+    Bulk delete outreach contacts (admin only).
+    """
+    deleted_count = 0
+    failed_count = 0
+    errors = []
+    
+    for contact_id in request.contact_ids:
+        try:
+            # Check if contact exists
+            existing_row = await fetchrow(
+                """
+                SELECT id, location_id, email FROM outreach_contacts WHERE id = $1
+                """,
+                contact_id,
+            )
+            
+            if not existing_row:
+                failed_count += 1
+                errors.append(f"Contact {contact_id} not found")
+                continue
+            
+            # Delete contact
+            await execute(
+                """
+                DELETE FROM outreach_contacts WHERE id = $1
+                """,
+                contact_id,
+            )
+            
+            deleted_count += 1
+            logger.info(
+                "admin_contact_deleted",
+                admin_email=admin.email,
+                contact_id=contact_id,
+                location_id=existing_row["location_id"],
+                email=existing_row["email"][:3] + "***"  # Log partially masked email
+            )
+        except Exception as e:
+            failed_count += 1
+            error_msg = f"Failed to delete contact {contact_id}: {str(e)}"
+            errors.append(error_msg)
+            logger.error(
+                "admin_contact_bulk_delete_error",
+                admin_email=admin.email,
+                contact_id=contact_id,
+                error=str(e),
+                exc_info=True
+            )
+    
+    logger.info(
+        "admin_contacts_bulk_deleted",
+        admin_email=admin.email,
+        total_requested=len(request.contact_ids),
+        deleted_count=deleted_count,
+        failed_count=failed_count
+    )
+    
+    return BulkDeleteResponse(
+        deleted_count=deleted_count,
+        failed_count=failed_count,
+        errors=errors
+    )
+
+
 class LocationWithoutContact(BaseModel):
     id: int
     name: Optional[str]
@@ -209,17 +289,43 @@ class LocationWithoutContact(BaseModel):
     state: str
 
 
-@router.get("/locations-without-contact", response_model=List[LocationWithoutContact])
+class LocationsWithoutContactResponse(BaseModel):
+    items: List[LocationWithoutContact]
+    total: int
+    limit: int
+    offset: int
+
+
+@router.get("/locations-without-contact", response_model=LocationsWithoutContactResponse)
 async def list_locations_without_contact(
-    limit: int = Query(500, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     admin: AdminUser = Depends(verify_admin_user),
 ):
     """
     List verified locations that don't have a contact yet (admin only).
+    Returns paginated results with total count.
     """
-    params = [limit, offset]
+    # Get total count
+    count_sql = """
+        SELECT COUNT(*)::int AS total
+        FROM locations l
+        WHERE l.state = 'VERIFIED'
+          AND (l.is_retired = false OR l.is_retired IS NULL)
+          AND (l.confidence_score IS NOT NULL AND l.confidence_score >= 0.80)
+          AND l.lat IS NOT NULL
+          AND l.lng IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1 
+              FROM outreach_contacts oc 
+              WHERE oc.location_id = l.id
+          )
+    """
+    count_row = await fetchrow(count_sql)
+    total = int(count_row["total"]) if count_row else 0
     
+    # Get paginated results
+    params = [limit, offset]
     sql = """
         SELECT 
             l.id,
@@ -244,14 +350,19 @@ async def list_locations_without_contact(
     
     rows = await fetch(sql, *params)
     
-    return [
-        LocationWithoutContact(
-            id=row["id"],
-            name=row.get("name"),
-            address=row.get("address"),
-            category=row.get("category"),
-            state=row["state"],
-        )
-        for row in rows
-    ]
+    return LocationsWithoutContactResponse(
+        items=[
+            LocationWithoutContact(
+                id=row["id"],
+                name=row.get("name"),
+                address=row.get("address"),
+                category=row.get("category"),
+                state=row["state"],
+            )
+            for row in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
