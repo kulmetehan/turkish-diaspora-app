@@ -17,6 +17,7 @@ from services.db_service import fetch, fetchrow, execute
 from services.claim_token_service import validate_token, generate_token, TokenClaimInfo
 from services.email_service import EmailService
 from services.email_template_service import get_email_template_service
+from services.outreach_audit_service import log_outreach_action
 from app.core.logging import get_logger
 
 logger = get_logger()
@@ -179,6 +180,19 @@ async def claim_location(
         free_until=free_until.isoformat(),
     )
     
+    # Log to audit log
+    await log_outreach_action(
+        action_type="claim",
+        location_id=claim_info.location_id,
+        email=request.email,
+        details={
+            "claim_token": token,
+            "claim_status": "claimed_free",
+            "claimed_at": datetime.now().isoformat(),
+            "free_until": free_until.isoformat(),
+        },
+    )
+    
     return ClaimActionResponse(
         success=True,
         message="Location claimed successfully",
@@ -250,6 +264,19 @@ async def remove_location(
         location_id=claim_info.location_id,
         email=claim_info.claimed_by_email,
         reason=request.reason,
+    )
+    
+    # Log to audit log
+    await log_outreach_action(
+        action_type="remove",
+        location_id=claim_info.location_id,
+        email=claim_info.claimed_by_email,
+        details={
+            "claim_token": token,
+            "removal_reason": request.reason,
+            "removed_at": datetime.now().isoformat(),
+            "previous_status": claim_info.claim_status,
+        },
     )
     
     # Send removal confirmation email

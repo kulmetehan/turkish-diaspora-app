@@ -138,6 +138,13 @@ def _get_yaml_data() -> Tuple[Dict[str, str], Dict[str, str]]:
     return _YAML_LOOKUP, _YAML_LABELS
 
 
+def clear_category_map_cache() -> None:
+    """Clear cached YAML lookup data (useful after YAML changes)."""
+    global _YAML_LOOKUP, _YAML_LABELS
+    _YAML_LOOKUP = None
+    _YAML_LABELS = None
+
+
 def _slugify(value: str) -> str:
     """
     Minimal slugify for category keys:

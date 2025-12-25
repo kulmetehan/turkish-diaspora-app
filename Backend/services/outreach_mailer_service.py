@@ -23,6 +23,7 @@ from services.email_service import get_email_service
 from services.email_template_service import get_email_template_service
 from services.mapview_link_service import generate_mapview_link
 from services.outreach_rate_limiting_service import get_outreach_rate_limiting_service
+from services.outreach_audit_service import log_outreach_action
 
 logger = get_logger()
 
@@ -353,6 +354,19 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
             
             # Record in rate limiting service
             await rate_limiting_service.record_email_sent()
+            
+            # Log to audit log
+            await log_outreach_action(
+                action_type="email_sent",
+                location_id=email_record["location_id"],
+                email=email_record["email"],
+                details={
+                    "email_id": email_record["id"],
+                    "message_id": message_id,
+                    "location_name": email_record["location_name"],
+                    "sent_at": datetime.utcnow().isoformat(),
+                },
+            )
             
             sent_count += 1
             

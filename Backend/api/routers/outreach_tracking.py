@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.core.logging import get_logger
 from services.db_service import fetch, execute
+from services.outreach_audit_service import log_outreach_action
 
 logger = get_logger()
 
@@ -97,6 +98,17 @@ async def opt_out(
             email_id=email_id,
             email=email_record.get("email"),
             location_id=email_record.get("location_id"),
+        )
+        
+        # Log to audit log
+        await log_outreach_action(
+            action_type="opt_out",
+            location_id=email_record.get("location_id"),
+            email=email_record.get("email"),
+            details={
+                "email_id": email_id,
+                "opt_out_token": token[:10] + "...",  # Partial token for security
+            },
         )
         
         return OptOutResponse(

@@ -6,11 +6,13 @@ from __future__ import annotations
 
 from typing import Optional
 from uuid import UUID
+from datetime import datetime
 
 from services.db_service import fetch, execute
 from services.storage_service import move_logo_to_final, delete_temp_logo, get_public_url
 from services.email_service import EmailService
 from services.email_template_service import get_email_template_service
+from services.outreach_audit_service import log_outreach_action
 from app.core.logging import get_logger
 
 logger = get_logger()
@@ -183,14 +185,30 @@ async def approve_claim(
         admin_user_id=str(admin_user_id),
     )
     
+    # Get user email for audit logging and email sending
+    user_email_sql = """
+        SELECT email, raw_user_meta_data->>'name' as user_name
+        FROM auth.users WHERE id = $1
+    """
+    user_rows = await fetch(user_email_sql, claim["user_id"])
+    user_email = user_rows[0]["email"] if user_rows and user_rows[0].get("email") else None
+    
+    # Log to audit log
+    await log_outreach_action(
+        action_type="claim_approved",
+        location_id=claim["location_id"],
+        email=user_email,
+        details={
+            "claim_id": claim_id,
+            "claim_type": "authenticated",
+            "user_id": str(claim["user_id"]),
+            "admin_user_id": str(admin_user_id),
+            "approved_at": datetime.now().isoformat(),
+        },
+    )
+    
     # Send approval email
     try:
-        # Get user email
-        user_email_sql = """
-            SELECT email, raw_user_meta_data->>'name' as user_name
-            FROM auth.users WHERE id = $1
-        """
-        user_rows = await fetch(user_email_sql, claim["user_id"])
         
         if user_rows and user_rows[0].get("email"):
             user_email = user_rows[0]["email"]
@@ -336,14 +354,31 @@ async def reject_claim(
         rejection_reason=rejection_reason,
     )
     
+    # Get user email for audit logging and email sending
+    user_email_sql = """
+        SELECT email, raw_user_meta_data->>'name' as user_name
+        FROM auth.users WHERE id = $1
+    """
+    user_rows = await fetch(user_email_sql, update_result[0].get("user_id"))
+    user_email = user_rows[0]["email"] if user_rows and user_rows[0].get("email") else None
+    
+    # Log to audit log
+    await log_outreach_action(
+        action_type="claim_rejected",
+        location_id=update_result[0].get("location_id"),
+        email=user_email,
+        details={
+            "claim_id": claim_id,
+            "claim_type": "authenticated",
+            "user_id": str(update_result[0].get("user_id")),
+            "admin_user_id": str(admin_user_id),
+            "rejection_reason": rejection_reason,
+            "rejected_at": datetime.now().isoformat(),
+        },
+    )
+    
     # Send rejection email
     try:
-        # Get user email
-        user_email_sql = """
-            SELECT email, raw_user_meta_data->>'name' as user_name
-            FROM auth.users WHERE id = $1
-        """
-        user_rows = await fetch(user_email_sql, claim["user_id"])
         
         if user_rows and user_rows[0].get("email"):
             user_email = user_rows[0]["email"]

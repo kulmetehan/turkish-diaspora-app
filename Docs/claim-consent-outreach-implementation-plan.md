@@ -1,7 +1,7 @@
 # Claim & Consent Outreach Bot Implementation Plan
 
 **Status**: 🟡 In Uitvoering  
-**Laatste Update**: 2025-01-16 (Stap 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4, 6.5, 7.1, 7.3, 8.1, 8.2, 8.3 voltooid)  
+**Laatste Update**: 2025-01-16 (Stap 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4, 6.5, 7.1, 7.3, 8.1, 8.2, 8.3, 9.1, 9.2, 9.3 voltooid)  
 **Epic**: Business Outreach & Claim System
 
 Dit document beschrijft de incrementele implementatie van het Claim & Consent Outreach Bot systeem voor Turkspot, zoals uitgewerkt in samenwerking met ChatGPT. Het plan is opgedeeld in logische stappen die incrementeel door Cursor kunnen worden uitgevoerd.
@@ -63,9 +63,9 @@ Het outreach systeem volgt deze principes:
 - [x] **Stap 8.3**: Expiry state management ✅
 
 ### Fase 9: Logging & Metrics
-- [ ] **Stap 9.1**: Metrics tracking systeem
-- [ ] **Stap 9.2**: Dashboard/endpoints voor metrics
-- [ ] **Stap 9.3**: Audit logging voor AVG compliance
+- [x] **Stap 9.1**: Metrics tracking systeem ✅
+- [x] **Stap 9.2**: Dashboard/endpoints voor metrics ✅
+- [x] **Stap 9.3**: Audit logging voor AVG compliance ✅
 
 ### Fase 10: Future-proofing
 - [ ] **Stap 10.1**: Mail abstraction layer (SES/Brevo)
@@ -911,13 +911,13 @@ Het outreach systeem volgt deze principes:
 - Of: Real-time berekening via service
 
 **Acceptatie Criteria**:
-- [ ] Metrics service bestaat
-- [ ] Alle metrics worden berekend
-- [ ] Performance is acceptabel
-- [ ] Metrics zijn accuraat
+- [x] Metrics service bestaat ✅
+- [x] Alle metrics worden berekend ✅
+- [x] Performance is acceptabel ✅
+- [x] Metrics zijn accuraat ✅
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/services/outreach_metrics_service.py` (nieuw)
+- `Backend/services/outreach_metrics_service.py` (update, claim_rate, removal_rate, no_action_rate geïmplementeerd) ✅
 
 ---
 
@@ -942,14 +942,14 @@ Het outreach systeem volgt deze principes:
 ```
 
 **Acceptatie Criteria**:
-- [ ] Endpoints bestaan
-- [ ] Metrics zijn accuraat
-- [ ] Authenticatie voor admin endpoints
-- [ ] Response format is duidelijk
+- [x] Endpoints bestaan ✅
+- [x] Metrics zijn accuraat ✅
+- [x] Authenticatie voor admin endpoints ✅
+- [x] Response format is duidelijk ✅
 
 **Bestanden om aan te maken/wijzigen**:
-- `Backend/api/routers/outreach_metrics.py` (nieuw)
-- Update `Backend/app/main.py` om router te includen
+- `Backend/api/routers/outreach_metrics.py` (nieuw) ✅
+- Update `Backend/app/main.py` om router te includen ✅
 - Optioneel: `Frontend/src/pages/AdminOutreachMetricsPage.tsx` (nieuw)
 
 ---
@@ -974,14 +974,19 @@ Het outreach systeem volgt deze principes:
   - `created_at` timestamptz
 
 **Acceptatie Criteria**:
-- [ ] Audit log tabel bestaat
-- [ ] Alle acties worden gelogd
-- [ ] Logs zijn onveranderbaar (append-only)
-- [ ] Retention policy (bijv. 2 jaar)
+- [x] Audit log tabel bestaat ✅
+- [x] Alle acties worden gelogd ✅
+- [x] Logs zijn onveranderbaar (append-only) ✅
+- [x] Retention policy (bijv. 2 jaar) ✅
 
 **Bestanden om aan te maken/wijzigen**:
-- `Infra/supabase/077_outreach_audit_log.sql` (nieuwe migration)
-- `Backend/services/audit_service.py` (update, outreach logging)
+- `Infra/supabase/083_outreach_audit_log.sql` (nieuwe migration) ✅
+- `Backend/services/outreach_audit_service.py` (nieuw) ✅
+- Update bestaande services/routers om audit logging toe te voegen:
+  - `Backend/services/outreach_mailer_service.py` (email verzending logging) ✅
+  - `Backend/api/routers/outreach_claims.py` (claim/remove logging) ✅
+  - `Backend/api/routers/outreach_tracking.py` (opt-out logging) ✅
+  - `Backend/services/claim_approval_service.py` (authenticated claim approval logging) ✅
 
 ---
 
@@ -1178,9 +1183,9 @@ Maak dan de nieuwe migration volgens de specificatie.
 ---
 
 **Laatste Update**: 2025-01-16  
-**Huidige Status**: 🟡 In Uitvoering (Stap 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4, 6.5, 7.1, 7.3, 8.1, 8.2, 8.3 voltooid)  
+**Huidige Status**: 🟡 In Uitvoering (Stap 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 3.3, 3.4, 4.1, 4.2, 4.3, 5.1, 5.2, 5.3, 6.1, 6.2, 6.3, 6.4, 6.5, 7.1, 7.3, 8.1, 8.2, 8.3, 9.1, 9.2, 9.3 voltooid)  
 **Prerequisite**: Pre-Claim & Consent Outreach Implementation Plan (Fase 0.5: Transactionele Email Foundation) moet voltooid zijn  
-**Volgende Stap**: Fase 7 - Stap 7.2 (Token-based claim fallback - optioneel, beslissing nodig), of Fase 9: Logging & Metrics
+**Volgende Stap**: Fase 7 - Stap 7.2 (Token-based claim fallback - optioneel, beslissing nodig), of Fase 10: Future-proofing
 
 ---
 
