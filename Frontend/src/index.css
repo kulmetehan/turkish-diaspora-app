@@ -497,7 +497,120 @@ body {
   padding: 0 !important;
   border: 0 !important;
   box-shadow: none !important;
-  overflow: visible !important;
+}
+
+/* ==========================================================================
+   Emoji Picker Custom Styling
+   --------------------------------------------------------------------------
+   Custom styles for emoji-picker-react to match app design system
+   ========================================================================== */
+.emoji-picker-wrapper .EmojiPickerReact {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: 100% !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  -webkit-overflow-scrolling: touch !important; /* Smooth scrolling on iOS */
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-emoji-list {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important; /* Smooth scrolling on iOS */
+}
+
+/* Mobile-specific fixes */
+@media (max-width: 640px) {
+  .emoji-picker-wrapper .EmojiPickerReact .epr-search-container input {
+    /* Prevent keyboard on mobile */
+    inputmode: "none" !important;
+    -webkit-user-select: none !important;
+    user-select: none !important;
+  }
+  
+  .emoji-picker-wrapper .EmojiPickerReact .epr-search-container input:focus {
+    /* Prevent keyboard from opening */
+    outline: none !important;
+  }
+  
+  /* Ensure picker fits on screen and is scrollable */
+  .emoji-picker-wrapper {
+    max-height: 60vh !important;
+    overflow: hidden !important;
+  }
+  
+  .emoji-picker-wrapper .EmojiPickerReact {
+    max-height: 100% !important;
+    overflow: hidden !important;
+  }
+  
+  .emoji-picker-wrapper .EmojiPickerReact .epr-body {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-search-container {
+  border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-search-container input {
+  background: transparent !important;
+  color: hsl(var(--foreground)) !important;
+  border: none !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-emoji-category-label {
+  color: hsl(var(--muted-foreground)) !important;
+  background: transparent !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-emoji {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-emoji:hover {
+  background: hsl(var(--muted)) !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-category-nav button {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-category-nav button:hover {
+  background: hsl(var(--muted)) !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact .epr-category-nav button.epr-active {
+  background: hsl(var(--primary) / 0.1) !important;
+  color: hsl(var(--primary)) !important;
+}
+
+/* Ensure emoji picker is above all content and clickable */
+.emoji-picker-wrapper {
+  position: relative;
+  z-index: 9999;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact * {
+  pointer-events: auto !important;
+}
+
+.emoji-picker-wrapper .EmojiPickerReact button,
+.emoji-picker-wrapper .EmojiPickerReact .epr-emoji {
+  cursor: pointer !important;
+  pointer-events: auto !important;
 }
 
 .tda-preview-popup .mapboxgl-popup-tip {

@@ -201,6 +201,13 @@ export default function FeedPage() {
 
   // Load initial feed data
   const loadInitialData = useCallback(async () => {
+    // Don't load if user is not authenticated
+    if (!isAuthenticated) {
+      setFeedItems([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -219,7 +226,7 @@ export default function FeedPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeFilter]);
+  }, [activeFilter, isAuthenticated]);
 
   // Load more feed data
   const handleLoadMore = useCallback(async () => {
@@ -263,16 +270,25 @@ export default function FeedPage() {
     hasProcessedNavigationStateRef.current = false;
   }, [location.pathname]);
 
+  // Clear feed items when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setFeedItems([]);
+      setOffset(0);
+      setHasMore(true);
+    }
+  }, [isAuthenticated]);
+
   // Reload when filter changes
   useEffect(() => {
-    // Only load activity feed if not showing Öne Çıkanlar
-    if (activeFilter !== "one_cikanlar") {
+    // Only load activity feed if not showing Öne Çıkanlar and user is authenticated
+    if (activeFilter !== "one_cikanlar" && isAuthenticated) {
       setFeedItems([]);
       setOffset(0);
       setHasMore(true);
       loadInitialData();
     }
-  }, [loadInitialData, activeFilter]);
+  }, [loadInitialData, activeFilter, isAuthenticated]);
 
   // Fetch leaderboard data when Öne Çıkanlar is active
   useEffect(() => {
@@ -470,6 +486,23 @@ export default function FeedPage() {
             <DashboardOverview className="mt-2" />
           ) : activeFilter === "poll_response" ? (
             <PollFeed className="mt-2" />
+          ) : !isAuthenticated ? (
+            <FeedList
+              items={[]}
+              isLoading={false}
+              isLoadingMore={false}
+              hasMore={false}
+              emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
+              className="mt-2"
+              showLoginPrompt={true}
+              loginMessage={
+                activeFilter === "check_in"
+                  ? "Log in om je check-ins te zien"
+                  : activeFilter === "note"
+                  ? "Log in om je notities te zien"
+                  : "Log in om je activiteit te zien"
+              }
+            />
           ) : error ? (
             <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
               <p className="text-foreground">{error}</p>
@@ -483,14 +516,7 @@ export default function FeedPage() {
               onLoadMore={handleLoadMore}
               emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
               className="mt-2"
-              showLoginPrompt={!isAuthenticated && feedItems.length === 0 && !isLoading}
-              loginMessage={
-                activeFilter === "check_in"
-                  ? "Log in om je check-ins te zien"
-                  : activeFilter === "note"
-                  ? "Log in om je notities te zien"
-                  : "Log in om je activiteit te zien"
-              }
+              showLoginPrompt={false}
             />
           )}
         </div>

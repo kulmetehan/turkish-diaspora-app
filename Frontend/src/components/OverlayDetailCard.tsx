@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import type { LocationMarker } from "@/api/fetchLocations";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
@@ -68,6 +69,7 @@ function safeString(value: unknown): string | null {
 export default function OverlayDetailCard({ location, open, onClose, onAddNote, onEditNote, onNotesRefresh }: OverlayDetailCardProps) {
     const { viewport } = useViewportContext();
     const { isAuthenticated } = useUserAuth();
+    const navigate = useNavigate();
     const locationId = parseInt(location.id);
     const city = useMemo(() => deriveCityForLocation(location, "Unknown"), [location]);
 
@@ -399,18 +401,22 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                         <Icon name="Search" className="h-4 w-4" />
                                     </a>
                                 </Button>
-                                {isAuthenticated && claimStatus?.can_claim && (
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        aria-label="Claim deze locatie"
-                                        title="Claim deze locatie"
-                                        onClick={() => setIsClaimDialogOpen(true)}
-                                        className="border-white/20 text-foreground hover:bg-white/10"
-                                    >
-                                        <Icon name="ShieldCheck" className="h-4 w-4" />
-                                    </Button>
-                                )}
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    aria-label="Claim deze locatie"
+                                    title="Claim deze locatie"
+                                    onClick={() => {
+                                        if (!isAuthenticated) {
+                                            navigate("/auth");
+                                        } else if (claimStatus?.can_claim) {
+                                            setIsClaimDialogOpen(true);
+                                        }
+                                    }}
+                                    className="border-white/20 text-foreground hover:bg-white/10"
+                                >
+                                    <Icon name="ShieldCheck" className="h-4 w-4" />
+                                </Button>
                                 <DialogPrimitive.Close
                                     className="ml-1 rounded-full border border-white/10 p-2 text-brand-white/70 transition hover:border-white/30 hover:text-brand-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70"
                                     aria-label="Close details"

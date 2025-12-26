@@ -8,8 +8,12 @@ import {
   deleteOutreachContact,
   bulkDeleteOutreachContacts,
   listLocationsWithoutContact,
+  queueOutreachEmail,
+  sendQueuedOutreachEmails,
+  listOutreachEmails,
   type AdminContactResponse,
   type LocationWithoutContact,
+  type OutreachEmailResponse,
 } from "@/lib/apiAdmin";
 import { toast } from "sonner";
 import AddContactDialog from "./AddContactDialog";
@@ -28,6 +32,8 @@ export default function OutreachContactsList() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<LocationWithoutContact | null>(null);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set());
+  const [emailStatuses, setEmailStatuses] = useState<Map<number, OutreachEmailResponse>>(new Map());
+  const [sending, setSending] = useState(false);
 
   const loadContacts = async () => {
     setLoading(true);
@@ -86,6 +92,14 @@ export default function OutreachContactsList() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationIdFilter]);
+
+  // Load email statuses on mount and when contacts change
+  useEffect(() => {
+    if (filterMode === "with_email") {
+      loadEmailStatuses();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMode, contacts]);
 
   const handleDelete = async (contactId: number) => {
     if (!confirm("Are you sure you want to delete this contact?")) {
@@ -157,6 +171,56 @@ export default function OutreachContactsList() {
     setSelectedLocationForAdd(null);
   };
 
+  const loadEmailStatuses = async (locationId?: number) => {
+    try {
+      const emails = await listOutreachEmails({ 
+        location_id: locationId, 
+        limit: 500 
+      });
+      const statusMap = new Map<number, OutreachEmailResponse>();
+      emails.forEach(email => {
+        statusMap.set(email.location_id, email);
+      });
+      setEmailStatuses(statusMap);
+    } catch (error: any) {
+      console.error("Failed to load email statuses:", error);
+    }
+  };
+
+  const handleQueueEmail = async (locationId: number) => {
+    try {
+      const result = await queueOutreachEmail(locationId);
+      if (result.success) {
+        toast.success(result.message);
+        // Reload email statuses
+        await loadEmailStatuses(locationId);
+      }
+    } catch (error: any) {
+      toast.error(`Failed to queue email: ${error.message}`);
+    }
+  };
+
+  const handleSendEmails = async () => {
+    setSending(true);
+    try {
+      const result = await sendQueuedOutreachEmails(10);
+      if (result.success) {
+        toast.success(`Sent ${result.sent} email(s), ${result.failed} failed`);
+        if (result.errors.length > 0) {
+          console.error("Send errors:", result.errors);
+        }
+      } else {
+        toast.error("Failed to send emails");
+      }
+      // Reload all email statuses
+      await loadEmailStatuses();
+    } catch (error: any) {
+      toast.error(`Failed to send emails: ${error.message}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
   const getSourceBadge = (source: string) => {
     const badgeColors: Record<string, string> = {
       osm: "bg-blue-50 text-blue-700 border-blue-200",
@@ -217,6 +281,15 @@ export default function OutreachContactsList() {
                 </Button>
                 {filterMode === "with_email" && (
                   <>
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      onClick={handleSendEmails}
+                      disabled={sending}
+                    >
+                      <Icon name="Send" sizeRem={1} className="mr-2" />
+                      {sending ? "Sending..." : "Send Queued Emails"}
+                    </Button>
                     {selectedContactIds.size > 0 && (
                       <Button 
                         variant="destructive" 
@@ -337,14 +410,46 @@ export default function OutreachContactsList() {
                               </div>
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(contact.id)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Icon name="Trash2" sizeRem={1} />
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const emailStatus = emailStatuses.get(contact.location_id);
+                              if (emailStatus) {
+                                const statusColors: Record<string, string> = {
+                                  queued: "bg-yellow-50 text-yellow-700 border-yellow-200",
+                                  sent: "bg-green-50 text-green-700 border-green-200",
+                                  delivered: "bg-green-50 text-green-700 border-green-200",
+                                  clicked: "bg-blue-50 text-blue-700 border-blue-200",
+                                  bounced: "bg-red-50 text-red-700 border-red-200",
+                                  opted_out: "bg-gray-50 text-gray-700 border-gray-200",
+                                };
+                                const colorClass = statusColors[emailStatus.status] || "bg-gray-50 text-gray-700 border-gray-200";
+                                return (
+                                  <Badge variant="outline" className={colorClass}>
+                                    {emailStatus.status.toUpperCase()}
+                                  </Badge>
+                                );
+                              } else {
+                                return (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleQueueEmail(contact.location_id)}
+                                  >
+                                    <Icon name="Mail" sizeRem={1} className="mr-1" />
+                                    Queue Email
+                                  </Button>
+                                );
+                              }
+                            })()}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(contact.id)}
+                              className="text-red-600 hover:text-red-700"
+                            >
+                              <Icon name="Trash2" sizeRem={1} />
+                            </Button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>

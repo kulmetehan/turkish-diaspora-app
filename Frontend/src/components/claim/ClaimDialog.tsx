@@ -40,7 +40,10 @@ export function ClaimDialog({ location, open, onClose, onSuccess }: Props) {
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent>
+            <DialogContent 
+                className="sm:max-w-[500px] z-[80]"
+                overlayClassName="z-[79]"
+            >
                 <DialogHeader>
                     <DialogTitle>Claim {location.name}</DialogTitle>
                 </DialogHeader>
