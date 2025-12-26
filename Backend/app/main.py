@@ -78,6 +78,7 @@ from api.routers.claims import router as claims_router, claims_admin_router
 from api.routers.authenticated_claims import router as authenticated_claims_router
 from api.routers.admin_authenticated_claims import router as admin_authenticated_claims_router
 from api.routers.admin_outreach_contacts import router as admin_outreach_contacts_router
+from api.routers.admin_outreach_emails import router as admin_outreach_emails_router
 from api.routers.outreach_claims import router as outreach_claims_router
 from api.routers.outreach_metrics import router as outreach_metrics_router
 from api.routers.business_analytics import router as business_analytics_router
@@ -289,6 +290,7 @@ api_v1_router.include_router(claims_admin_router)
 api_v1_router.include_router(authenticated_claims_router)
 api_v1_router.include_router(admin_authenticated_claims_router)
 api_v1_router.include_router(admin_outreach_contacts_router)
+api_v1_router.include_router(admin_outreach_emails_router)
 api_v1_router.include_router(outreach_claims_router)
 api_v1_router.include_router(outreach_metrics_router)
 api_v1_router.include_router(business_analytics_router)

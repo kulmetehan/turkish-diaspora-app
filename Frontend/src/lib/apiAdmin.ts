@@ -1213,3 +1213,64 @@ export async function listLocationsWithoutContact(params?: {
     return authFetch(`/api/v1/admin/outreach/contacts/locations-without-contact?${q.toString()}`);
 }
 
+// Outreach Emails Types and Functions
+
+export type QueueEmailRequest = {
+    location_id: number;
+};
+
+export type QueueEmailResponse = {
+    success: boolean;
+    message: string;
+    email_id?: number;
+};
+
+export type OutreachEmailResponse = {
+    id: number;
+    location_id: number;
+    location_name?: string;
+    email: string;
+    status: string;
+    ses_message_id?: string;
+    sent_at?: string;
+    delivered_at?: string;
+    clicked_at?: string;
+    bounced_at?: string;
+    bounce_reason?: string;
+    created_at: string;
+    updated_at: string;
+};
+
+export async function queueOutreachEmail(
+    locationId: number
+): Promise<QueueEmailResponse> {
+    return authFetch(`/api/v1/admin/outreach/emails/queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location_id: locationId }),
+    });
+}
+
+export async function sendQueuedOutreachEmails(
+    limit: number = 10
+): Promise<{ success: boolean; sent: number; failed: number; errors: string[] }> {
+    return authFetch(`/api/v1/admin/outreach/emails/send?limit=${limit}`, {
+        method: "POST",
+    });
+}
+
+export async function listOutreachEmails(params?: {
+    location_id?: number;
+    status?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<OutreachEmailResponse[]> {
+    const q = new URLSearchParams();
+    if (params?.location_id) q.set("location_id", String(params.location_id));
+    if (params?.status) q.set("status", params.status);
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    
+    return authFetch(`/api/v1/admin/outreach/emails?${q.toString()}`);
+}
+

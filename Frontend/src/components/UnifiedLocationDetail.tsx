@@ -1,5 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import type { LocationMarker } from "@/api/fetchLocations";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
@@ -76,6 +77,7 @@ export default function UnifiedLocationDetail({
 }: Props) {
     const { viewport } = useViewportContext();
     const { isAuthenticated } = useUserAuth();
+    const navigate = useNavigate();
     const locationId = parseInt(location.id);
     const city = useMemo(() => deriveCityForLocation(location, "Unknown"), [location]);
 
@@ -488,19 +490,23 @@ export default function UnifiedLocationDetail({
                             Google
                         </a>
                     </Button>
-                    {isAuthenticated && claimStatus?.can_claim && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            aria-label="Claim deze locatie"
-                            title="Claim deze locatie"
-                            onClick={() => setIsClaimDialogOpen(true)}
-                            className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
-                        >
-                            <Icon name="ShieldCheck" className="h-4 w-4 mr-2" />
-                            Claim
-                        </Button>
-                    )}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label="Claim deze locatie"
+                        title="Claim deze locatie"
+                        onClick={() => {
+                            if (!isAuthenticated) {
+                                navigate("/auth");
+                            } else if (claimStatus?.can_claim) {
+                                setIsClaimDialogOpen(true);
+                            }
+                        }}
+                        className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                    >
+                        <Icon name="ShieldCheck" className="h-4 w-4 mr-2" />
+                        Claim
+                    </Button>
                 </div>
 
                 {/* Check-in button on own row, full width */}
@@ -778,19 +784,23 @@ export default function UnifiedLocationDetail({
                             Google
                         </a>
                     </Button>
-                    {isAuthenticated && claimStatus?.can_claim && (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            aria-label="Claim deze locatie"
-                            title="Claim deze locatie"
-                            onClick={() => setIsClaimDialogOpen(true)}
-                            className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
-                        >
-                            <Icon name="ShieldCheck" className="h-4 w-4 mr-2" />
-                            Claim
-                        </Button>
-                    )}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        aria-label="Claim deze locatie"
+                        title="Claim deze locatie"
+                        onClick={() => {
+                            if (!isAuthenticated) {
+                                navigate("/auth");
+                            } else if (claimStatus?.can_claim) {
+                                setIsClaimDialogOpen(true);
+                            }
+                        }}
+                        className="border-white/20 text-foreground dark:text-gray-900 hover:bg-gray-200/80 hover:text-gray-800 transition-colors font-gilroy"
+                    >
+                        <Icon name="ShieldCheck" className="h-4 w-4 mr-2" />
+                        Claim
+                    </Button>
                 </div>
 
                 {/* Check-in button on own row, full width */}

@@ -21,9 +21,11 @@
     "@supabase/supabase-js": "^2.76.1",
     "@tanstack/react-virtual": "^3.11.0",
     "axios": "^1.12.2",
+    "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.4",
     "date-fns": "^3.0.0",
+    "emoji-picker-react": "^4.16.1",
     "framer-motion": "^12.23.24",
     "leaflet": "^1.9.4",
     "lucide": "^0.546.0",
@@ -35,8 +37,7 @@
     "react-router-dom": "^7.9.4",
     "recharts": "^2.12.7",
     "sonner": "^2.0.7",
-    "vaul": "^1.1.2",
-    "canvas-confetti": "^1.9.3"
+    "vaul": "^1.1.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
