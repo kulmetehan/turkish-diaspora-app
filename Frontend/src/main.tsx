@@ -13,6 +13,7 @@ import AdminRouteWrapper from "@/components/admin/AdminRouteWrapper";
 import { Toaster } from "@/components/ui/toaster";
 import { initI18n } from "@/i18n";
 import { initTheme } from "@/lib/theme/darkMode";
+import { loadRecaptchaScript } from "@/lib/recaptcha";
 import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
 const AdminHomePage = React.lazy(() => import("@/pages/AdminHomePage"));
@@ -46,6 +47,11 @@ const ClaimPage = React.lazy(() => import("@/pages/ClaimPage"));
 
 initTheme();
 initI18n();
+
+// Load reCAPTCHA Enterprise script (non-blocking, graceful degradation if fails)
+loadRecaptchaScript().catch((error) => {
+  console.debug("reCAPTCHA script load failed (non-critical):", error);
+});
 
 function AppLayout() {
   return (

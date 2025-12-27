@@ -125,6 +125,13 @@ These values control `OsmPlacesService` and `discovery_bot`. Adjust only if you 
 | `GOOGLE_CLIENT_SECRET` | ✅ for sync | Google OAuth 2.0 client secret. |
 | `GOOGLE_REDIRECT_URI` | optional | OAuth redirect URI (defaults to `http://localhost:8000/api/v1/google-business/callback`). |
 
+### reCAPTCHA Enterprise v3 (Bot Protection)
+
+| Key | Required | Description |
+| --- | --- | --- |
+| `RECAPTCHA_SECRET_KEY` | ✅ for bot protection | Google reCAPTCHA Enterprise v3 secret key for server-side verification. Get from [Google reCAPTCHA Admin Console](https://www.google.com/recaptcha/admin). |
+| `RECAPTCHA_SITE_KEY` | optional | Site key for reference (not used by backend, only for documentation). |
+
 ## Frontend (Vite) Variables
 
 Create `Frontend/.env.development` (or `.env.production`) when you need to override defaults:
@@ -136,6 +143,7 @@ Create `Frontend/.env.development` (or `.env.production`) when you need to overr
 | `VITE_MAPBOX_STYLE` | optional | Mapbox style URL for all maps. Default: `"mapbox://styles/mapbox/standard"`. Override to use a different Mapbox style (e.g., `"mapbox://styles/mapbox/streets-v12"` or `"mapbox://styles/mapbox/light-v11"`). See `Docs/mapbox-style-config.md` for change guidelines. |
 | `VITE_SUPABASE_URL` | ✅ | Supabase project URL for admin login. |
 | `VITE_SUPABASE_ANON_KEY` | ✅ | Supabase anon/public key used by the frontend. |
+| `VITE_RECAPTCHA_SITE_KEY` | ✅ for bot protection | Google reCAPTCHA Enterprise v3 site key for client-side integration. Get from [Google reCAPTCHA Admin Console](https://www.google.com/recaptcha/admin). Required for bot protection on signup form. |
 
 > **Tip:** keep frontend `.env` files scoped to `VITE_*` variables so sensitive backend keys never leak into the browser bundle.
 

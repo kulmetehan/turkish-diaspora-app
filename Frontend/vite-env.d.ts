@@ -5,6 +5,7 @@ interface ImportMetaEnv {
   readonly VITE_BASE_PATH?: string;      // bv. /turkish-diaspora-app/
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_ANON_KEY: string;
+  readonly VITE_RECAPTCHA_SITE_KEY?: string;  // Google reCAPTCHA Enterprise v3 site key
 }
 
 interface ImportMeta {

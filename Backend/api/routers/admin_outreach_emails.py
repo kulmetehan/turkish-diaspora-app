@@ -201,7 +201,7 @@ class OutreachEmailResponse(BaseModel):
     location_name: Optional[str]
     email: str
     status: str
-    ses_message_id: Optional[str]
+    message_id: Optional[str]
     sent_at: Optional[datetime]
     delivered_at: Optional[datetime]
     clicked_at: Optional[datetime]
@@ -244,7 +244,7 @@ async def list_outreach_emails(
     sql = f"""
         SELECT 
             oe.id, oe.location_id, oe.email, oe.status,
-            oe.ses_message_id, oe.sent_at, oe.delivered_at,
+            oe.message_id, oe.sent_at, oe.delivered_at,
             oe.clicked_at, oe.bounced_at, oe.bounce_reason,
             oe.created_at, oe.updated_at,
             l.name as location_name
@@ -264,7 +264,7 @@ async def list_outreach_emails(
             location_name=row.get("location_name"),
             email=row["email"],
             status=row["status"],
-            ses_message_id=row.get("ses_message_id"),
+            message_id=row.get("message_id"),
             sent_at=row.get("sent_at"),
             delivered_at=row.get("delivered_at"),
             clicked_at=row.get("clicked_at"),

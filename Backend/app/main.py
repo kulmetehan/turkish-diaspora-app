@@ -89,6 +89,7 @@ from api.routers.promotions import router as promotions_router
 from api.routers.bulletin import router as bulletin_router
 from api.routers.feed import router as feed_router
 from api.routers.ses_webhooks import router as ses_webhooks_router
+from api.routers.brevo_webhooks import router as brevo_webhooks_router
 from api.routers.outreach_tracking import router as outreach_tracking_router
 
 # Import path prepared above for both `api.*` and `app.*`
@@ -301,6 +302,7 @@ api_v1_router.include_router(user_groups_router)
 api_v1_router.include_router(bulletin_router)
 api_v1_router.include_router(feed_router)
 api_v1_router.include_router(ses_webhooks_router)
+api_v1_router.include_router(brevo_webhooks_router)
 api_v1_router.include_router(outreach_tracking_router)
 
 # Mount the versioned API once on the app

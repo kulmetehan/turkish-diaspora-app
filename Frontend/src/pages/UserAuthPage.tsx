@@ -12,6 +12,7 @@ import { getOrCreateClientId, claimReferral, API_BASE } from "@/lib/api";
 import { AppViewportShell, PageShell } from "@/components/layout";
 import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
+import { getRecaptchaToken } from "@/lib/recaptcha";
 
 export default function UserAuthPage() {
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
@@ -90,6 +91,55 @@ export default function UserAuthPage() {
     setLoading(true);
 
     try {
+      // Get reCAPTCHA token (non-blocking, graceful degradation)
+      let recaptchaToken: string | null = null;
+      try {
+        recaptchaToken = await getRecaptchaToken("SIGNUP");
+      } catch (recaptchaError) {
+        console.warn("reCAPTCHA token generation failed (non-critical):", recaptchaError);
+        // Continue with signup even if reCAPTCHA fails
+      }
+
+      // Verify reCAPTCHA token on backend (non-blocking)
+      if (recaptchaToken) {
+        try {
+          const verifyResponse = await fetch(`${API_BASE}/api/v1/auth/verify-recaptcha`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              token: recaptchaToken,
+              action: "SIGNUP",
+            }),
+          });
+
+          if (verifyResponse.ok) {
+            const verifyResult = await verifyResponse.json();
+            console.debug("reCAPTCHA verification successful:", verifyResult);
+            
+            // If score is low, show warning but don't block signup
+            if (verifyResult.score < verifyResult.threshold) {
+              console.warn(
+                `reCAPTCHA score ${verifyResult.score} below threshold ${verifyResult.threshold}`
+              );
+            }
+          } else {
+            const errorData = await verifyResponse.json().catch(() => ({}));
+            console.warn("reCAPTCHA verification failed:", errorData);
+            // Don't block signup, just log the warning
+          }
+        } catch (verifyError) {
+          console.warn("reCAPTCHA verification error (non-critical):", verifyError);
+          // Don't block signup if verification fails
+        }
+      } else {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'UserAuthPage.tsx:152',message:'verify skipped no token',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
+      }
+
+      // Proceed with Supabase signup
       const { data, error } = await supabase.auth.signUp({
         email,
         password,

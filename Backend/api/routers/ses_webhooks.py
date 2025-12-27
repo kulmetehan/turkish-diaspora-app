@@ -195,11 +195,11 @@ async def _handle_bounce_event(ses_event: Dict[str, Any]) -> None:
         bounce_subtype = bounce.get("bounceSubType", "Unknown")
         bounce_reason = f"{bounce_type}: {bounce_subtype}"
         
-        # Find email by SES message ID
+        # Find email by message_id (generic field) or ses_message_id (for backward compatibility)
         sql = """
             SELECT id, email, location_id
             FROM outreach_emails
-            WHERE ses_message_id = $1
+            WHERE message_id = $1 OR ses_message_id = $1
             LIMIT 1
         """
         rows = await fetch(sql, message_id)
@@ -256,11 +256,11 @@ async def _handle_delivery_event(ses_event: Dict[str, Any]) -> None:
         message_id = mail.get("messageId", "")
         delivery = ses_event.get("delivery", {})
         
-        # Find email by SES message ID
+        # Find email by message_id (generic field) or ses_message_id (for backward compatibility)
         sql = """
             SELECT id, email, location_id
             FROM outreach_emails
-            WHERE ses_message_id = $1
+            WHERE message_id = $1 OR ses_message_id = $1
             LIMIT 1
         """
         rows = await fetch(sql, message_id)
@@ -315,11 +315,11 @@ async def _handle_complaint_event(ses_event: Dict[str, Any]) -> None:
         complaint = ses_event.get("complaint", {})
         complaint_type = complaint.get("complaintFeedbackType", "unknown")
         
-        # Find email by SES message ID
+        # Find email by message_id (generic field) or ses_message_id (for backward compatibility)
         sql = """
             SELECT id, email, location_id
             FROM outreach_emails
-            WHERE ses_message_id = $1
+            WHERE message_id = $1 OR ses_message_id = $1
             LIMIT 1
         """
         rows = await fetch(sql, message_id)
