@@ -854,11 +854,11 @@ async def get_week_feedback(
         if last_activity_date >= week_start:
             should_show = True
     
-        return WeekFeedbackResponse(
-            should_show=should_show,
-            message="Bu hafta aktiftin. Mahalle seni gördü.",
-            week_start=week_start,
-        )
+    return WeekFeedbackResponse(
+        should_show=should_show,
+        message="Bu hafta aktiftin. Mahalle seni gördü.",
+        week_start=week_start,
+    )
 
 
 class NoteSummary(BaseModel):

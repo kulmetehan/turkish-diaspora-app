@@ -446,16 +446,18 @@ async def _update_email_status(
         status: New status ('sent', 'bounced', 'delivered', etc.)
         sent_at: Timestamp when email was sent (for 'sent' status)
         bounce_reason: Reason for bounce (for 'bounced' status)
-        message_id: SES message ID (for 'sent' status)
+        message_id: Provider message ID (SES, Brevo, etc.) - generic field
         delivered_at: Timestamp when email was delivered (for 'delivered' status)
     """
     try:
         if status == "sent" and sent_at:
             if message_id:
+                # Use generic message_id column (also update ses_message_id for backward compatibility)
                 sql = """
                     UPDATE outreach_emails
                     SET status = $1,
                         sent_at = $2,
+                        message_id = $3,
                         ses_message_id = $3,
                         updated_at = NOW()
                     WHERE id = $4

@@ -37,12 +37,12 @@ class EmailService:
         Initialize email service.
         
         Args:
-            provider: Email provider to use ('smtp' or 'ses'). Defaults to EMAIL_PROVIDER env var or 'smtp'.
-            from_email: Sender email address
-            from_name: Sender display name
+            provider: Email provider to use ('smtp', 'ses', or 'brevo'). Defaults to EMAIL_PROVIDER env var or 'smtp'.
+            from_email: Sender email address (from EMAIL_FROM env var if not provided)
+            from_name: Sender display name (from EMAIL_FROM_NAME env var if not provided)
         """
-        self.from_email = from_email
-        self.from_name = from_name
+        self.from_email = from_email or os.getenv("EMAIL_FROM")
+        self.from_name = from_name if from_name != "Turkspot" else os.getenv("EMAIL_FROM_NAME", "Turkspot")
         self._provider: Optional[EmailProvider] = None
         self._provider_name = provider or os.getenv("EMAIL_PROVIDER", "smtp").lower()
     

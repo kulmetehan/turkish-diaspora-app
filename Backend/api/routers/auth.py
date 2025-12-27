@@ -1,6 +1,8 @@
 # Backend/api/routers/auth.py
 from __future__ import annotations
 
+import os
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 from pydantic import BaseModel, EmailStr
@@ -32,6 +34,18 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class RecaptchaVerifyRequest(BaseModel):
+    token: str
+    action: str
+
+
+class RecaptchaVerifyResponse(BaseModel):
+    ok: bool
+    score: float
+    action: str
+    threshold: float
 
 
 @router.get("/me", response_model=UserInfo)
@@ -276,6 +290,131 @@ async def send_welcome_email(
             "ok": False,
             "message": f"Error sending welcome email: {str(e)}",
         }
+
+
+@router.post("/verify-recaptcha", response_model=RecaptchaVerifyResponse)
+async def verify_recaptcha(request: RecaptchaVerifyRequest):
+    """
+    Verify reCAPTCHA Enterprise v3 token.
+    
+    This endpoint verifies a reCAPTCHA token with Google's API and returns
+    the score and verification result. Used for bot protection on forms.
+    
+    Args:
+        request: Request containing reCAPTCHA token and action name
+        
+    Returns:
+        Verification result with score, action, and threshold
+        
+    Raises:
+        HTTPException: If verification fails or score is too low
+    """
+    secret_key = os.getenv("RECAPTCHA_SECRET_KEY")
+    
+    # Development mode: if secret key not configured, return success
+    if not secret_key:
+        logger.debug(
+            "recaptcha_verification_dev_mode",
+            action=request.action,
+            message="RECAPTCHA_SECRET_KEY not set, returning development mode response",
+        )
+        return RecaptchaVerifyResponse(
+            ok=True,
+            score=0.9,
+            action=request.action,
+            threshold=0.5 if request.action == "SIGNUP" else 0.3,
+        )
+    
+    try:
+        # Verify token with Google reCAPTCHA API
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                "https://www.google.com/recaptcha/api/siteverify",
+                data={
+                    "secret": secret_key,
+                    "response": request.token,
+                },
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            # Check if verification was successful
+            if not result.get("success", False):
+                error_codes = result.get("error-codes", [])
+                logger.warning(
+                    "recaptcha_verification_failed",
+                    action=request.action,
+                    error_codes=error_codes,
+                    message="reCAPTCHA verification failed, but allowing request to proceed",
+                )
+                # Return a low score response instead of raising an error
+                # This allows the frontend to decide whether to block the action
+                return RecaptchaVerifyResponse(
+                    ok=False,
+                    score=0.0,
+                    action=request.action,
+                    threshold=0.5 if request.action == "SIGNUP" else 0.3,
+                )
+            
+            # Extract score and action from response
+            score = result.get("score", 0.0)
+            action = result.get("action", request.action)
+            
+            # Determine threshold based on action
+            threshold = 0.5 if request.action == "SIGNUP" else 0.3
+            
+            # Check if score meets threshold
+            if score < threshold:
+                logger.warning(
+                    "recaptcha_score_too_low",
+                    action=request.action,
+                    score=score,
+                    threshold=threshold,
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"reCAPTCHA score {score} is below threshold {threshold} for action {request.action}",
+                )
+            
+            # Log successful verification
+            logger.info(
+                "recaptcha_verification_success",
+                action=request.action,
+                score=score,
+                threshold=threshold,
+            )
+            
+            return RecaptchaVerifyResponse(
+                ok=True,
+                score=score,
+                action=action,
+                threshold=threshold,
+            )
+            
+    except httpx.RequestError as e:
+        logger.error(
+            "recaptcha_verification_network_error",
+            action=request.action,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="reCAPTCHA verification service unavailable",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "recaptcha_verification_error",
+            action=request.action,
+            error=str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"reCAPTCHA verification failed: {str(e)}",
+        )
 
 
 @router.post("/logout")

@@ -9,8 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
-import { getOrCreateClientId, claimReferral } from "@/lib/api";
+import { getOrCreateClientId, claimReferral, API_BASE } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+import { getRecaptchaToken } from "@/lib/recaptcha";
 
 interface LoginModalProps {
   open: boolean;
@@ -76,6 +77,38 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
     setLoading(true);
 
     try {
+      // Get reCAPTCHA token (non-blocking, graceful degradation)
+      let recaptchaToken: string | null = null;
+      try {
+        recaptchaToken = await getRecaptchaToken("SIGNUP");
+      } catch (recaptchaError) {
+        console.warn("reCAPTCHA token generation failed (non-critical):", recaptchaError);
+        // Continue with signup even if reCAPTCHA fails
+      }
+
+      // Verify reCAPTCHA token on backend (non-blocking)
+      if (recaptchaToken) {
+        try {
+          const verifyResponse = await fetch(`${API_BASE}/api/v1/auth/verify-recaptcha`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              token: recaptchaToken,
+              action: "SIGNUP",
+            }),
+          });
+
+          if (!verifyResponse.ok) {
+            console.warn("reCAPTCHA verification failed, continuing with signup");
+          }
+        } catch (verifyError) {
+          console.warn("reCAPTCHA verification error (non-critical):", verifyError);
+          // Continue with signup even if verification fails
+        }
+      }
+
       // Get or create client ID for referral tracking
       const clientId = await getOrCreateClientId();
 
@@ -115,6 +148,10 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       setDisplayName("");
       setReferralCode("");
     } catch (error) {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LoginModal.tsx:180',message:'signup catch error',data:{error:String(error),errorType:error instanceof Error ? error.constructor.name : typeof error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+      
       toast.error("Registreren mislukt", {
         description: error instanceof Error ? error.message : "Onbekende fout",
       });

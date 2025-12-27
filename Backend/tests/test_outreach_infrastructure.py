@@ -82,7 +82,8 @@ async def test_outreach_emails_table_exists():
     assert "contact_id" in column_names
     assert "email" in column_names
     assert "status" in column_names
-    assert "ses_message_id" in column_names
+    assert "message_id" in column_names  # Generic message_id column
+    assert "ses_message_id" in column_names  # Kept for backward compatibility
     assert "sent_at" in column_names
     assert "delivered_at" in column_names
     assert "clicked_at" in column_names
