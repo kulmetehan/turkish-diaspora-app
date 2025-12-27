@@ -16,6 +16,8 @@ VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
 VITE_MAPBOX_STYLE=${VITE_MAPBOX_STYLE:-mapbox://styles/mapbox/standard}
 VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
 VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+VITE_POSTHOG_KEY=${VITE_POSTHOG_KEY}
+VITE_POSTHOG_HOST=${VITE_POSTHOG_HOST:-https://app.posthog.com}
 EOF
 
 echo "✅ Created .env.production"
@@ -23,6 +25,8 @@ echo "📋 Environment variables:"
 echo "   VITE_API_BASE_URL=${VITE_API_BASE_URL:-NOT SET}"
 echo "   VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:+SET}"
 echo "   VITE_SUPABASE_URL=${VITE_SUPABASE_URL:+SET}"
+echo "   VITE_POSTHOG_KEY=${VITE_POSTHOG_KEY:+SET}"
+echo "   VITE_POSTHOG_HOST=${VITE_POSTHOG_HOST:-https://app.posthog.com}"
 
 # Validate critical environment variables
 if [ -z "$VITE_API_BASE_URL" ]; then

@@ -48,6 +48,9 @@ jobs:
           # Supabase Auth config (PUBLIC values intended for browser)
           echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> .env.production
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env.production
+          # PostHog Analytics
+          echo "VITE_POSTHOG_KEY=${{ secrets.VITE_POSTHOG_KEY }}" >> .env.production
+          echo "VITE_POSTHOG_HOST=${{ secrets.VITE_POSTHOG_HOST }}" >> .env.production
           echo "Created Frontend/.env.production"
 
       - name: Install dependencies
