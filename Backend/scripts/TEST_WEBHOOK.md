@@ -69,3 +69,4 @@ LIMIT 10;
 - ✅ Check of `message_id` in database wordt opgeslagen
 - ✅ Check of email status wordt geüpdatet (delivered_at, bounced_at)
 
+

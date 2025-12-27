@@ -108,3 +108,4 @@ python scripts/test_brevo_email.py m.kul@lamarka.nl
 - Wacht tot DNS volledig gepropageerd is
 - Check spam folder (kan tijdelijk in spam komen tijdens testing)
 
+
