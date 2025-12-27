@@ -107,3 +107,4 @@ async def check_brevo_status():
 if __name__ == "__main__":
     asyncio.run(check_brevo_status())
 
+
