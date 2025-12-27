@@ -645,3 +645,4 @@ Emails worden verzonden via Brevo (voorheen Sendinblue) email provider:
 - Taal wordt momenteel meestal default naar "nl" gezet, maar kan worden uitgebreid met user preferences
 - Weekly digest heeft complexe context data die wordt gegenereerd door `digest_worker.py`
 
+

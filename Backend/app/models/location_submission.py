@@ -45,3 +45,4 @@ class GeocodeResponse(BaseModel):
     lng: float
     display_name: str
 
+

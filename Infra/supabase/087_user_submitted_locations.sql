@@ -36,3 +36,4 @@ COMMENT ON COLUMN public.user_submitted_locations.is_owner IS 'If true, user bec
 COMMENT ON COLUMN public.user_submitted_locations.created_location_id IS 'Reference to created location after approval.';
 COMMENT ON COLUMN public.user_submitted_locations.status IS 'Submission status: pending (awaiting review), approved (location created), rejected (denied).';
 
+

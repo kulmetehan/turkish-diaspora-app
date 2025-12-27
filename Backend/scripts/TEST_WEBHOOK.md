@@ -70,3 +70,4 @@ LIMIT 10;
 - ✅ Check of email status wordt geüpdatet (delivered_at, bounced_at)
 
 
+

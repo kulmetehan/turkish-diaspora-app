@@ -21,3 +21,4 @@ COMMENT ON COLUMN public.outreach_emails.message_id IS 'Provider message ID for 
 COMMENT ON COLUMN public.outreach_emails.ses_message_id IS 'DEPRECATED: Use message_id instead. Kept for backward compatibility with existing SES-sent emails.';
 
 
+
