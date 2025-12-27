@@ -22,6 +22,9 @@ import { navigationActions, useMapNavigation } from "@/state/navigation";
 import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
 import { createNote, updateNote, trackOutreachClick, type NoteResponse } from "@/lib/api";
 import { toast } from "sonner";
+import AddLocationButton from "@/components/AddLocationButton";
+import AddLocationDialog from "@/components/AddLocationDialog";
+import { useUserAuth } from "@/hooks/useUserAuth";
 
 export default function MapTab() {
     // Global locations state (viewport-independent, fetched on mount)
@@ -55,6 +58,11 @@ export default function MapTab() {
     const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
     const [editingNote, setEditingNote] = useState<NoteResponse | null>(null);
 
+    // Add location dialog state
+    const [addLocationDialogOpen, setAddLocationDialogOpen] = useState(false);
+    const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<{ lat: number; lng: number } | null>(null);
+    const [locationSelectionMode, setLocationSelectionMode] = useState<"map" | "address" | null>(null);
+
     // Effective detailId: use local state if set, otherwise null
     const effectiveDetailId = detailIdLocal;
 
@@ -81,6 +89,9 @@ export default function MapTab() {
     const scrollRestoredRef = useRef(false);
     const scrollThrottleRef = useRef<number | null>(null);
     const mapHeadingId = useId();
+
+    // User authentication state
+    const { isAuthenticated } = useUserAuth();
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -548,6 +559,22 @@ export default function MapTab() {
                     hasActiveSearch={hasActiveSearch}
                 />
             </div>
+            {/* Add Location Button - positioned above MapControls */}
+            {isAuthenticated && (
+                <div
+                    className="pointer-events-none fixed right-3 z-40 md:right-4"
+                    style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
+                >
+                    <div className="pointer-events-auto">
+                        <AddLocationButton
+                            onClick={() => {
+                                setAddLocationDialogOpen(true);
+                                setSelectedLocationForAdd(null);
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 
@@ -593,6 +620,22 @@ export default function MapTab() {
                     />
                 )}
             </div>
+            {/* Add Location Button - positioned above MapControls */}
+            {isAuthenticated && (
+                <div
+                    className="pointer-events-none fixed right-3 z-40 md:right-4"
+                    style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
+                >
+                    <div className="pointer-events-auto">
+                        <AddLocationButton
+                            onClick={() => {
+                                setAddLocationDialogOpen(true);
+                                setSelectedLocationForAdd(null);
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 
@@ -620,9 +663,14 @@ export default function MapTab() {
                 onHighlight={handleHighlight}
                 onOpenDetail={handleOpenDetail}
                 onMapClick={() => {
-                    handleHighlight(null);
-                    handleCloseDetail();
+                    if (!addLocationDialogOpen) {
+                        handleHighlight(null);
+                        handleCloseDetail();
+                    }
                 }}
+                onMapClickForLocation={addLocationDialogOpen && locationSelectionMode === "map" ? (lat, lng) => {
+                    setSelectedLocationForAdd({ lat, lng });
+                } : undefined}
                 focusId={pendingFocusId}
                 onFocusConsumed={handleFocusConsumed}
                 centerOnSelect={false}
@@ -669,6 +717,22 @@ export default function MapTab() {
                     Locaties worden geladen…
                 </div>
             )}
+            {/* Add Location Button - positioned above MapControls */}
+            {isAuthenticated && (
+                <div
+                    className="pointer-events-none fixed right-3 z-40 md:right-4"
+                    style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
+                >
+                    <div className="pointer-events-auto">
+                        <AddLocationButton
+                            onClick={() => {
+                                setAddLocationDialogOpen(true);
+                                setSelectedLocationForAdd(null);
+                            }}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 
@@ -705,6 +769,26 @@ export default function MapTab() {
                         locationName={detail.name}
                     />
                 )}
+
+                {/* Add Location Dialog */}
+                <AddLocationDialog
+                    open={addLocationDialogOpen}
+                    onOpenChange={(open) => {
+                        setAddLocationDialogOpen(open);
+                        if (!open) {
+                            setLocationSelectionMode(null);
+                            setSelectedLocationForAdd(null);
+                        }
+                    }}
+                    onLocationSelected={(lat, lng) => {
+                        setSelectedLocationForAdd({ lat, lng });
+                    }}
+                    selectedLat={selectedLocationForAdd?.lat ?? null}
+                    selectedLng={selectedLocationForAdd?.lng ?? null}
+                    onLocationModeChange={(mode) => {
+                        setLocationSelectionMode(mode);
+                    }}
+                />
             </AppViewportShell>
         </ViewportProvider>
     );

@@ -1,4 +1,5 @@
 import { API_BASE, authFetch } from "@/lib/api";
+import type { LocationSubmissionResponse } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
 
 export type AdminLocationListItem = {
@@ -1274,3 +1275,35 @@ export async function listOutreachEmails(params?: {
     return authFetch(`/api/v1/admin/outreach/emails?${q.toString()}`);
 }
 
+// Location Submission Admin API Functions
+export async function listLocationSubmissions(params: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<LocationSubmissionResponse[]> {
+  const q = new URLSearchParams();
+  if (params.status) q.set("status", params.status);
+  if (params.limit) q.set("limit", String(params.limit));
+  if (params.offset) q.set("offset", String(params.offset));
+  return authFetch<LocationSubmissionResponse[]>(`/api/v1/admin/location-submissions?${q.toString()}`);
+}
+
+export async function getLocationSubmission(submissionId: number): Promise<LocationSubmissionResponse> {
+  return authFetch<LocationSubmissionResponse>(`/api/v1/admin/location-submissions/${submissionId}`);
+}
+
+export async function approveLocationSubmission(submissionId: number): Promise<void> {
+  await authFetch(`/api/v1/admin/location-submissions/${submissionId}/approve`, {
+    method: "POST",
+  });
+}
+
+export async function rejectLocationSubmission(submissionId: number, reason?: string): Promise<void> {
+  await authFetch(`/api/v1/admin/location-submissions/${submissionId}/reject`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ rejection_reason: reason }),
+  });
+}

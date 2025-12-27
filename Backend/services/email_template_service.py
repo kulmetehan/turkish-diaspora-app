@@ -10,11 +10,79 @@ from __future__ import annotations
 from typing import Dict, Any, Optional
 from pathlib import Path
 import os
+import base64
+from datetime import datetime
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.core.logging import get_logger
 
 logger = get_logger()
+
+
+def _get_mascotte_base64() -> str:
+    """
+    Get base64-encoded mascotte image for email templates.
+    
+    Returns:
+        Base64-encoded string of the mascotte PNG image
+    """
+    # Try to read from public folder first (for production)
+    mascotte_paths = [
+        Path(__file__).parent.parent.parent / "Frontend" / "public" / "turkspotbot.png",
+        Path(__file__).parent.parent / "static" / "turkspotbot.png",
+    ]
+    
+    for path in mascotte_paths:
+        if path.exists():
+            try:
+                with open(path, "rb") as f:
+                    image_data = f.read()
+                    return base64.b64encode(image_data).decode("utf-8")
+            except Exception as e:
+                logger.warning(
+                    "mascotte_image_read_failed",
+                    path=str(path),
+                    error=str(e),
+                )
+                continue
+    
+    # Fallback: return empty string if image not found
+    logger.warning("mascotte_image_not_found", paths=[str(p) for p in mascotte_paths])
+    return ""
+
+
+def _date_filter(value: Any, format_string: str = "%Y-%m-%d") -> str:
+    """
+    Jinja2 filter for formatting dates.
+    
+    Supports:
+    - "now" string -> current date/time
+    - datetime objects -> formatted date
+    - Other values -> converted to string
+    
+    Args:
+        value: Value to format (can be "now", datetime, or other)
+        format_string: strftime format string (default: "%Y-%m-%d")
+    
+    Returns:
+        Formatted date string
+    """
+    if value == "now" or (isinstance(value, str) and value.lower() == "now"):
+        dt = datetime.now()
+    elif isinstance(value, datetime):
+        dt = value
+    else:
+        # Try to convert to datetime if possible
+        try:
+            if isinstance(value, str):
+                # Try parsing common formats
+                dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            else:
+                dt = datetime.now()
+        except (ValueError, AttributeError):
+            dt = datetime.now()
+    
+    return dt.strftime(format_string)
 
 
 class EmailTemplateService:
@@ -39,6 +107,8 @@ class EmailTemplateService:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        # Register custom filters
+        self.env.filters['date'] = _date_filter
     
     def _get_default_context(self, language: str = "nl") -> Dict[str, Any]:
         """
@@ -60,12 +130,13 @@ class EmailTemplateService:
             - mapview_link: Link to mapview with focus parameter (string)
             - opt_out_link: Link for opt-out (string, optional)
         """
-        frontend_url = os.getenv("FRONTEND_URL", "https://turkspot.nl")
+        frontend_url = os.getenv("FRONTEND_URL", "https://turkspot.app")
         
         return {
             "language": language,
             "base_url": frontend_url,
             "unsubscribe_url": f"{frontend_url}/#/account",
+            "mascotte_base64": _get_mascotte_base64(),
         }
     
     def render_template(
@@ -89,8 +160,8 @@ class EmailTemplateService:
         Example usage for outreach email:
             context = {
                 "location_name": "Restaurant XYZ",
-                "mapview_link": "https://turkspot.nl/#/map?focus=123",
-                "opt_out_link": "https://turkspot.nl/#/opt-out?token=abc",
+                "mapview_link": "https://turkspot.app/#/map?focus=123",
+                "opt_out_link": "https://turkspot.app/#/opt-out?token=abc",
             }
             html, text = service.render_template("outreach_email", context, language="nl")
         """

@@ -1,0 +1,49 @@
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+Maalesef, {{ location_name }} için yaptığınız locatie inzending reddedildi.
+
+{% if rejection_reason %}
+Red nedeni: {{ rejection_reason }}
+{% endif %}
+
+Eğer bu karar hakkında sorularınız varsa of yeni bilgiler paylaşmak isterseniz, lütfen bizimle iletişime geçmekten çekinmeyin.
+
+Başka bir locatie voor inzending yapabilirsiniz.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Unfortunately, your location submission for {{ location_name }} has been rejected.
+
+{% if rejection_reason %}
+Reason: {{ rejection_reason }}
+{% endif %}
+
+If you have questions about this decision or would like to share additional information, please don't hesitate to reach out to us.
+
+You can submit another location.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Helaas is uw locatie inzending voor {{ location_name }} afgewezen.
+
+{% if rejection_reason %}
+Reden: {{ rejection_reason }}
+{% endif %}
+
+Als u vragen heeft over deze beslissing of aanvullende informatie wilt delen, aarzel dan niet om contact met ons op te nemen.
+
+U kunt een andere locatie indienen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

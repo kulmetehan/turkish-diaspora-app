@@ -2448,3 +2448,64 @@ export async function submitCorrectionByToken(
     body: JSON.stringify({ correction_details }),
   });
 }
+
+// Location Submission Types
+export interface LocationSubmissionCreate {
+  name: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  category: string;
+  is_owner: boolean;
+}
+
+export interface LocationSubmissionResponse {
+  id: number;
+  name: string;
+  address?: string | null;
+  lat: number;
+  lng: number;
+  category: string;
+  user_id: string;
+  is_owner: boolean;
+  status: string;
+  submitted_at: string;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  created_location_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GeocodeResponse {
+  lat: number;
+  lng: number;
+  display_name: string;
+}
+
+// Location Submission API Functions
+export async function geocodeAddress(address: string): Promise<GeocodeResponse> {
+  return authFetch<GeocodeResponse>("/api/v1/locations/submit/geocode", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ address }),
+  });
+}
+
+export async function submitLocation(submission: LocationSubmissionCreate): Promise<LocationSubmissionResponse> {
+  return authFetch<LocationSubmissionResponse>("/api/v1/locations/submit", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(submission),
+  });
+}
+
+export async function getMySubmissions(status?: string): Promise<LocationSubmissionResponse[]> {
+  const params = status ? `?status=${encodeURIComponent(status)}` : "";
+  return authFetch<LocationSubmissionResponse[]>(`/api/v1/locations/my-submissions${params}`);
+}

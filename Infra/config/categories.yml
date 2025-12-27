@@ -309,6 +309,67 @@ categories:
       enabled: true
       priority: 5
 
+  shop:
+    label: "winkels"
+    description: "Retailwinkels met Turkse eigenaren: bouwmarkten, woonwinkels, meubelwinkels, kledingwinkels, electronicazaken en andere retail."
+    google_types:
+      - "store"
+      - "clothing_store"
+      - "furniture_store"
+      - "home_goods_store"
+      - "electronics_store"
+    osm_tags:
+      any:
+        - { shop: "clothes" }
+        - { shop: "fashion" }
+        - { shop: "furniture" }
+        - { shop: "interior_decoration" }
+        - { shop: "houseware" }
+        - { shop: "kitchen" }
+        - { shop: "electronics" }
+        - { shop: "computer" }
+        - { shop: "mobile_phone" }
+        - { shop: "doityourself" }
+        - { shop: "hardware" }
+        - { shop: "paint" }
+        - { shop: "tiles" }
+        - { shop: "carpet" }
+        - { shop: "curtain" }
+        - { shop: "bed" }
+        - { shop: "bathroom_furnishing" }
+        - { shop: "lighting" }
+        - { shop: "flooring" }
+        - { shop: "household_linen" }
+        - { shop: "variety_store" }
+        - { shop: "general" }
+    aliases:
+      - "winkel"
+      - "winkels"
+      - "retail"
+      - "bouwmarkt"        # NL
+      - "woonwinkel"       # NL
+      - "meubelwinkel"     # NL
+      - "kledingwinkel"    # NL
+      - "electronicazaak"  # NL
+      - "mağaza"           # TR
+      - "dükkan"           # TR
+      - "dükkanı"          # TR
+      - "dukkan"           # TR
+      - "dukkani"          # TR
+      - "mobilya"          # TR (furniture)
+      - "mobilyacı"        # TR
+      - "mobilyaci"        # TR
+      - "ev eşyası"        # TR (household goods)
+      - "ev esyasi"        # TR
+      - "giyim"            # TR (clothing)
+      - "tekstil"          # TR (textiles)
+      - "elektronik"       # TR (electronics)
+      - "inşaat malzemesi" # TR (construction materials)
+      - "insaat malzemesi" # TR
+    discovery:
+      enabled: true
+      priority: 7
+
   other:
     label: "overig"
     description: "Catch-all categorie voor locaties die niet in andere categorieën passen of nog geen eigen categorie hebben."

@@ -1,0 +1,66 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Konumunuz Reddedildi - {{ location_name }}{% elif language == 'en' %}Your Location Has Been Rejected - {{ location_name }}{% else %}Uw Locatie is Afgewezen - {{ location_name }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Konum talebiniz reddedildi
+    {% elif language == 'en' %}
+        Your location submission has been rejected
+    {% else %}
+        Uw locatie inzending is afgewezen
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba {{ user_name }},</p>
+
+<p>Maalesef, <strong>{{ location_name }}</strong> için yaptığınız locatie inzending reddedildi.</p>
+
+{% if rejection_reason %}
+<p><strong>Red nedeni:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>Eğer bu karar hakkında sorularınız varsa of yeni bilgiler paylaşmak isterseniz, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+
+<p>Başka bir locatie için inzending yapabilirsiniz.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello {{ user_name }},</p>
+
+<p>Unfortunately, your location submission for <strong>{{ location_name }}</strong> has been rejected.</p>
+
+{% if rejection_reason %}
+<p><strong>Reason:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>If you have questions about this decision or would like to share additional information, please don't hesitate to reach out to us.</p>
+
+<p>You can submit another location.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi {{ user_name }},</p>
+
+<p>Helaas is uw locatie inzending voor <strong>{{ location_name }}</strong> afgewezen.</p>
+
+{% if rejection_reason %}
+<p><strong>Reden:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>Als u vragen heeft over deze beslissing of aanvullende informatie wilt delen, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>U kunt een andere locatie indienen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

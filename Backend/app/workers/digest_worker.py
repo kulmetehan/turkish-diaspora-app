@@ -224,8 +224,8 @@ async def send_digest_email(user: Dict[str, Any], content: Dict[str, Any]) -> bo
     # Render email template
     context = {
         **content,
-        "base_url": os.getenv("FRONTEND_URL", "https://turkspot.nl"),
-        "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://turkspot.nl')}/#/account",
+        "base_url": os.getenv("FRONTEND_URL", "https://turkspot.app"),
+        "unsubscribe_url": f"{os.getenv('FRONTEND_URL', 'https://turkspot.app')}/#/account",
     }
     
     try:

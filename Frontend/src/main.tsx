@@ -14,6 +14,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { initI18n } from "@/i18n";
 import { initTheme } from "@/lib/theme/darkMode";
 import { loadRecaptchaScript } from "@/lib/recaptcha";
+import { initAnalytics } from "@/lib/analytics";
+import { useScreenTracking } from "@/hooks/useScreenTracking";
 import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
 const AdminHomePage = React.lazy(() => import("@/pages/AdminHomePage"));
@@ -34,6 +36,8 @@ const CommunityGuidelinesPage = React.lazy(() => import("@/pages/CommunityGuidel
 const UserAuthPage = React.lazy(() => import("@/pages/UserAuthPage"));
 const AdminPollsPage = React.lazy(() => import("@/pages/admin/AdminPollsPage"));
 const AdminReportsPage = React.lazy(() => import("@/pages/admin/AdminReportsPage"));
+const AdminLocationSubmissionsPage = React.lazy(() => import("@/pages/admin/AdminLocationSubmissionsPage"));
+const AdminLocationSubmissionDetailPage = React.lazy(() => import("@/pages/admin/AdminLocationSubmissionDetailPage"));
 const AdminBulletinModeration = React.lazy(() => import("@/pages/admin/AdminBulletinModeration"));
 const AdminAuthenticatedClaimsPage = React.lazy(() => import("@/pages/admin/AdminAuthenticatedClaimsPage"));
 const AdminOutreachContactsPage = React.lazy(() => import("@/pages/admin/AdminOutreachContactsPage"));
@@ -47,6 +51,7 @@ const ClaimPage = React.lazy(() => import("@/pages/ClaimPage"));
 
 initTheme();
 initI18n();
+initAnalytics();
 
 // Load reCAPTCHA Enterprise script (non-blocking, graceful degradation if fails)
 loadRecaptchaScript().catch((error) => {
@@ -54,6 +59,9 @@ loadRecaptchaScript().catch((error) => {
 });
 
 function AppLayout() {
+  // Track screen views on route changes
+  useScreenTracking();
+
   return (
     <div className="flex min-h-[100svh] flex-col bg-background text-foreground">
       <main className="relative flex-1 overflow-hidden bg-background">
@@ -164,6 +172,20 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminReportsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/location-submissions" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminLocationSubmissionsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/location-submissions/:id" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminLocationSubmissionDetailPage />
             </Suspense>
           </AdminRouteWrapper>
         } />

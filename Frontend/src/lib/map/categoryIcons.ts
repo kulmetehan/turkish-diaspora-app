@@ -80,6 +80,7 @@ const RAW_CATEGORY_CONFIG = [
   { key: "events_venue", lucide: "calendar" },
   { key: "community_centre", lucide: "users" },
   { key: "clinic", lucide: "heart-pulse" },
+  { key: "shop", lucide: "shopping-bag" },
   { key: FALLBACK_KEY, lucide: "map-pin" },
 ] as const;
 

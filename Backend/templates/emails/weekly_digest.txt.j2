@@ -1,5 +1,5 @@
-🏛️ Turkspot Weekoverzicht
-Je wekelijkse update van de Turkish diaspora community
+TurkSpot AI Weekoverzicht
+Welkom in de digitale Turkse gemeenschap
 
 {% if user.display_name %}
 Hoi {{ user.display_name }},
@@ -26,7 +26,7 @@ Bekijk alle trending locaties: {{ base_url }}/#/feed
 {% if poll.is_sponsored %}  🌟 Gesponsord{% endif %}
 {% endfor %}
 
-Bekijk alle polls: {{ base_url }}/#/feed
+Bekijk alle polls: {{ base_url }}/#/feed?filter=poll_response
 {% endif %}
 
 {% if activity %}
