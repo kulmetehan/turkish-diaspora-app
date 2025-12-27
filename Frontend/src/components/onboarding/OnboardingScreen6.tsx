@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { checkUsernameAvailable, updateProfile } from "@/lib/api";
 import { uploadAvatar, createAvatarPreview } from "@/lib/avatarUpload";
 import { useUserAuth } from "@/hooks/useUserAuth";
+import { trackOnboardingDataCollected } from "@/lib/analytics";
 import { X, User } from "lucide-react";
 
 export interface OnboardingScreen6Props {
@@ -66,6 +67,9 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
     }
 
     setAvatarFile(file);
+
+    // Track avatar upload
+    trackOnboardingDataCollected(6, "username_avatar", "avatar", file.name);
 
     // Create preview
     try {
@@ -129,6 +133,9 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
           setIsUploading(false);
         }
       }
+
+      // Track username collection
+      trackOnboardingDataCollected(6, "username_avatar", "username", trimmedUsername);
 
       // Update profile with username and avatar
       await updateProfile({

@@ -2,7 +2,14 @@
 import { useNewsCityPreferences } from "@/hooks/useNewsCityPreferences";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { completeOnboarding, type OnboardingData } from "@/lib/api";
-import { useEffect, useState } from "react";
+import {
+  trackOnboardingStarted,
+  trackOnboardingScreenViewed,
+  trackOnboardingDataCollected,
+  trackOnboardingCompleted,
+  trackOnboardingAbandoned,
+} from "@/lib/analytics";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { OnboardingScreen0 } from "./OnboardingScreen0";
 import { OnboardingScreen1 } from "./OnboardingScreen1";
@@ -35,6 +42,19 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   // Check authentication status to conditionally show Screen 6
   const { isAuthenticated } = useUserAuth();
 
+  // Track onboarding timing
+  const startTimeRef = useRef<number>(Date.now());
+  const screenStartTimeRef = useRef<number>(Date.now());
+  const screenNames = [
+    "welcome",
+    "explanation",
+    "home_city",
+    "memleket",
+    "gender",
+    "success",
+    "username_avatar",
+  ];
+
   const handleScreen0Next = () => {
     setCurrentScreen(1);
   };
@@ -44,6 +64,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleScreen2Next = (data: { home_city: string; home_region: string; home_city_key: string }) => {
+    // Track data collection
+    trackOnboardingDataCollected(2, "home_city", "home_city", data.home_city);
+    
     setOnboardingData((prev) => ({
       ...prev,
       home_city: data.home_city,
@@ -54,6 +77,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleScreen3Next = (data: { memleket: string[] | null }) => {
+    // Track data collection
+    trackOnboardingDataCollected(3, "memleket", "memleket", data.memleket);
+    
     setOnboardingData((prev) => ({
       ...prev,
       memleket: data.memleket,
@@ -62,6 +88,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleScreen4Next = (data: { gender: string | null }) => {
+    // Track data collection
+    trackOnboardingDataCollected(4, "gender", "gender", data.gender);
+    
     setOnboardingData((prev) => ({
       ...prev,
       gender: data.gender,
@@ -96,6 +125,21 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
       // Save to backend API (with localStorage fallback)
       await completeOnboarding(data);
+
+      // Track completion
+      const totalDuration = Date.now() - startTimeRef.current;
+      trackOnboardingCompleted(
+        {
+          home_city: data.home_city,
+          home_city_key: data.home_city_key,
+          memleket: data.memleket,
+          gender: data.gender,
+          has_username: true, // Screen 6 is for authenticated users
+          has_avatar: true, // Screen 6 includes avatar upload
+        },
+        totalDuration,
+        7 // All screens completed (0-6)
+      );
 
       // Set news city preferences from onboarding data
       if (data.home_city_key || data.memleket) {
@@ -153,6 +197,21 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       // Save to backend API (with localStorage fallback)
       await completeOnboarding(data);
 
+      // Track completion (for anonymous users, screen 5 is the last screen)
+      const totalDuration = Date.now() - startTimeRef.current;
+      trackOnboardingCompleted(
+        {
+          home_city: data.home_city,
+          home_city_key: data.home_city_key,
+          memleket: data.memleket,
+          gender: data.gender,
+          has_username: false, // Screen 5 is for anonymous users
+          has_avatar: false,
+        },
+        totalDuration,
+        6 // Screens 0-5 completed
+      );
+
       // Set news city preferences from onboarding data
       if (data.home_city_key || data.memleket) {
         const cityPreferences = {
@@ -191,6 +250,41 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       setIsCompleting(false);
     }
   };
+
+  // Track onboarding start
+  useEffect(() => {
+    trackOnboardingStarted();
+    startTimeRef.current = Date.now();
+    screenStartTimeRef.current = Date.now();
+  }, []);
+
+  // Track screen views when currentScreen changes
+  useEffect(() => {
+    if (currentScreen > 0) {
+      const timeOnPreviousScreen = Date.now() - screenStartTimeRef.current;
+      trackOnboardingScreenViewed(
+        currentScreen,
+        screenNames[currentScreen] || `screen_${currentScreen}`,
+        timeOnPreviousScreen
+      );
+      screenStartTimeRef.current = Date.now();
+    }
+  }, [currentScreen]);
+
+  // Track abandonment if component unmounts before completion
+  useEffect(() => {
+    return () => {
+      if (!isCompleting) {
+        const duration = Date.now() - startTimeRef.current;
+        trackOnboardingAbandoned(
+          currentScreen,
+          screenNames[currentScreen] || `screen_${currentScreen}`,
+          "navigate_away",
+          duration
+        );
+      }
+    };
+  }, [currentScreen, isCompleting]);
 
   // Safety check: If we're on Screen 6 but user is not authenticated, complete onboarding
   useEffect(() => {

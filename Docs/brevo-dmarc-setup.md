@@ -109,3 +109,4 @@ python scripts/test_brevo_email.py m.kul@lamarka.nl
 - Check spam folder (kan tijdelijk in spam komen tijdens testing)
 
 
+

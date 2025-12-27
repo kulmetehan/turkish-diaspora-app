@@ -383,3 +383,171 @@ export function trackInfoClicked(context: string): void {
   }
 }
 
+// ============================================================================
+// Onboarding Tracking
+// ============================================================================
+
+/**
+ * Track onboarding started
+ */
+export function trackOnboardingStarted(): void {
+  if (!posthogInitialized) return;
+
+  try {
+    posthog.capture("onboarding_started", {
+      timestamp: new Date().toISOString(),
+    });
+
+    if (import.meta.env.DEV) {
+      console.debug("[Analytics] onboarding_started");
+    }
+  } catch (error) {
+    console.error("[Analytics] Failed to track onboarding started:", error);
+  }
+}
+
+/**
+ * Track onboarding screen viewed
+ */
+export function trackOnboardingScreenViewed(
+  screenNumber: number,
+  screenName: string,
+  timeOnPreviousScreenMs?: number
+): void {
+  if (!posthogInitialized) return;
+
+  try {
+    posthog.capture("onboarding_screen_viewed", {
+      screen_number: screenNumber,
+      screen_name: screenName,
+      time_on_previous_screen_ms: timeOnPreviousScreenMs,
+    });
+
+    if (import.meta.env.DEV) {
+      console.debug(
+        "[Analytics] onboarding_screen_viewed:",
+        screenNumber,
+        screenName,
+        timeOnPreviousScreenMs
+      );
+    }
+  } catch (error) {
+    console.error("[Analytics] Failed to track onboarding screen:", error);
+  }
+}
+
+/**
+ * Track onboarding data collected
+ */
+export function trackOnboardingDataCollected(
+  screenNumber: number,
+  screenName: string,
+  dataType: "home_city" | "memleket" | "gender" | "username" | "avatar",
+  value?: string | string[] | null
+): void {
+  if (!posthogInitialized) return;
+
+  try {
+    posthog.capture("onboarding_data_collected", {
+      screen_number: screenNumber,
+      screen_name: screenName,
+      data_type: dataType,
+      value: value || null,
+      has_value: value !== null && value !== undefined,
+      // For memleket, also track count
+      ...(dataType === "memleket" && Array.isArray(value)
+        ? { memleket_count: value.length }
+        : {}),
+    });
+
+    if (import.meta.env.DEV) {
+      console.debug(
+        "[Analytics] onboarding_data_collected:",
+        screenNumber,
+        screenName,
+        dataType,
+        value
+      );
+    }
+  } catch (error) {
+    console.error("[Analytics] Failed to track onboarding data:", error);
+  }
+}
+
+/**
+ * Track onboarding completed
+ */
+export function trackOnboardingCompleted(
+  data: {
+    home_city?: string | null;
+    home_city_key?: string | null;
+    memleket?: string[] | null;
+    gender?: string | null;
+    has_username?: boolean;
+    has_avatar?: boolean;
+  },
+  totalDurationMs: number,
+  screensCompleted: number
+): void {
+  if (!posthogInitialized) return;
+
+  try {
+    posthog.capture("onboarding_completed", {
+      home_city: data.home_city || null,
+      home_city_key: data.home_city_key || null,
+      memleket_count: data.memleket?.length || 0,
+      has_memleket: (data.memleket?.length || 0) > 0,
+      gender: data.gender || null,
+      has_username: data.has_username || false,
+      has_avatar: data.has_avatar || false,
+      total_duration_ms: totalDurationMs,
+      screens_completed: screensCompleted,
+      onboarding_version: "v1.0",
+    });
+
+    if (import.meta.env.DEV) {
+      console.debug(
+        "[Analytics] onboarding_completed:",
+        data,
+        totalDurationMs,
+        screensCompleted
+      );
+    }
+  } catch (error) {
+    console.error("[Analytics] Failed to track onboarding completed:", error);
+  }
+}
+
+/**
+ * Track onboarding abandoned
+ */
+export function trackOnboardingAbandoned(
+  screenNumber: number,
+  screenName: string,
+  reason?: "navigate_away" | "close_app" | "timeout" | "user_action",
+  durationMs?: number
+): void {
+  if (!posthogInitialized) return;
+
+  try {
+    posthog.capture("onboarding_abandoned", {
+      screen_number: screenNumber,
+      screen_name: screenName,
+      reason: reason || "unknown",
+      duration_ms: durationMs || 0,
+    });
+
+    if (import.meta.env.DEV) {
+      console.debug(
+        "[Analytics] onboarding_abandoned:",
+        screenNumber,
+        screenName,
+        reason,
+        durationMs
+      );
+    }
+  } catch (error) {
+    console.error("[Analytics] Failed to track onboarding abandoned:", error);
+  }
+}
+
