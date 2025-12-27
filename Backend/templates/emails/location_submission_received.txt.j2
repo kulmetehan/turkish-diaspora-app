@@ -1,0 +1,31 @@
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+{{ location_name }} için yaptığınız locatie inzending başarıyla alındı. İncelenmesi için admin ekibimize iletildi.
+
+İnceleme süreci genellikle birkaç gün sürer. Sonuç hakkında size e-posta göndereceğiz.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Your location submission for {{ location_name }} has been successfully received and forwarded to our admin team for review.
+
+The review process usually takes a few days. We will send you an email about the result.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Uw locatie inzending voor {{ location_name }} is succesvol ontvangen en doorgestuurd naar ons admin team voor beoordeling.
+
+Het beoordelingsproces duurt meestal een paar dagen. We sturen u een e-mail over het resultaat.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

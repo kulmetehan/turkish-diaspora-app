@@ -43,6 +43,7 @@ const FALLBACK_CATEGORIES: CategoryOption[] = [
   { key: "events_venue", label: "Trouwzaal" },
   { key: "community_centre", label: "Vereniging" },
   { key: "clinic", label: "Medische Praktijk" },
+  { key: "shop", label: "Winkels" },
 ];
 
 export default function Filters({

@@ -29,9 +29,9 @@ def generate_mapview_link(location_id: int | str, location_lat: float | None = N
     Example:
         >>> link = generate_mapview_link(123)
         >>> link
-        'https://turkspot.nl/#/map?focus=123'
+        'https://turkspot.app/#/map?focus=123'
     """
-    frontend_url = os.getenv("FRONTEND_URL", "https://turkspot.nl")
+    frontend_url = os.getenv("FRONTEND_URL", "https://turkspot.app")
     
     # The frontend supports focus parameter via viewMode.ts
     # Format: /#/map?focus={location_id}

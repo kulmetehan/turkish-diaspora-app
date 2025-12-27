@@ -39,6 +39,7 @@ class Category(str, Enum):
     events_venue = "events_venue"
     community_centre = "community_centre"
     clinic = "clinic"
+    shop = "shop"
     other = "other"
 
 

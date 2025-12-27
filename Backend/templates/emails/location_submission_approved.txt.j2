@@ -1,0 +1,70 @@
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+Harika haber! {{ location_name }} için yaptığınız locatie inzending onaylandı. Locatie is nu toegevoegd aan de kaart.
+
+{% if is_owner %}
+Omdat u heeft aangegeven de eigenaar te zijn, bent u nu automatisch de owner van deze locatie. U kunt deze beheren via de "Senin" sectie op uw account pagina.
+
+Wat u nu kunt doen:
+- Bekijk uw locatie in de "Senin" sectie
+- Werk uw locatie informatie bij
+- Beheer uw bedrijf
+
+Bezoek uw account: {{ base_url }}/#/account
+{% else %}
+De locatie is nu zichtbaar op de kaart voor alle gebruikers.
+{% endif %}
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Great news! Your location submission for {{ location_name }} has been approved. The location has now been added to the map.
+
+{% if is_owner %}
+Since you indicated that you are the owner, you are now automatically the owner of this location. You can manage it via the "Senin" section on your account page.
+
+What you can do now:
+- View your location in the "Senin" section
+- Update your location information
+- Manage your business
+
+Visit your account: {{ base_url }}/#/account
+{% else %}
+The location is now visible on the map for all users.
+{% endif %}
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Goed nieuws! Uw locatie inzending voor {{ location_name }} is goedgekeurd. De locatie is nu toegevoegd aan de kaart.
+
+{% if is_owner %}
+Omdat u heeft aangegeven de eigenaar te zijn, bent u nu automatisch de owner van deze locatie. U kunt deze beheren via de "Senin" sectie op uw account pagina.
+
+Wat u nu kunt doen:
+- Bekijk uw locatie in de "Senin" sectie
+- Werk uw locatie informatie bij
+- Beheer uw bedrijf
+
+Bezoek uw account: {{ base_url }}/#/account
+{% else %}
+De locatie is nu zichtbaar op de kaart voor alle gebruikers.
+{% endif %}
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

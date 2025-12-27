@@ -30,6 +30,7 @@ type Props = {
   onHighlight?: (id: string | null) => void;
   onOpenDetail?: (id: string) => void;
   onMapClick?: () => void;
+  onMapClickForLocation?: (lat: number, lng: number) => void; // NEW: for location selection mode
   onViewportChange?: (bbox: string | null) => void;
   interactionDisabled?: boolean;
   focusId?: string | null;
@@ -481,6 +482,7 @@ export default function MapView({
   onHighlight,
   onOpenDetail,
   onMapClick,
+  onMapClickForLocation,
   onViewportChange,
   interactionDisabled = false,
   focusId,
@@ -506,6 +508,7 @@ export default function MapView({
   const viewportDebounceRef = useRef<number | null>(null);
   const popup = usePopupController(mapRef, mapReady, destroyedRef);
   const onMapClickRef = useRef(onMapClick);
+  const onMapClickForLocationRef = useRef(onMapClickForLocation);
   const [isLocating, setIsLocating] = useState(false);
   const userLocationDataRef = useRef<FeatureCollection<Point, UserLocationProperties>>(EMPTY_FEATURE_COLLECTION);
   const userLocationPaintRef = useRef<{ z10: number; z14: number; z18: number }>({ z10: 0, z14: 0, z18: 0 });
@@ -728,6 +731,10 @@ export default function MapView({
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
+
+  useEffect(() => {
+    onMapClickForLocationRef.current = onMapClickForLocation;
+  }, [onMapClickForLocation]);
 
   const findLocationById = useCallback((id: string | number | null | undefined) => {
     if (id == null) return null;
@@ -1378,6 +1385,34 @@ export default function MapView({
 
     const handleMapClick = (e: mapboxgl.MapMouseEvent) => {
       if (destroyedRef.current) return;
+      
+      // Check if we're in location selection mode
+      const locationHandler = onMapClickForLocationRef.current;
+      if (locationHandler && e.lngLat) {
+        try {
+          const feats = map.queryRenderedFeatures(e.point) as any[];
+          const interactiveHit =
+            Array.isArray(feats) &&
+            feats.some(
+              (f) =>
+                f?.layer?.id === "tda-unclustered-point" ||
+                f?.layer?.id === "tda-clusters" ||
+                f?.layer?.id === "tda-cluster-count",
+            );
+          if (interactiveHit) return; // Don't select location if clicking on a marker
+        } catch {
+          /* ignore */
+        }
+        
+        const lat = typeof e.lngLat.lat === "number" ? e.lngLat.lat : (e.lngLat as any).lat;
+        const lng = typeof e.lngLat.lng === "number" ? e.lngLat.lng : (e.lngLat as any).lng;
+        if (isFinite(lat) && isFinite(lng)) {
+          locationHandler(lat, lng);
+          return; // Don't call regular onMapClick when in location selection mode
+        }
+      }
+      
+      // Regular map click handler
       const handler = onMapClickRef.current;
       if (!handler) return;
       try {

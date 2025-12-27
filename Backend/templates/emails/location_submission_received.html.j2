@@ -1,0 +1,48 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Konumunuz Gönderildi - {{ location_name }}{% elif language == 'en' %}Your Location Has Been Submitted - {{ location_name }}{% else %}Uw Locatie is Ingediend - {{ location_name }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Konum talebiniz alındı
+    {% elif language == 'en' %}
+        Your location submission has been received
+    {% else %}
+        Uw locatie inzending is ontvangen
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba {{ user_name }},</p>
+
+<p><strong>{{ location_name }}</strong> için yaptığınız locatie inzending başarıyla alındı. İncelenmesi için admin ekibimize iletildi.</p>
+
+<p>İnceleme süreci genellikle birkaç gün sürer. Sonuç hakkında size e-posta göndereceğiz.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello {{ user_name }},</p>
+
+<p>Your location submission for <strong>{{ location_name }}</strong> has been successfully received and forwarded to our admin team for review.</p>
+
+<p>The review process usually takes a few days. We will send you an email about the result.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi {{ user_name }},</p>
+
+<p>Uw locatie inzending voor <strong>{{ location_name }}</strong> is succesvol ontvangen en doorgestuurd naar ons admin team voor beoordeling.</p>
+
+<p>Het beoordelingsproces duurt meestal een paar dagen. We sturen u een e-mail over het resultaat.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

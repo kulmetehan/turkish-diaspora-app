@@ -1,5 +1,5 @@
 // Frontend/src/pages/ClaimPage.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,11 @@ import {
   submitCorrectionByToken,
   type TokenClaimResponse,
 } from "@/lib/api";
+import {
+  trackClaimFlowStarted,
+  trackClaimFlowCompleted,
+  trackClaimFlowAbandoned,
+} from "@/lib/analytics";
 import { ArrowLeft, Mail, AlertCircle, CheckCircle2, Edit } from "lucide-react";
 
 export default function ClaimPage() {
@@ -46,6 +51,9 @@ export default function ClaimPage() {
   const [correctionDetails, setCorrectionDetails] = useState("");
   const [isSubmittingCorrection, setIsSubmittingCorrection] = useState(false);
 
+  // Claim flow tracking
+  const flowStartTimeRef = useRef<number | null>(null);
+
   useEffect(() => {
     const loadClaimInfo = async () => {
       if (!token) {
@@ -59,6 +67,12 @@ export default function ClaimPage() {
         setError(null);
         const data = await getTokenClaimInfo(token);
         setClaimInfo(data);
+        
+        // Track claim flow started after claim info is loaded
+        if (data && data.location_id && token) {
+          flowStartTimeRef.current = Date.now();
+          trackClaimFlowStarted(data.location_id, token, "claim_page");
+        }
       } catch (err: any) {
         console.error("Failed to load claim info:", err);
         const errorMessage = err.message || err.detail || "Fout bij laden van claim informatie";
@@ -73,8 +87,35 @@ export default function ClaimPage() {
   }, [token]);
 
   const handleBack = () => {
+    // Track claim flow abandoned if flow was started
+    if (claimInfo?.location_id && token && flowStartTimeRef.current) {
+      const flowDuration = Date.now() - flowStartTimeRef.current;
+      trackClaimFlowAbandoned(
+        claimInfo.location_id,
+        token,
+        "claim_page",
+        "navigate_away",
+        flowDuration
+      );
+    }
     navigate("/map");
   };
+  
+  // Track abandonment on unmount (page close/navigate away)
+  useEffect(() => {
+    return () => {
+      if (claimInfo?.location_id && token && flowStartTimeRef.current) {
+        const flowDuration = Date.now() - flowStartTimeRef.current;
+        trackClaimFlowAbandoned(
+          claimInfo.location_id,
+          token,
+          "claim_page",
+          "page_close",
+          flowDuration
+        );
+      }
+    };
+  }, [claimInfo, token]);
 
   const handleClaim = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,6 +130,19 @@ export default function ClaimPage() {
     setIsClaiming(true);
     try {
       await claimLocationByToken(token, claimEmail.trim(), claimDescription.trim() || undefined);
+      
+      // Track claim flow completed
+      if (claimInfo?.location_id && token && flowStartTimeRef.current) {
+        const flowDuration = Date.now() - flowStartTimeRef.current;
+        trackClaimFlowCompleted(
+          claimInfo.location_id,
+          token,
+          "claim_page",
+          !!claimDescription.trim(),
+          flowDuration
+        );
+      }
+      
       toast.success("Claim succesvol ingediend!");
       
       // Reload claim info to show updated status

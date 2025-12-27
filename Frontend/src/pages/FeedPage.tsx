@@ -119,8 +119,23 @@ export default function FeedPage() {
   const { isAuthenticated } = useUserAuth();
 
   // State management
-  // Check if filter is passed via navigation state
-  const initialFilter = (location.state as { filter?: ActivityFilter })?.filter || "all";
+  // Read filter from hash params (for email links) or navigation state
+  const getFilterFromHash = (): ActivityFilter | null => {
+    if (typeof window === "undefined") return null;
+    const hash = window.location.hash ?? "";
+    const queryIndex = hash.indexOf("?");
+    if (queryIndex < 0) return null;
+    const query = hash.slice(queryIndex + 1);
+    const params = new URLSearchParams(query);
+    const filter = params.get("filter");
+    if (filter && ["all", "one_cikanlar", "check_in", "note", "poll_response", "favorite", "bulletin_post"].includes(filter)) {
+      return filter as ActivityFilter;
+    }
+    return null;
+  };
+  const hashFilter = getFilterFromHash();
+  const stateFilter = (location.state as { filter?: ActivityFilter })?.filter;
+  const initialFilter = hashFilter || stateFilter || "all";
   const [activeFilter, setActiveFilter] = useState<ActivityFilter>(initialFilter);
   const [feedItems, setFeedItems] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);

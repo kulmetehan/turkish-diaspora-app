@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import LocationDetail from "@/components/LocationDetail";
 import type { LocationMarker } from "@/api/fetchLocations";
 import { getLocationById } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
+import { trackLocationView, getSourceFromLocation } from "@/lib/analytics";
 
 export default function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [locationData, setLocationData] = useState<LocationMarker | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +51,10 @@ export default function LocationDetailPage() {
         setError(null);
         const data = await getLocationById(locationId);
         setLocationData(data);
+        
+        // Track location view after data is loaded
+        const source = getSourceFromLocation(location);
+        trackLocationView(locationId, source);
       } catch (err: any) {
         console.error("Failed to load location:", err);
         const errorMessage = err.message || "Fout bij laden van locatie";

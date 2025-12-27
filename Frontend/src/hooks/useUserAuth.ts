@@ -1,6 +1,7 @@
 // Frontend/src/hooks/useUserAuth.ts
 import { supabase } from "@/lib/supabaseClient";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { identifyUser, resetUser } from "@/lib/analytics";
 
 export interface UserAuth {
   userId: string | null;
@@ -15,6 +16,9 @@ export function useUserAuth(): UserAuth {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Track previous userId to detect login/logout
+  const prevUserIdRef = useRef<string | null>(null);
   
   const isAuthenticated = !!accessToken && !!userId;
 
@@ -41,18 +45,42 @@ export function useUserAuth(): UserAuth {
         if (!active) return;
         
         const session = data.session;
+        const initialUserId = session?.user?.id ?? null;
+        const initialUserEmail = session?.user?.email ?? null;
+        
         setAccessToken(session?.access_token ?? null);
-        setUserEmail(session?.user?.email ?? null);
-        setUserId(session?.user?.id ?? null);
+        setUserEmail(initialUserEmail);
+        setUserId(initialUserId);
+        
+        // Track analytics identity on initial load
+        if (initialUserId) {
+          identifyUser(initialUserId, initialUserEmail);
+        }
+        
+        prevUserIdRef.current = initialUserId;
       } finally {
         if (active) setIsLoading(false);
       }
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const newUserId = session?.user?.id ?? null;
+      const newUserEmail = session?.user?.email ?? null;
+      
       setAccessToken(session?.access_token ?? null);
-      setUserEmail(session?.user?.email ?? null);
-      setUserId(session?.user?.id ?? null);
+      setUserEmail(newUserEmail);
+      setUserId(newUserId);
+      
+      // Track analytics identity changes
+      if (newUserId && prevUserIdRef.current !== newUserId) {
+        // User logged in
+        identifyUser(newUserId, newUserEmail);
+      } else if (!newUserId && prevUserIdRef.current !== null) {
+        // User logged out
+        resetUser();
+      }
+      
+      prevUserIdRef.current = newUserId;
     });
     
     return () => {

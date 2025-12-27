@@ -35,6 +35,7 @@ const CATEGORY_ICON_MAP: Record<string, IconProps["name"]> = {
   events_venue: "Calendar",
   community_centre: "Users",
   clinic: "HeartPulse",
+  shop: "ShoppingBag",
   other: "Store",
 };
 

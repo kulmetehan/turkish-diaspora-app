@@ -31,6 +31,7 @@ import {
 import { cn } from "@/lib/ui/cn";
 import { buildGoogleSearchUrl, buildRouteUrl, deriveCityForLocation } from "@/lib/urlBuilders";
 import { toast } from "sonner";
+import { trackClaimCTAClick } from "@/lib/analytics";
 
 type OverlayDetailCardProps = {
     location: LocationMarker;
@@ -407,6 +408,9 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                     aria-label="Claim deze locatie"
                                     title="Claim deze locatie"
                                     onClick={() => {
+                                        // Track claim CTA click
+                                        trackClaimCTAClick(locationId, "map", claimStatus?.status || undefined);
+                                        
                                         if (!isAuthenticated) {
                                             navigate("/auth");
                                         } else if (claimStatus?.can_claim) {

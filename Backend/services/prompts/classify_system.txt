@@ -13,9 +13,9 @@ CONTEXT & REGELS
 - Als type=bakery en je ziet Turkse cues → category="bakery".
 - Als er wél duidelijke Turkse cues zitten maar type wijst op iets anders (kebab, grill, barber, butcher, bakkal) → kies die category.
 - Als je géén Turkse indicaties vindt → action="ignore", category=null.
-- Houd categories beperkt tot: {"bakery","restaurant","supermarket","barber","butcher","mosque","travel_agency","fast_food","cafe","automotive","insurance","tailor","events_venue","community_centre","clinic"}.
+- Houd categories beperkt tot: {"bakery","restaurant","supermarket","barber","butcher","mosque","travel_agency","fast_food","cafe","automotive","insurance","tailor","events_venue","community_centre","clinic","shop"}.
 - Ga NOOIT gokken buiten deze set.
-- Nieuwe categorieën: automotive (automotive bedrijven), insurance (verzekeringen), tailor (kleermakers), events_venue (trouwzalen/eventlocaties), community_centre (verenigingen/stichtingen), clinic (medische praktijken).
+- Nieuwe categorieën: automotive (automotive bedrijven), insurance (verzekeringen), tailor (kleermakers), events_venue (trouwzalen/eventlocaties), community_centre (verenigingen/stichtingen), clinic (medische praktijken), shop (retailwinkels: bouwmarkten, woonwinkels, meubelwinkels, kledingwinkels, electronicazaken).
 
 MOSKEE REGELS
 - Als type=mosque of de naam woorden bevat als 'cami', 'camii', 'moskee', 'Eyüp Sultan', 'Süleymaniye', 'Diyanet' en er geen sterke tegenindicaties zijn → ga uit van action="keep" en category="mosque" met hoge confidence (≥0.85).

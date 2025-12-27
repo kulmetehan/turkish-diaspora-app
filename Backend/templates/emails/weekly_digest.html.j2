@@ -26,10 +26,40 @@
             padding-bottom: 20px;
             border-bottom: 2px solid #e63946;
         }
+        .header-logo-container {
+            margin: 0 auto 10px;
+            display: inline-block;
+        }
         .header h1 {
-            color: #e63946;
+            color: #333;
             margin: 0;
             font-size: 24px;
+            font-weight: 900;
+            font-family: 'Arial Black', 'Arial Bold', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            display: inline-block;
+            vertical-align: middle;
+            line-height: 1.2;
+        }
+        .header h1 .red-accent {
+            color: #e63946;
+        }
+        .header h1 .ai-superscript {
+            color: #e63946;
+            font-size: 18px;
+            font-family: 'Courier New', monospace;
+            vertical-align: super;
+            margin-left: 2px;
+        }
+        .header-mascot {
+            height: 48px;
+            width: auto;
+            vertical-align: middle;
+            margin-left: 4px;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            color: #666;
+            font-size: 14px;
         }
         .section {
             margin-bottom: 30px;
@@ -111,8 +141,25 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏛️ Turkspot Weekoverzicht</h1>
-            <p>Je wekelijkse update van de Turkish diaspora community</p>
+            <div class="header-logo-container">
+                <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;">
+                    <tr>
+                        <td style="text-align: center; vertical-align: middle; padding: 0;">
+                            <h1 style="color: #333; margin: 0; font-size: 24px; font-weight: 900; font-family: 'Arial Black', 'Arial Bold', 'Helvetica Neue', Helvetica, Arial, sans-serif; display: inline-block; vertical-align: middle; line-height: 1.2;">
+                                <span style="color: #e63946;">T</span>urk<span style="color: #e63946;">S</span>pot<span style="color: #e63946; font-size: 18px; font-family: 'Courier New', monospace; vertical-align: super; margin-left: 2px;">AI</span>
+                            </h1>
+                        </td>
+                        <td style="vertical-align: middle; padding-left: 4px;">
+                            {% if mascotte_base64 %}
+                            <img src="data:image/png;base64,{{ mascotte_base64 }}" alt="TurkSpot Bot mascot" style="height: 48px; width: auto; object-fit: contain; vertical-align: middle; display: block;">
+                            {% else %}
+                            <img src="{{ base_url }}/turkspotbot.png" alt="TurkSpot Bot mascot" style="height: 48px; width: auto; object-fit: contain; vertical-align: middle; display: block;">
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <p>Welkom in de digitale Turkse gemeenschap</p>
         </div>
 
         {% if user.display_name %}
@@ -154,7 +201,7 @@
                 {% endif %}
             </div>
             {% endfor %}
-            <a href="{{ base_url }}/#/feed" class="button">Bekijk alle polls</a>
+            <a href="{{ base_url }}/#/feed?filter=poll_response" class="button">Bekijk alle polls</a>
         </div>
         {% endif %}
 

@@ -24,6 +24,7 @@ import {
   Sandwich,
   Scissors,
   ShieldCheck,
+  ShoppingBag,
   ShoppingCart,
   Spool,
   Users,
@@ -71,6 +72,8 @@ export function getCategoryIcon(categoryKey: string | null | undefined): LucideI
       return Users;
     case "clinic":
       return HeartPulse;
+    case "shop":
+      return ShoppingBag;
     default:
       return MapPin; // fallback
   }

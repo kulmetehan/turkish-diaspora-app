@@ -37,6 +37,7 @@ import { getCategoryIcon } from "@/lib/map/marker-icons";
 import { cn } from "@/lib/ui/cn";
 import { buildGoogleSearchUrl, buildRouteUrl, deriveCityForLocation } from "@/lib/urlBuilders";
 import { toast } from "sonner";
+import { trackClaimCTAClick } from "@/lib/analytics";
 
 type Props = {
     location: LocationMarker;
@@ -496,6 +497,10 @@ export default function UnifiedLocationDetail({
                         aria-label="Claim deze locatie"
                         title="Claim deze locatie"
                         onClick={() => {
+                            // Track claim CTA click
+                            const source = viewMode === "map" ? "map" : "location_detail";
+                            trackClaimCTAClick(locationId, source, claimStatus?.status || undefined);
+                            
                             if (!isAuthenticated) {
                                 navigate("/auth");
                             } else if (claimStatus?.can_claim) {
@@ -790,6 +795,10 @@ export default function UnifiedLocationDetail({
                         aria-label="Claim deze locatie"
                         title="Claim deze locatie"
                         onClick={() => {
+                            // Track claim CTA click
+                            const source = viewMode === "map" ? "map" : "location_detail";
+                            trackClaimCTAClick(locationId, source, claimStatus?.status || undefined);
+                            
                             if (!isAuthenticated) {
                                 navigate("/auth");
                             } else if (claimStatus?.can_claim) {
