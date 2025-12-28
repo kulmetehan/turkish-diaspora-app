@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
@@ -30,6 +30,7 @@ export default function AccountPage() {
   const [activeTab, setActiveTab] = useState<AccountTabKey>("weergave");
   const { isAuthenticated, userId, email, isLoading } = useUserAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [pendingReward, setPendingReward] = useState<UserReward | null>(null);
   const [rewardModalOpen, setRewardModalOpen] = useState(false);
   const rewardCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -39,13 +40,53 @@ export default function AccountPage() {
     setThemeState(getTheme());
   }, []);
 
-  // Reset activeTab if it's set to removed "referral" tab
+  // Read tab parameter from URL hash
   useEffect(() => {
     const validTabs: AccountTabKey[] = ["weergave", "privacy", "notificaties", "geschiedenis"];
+    
+    // Parse tab parameter from hash (e.g., #/account?tab=notificaties)
+    const hash = location.hash || "";
+    const queryIndex = hash.indexOf("?");
+    if (queryIndex >= 0) {
+      const queryString = hash.slice(queryIndex + 1);
+      const params = new URLSearchParams(queryString);
+      const tabParam = params.get("tab");
+      
+      if (tabParam && validTabs.includes(tabParam as AccountTabKey)) {
+        setActiveTab(tabParam as AccountTabKey);
+        return;
+      }
+    }
+    
+    // Fallback: validate current activeTab
     if (!validTabs.includes(activeTab)) {
       setActiveTab("weergave");
     }
-  }, [activeTab]);
+  }, [location.hash]);
+
+  // Update URL when tab changes
+  const handleTabChange = (tab: AccountTabKey) => {
+    setActiveTab(tab);
+    // Update URL hash with tab parameter
+    const newHash = `#/account?tab=${tab}`;
+    window.history.replaceState(null, "", newHash);
+  };
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (isLoading) {
+      return; // Wait for auth check to complete
+    }
+    
+    if (!isAuthenticated) {
+      // Preserve current hash (including tab parameter) for return after login
+      const returnUrl = location.hash || "#/account";
+      navigate("/auth", { 
+        state: { from: { pathname: "/account", hash: returnUrl } },
+        replace: true 
+      });
+    }
+  }, [isAuthenticated, isLoading, navigate, location.hash]);
 
   // Check for pending rewards on mount and periodically
   useEffect(() => {
@@ -125,7 +166,7 @@ export default function AccountPage() {
         <AppHeader onNotificationClick={handleNotificationClick} />
         <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
           <div className="max-w-4xl mx-auto py-4">
-            <AccountTabs value={activeTab} onChange={setActiveTab} className="mb-4" />
+            <AccountTabs value={activeTab} onChange={handleTabChange} className="mb-4" />
 
             {activeTab === "weergave" && (
               <>

@@ -152,6 +152,37 @@ class BrevoEmailProvider(EmailProvider):
             if text_body:
                 send_smtp_email.text_content = text_body
             
+            # Add email headers for better deliverability and spam prevention
+            frontend_url = os.getenv("FRONTEND_URL", "https://turkspot.app")
+            unsubscribe_url = f"{frontend_url}/#/account?tab=notificaties"
+            
+            # Email headers for better deliverability and spam prevention
+            # These headers help email clients identify legitimate emails
+            headers = {
+                # Unsubscribe headers (required for bulk emails, helps with deliverability)
+                "List-Unsubscribe": f"<{unsubscribe_url}>",
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                
+                # Reply-To header (helps with reputation)
+                "Reply-To": self.from_email,
+                
+                # REMOVED: "Precedence: bulk" - This header can trigger spam filters
+                # Email clients can detect bulk emails automatically without this header
+                
+                # Mailer identification (helps with reputation tracking)
+                "X-Mailer": "Turkspot Email Service",
+                
+                # Suppress auto-responses (prevents out-of-office loops)
+                "X-Auto-Response-Suppress": "All",
+                
+                # Message-ID format (helps with tracking and reputation)
+                # Brevo will generate this automatically, but we can hint at format
+                
+                # Content-Type hints (helps email clients parse correctly)
+                # Note: Brevo handles Content-Type automatically based on html_content/text_content
+            }
+            send_smtp_email.headers = headers
+            
             # Send email via Brevo
             # Run in executor to avoid blocking (brevo SDK is synchronous)
             loop = asyncio.get_event_loop()
