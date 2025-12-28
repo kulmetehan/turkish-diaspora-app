@@ -32,6 +32,7 @@ const NewsAIPage = React.lazy(() => import("@/pages/admin/NewsAIPage"));
 const AdminAIPolicyPage = React.lazy(() => import("@/pages/AdminAIPolicyPage"));
 const PrivacyPolicyPage = React.lazy(() => import("@/pages/PrivacyPolicyPage"));
 const TermsOfServicePage = React.lazy(() => import("@/pages/TermsOfServicePage"));
+const PrikbordPage = React.lazy(() => import("@/pages/PrikbordPage"));
 const CommunityGuidelinesPage = React.lazy(() => import("@/pages/CommunityGuidelinesPage"));
 const UserAuthPage = React.lazy(() => import("@/pages/UserAuthPage"));
 const AdminPollsPage = React.lazy(() => import("@/pages/admin/AdminPollsPage"));
@@ -83,6 +84,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/events" element={<App initialTab="events" />} />
           <Route path="/feed" element={<App initialTab="feed" />} />
           <Route path="/account" element={<App initialTab="account" />} />
+          <Route path="/prikbord" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <PrikbordPage />
+            </Suspense>
+          } />
           <Route path="/locations/:id" element={
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <LocationDetailPage />

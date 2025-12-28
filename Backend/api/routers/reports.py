@@ -18,7 +18,7 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 class ReportCreate(BaseModel):
-    report_type: str = Field(..., pattern="^(location|note|reaction|user)$")
+    report_type: str = Field(..., pattern="^(location|note|reaction|user|check_in|prikbord_post|poll)$")
     target_id: int = Field(..., gt=0)
     reason: str = Field(..., min_length=3, max_length=100)
     details: Optional[str] = Field(None, max_length=1000)
@@ -60,10 +60,10 @@ async def create_report(
             )
     
     # Validate report_type
-    if report.report_type not in ("location", "note", "reaction", "user"):
+    if report.report_type not in ("location", "note", "reaction", "user", "check_in", "prikbord_post", "poll"):
         raise HTTPException(
             status_code=400,
-            detail="report_type must be one of: location, note, reaction, user"
+            detail="report_type must be one of: location, note, reaction, user, check_in, prikbord_post, poll"
         )
     
     # Check if duplicate report exists (same reporter, type, target in last 24h)
@@ -248,7 +248,7 @@ async def remove_reported_content(
 ):
     """
     Remove the content that was reported (admin moderation action).
-    Works for notes and reactions.
+    Works for notes, reactions, check-ins, polls, and prikbord posts.
     After removal, marks report as resolved.
     """
     # Get report details
@@ -266,10 +266,10 @@ async def remove_reported_content(
     report_type = report["report_type"]
     target_id = report["target_id"]
     
-    if report_type not in ("note", "reaction"):
+    if report_type not in ("note", "reaction", "check_in", "poll", "prikbord_post"):
         raise HTTPException(
             status_code=400,
-            detail=f"Cannot remove content for report_type: {report_type}. Only 'note' and 'reaction' are supported."
+            detail=f"Cannot remove content for report_type: {report_type}. Supported types: note, reaction, check_in, poll, prikbord_post"
         )
     
     removed = False
@@ -304,6 +304,38 @@ async def remove_reported_content(
                 target_id=target_id,
                 message="Could not find reaction with this ID. May need activity_stream mapping."
             )
+    
+    elif report_type == "check_in":
+        # Delete check-in by ID
+        delete_sql = """
+            DELETE FROM check_ins
+            WHERE id = $1
+            RETURNING id
+        """
+        result = await fetch(delete_sql, target_id)
+        removed = len(result) > 0
+        
+    elif report_type == "poll":
+        # Soft delete poll by setting status to 'removed'
+        delete_sql = """
+            UPDATE polls
+            SET status = 'removed', updated_at = now()
+            WHERE id = $1
+            RETURNING id
+        """
+        result = await fetch(delete_sql, target_id)
+        removed = len(result) > 0
+        
+    elif report_type == "prikbord_post":
+        # Soft delete shared link by setting status to 'removed'
+        delete_sql = """
+            UPDATE shared_links
+            SET status = 'removed', updated_at = now()
+            WHERE id = $1
+            RETURNING id
+        """
+        result = await fetch(delete_sql, target_id)
+        removed = len(result) > 0
     
     if removed:
         # Mark report as resolved

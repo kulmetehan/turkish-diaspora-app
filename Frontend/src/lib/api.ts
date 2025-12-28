@@ -2362,6 +2362,9 @@ export interface MyLocation {
 }
 
 export async function getMyLocations(): Promise<MyLocation[]> {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:2365',message:'getMyLocations called',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+  // #endregion
   return authFetch<MyLocation[]>("/api/v1/locations/my-locations");
 }
 

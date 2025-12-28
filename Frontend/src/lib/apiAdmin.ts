@@ -511,6 +511,17 @@ export async function rejectAuthenticatedClaim(
     });
 }
 
+export async function unlinkAuthenticatedClaim(
+    claimId: number,
+    rejectionReason?: string
+): Promise<AuthenticatedClaimResponse> {
+    return authFetch(`/api/v1/admin/authenticated-claims/${claimId}/unlink`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rejection_reason: rejectionReason || null }),
+    });
+}
+
 export interface CityInfo {
     name: string;
     key: string;
@@ -1010,6 +1021,92 @@ export async function deleteAdminPoll(id: number): Promise<{ ok: boolean; poll_i
     return authFetch<{ ok: boolean; poll_id: number }>(`/api/v1/admin/polls/${id}`, {
         method: "DELETE",
     });
+}
+
+// ============================================================================
+// Admin Activity Delete API
+// ============================================================================
+
+export async function deleteAdminCheckIn(checkInId: number): Promise<{ ok: boolean; check_in_id: number }> {
+    return authFetch<{ ok: boolean; check_in_id: number }>(`/api/v1/admin/activity/check-ins/${checkInId}`, {
+        method: "DELETE",
+    });
+}
+
+export async function deleteAdminNote(noteId: number): Promise<{ ok: boolean; note_id: number }> {
+    return authFetch<{ ok: boolean; note_id: number }>(`/api/v1/admin/activity/notes/${noteId}`, {
+        method: "DELETE",
+    });
+}
+
+export async function deleteAdminSharedLink(linkId: number): Promise<{ ok: boolean; link_id: number }> {
+    return authFetch<{ ok: boolean; link_id: number }>(`/api/v1/prikbord/links/${linkId}/admin`, {
+        method: "DELETE",
+    });
+}
+
+export type AdminCheckIn = {
+    id: number;
+    location_id: number;
+    location_name: string | null;
+    user_id: string | null;
+    user_name: string | null;
+    user_email: string | null;
+    created_at: string | null;
+};
+
+export type AdminNote = {
+    id: number;
+    location_id: number;
+    location_name: string | null;
+    user_id: string | null;
+    user_name: string | null;
+    user_email: string | null;
+    content: string | null;
+    created_at: string | null;
+};
+
+export type AdminSharedLink = {
+    id: number;
+    url: string;
+    title: string | null;
+    description: string | null;
+    platform: string;
+    status: string;
+    user_id: string | null;
+    user_name: string | null;
+    user_email: string | null;
+    created_at: string | null;
+};
+
+export async function listAdminCheckIns(params?: {
+    limit?: number;
+    offset?: number;
+}): Promise<AdminCheckIn[]> {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.offset) q.set("offset", params.offset.toString());
+    return authFetch<AdminCheckIn[]>(`/api/v1/admin/activity/check-ins?${q.toString()}`);
+}
+
+export async function listAdminNotes(params?: {
+    limit?: number;
+    offset?: number;
+}): Promise<AdminNote[]> {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.offset) q.set("offset", params.offset.toString());
+    return authFetch<AdminNote[]>(`/api/v1/admin/activity/notes?${q.toString()}`);
+}
+
+export async function listAdminSharedLinks(params?: {
+    limit?: number;
+    offset?: number;
+}): Promise<AdminSharedLink[]> {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", params.limit.toString());
+    if (params?.offset) q.set("offset", params.offset.toString());
+    return authFetch<AdminSharedLink[]>(`/api/v1/prikbord/links/admin/list?${q.toString()}`);
 }
 
 // ============================================================================

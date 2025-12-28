@@ -10,6 +10,8 @@ from app.deps.auth import get_current_user, User
 from app.deps.admin_auth import verify_admin_user, AdminUser
 from app.core.feature_flags import require_feature
 from services.db_service import fetch, execute
+from services.email_service import EmailService
+from services.email_template_service import get_email_template_service
 from app.core.logging import get_logger
 
 logger = get_logger()
@@ -347,7 +349,10 @@ async def update_claim_status(
     
     # Get location and business account names for response
     details_sql = """
-        SELECT l.name as location_name, ba.company_name as business_account_name
+        SELECT 
+            l.name as location_name, 
+            ba.company_name as business_account_name,
+            ba.owner_user_id
         FROM business_location_claims blc
         JOIN locations l ON l.id = blc.location_id
         JOIN business_accounts ba ON ba.id = blc.business_account_id
@@ -355,6 +360,7 @@ async def update_claim_status(
     """
     details_rows = await fetch(details_sql, claim_id)
     details = details_rows[0] if details_rows else {}
+    location_name = details.get("location_name", "Locatie")
     
     logger.info(
         "location_claim_updated",
@@ -364,10 +370,130 @@ async def update_claim_status(
         location_id=row["location_id"],
     )
     
+    # Send email notification if status changed to approved or rejected
+    if update.status in ("approved", "rejected"):
+        try:
+            # Get owner email from business account
+            owner_user_id = details.get("owner_user_id")
+            logger.info(
+                "business_claim_email_attempt",
+                claim_id=claim_id,
+                status=update.status,
+                owner_user_id=str(owner_user_id) if owner_user_id else None,
+            )
+            if owner_user_id:
+                owner_email_sql = """
+                    SELECT email, raw_user_meta_data->>'name' as user_name
+                    FROM auth.users WHERE id = $1
+                """
+                owner_rows = await fetch(owner_email_sql, owner_user_id)
+                
+                if owner_rows and owner_rows[0].get("email"):
+                    owner_email = owner_rows[0]["email"]
+                    owner_name = owner_rows[0].get("user_name") or "Gebruiker"
+                    
+                    # Determine language (default to NL)
+                    language = "nl"  # TODO: Get from user preferences
+                    
+                    # Render email template
+                    template_service = get_email_template_service()
+                    
+                    if update.status == "approved":
+                        html_body, text_body = template_service.render_template(
+                            "claim_approved",
+                            context={
+                                "user_name": owner_name,
+                                "location_name": location_name,
+                            },
+                            language=language,
+                        )
+                        
+                        # Send email
+                        email_service = EmailService()
+                        subject = f"Uw claim is goedgekeurd - {location_name}"
+                        if language == "tr":
+                            subject = f"Talebiniz onaylandı - {location_name}"
+                        elif language == "en":
+                            subject = f"Your claim has been approved - {location_name}"
+                        
+                        success = await email_service.send_email(
+                            to_email=owner_email,
+                            subject=subject,
+                            html_body=html_body,
+                            text_body=text_body,
+                        )
+                        
+                        if success:
+                            logger.info(
+                                "business_claim_approval_email_sent",
+                                claim_id=claim_id,
+                                owner_email=owner_email,
+                            )
+                        else:
+                            logger.warning(
+                                "business_claim_approval_email_failed",
+                                claim_id=claim_id,
+                                owner_email=owner_email,
+                                reason="email_service_returned_false",
+                                provider=getattr(email_service, '_provider_name', 'unknown'),
+                                is_configured=email_service.is_configured,
+                            )
+                    
+                    elif update.status == "rejected":
+                        html_body, text_body = template_service.render_template(
+                            "claim_rejected",
+                            context={
+                                "user_name": owner_name,
+                                "location_name": location_name,
+                                "rejection_reason": update.verification_notes,
+                            },
+                            language=language,
+                        )
+                        
+                        # Send email
+                        email_service = EmailService()
+                        subject = f"Uw claim is afgewezen - {location_name}"
+                        if language == "tr":
+                            subject = f"Talebiniz reddedildi - {location_name}"
+                        elif language == "en":
+                            subject = f"Your claim has been rejected - {location_name}"
+                        
+                        success = await email_service.send_email(
+                            to_email=owner_email,
+                            subject=subject,
+                            html_body=html_body,
+                            text_body=text_body,
+                        )
+                        
+                        if success:
+                            logger.info(
+                                "business_claim_rejection_email_sent",
+                                claim_id=claim_id,
+                                owner_email=owner_email,
+                            )
+                        else:
+                            logger.warning(
+                                "business_claim_rejection_email_failed",
+                                claim_id=claim_id,
+                                owner_email=owner_email,
+                                reason="email_service_returned_false",
+                                provider=getattr(email_service, '_provider_name', 'unknown'),
+                                is_configured=email_service.is_configured,
+                            )
+        except Exception as e:
+            # Email failure should not block claim update
+            logger.error(
+                "business_claim_email_failed",
+                claim_id=claim_id,
+                status=update.status,
+                error=str(e),
+                exc_info=True,  # Include full traceback
+            )
+    
     return LocationClaimResponse(
         id=row["id"],
         location_id=row["location_id"],
-        location_name=details.get("location_name"),
+        location_name=location_name,
         business_account_id=row["business_account_id"],
         business_account_name=details.get("business_account_name"),
         status=row["status"],

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import LocationDetail from "@/components/LocationDetail";
+import UnifiedLocationDetail from "@/components/UnifiedLocationDetail";
+import { ViewportProvider } from "@/contexts/viewport";
 import type { LocationMarker } from "@/api/fetchLocations";
 import { getLocationById } from "@/lib/api";
 import { Card } from "@/components/ui/card";
@@ -66,7 +67,7 @@ export default function LocationDetailPage() {
     };
 
     loadLocation();
-  }, [id]);
+  }, [id, location]);
 
   const handleBack = () => {
     // Navigeer naar list view met standaard filters
@@ -103,6 +104,14 @@ export default function LocationDetailPage() {
     );
   }
 
-  return <LocationDetail location={locationData} onBackToList={handleBack} />;
+  return (
+    <ViewportProvider>
+      <UnifiedLocationDetail
+        location={locationData}
+        viewMode="list"
+        onBack={handleBack}
+      />
+    </ViewportProvider>
+  );
 }
 

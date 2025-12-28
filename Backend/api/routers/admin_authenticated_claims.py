@@ -8,7 +8,7 @@ from uuid import UUID
 
 from app.deps.admin_auth import verify_admin_user, AdminUser
 from services.db_service import fetch, execute
-from services.claim_approval_service import approve_claim, reject_claim
+from services.claim_approval_service import approve_claim, reject_claim, unlink_claim
 from app.core.logging import get_logger
 
 logger = get_logger()
@@ -268,6 +268,83 @@ async def reject_authenticated_claim(
             error=str(e),
         )
         raise HTTPException(status_code=500, detail=f"Failed to reject claim: {str(e)}")
+    
+    # Get full claim details for response
+    full_claim_sql = """
+        SELECT 
+            alc.id, alc.location_id, alc.user_id, alc.status,
+            alc.google_business_link, alc.logo_url, alc.logo_storage_path,
+            alc.submitted_at, alc.reviewed_by, alc.reviewed_at,
+            alc.rejection_reason, alc.created_at, alc.updated_at,
+            l.name as location_name,
+            u.raw_user_meta_data->>'name' as user_name,
+            u.email as user_email
+        FROM authenticated_location_claims alc
+        JOIN locations l ON l.id = alc.location_id
+        LEFT JOIN auth.users u ON u.id = alc.user_id
+        WHERE alc.id = $1
+    """
+    
+    full_rows = await fetch(full_claim_sql, claim_id)
+    full_row = full_rows[0] if full_rows else {}
+    
+    return AuthenticatedClaimResponse(
+        id=full_row["id"],
+        location_id=full_row["location_id"],
+        location_name=full_row.get("location_name"),
+        user_id=full_row["user_id"],
+        user_name=full_row.get("user_name"),
+        user_email=full_row.get("user_email"),
+        status=full_row["status"],
+        google_business_link=full_row.get("google_business_link"),
+        logo_url=full_row.get("logo_url"),
+        logo_storage_path=full_row.get("logo_storage_path"),
+        submitted_at=full_row["submitted_at"],
+        reviewed_by=full_row.get("reviewed_by"),
+        reviewed_at=full_row.get("reviewed_at"),
+        rejection_reason=full_row.get("rejection_reason"),
+        created_at=full_row["created_at"],
+        updated_at=full_row["updated_at"],
+    )
+
+
+@router.put("/{claim_id}/unlink", response_model=AuthenticatedClaimResponse)
+async def unlink_authenticated_claim(
+    claim_id: int = Path(..., description="Claim ID"),
+    request: ClaimRejectRequest = ...,
+    admin: AdminUser = Depends(verify_admin_user),
+):
+    """
+    Unlink (revoke) an approved authenticated location claim (admin only).
+    This will:
+    1. Delete entry from location_owners table
+    2. Update claim status to 'rejected'
+    3. Update user role (remove location_owner if no other locations owned)
+    4. Send rejection email to user
+    """
+    # Get admin user_id from email
+    admin_user_sql = """
+        SELECT id FROM auth.users WHERE email = $1 LIMIT 1
+    """
+    admin_user_rows = await fetch(admin_user_sql, admin.email)
+    
+    if not admin_user_rows:
+        raise HTTPException(status_code=500, detail="Admin user not found")
+    
+    admin_user_id = admin_user_rows[0]["id"]
+    
+    try:
+        # Use unlink service
+        result = await unlink_claim(claim_id, admin_user_id, request.rejection_reason)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(
+            "claim_unlink_failed",
+            claim_id=claim_id,
+            error=str(e),
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to unlink claim: {str(e)}")
     
     # Get full claim details for response
     full_claim_sql = """

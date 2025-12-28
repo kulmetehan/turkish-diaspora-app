@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
-import { getOrCreateClientId, claimReferral, API_BASE } from "@/lib/api";
+import { API_BASE } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { getRecaptchaToken } from "@/lib/recaptcha";
 
@@ -23,23 +23,8 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [referralCode, setReferralCode] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
-
-  // Extract referral code from URL hash query params
-  useEffect(() => {
-    if (!open) return;
-    const hash = window.location.hash;
-    if (hash && hash.includes("?")) {
-      const params = new URLSearchParams(hash.split("?")[1]);
-      const refCode = params.get("ref");
-      if (refCode) {
-        setReferralCode(refCode.toUpperCase());
-        setActiveTab("signup"); // Switch to signup tab if referral code present
-      }
-    }
-  }, [open]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,9 +94,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         }
       }
 
-      // Get or create client ID for referral tracking
-      const clientId = await getOrCreateClientId();
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -129,24 +111,12 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
         return;
       }
 
-      // Handle referral code if provided
-      if (referralCode && data.user) {
-        try {
-          await claimReferral(referralCode, clientId);
-          toast.success("Referral code toegevoegd!");
-        } catch (refError) {
-          console.error("Failed to claim referral:", refError);
-          // Don't fail signup if referral fails
-        }
-      }
-
       toast.success("Account aangemaakt! Check je email voor verificatie.");
       onOpenChange(false);
       // Reset form
       setEmail("");
       setPassword("");
       setDisplayName("");
-      setReferralCode("");
     } catch (error) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LoginModal.tsx:180',message:'signup catch error',data:{error:String(error),errorType:error instanceof Error ? error.constructor.name : typeof error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
@@ -276,20 +246,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                           onChange={(e) => setDisplayName(e.target.value)}
                           placeholder="Je naam"
                         />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-referral-code">Referral Code (optioneel)</Label>
-                        <Input
-                          id="signup-referral-code"
-                          type="text"
-                          value={referralCode}
-                          onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                          placeholder="REFCODE"
-                          className="font-mono"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          Gebruik een referral code van een vriend voor een welcome bonus!
-                        </p>
                       </div>
                       <Button type="submit" disabled={loading} className="w-full">
                         {loading ? "Account aanmaken..." : "Account aanmaken"}

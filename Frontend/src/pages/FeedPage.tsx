@@ -8,6 +8,7 @@ import { GreetingBlock } from "@/components/feed/GreetingBlock";
 import { ImageModal } from "@/components/feed/ImageModal";
 import { PollFeed } from "@/components/feed/PollFeed";
 import { PollModal } from "@/components/feed/PollModal";
+import { PrikbordFeed } from "@/components/prikbord/PrikbordFeed";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
@@ -49,9 +50,6 @@ function getActivityMessage(item: ActivityItem): string {
       return `heeft gestemd op een poll`;
     case "favorite":
       return `heeft ${locationName} toegevoegd aan favorieten`;
-    case "bulletin_post":
-      const title = (item.payload?.title as string) || "";
-      return `heeft een advertentie geplaatst: "${title}"`;
     case "event":
       return `heeft een event geplaatst: ${locationName}`;
     default:
@@ -128,7 +126,7 @@ export default function FeedPage() {
     const query = hash.slice(queryIndex + 1);
     const params = new URLSearchParams(query);
     const filter = params.get("filter");
-    if (filter && ["all", "one_cikanlar", "check_in", "note", "poll_response", "favorite", "bulletin_post"].includes(filter)) {
+    if (filter && ["all", "one_cikanlar", "check_in", "note", "poll_response", "favorite", "prikbord"].includes(filter)) {
       return filter as ActivityFilter;
     }
     return null;
@@ -226,9 +224,9 @@ export default function FeedPage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Don't pass "one_cikanlar" or "all" as activityType
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" 
-        ? undefined 
+      // Don't pass "one_cikanlar", "all", or "prikbord" as activityType
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord"
+        ? undefined
         : activeFilter;
       const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
       setFeedItems(data);
@@ -249,8 +247,8 @@ export default function FeedPage() {
 
     setIsLoadingMore(true);
     try {
-      // Don't pass "one_cikanlar" or "all" as activityType
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar"
+      // Don't pass "one_cikanlar", "all", or "prikbord" as activityType
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord"
         ? undefined
         : activeFilter;
       const data = await getActivityFeed(LOAD_MORE_LIMIT, offset, activityType);
@@ -296,8 +294,8 @@ export default function FeedPage() {
 
   // Reload when filter changes
   useEffect(() => {
-    // Only load activity feed if not showing Öne Çıkanlar and user is authenticated
-    if (activeFilter !== "one_cikanlar" && isAuthenticated) {
+    // Only load activity feed if not showing Öne Çıkanlar or Prikbord and user is authenticated
+    if (activeFilter !== "one_cikanlar" && activeFilter !== "prikbord" && isAuthenticated) {
       setFeedItems([]);
       setOffset(0);
       setHasMore(true);
@@ -499,6 +497,8 @@ export default function FeedPage() {
             </>
           ) : activeFilter === "all" ? (
             <DashboardOverview className="mt-2" />
+          ) : activeFilter === "prikbord" ? (
+            <PrikbordFeed className="mt-2" />
           ) : activeFilter === "poll_response" ? (
             <PollFeed className="mt-2" />
           ) : !isAuthenticated ? (
