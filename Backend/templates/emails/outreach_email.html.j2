@@ -18,13 +18,13 @@
 
 {% block content %}
 {% if language == 'tr' %}
-<p>Merhaba,</p>
+<p>Beste {{ location_name }},</p>
 
-<p><strong>{{ location_name }}</strong> işletmeniz Türk diasporası topluluğu için önemli bir kaynak olarak Turkspot haritasında yer alıyor.</p>
+<p>Uw bedrijf <strong>{{ location_name }}</strong> staat op de Turkspot kaart als belangrijke bron voor de Turkse gemeenschap.</p>
 
-<p>Turkspot, Hollanda'daki Türk topluluğunun işletmelerini, restoranlarını ve hizmetlerini keşfetmek için kullanılan bir platformdur. İşletmeniz zaten haritamızda görünüyor ve topluluk üyeleri tarafından bulunabilir.</p>
+<p>Turkspot is een platform dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf staat al op onze kaart en kan door de gemeenschap worden gevonden.</p>
 
-<p>İşletmenizi görüntülemek ve yönetmek için:</p>
+<p>Om uw bedrijf te bekijken en te beheren:</p>
 
 <a href="{{ mapview_link }}" class="button">
     {% if language == 'tr' %}
@@ -36,13 +36,13 @@
     {% endif %}
 </a>
 
-<p>İşletmenizin bilgilerini güncellemek veya ek bilgiler eklemek isterseniz, haritadaki işletmenize tıklayarak "Claim" butonunu kullanabilirsiniz.</p>
+<p>Als u de informatie van uw bedrijf wilt bijwerken of aanvullende gegevens wilt toevoegen, kunt u op uw bedrijf op de kaart klikken en de "Claim" knop gebruiken.</p>
 
-<p><strong>Veri Koruma:</strong> Bu e-posta, işletmenizin iletişim bilgilerinin kamuya açık kaynaklardan (örneğin OSM) elde edildiğini bildirmek için gönderilmiştir. İşletmenizi haritadan kaldırmak isterseniz, lütfen aşağıdaki bağlantıyı kullanın.</p>
+<p><strong>Gegevensbescherming:</strong> Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen. Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de report link op de kaart of stuur ons een reactie op dit bericht.</p>
 
-<p>Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
 
-<p>Teşekkürler,<br>Turkspot Ekibi</p>
+<p>Bedankt,<br>Het Turkspot Team</p>
 
 {% elif language == 'en' %}
 <p>Hello,</p>
@@ -57,18 +57,18 @@
 
 <p>If you would like to update your business information or add additional details, you can click on your business on the map and use the "Claim" button.</p>
 
-<p><strong>Data Protection:</strong> This email is sent to inform you that your business contact information was obtained from publicly available sources (e.g., OSM). If you would like to remove your business from the map, please use the link below.</p>
+<p><strong>Data Protection:</strong> This email is sent to inform you that your business contact information was obtained from publicly available sources. If you would like to remove your business from the map, use the report link on the map or send us a reply to this message.</p>
 
 <p>If you have any questions, please don't hesitate to contact us.</p>
 
 <p>Thank you,<br>The Turkspot Team</p>
 
 {% else %}
-<p>Hallo,</p>
+<p>Beste {{ location_name }},</p>
 
-<p>Uw bedrijf <strong>{{ location_name }}</strong> staat op de Turkspot kaart als belangrijke bron voor de Turkse diaspora gemeenschap.</p>
+<p>Uw bedrijf <strong>{{ location_name }}</strong> staat op de Turkspot kaart als belangrijke bron voor de Turkse gemeenschap.</p>
 
-<p>Turkspot is een platform dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf staat al op onze kaart en kan door gemeenschapsleden worden gevonden.</p>
+<p>Turkspot is een platform dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf staat al op onze kaart en kan door de gemeenschap worden gevonden.</p>
 
 <p>Om uw bedrijf te bekijken en te beheren:</p>
 
@@ -76,26 +76,11 @@
 
 <p>Als u de informatie van uw bedrijf wilt bijwerken of aanvullende gegevens wilt toevoegen, kunt u op uw bedrijf op de kaart klikken en de "Claim" knop gebruiken.</p>
 
-<p><strong>Gegevensbescherming:</strong> Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen (bijvoorbeeld OSM). Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de onderstaande link.</p>
+<p><strong>Gegevensbescherming:</strong> Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen. Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de report link op de kaart of stuur ons een reactie op dit bericht.</p>
 
 <p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
 
 <p>Bedankt,<br>Het Turkspot Team</p>
-{% endif %}
-
-{% if opt_out_link %}
-<div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999; text-align: center;">
-    <p>
-        {% if language == 'tr' %}
-            Bu tür e-postaları almak istemiyorsanız, 
-        {% elif language == 'en' %}
-            If you do not wish to receive these emails, 
-        {% else %}
-            Als u deze e-mails niet meer wilt ontvangen, 
-        {% endif %}
-        <a href="{{ opt_out_link }}" style="color: #e63946;">{% if language == 'tr' %}afmelden{% elif language == 'en' %}unsubscribe{% else %}afmelden{% endif %}</a>.
-    </p>
-</div>
 {% endif %}
 
 {% endblock %}

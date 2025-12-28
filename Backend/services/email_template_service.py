@@ -23,11 +23,26 @@ def _get_mascotte_base64() -> str:
     """
     Get base64-encoded mascotte image for email templates.
     
+    NOTE: Base64 images are disabled by default to prevent spam filtering.
+    Base64 images significantly increase email size and can trigger spam filters.
+    Use hosted images (URL) instead for better deliverability.
+    
     Returns:
-        Base64-encoded string of the mascotte PNG image
+        Base64-encoded string of the mascotte PNG image, or empty string if disabled/not found/too large
     """
-    # Try to read from public folder first (for production)
+    # TEMPORARILY DISABLED: Base64 images cause spam filtering issues
+    # Base64 images increase email size significantly and trigger spam filters
+    # TODO: Implement hosted images (URL) instead for better deliverability
+    return ""
+    
+    # Maximum image size for email (200KB - most email clients support up to 300KB)
+    # Note: Base64 encoding increases size by ~33%, so 200KB raw = ~267KB encoded
+    MAX_IMAGE_SIZE = 200 * 1024
+    
+    # Try to read optimized email header image first (smaller, better for emails)
     mascotte_paths = [
+        Path(__file__).parent.parent.parent / "Frontend" / "src" / "assets" / "turkspotbot-mailhead.png",
+        Path(__file__).parent.parent.parent / "Frontend" / "src" / "assets" / "turkspotbot.png",
         Path(__file__).parent.parent.parent / "Frontend" / "public" / "turkspotbot.png",
         Path(__file__).parent.parent / "static" / "turkspotbot.png",
     ]
@@ -37,17 +52,56 @@ def _get_mascotte_base64() -> str:
             try:
                 with open(path, "rb") as f:
                     image_data = f.read()
+                    
+                    # Validate image size
+                    image_size_kb = len(image_data) / 1024
+                    if len(image_data) > MAX_IMAGE_SIZE:
+                        logger.error(
+                            "mascotte_image_too_large",
+                            path=str(path),
+                            size_kb=round(image_size_kb, 2),
+                            max_size_kb=MAX_IMAGE_SIZE / 1024,
+                        )
+                        continue
+                    
+                    # Validate PNG header
+                    if not image_data.startswith(b'\x89PNG'):
+                        logger.error(
+                            "mascotte_image_invalid_format",
+                            path=str(path),
+                            error="File does not appear to be a valid PNG",
+                        )
+                        continue
+                    
+                    logger.info(
+                        "mascotte_image_loaded",
+                        path=str(path),
+                        size_kb=round(image_size_kb, 2),
+                    )
                     return base64.b64encode(image_data).decode("utf-8")
+            except PermissionError as e:
+                logger.error(
+                    "mascotte_image_permission_denied",
+                    path=str(path),
+                    error=str(e),
+                    exc_info=True,
+                )
+                continue
             except Exception as e:
-                logger.warning(
+                logger.error(
                     "mascotte_image_read_failed",
                     path=str(path),
                     error=str(e),
+                    exc_info=True,
                 )
                 continue
     
     # Fallback: return empty string if image not found
-    logger.warning("mascotte_image_not_found", paths=[str(p) for p in mascotte_paths])
+    logger.error(
+        "mascotte_image_not_found",
+        paths=[str(p) for p in mascotte_paths],
+        checked_paths=[str(p) for p in mascotte_paths if p.exists()],
+    )
     return ""
 
 
@@ -135,7 +189,7 @@ class EmailTemplateService:
         return {
             "language": language,
             "base_url": frontend_url,
-            "unsubscribe_url": f"{frontend_url}/#/account",
+            "unsubscribe_url": f"{frontend_url}/#/account?tab=notificaties",
             "mascotte_base64": _get_mascotte_base64(),
         }
     

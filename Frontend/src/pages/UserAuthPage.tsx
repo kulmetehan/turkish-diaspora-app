@@ -60,7 +60,15 @@ export default function UserAuthPage() {
         }
 
         toast.success("Ingelogd!");
-        nav("/account", { replace: true });
+        
+        // Check for return URL from location state
+        const returnUrl = (location.state as any)?.from?.hash;
+        if (returnUrl) {
+          // Use hash directly (e.g., #/account?tab=notificaties)
+          window.location.hash = returnUrl;
+        } else {
+          nav("/account", { replace: true });
+        }
       }
     } catch (err) {
       toast.error("Inloggen mislukt", {
@@ -209,17 +217,29 @@ export default function UserAuthPage() {
           try {
             const { getCurrentUser } = await import("@/lib/api");
             const profile = await getCurrentUser();
+            // Check for return URL from location state
+            const returnUrl = (location.state as any)?.from?.hash;
+            
             if (!profile?.name) {
               // User doesn't have username, redirect to feed (will show onboarding)
               nav("/feed", { replace: true });
+            } else if (returnUrl) {
+              // Use hash directly (e.g., #/account?tab=notificaties)
+              window.location.hash = returnUrl;
             } else {
               // User has profile, go to account page
               nav("/account", { replace: true });
             }
           } catch (error) {
             console.error("Failed to check profile:", error);
-            // Fallback to account page
-            nav("/account", { replace: true });
+            // Check for return URL from location state
+            const returnUrl = (location.state as any)?.from?.hash;
+            if (returnUrl) {
+              window.location.hash = returnUrl;
+            } else {
+              // Fallback to account page
+              nav("/account", { replace: true });
+            }
           }
         }
       }

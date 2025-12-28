@@ -20,11 +20,13 @@
 {% if language == 'tr' %}
 <p>Merhaba {{ user_name }},</p>
 
-<p>Harika haber! <strong>{{ location_name }}</strong> için yaptığınız claim talebi onaylandı. Artık bu konumun sahibisiniz.</p>
+<p>Harika haber! <strong>{{ location_name }}</strong> için yaptığınız locatie inzending onaylandı. Konum artık haritaya eklendi.</p>
+
+<p>Eğer kendinizi sahip olarak belirttiyseniz, artık bu konumun otomatik olarak sahibisiniz. Bu konumu hesap sayfanızdaki "Locaties" bölümünden yönetebilirsiniz.</p>
 
 <p>Şimdi yapabilecekleriniz:</p>
 <ul>
-    <li>📍 Konumunuzu "Senin" bölümünden görüntüleyin</li>
+    <li>📍 Konumunuzu "Locaties" bölümünden görüntüleyin</li>
     <li>📝 Konum bilgilerinizi güncelleyin</li>
     <li>💼 İşletmenizi yönetin</li>
 </ul>
@@ -39,11 +41,13 @@
 {% elif language == 'en' %}
 <p>Hello {{ user_name }},</p>
 
-<p>Great news! Your claim request for <strong>{{ location_name }}</strong> has been approved. You are now the owner of this location.</p>
+<p>Great news! Your location submission for <strong>{{ location_name }}</strong> has been approved. The location has now been added to the map.</p>
+
+<p>Since you indicated you are the owner, you are now automatically the owner of this location. You can manage it via the "Locations" section on your account page.</p>
 
 <p>What you can do now:</p>
 <ul>
-    <li>📍 View your location in the "Senin" section</li>
+    <li>📍 View your location in the "Locations" section</li>
     <li>📝 Update your location information</li>
     <li>💼 Manage your business</li>
 </ul>
@@ -58,11 +62,13 @@
 {% else %}
 <p>Hoi {{ user_name }},</p>
 
-<p>Goed nieuws! Uw claim verzoek voor <strong>{{ location_name }}</strong> is goedgekeurd. U bent nu de eigenaar van deze locatie.</p>
+<p>Goed nieuws! Uw locatie inzending voor <strong>{{ location_name }}</strong> is goedgekeurd. De locatie is nu toegevoegd aan de kaart.</p>
+
+<p>Omdat u heeft aangegeven de eigenaar te zijn, bent u nu automatisch de owner van deze locatie. U kunt deze beheren via de "Locaties" sectie op uw account pagina.</p>
 
 <p>Wat u nu kunt doen:</p>
 <ul>
-    <li>📍 Bekijk uw locatie in de "Senin" sectie</li>
+    <li>📍 Bekijk uw locatie in de "Locaties" sectie</li>
     <li>📝 Werk uw locatie informatie bij</li>
     <li>💼 Beheer uw bedrijf</li>
 </ul>

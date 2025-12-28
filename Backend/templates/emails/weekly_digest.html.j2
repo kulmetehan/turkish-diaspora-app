@@ -5,137 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Weekoverzicht Turkspot</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: #ffffff;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #e63946;
-        }
-        .header-logo-container {
-            margin: 0 auto 10px;
-            display: inline-block;
-        }
-        .header h1 {
-            color: #333;
-            margin: 0;
-            font-size: 24px;
-            font-weight: 900;
-            font-family: 'Arial Black', 'Arial Bold', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-            display: inline-block;
-            vertical-align: middle;
-            line-height: 1.2;
-        }
-        .header h1 .red-accent {
-            color: #e63946;
-        }
-        .header h1 .ai-superscript {
-            color: #e63946;
-            font-size: 18px;
-            font-family: 'Courier New', monospace;
-            vertical-align: super;
-            margin-left: 2px;
-        }
-        .header-mascot {
-            height: 48px;
-            width: auto;
-            vertical-align: middle;
-            margin-left: 4px;
-        }
-        .header p {
-            margin: 10px 0 0 0;
-            color: #666;
-            font-size: 14px;
-        }
-        .section {
-            margin-bottom: 30px;
-        }
-        .section-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #e63946;
-            margin-bottom: 15px;
-            padding-bottom: 5px;
-            border-bottom: 1px solid #eee;
-        }
-        .trending-item, .poll-item {
-            background-color: #f8f9fa;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            border-left: 3px solid #e63946;
-        }
-        .trending-item h3, .poll-item h3 {
-            margin: 0 0 5px 0;
-            font-size: 16px;
-            color: #333;
-        }
-        .trending-item p, .poll-item p {
-            margin: 5px 0;
-            font-size: 14px;
-            color: #666;
-        }
-        .stats {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-top: 15px;
-        }
-        .stat-item {
-            flex: 1;
-            min-width: 120px;
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #e63946;
-            margin-bottom: 5px;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            text-transform: uppercase;
-        }
-        .button {
-            display: inline-block;
-            padding: 12px 24px;
-            background-color: #e63946;
-            color: #ffffff !important;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: bold;
-            margin-top: 10px;
-        }
-        .footer {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            text-align: center;
-            font-size: 12px;
-            color: #999;
-        }
-        .footer a {
-            color: #e63946;
-            text-decoration: none;
-        }
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;line-height:1.6;color:#333;max-width:600px;margin:0 auto;padding:20px;background-color:#f5f5f5}
+        .container{background-color:#fff;border-radius:8px;padding:30px;box-shadow:0 2px 4px rgba(0,0,0,0.1)}
+        .header{text-align:center;margin-bottom:30px;padding-bottom:20px;border-bottom:2px solid #e63946}
+        .header-logo-container{margin:0 auto 10px;display:inline-block}
+        .header h1{color:#333;margin:0;font-size:24px;font-weight:900;font-family:'Arial Black','Arial Bold','Helvetica Neue',Helvetica,Arial,sans-serif;display:inline-block;vertical-align:middle;line-height:1.2}
+        .header p{margin:10px 0 0 0;color:#666;font-size:14px}
+        .section{margin-bottom:30px}
+        .section-title{font-size:18px;font-weight:bold;color:#e63946;margin-bottom:15px;padding-bottom:5px;border-bottom:1px solid #eee}
+        .trending-item,.poll-item{background-color:#f8f9fa;padding:15px;margin-bottom:10px;border-radius:5px;border-left:3px solid #e63946}
+        .trending-item h3,.poll-item h3{margin:0 0 5px 0;font-size:16px;color:#333}
+        .trending-item p,.poll-item p{margin:5px 0;font-size:14px;color:#666}
+        .stats{display:flex;flex-wrap:wrap;gap:15px;margin-top:15px}
+        .stat-item{flex:1;min-width:120px;background-color:#f8f9fa;padding:15px;border-radius:5px;text-align:center}
+        .stat-value{font-size:24px;font-weight:bold;color:#e63946;margin-bottom:5px}
+        .stat-label{font-size:12px;color:#666;text-transform:uppercase}
+        .button{display:inline-block;padding:12px 24px;background-color:#e63946;color:#fff!important;text-decoration:none;border-radius:5px;font-weight:bold;margin-top:10px}
+        .footer{margin-top:30px;padding-top:20px;border-top:1px solid #eee;text-align:center;font-size:12px;color:#999}
+        .footer a{color:#e63946;text-decoration:none}
     </style>
 </head>
 <body>
@@ -153,7 +40,7 @@
                             {% if mascotte_base64 %}
                             <img src="data:image/png;base64,{{ mascotte_base64 }}" alt="TurkSpot Bot mascot" style="height: 48px; width: auto; object-fit: contain; vertical-align: middle; display: block;">
                             {% else %}
-                            <img src="{{ base_url }}/turkspotbot.png" alt="TurkSpot Bot mascot" style="height: 48px; width: auto; object-fit: contain; vertical-align: middle; display: block;">
+                            <span style="font-size: 20px; font-weight: bold; color: #e63946; vertical-align: middle; line-height: 48px; display: inline-block;">TS</span>
                             {% endif %}
                         </td>
                     </tr>
@@ -237,24 +124,6 @@
         </div>
         {% endif %}
 
-        {% if gamification and gamification.total_xp %}
-        <div class="section">
-            <h2 class="section-title">🏆 Jouw Prestaties</h2>
-            <div class="stats">
-                <div class="stat-item">
-                    <div class="stat-value">{{ gamification.total_xp }}</div>
-                    <div class="stat-label">Totaal XP</div>
-                </div>
-                {% if gamification.current_streak_days %}
-                <div class="stat-item">
-                    <div class="stat-value">{{ gamification.current_streak_days }}</div>
-                    <div class="stat-label">Dagen Streak</div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
-
         <div class="section">
             <a href="{{ base_url }}/#/map" class="button">Bekijk de Kaart</a>
         </div>
@@ -270,28 +139,3 @@
     </div>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

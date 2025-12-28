@@ -37,12 +37,6 @@ Bekijk alle polls: {{ base_url }}/#/feed?filter=poll_response
 {% if activity.unique_locations %}Unieke locaties: {{ activity.unique_locations }}{% endif %}
 {% endif %}
 
-{% if gamification and gamification.total_xp %}
-🏆 JOUW PRESTATIES
-Totaal XP: {{ gamification.total_xp }}
-{% if gamification.current_streak_days %}Huidige streak: {{ gamification.current_streak_days }} dagen{% endif %}
-{% endif %}
-
 Bekijk de kaart: {{ base_url }}/#/map
 
 ---
