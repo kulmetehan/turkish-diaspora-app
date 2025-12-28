@@ -4,3 +4,9 @@
 {"sessionId": "spam-debug", "runId": "post-send", "hypothesisId": "C", "location": "brevo_provider.py:195", "message": "Email sent successfully - Brevo response", "data": {"message_id": "<202512282130.29824244544@smtp-relay.mailin.fr>", "response_type": "CreateSmtpEmail", "response_data": "{'message_id': '<202512282130.29824244544@smtp-relay.mailin.fr>', 'message_ids': None}"}, "timestamp": 1766957406813}
 {"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766959547031,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
 {"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766959810013,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766962354771,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766962359870,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766962452851,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766962737876,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766962768135,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
+{"location":"api.ts:2365","message":"getMyLocations called","data":{},"timestamp":1766963058815,"sessionId":"debug-session","runId":"run1","hypothesisId":"E"}
