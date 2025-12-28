@@ -81,7 +81,6 @@ interface ActivityCardData {
   notesThisWeek: number;
   pollsThisWeek: number;
   favoritesThisWeek: number;
-  bulletinThisWeek: number;
   loading: boolean;
   error: boolean;
 }
@@ -116,7 +115,6 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
     notesThisWeek: 0,
     pollsThisWeek: 0,
     favoritesThisWeek: 0,
-    bulletinThisWeek: 0,
     loading: true,
     error: false,
   });
@@ -266,7 +264,6 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
           let notesThisWeek = 0;
           let pollsThisWeek = 0;
           let favoritesThisWeek = 0;
-          let bulletinThisWeek = 0;
 
           activities.forEach((activity: ActivityItem) => {
             const activityDate = new Date(activity.created_at);
@@ -290,10 +287,6 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             if (activity.activity_type === "favorite" && activityDate >= weekAgo) {
               favoritesThisWeek++;
             }
-
-            if (activity.activity_type === "bulletin_post" && activityDate >= weekAgo) {
-              bulletinThisWeek++;
-            }
           });
 
           setActivityData({
@@ -302,7 +295,6 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             notesThisWeek,
             pollsThisWeek,
             favoritesThisWeek,
-            bulletinThisWeek,
             loading: false,
             error: false,
           });
@@ -637,12 +629,6 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
               className="w-full text-left text-xs font-gilroy font-medium text-primary transition-colors hover:text-primary/80"
             >
               {activityData.favoritesThisWeek} favorieten deze week
-            </button>
-            <button
-              onClick={() => navigateToFeedFilter("bulletin_post")}
-              className="w-full text-left text-xs font-gilroy font-medium text-primary transition-colors hover:text-primary/80"
-            >
-              {activityData.bulletinThisWeek} advertenties deze week
             </button>
           </div>
         )}

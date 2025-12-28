@@ -5,7 +5,7 @@ import { ReportDialog } from "./ReportDialog";
 import { cn } from "@/lib/ui/cn";
 
 interface ReportButtonProps {
-  reportType: "location" | "note" | "reaction" | "user";
+  reportType: "location" | "note" | "reaction" | "user" | "check_in" | "prikbord_post" | "poll";
   targetId: number;
   targetName?: string;
   variant?: "default" | "outline" | "ghost" | "icon";
@@ -28,6 +28,9 @@ export function ReportButton({
     note: "notitie",
     reaction: "reactie",
     user: "gebruiker",
+    check_in: "check-in",
+    prikbord_post: "prikbord post",
+    poll: "poll",
   };
 
   return (

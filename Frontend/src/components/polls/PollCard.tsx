@@ -9,6 +9,8 @@ import { submitPollResponse, getPollStats, type Poll, type PollStats } from "@/l
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { deleteAdminPoll } from "@/lib/apiAdmin";
 
 interface PollCardProps {
   poll: Poll;
@@ -17,6 +19,7 @@ interface PollCardProps {
 }
 
 export function PollCard({ poll, onResponse, className }: PollCardProps) {
+  const { isAdmin } = useAdminAuth();
   const [selectedOptionId, setSelectedOptionId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasResponded, setHasResponded] = useState(poll.user_has_responded);
@@ -62,17 +65,47 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
   const totalResponses = stats?.total_responses || 0;
   const maxCount = stats ? Math.max(...Object.values(stats.option_counts || {}), 0) : 0;
 
+  const handleAdminDelete = async () => {
+    if (!confirm("Weet je zeker dat je deze poll wilt verwijderen?")) {
+      return;
+    }
+
+    try {
+      await deleteAdminPoll(poll.id);
+      toast.success("Poll verwijderd");
+      // Refresh page or call callback if provided
+      window.location.reload();
+    } catch (err: any) {
+      toast.error("Kon poll niet verwijderen", {
+        description: err.message || "Er is een fout opgetreden",
+      });
+    }
+  };
+
   return (
     <Card className={cn("rounded-xl border border-border/80 bg-card shadow-soft", className)}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-lg font-semibold">{poll.title}</CardTitle>
-          {poll.is_sponsored && (
-            <Badge variant="secondary" className="text-xs">
-              <Icon name="Star" className="h-3 w-3 mr-1" />
-              Gesponsord
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {poll.is_sponsored && (
+              <Badge variant="secondary" className="text-xs">
+                <Icon name="Star" className="h-3 w-3 mr-1" />
+                Gesponsord
+              </Badge>
+            )}
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleAdminDelete}
+                className="text-destructive hover:text-destructive shrink-0"
+                aria-label="Verwijder als admin"
+              >
+                <Icon name="Trash2" className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
         <p className="text-sm text-muted-foreground mt-1">{poll.question}</p>
         {poll.ends_at && (

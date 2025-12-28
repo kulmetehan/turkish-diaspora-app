@@ -223,18 +223,35 @@ class BrevoEmailProvider(EmailProvider):
                 raise ValueError(f"Brevo message rejected: {error_body}") from e
             
             elif error_code == 401:
-                # Invalid API key
-                logger.error(
-                    "brevo_invalid_api_key",
-                    to_email=to,
-                    subject=subject,
-                    error_code=error_code,
-                    error_body=error_body,
-                )
-                raise ValueError(
-                    f"Brevo API key invalid: {error_body}. "
-                    f"Please check your BREVO_API_KEY environment variable."
-                ) from e
+                # Invalid API key or unauthorized IP
+                error_str = str(error_body)
+                if "unrecognised IP address" in error_str or "unauthorized" in error_str.lower():
+                    # Unauthorized IP address - more specific error
+                    logger.error(
+                        "brevo_unauthorized_ip",
+                        to_email=to,
+                        subject=subject,
+                        error_code=error_code,
+                        error_body=error_body,
+                    )
+                    raise ValueError(
+                        f"Brevo unauthorized IP address: {error_body}. "
+                        f"Please add your server IP address to Brevo's authorized IPs list at "
+                        f"https://app.brevo.com/security/authorised_ips"
+                    ) from e
+                else:
+                    # Invalid API key
+                    logger.error(
+                        "brevo_invalid_api_key",
+                        to_email=to,
+                        subject=subject,
+                        error_code=error_code,
+                        error_body=error_body,
+                    )
+                    raise ValueError(
+                        f"Brevo API key invalid: {error_body}. "
+                        f"Please check your BREVO_API_KEY environment variable."
+                    ) from e
             
             else:
                 # Other Brevo errors

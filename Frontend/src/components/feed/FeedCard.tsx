@@ -9,6 +9,12 @@ import { useNavigate } from "react-router-dom";
 import { EmojiReactions } from "./EmojiReactions";
 import { EventBadge } from "./EventBadge";
 import { PollPreview } from "./PollPreview";
+import { ReportButton } from "@/components/report/ReportButton";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { deleteAdminCheckIn, deleteAdminNote } from "@/lib/apiAdmin";
+import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/Icon";
+import { toast } from "sonner";
 
 export interface FeedCardProps {
   id: number;
@@ -112,6 +118,7 @@ export function FeedCard({
   className,
 }: FeedCardProps) {
   const navigate = useNavigate();
+  const { isAdmin } = useAdminAuth();
   const timeLabel = useMemo(() => formatActivityTime(timestamp), [timestamp]);
   const hasMedia = Boolean(mediaUrl);
   const isEvent = type === "event";
@@ -141,6 +148,29 @@ export function FeedCard({
       onUserClick(user.id);
     } else if (user.id) {
       navigate("/account");
+    }
+  };
+
+  const handleAdminDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Weet je zeker dat je dit item wilt verwijderen?")) {
+      return;
+    }
+
+    try {
+      if (type === "check_in") {
+        await deleteAdminCheckIn(id);
+        toast.success("Check-in verwijderd");
+      } else if (type === "note") {
+        await deleteAdminNote(id);
+        toast.success("Notitie verwijderd");
+      }
+      // Refresh page or call callback if provided
+      window.location.reload();
+    } catch (err: any) {
+      toast.error("Kon item niet verwijderen", {
+        description: err.message || "Er is een fout opgetreden",
+      });
     }
   };
 
@@ -218,6 +248,19 @@ export function FeedCard({
             </span>
           )}
         </div>
+
+        {/* Admin Delete Button */}
+        {isAdmin && (type === "check_in" || type === "note") && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleAdminDelete}
+            className="text-destructive hover:text-destructive shrink-0"
+            aria-label="Verwijder als admin"
+          >
+            <Icon name="Trash2" className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       {/* Content Text */}
@@ -295,7 +338,7 @@ export function FeedCard({
         </div>
       )}
 
-      {/* Action Row: Emoji Reactions + Bookmark */}
+      {/* Action Row: Emoji Reactions + Report + Bookmark */}
       <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-border/50">
         {onReactionToggle ? (
           <EmojiReactions
@@ -308,25 +351,55 @@ export function FeedCard({
           <div /> // Spacer
         )}
 
-        <button
-          type="button"
-          onClick={handleBookmark}
-          className={cn(
-            "flex items-center text-sm transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 rounded",
-            isBookmarked
-              ? "text-primary hover:text-primary/80"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-          aria-label={isBookmarked ? "Remove bookmark" : "Bookmark"}
-        >
-          <Bookmark
+        <div className="flex items-center gap-2">
+          {(() => {
+            // Determine report type based on activity type
+            let reportType: "check_in" | "note" | "poll" | null = null;
+            let reportTargetId = id;
+            
+            if (type === "check_in") {
+              reportType = "check_in";
+            } else if (type === "note") {
+              reportType = "note";
+            } else if (type === "poll_response" && pollId) {
+              reportType = "poll";
+              reportTargetId = pollId;
+            }
+            
+            if (reportType) {
+              return (
+                <ReportButton
+                  reportType={reportType}
+                  targetId={reportTargetId}
+                  targetName={locationName || contentText || undefined}
+                  size="sm"
+                  variant="ghost"
+                />
+              );
+            }
+            return null;
+          })()}
+          
+          <button
+            type="button"
+            onClick={handleBookmark}
             className={cn(
-              "w-5 h-5",
-              isBookmarked && "fill-current"
+              "flex items-center text-sm transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 rounded",
+              isBookmarked
+                ? "text-primary hover:text-primary/80"
+                : "text-muted-foreground hover:text-foreground"
             )}
-          />
-        </button>
+            aria-label={isBookmarked ? "Remove bookmark" : "Bookmark"}
+          >
+            <Bookmark
+              className={cn(
+                "w-5 h-5",
+                isBookmarked && "fill-current"
+              )}
+            />
+          </button>
+        </div>
       </div>
     </div>
   );

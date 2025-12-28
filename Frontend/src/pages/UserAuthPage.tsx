@@ -8,9 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { getOrCreateClientId, claimReferral, API_BASE } from "@/lib/api";
+import { getOrCreateClientId, API_BASE } from "@/lib/api";
 import { AppViewportShell, PageShell } from "@/components/layout";
-import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { getRecaptchaToken } from "@/lib/recaptcha";
 
@@ -19,23 +18,9 @@ export default function UserAuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [referralCode, setReferralCode] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const nav = useNavigate();
   const location = useLocation();
-
-  // Extract referral code from URL hash query params
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.includes("?")) {
-      const params = new URLSearchParams(hash.split("?")[1]);
-      const refCode = params.get("ref");
-      if (refCode) {
-        setReferralCode(refCode.toUpperCase());
-        setActiveTab("signup"); // Switch to signup tab if referral code present
-      }
-    }
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,25 +194,6 @@ export default function UserAuthPage() {
             console.warn("Failed to send welcome email:", emailError);
           }
 
-          // Claim referral code if present
-          if (referralCode && referralCode.trim()) {
-            try {
-              const claimResult = await claimReferral(referralCode.trim());
-              if (claimResult.success) {
-                toast.success("Referral code gebruikt!", {
-                  description: claimResult.message,
-                });
-              }
-            } catch (refError: any) {
-              // Don't fail signup if referral claim fails
-              console.warn("Failed to claim referral:", refError);
-              if (refError.message && !refError.message.includes("already")) {
-                toast.error("Referral code kon niet worden gebruikt", {
-                  description: refError.message,
-                });
-              }
-            }
-          }
         }
 
         toast.success("Welkom bij Turkspot!", {
@@ -352,20 +318,6 @@ export default function UserAuthPage() {
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="Je naam"
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-referral-code">Referral Code (optioneel)</Label>
-                    <Input
-                      id="signup-referral-code"
-                      type="text"
-                      value={referralCode}
-                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                      placeholder="REFCODE"
-                      className="font-mono"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Gebruik een referral code van een vriend voor een welcome bonus!
-                    </p>
                   </div>
                   <Button type="submit" disabled={loading} className="w-full">
                     {loading ? "Account aanmaken..." : "Account aanmaken"}

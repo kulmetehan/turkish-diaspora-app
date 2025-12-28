@@ -74,27 +74,40 @@ async def generate_daily_poll(model: Optional[str] = None, dry_run: bool = False
         ai_service = OpenAIService(model=model)
         
         # Generate poll using AI
-        system_prompt = """Je bent een expert in het creëren van relevante polls voor de Turkse diaspora gemeenschap in Nederland.
-        
-Je moet een interessante poll vraag maken die:
-- Relevant is voor de Turkse diaspora in Nederland
-- Meerdere antwoordopties heeft (2-5 opties)
-- Een korte, duidelijke titel heeft
-- De vraag is duidelijk en begrijpelijk
+        system_prompt = """Je bent een expert in het creëren van relevante polls voor marktonderzoek 
+onder de Turkse diaspora gemeenschap in Nederland.
 
-Geef een poll terug met een titel, vraag en 2-5 antwoordopties."""
+Je moet polls maken die:
+- In het TURKS zijn geschreven (niet Nederlands)
+- Marktonderzoek data verzamelen over:
+  * Media consumptie (Turkse/Nederlandse zenders, series)
+  * Religieuze betrokkenheid
+  * Culturele voorkeuren
+  * Integratie patronen
+  * Consumptie gewoonten
+- Relevant zijn voor de Turkse diaspora in Nederland
+- Meerdere antwoordopties hebben (2-5 opties)
+- Een korte, duidelijke titel hebben
+- De vraag is duidelijk en begrijpelijk in het Turks
 
-        user_prompt = """Genereer een nieuwe poll voor de Turkse diaspora gemeenschap in Nederland.
-Kies een relevant onderwerp zoals:
-- Cultuur en tradities
-- Integratie en dagelijks leven
-- Voedsel en restaurants
-- Evenementen en activiteiten
-- Gemeenschapskwesties
-- Of een ander relevant onderwerp
+Geef een poll terug met een titel, vraag en 2-5 antwoordopties - ALLES IN HET TURKS."""
 
-Zorg dat de poll:
-- Betekenisvol is voor de gemeenschap
+        user_prompt = """Genereer een nieuwe poll voor marktonderzoek onder de Turkse diaspora 
+gemeenschap in Nederland. 
+
+Focus op één van deze onderwerpen:
+- Media: Welke Turkse zender kijken ze het meest? (TRT, Show TV, ATV, etc.)
+- Media: Welke Nederlandse zender kijken ze het meest? (RTL, NPO, etc.)
+- Media: Wat is hun favoriete Turkse serie?
+- Media: Wat is hun favoriete Nederlandse serie/programma?
+- Religie: Hoe belangrijk is het geloof voor ze? (Zeer belangrijk, Belangrijk, Neutraal, etc.)
+- Cultuur: Hoe vaak bezoeken ze Turkije?
+- Integratie: In welke taal communiceren ze thuis?
+- Consumptie: Waar kopen ze het meest? (Turkse winkels, Nederlandse supermarkten, online)
+
+Zorg dat:
+- De poll IN HET TURKS is geschreven
+- Betekenisvol is voor marktonderzoek
 - Meerdere interessante antwoordopties heeft
 - Een duidelijke titel en vraag heeft"""
 

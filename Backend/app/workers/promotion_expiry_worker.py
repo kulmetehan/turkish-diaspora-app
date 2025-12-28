@@ -69,44 +69,44 @@ async def run_expiry_worker(worker_run_id: Optional[UUID] = None) -> Dict[str, A
     return result
 
 
-@with_run_id
 async def main(worker_run_id: Optional[UUID] = None) -> None:
     """
     CLI entry point for promotion expiry worker.
     """
-    parser = argparse.ArgumentParser(description="Promotion Expiry Worker")
-    parser.add_argument(
-        "--worker-run-id",
-        type=str,
-        help="Optional worker run ID for tracking",
-    )
-    args = parser.parse_args()
-    
-    run_id = worker_run_id or (UUID(args.worker_run_id) if args.worker_run_id else None)
-    
-    if not run_id:
-        run_id = await start_worker_run(
-            bot="promotion_expiry",
-            city=None,
-            category=None,
+    with with_run_id():
+        parser = argparse.ArgumentParser(description="Promotion Expiry Worker")
+        parser.add_argument(
+            "--worker-run-id",
+            type=str,
+            help="Optional worker run ID for tracking",
         )
-    
-    try:
-        result = await run_expiry_worker(worker_run_id=run_id)
-        logger.info("promotion_expiry_worker_finished", result=result)
-    except Exception as exc:
-        logger.error(
-            "promotion_expiry_worker_failed",
-            error=str(exc),
-            exc_info=True,
-        )
-        if run_id:
-            await finish_worker_run(
-                run_id,
-                is_success=False,
-                error_message=str(exc),
+        args = parser.parse_args()
+        
+        run_id = worker_run_id or (UUID(args.worker_run_id) if args.worker_run_id else None)
+        
+        if not run_id:
+            run_id = await start_worker_run(
+                bot="promotion_expiry",
+                city=None,
+                category=None,
             )
-        raise
+        
+        try:
+            result = await run_expiry_worker(worker_run_id=run_id)
+            logger.info("promotion_expiry_worker_finished", result=result)
+        except Exception as exc:
+            logger.error(
+                "promotion_expiry_worker_failed",
+                error=str(exc),
+                exc_info=True,
+            )
+            if run_id:
+                await finish_worker_run(
+                    run_id,
+                    is_success=False,
+                    error_message=str(exc),
+                )
+            raise
 
 
 if __name__ == "__main__":

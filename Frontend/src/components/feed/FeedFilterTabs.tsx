@@ -2,7 +2,7 @@
 import type { ActivityItem } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 
-export type ActivityFilter = "all" | "one_cikanlar" | ActivityItem["activity_type"];
+export type ActivityFilter = "all" | "one_cikanlar" | "prikbord" | ActivityItem["activity_type"];
 
 export interface FeedFilterTabsProps {
   activeFilter: ActivityFilter;
@@ -13,12 +13,12 @@ export interface FeedFilterTabsProps {
 // Filter configuration: display label -> activity_type value
 const FILTERS: Array<{ label: string; value: ActivityFilter }> = [
   { label: "Alles", value: "all" },
-  { label: "Öne Çıkanlar", value: "one_cikanlar" },
+  { label: "Prikbord", value: "prikbord" },
   { label: "Check-ins", value: "check_in" },
   { label: "Notities", value: "note" },
   { label: "Polls", value: "poll_response" },
+  { label: "Öne Çıkanlar", value: "one_cikanlar" },
   { label: "Favorieten", value: "favorite" },
-  { label: "Prikbord", value: "bulletin_post" },
 ];
 
 export function FeedFilterTabs({

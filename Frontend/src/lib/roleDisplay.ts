@@ -11,6 +11,7 @@ export function roleDisplayName(role: string | null | undefined): string {
     sözü_dinlenir: "Sözü Dinlenir",
     yerinde_tespit: "Yerinde Tespit",
     sessiz_güç: "Sessiz Güç",
+    location_owner: "Mekanın sahibi",
   };
   return role ? roleMap[role] || role : "";
 }

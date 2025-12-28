@@ -110,6 +110,8 @@ class EmailService:
                 to_email=to_email,
                 subject=subject,
                 provider=self._provider_name,
+                from_email=self.from_email,
+                has_api_key=bool(getattr(provider, 'api_key', None)) if isinstance(provider, BrevoEmailProvider) else None,
             )
             return False
         
@@ -131,12 +133,35 @@ class EmailService:
             )
             return True
             
+        except ValueError as e:
+            logger.error(
+                "email_send_failed_value_error",
+                to_email=to_email,
+                subject=subject,
+                error=str(e),
+                error_type=type(e).__name__,
+                provider=self._provider_name,
+                exc_info=True,
+            )
+            return False
+        except RuntimeError as e:
+            logger.error(
+                "email_send_failed_runtime_error",
+                to_email=to_email,
+                subject=subject,
+                error=str(e),
+                error_type=type(e).__name__,
+                provider=self._provider_name,
+                exc_info=True,
+            )
+            return False
         except Exception as e:
             logger.error(
                 "email_send_failed",
                 to_email=to_email,
                 subject=subject,
                 error=str(e),
+                error_type=type(e).__name__,
                 provider=self._provider_name,
                 exc_info=True,
             )

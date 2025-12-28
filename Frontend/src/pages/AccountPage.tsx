@@ -1,27 +1,27 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
-import { ProfileSection } from "@/components/account/ProfileSection";
-import { UserRolesSection } from "@/components/account/UserRolesSection";
-import { SeninSection } from "@/components/account/SeninSection";
-import { RhythmSection } from "@/components/account/RhythmSection";
 import { ContributionsSection } from "@/components/account/ContributionsSection";
+import { ProfileSection } from "@/components/account/ProfileSection";
 import { RecognitionSection } from "@/components/account/RecognitionSection";
+import { RhythmSection } from "@/components/account/RhythmSection";
+import { SeninSection } from "@/components/account/SeninSection";
+import { UserRolesSection } from "@/components/account/UserRolesSection";
+import { UserLocationsSection } from "@/components/account/UserLocationsSection";
 import { ActivityHistory } from "@/components/activity/ActivityHistory";
 import { AppHeader } from "@/components/feed/AppHeader";
 import { FooterTabs } from "@/components/FooterTabs";
 import { Icon } from "@/components/Icon";
 import { AppViewportShell } from "@/components/layout";
 import { PushNotificationSettings } from "@/components/push/PushNotificationSettings";
-import { ReferralShare } from "@/components/referrals/ReferralShare";
-import { PrivacySettings } from "@/components/settings/PrivacySettings";
 import { RewardModal } from "@/components/rewards/RewardModal";
+import { PrivacySettings } from "@/components/settings/PrivacySettings";
 import { Button } from "@/components/ui/button";
 import { useUserAuth } from "@/hooks/useUserAuth";
-import { supabase } from "@/lib/supabaseClient";
 import { getMyPendingRewards, type UserReward } from "@/lib/api";
+import { supabase } from "@/lib/supabaseClient";
 import { getTheme, setTheme, type ThemeSetting } from "@/lib/theme/darkMode";
 import { toast } from "sonner";
 
@@ -38,6 +38,14 @@ export default function AccountPage() {
   useEffect(() => {
     setThemeState(getTheme());
   }, []);
+
+  // Reset activeTab if it's set to removed "referral" tab
+  useEffect(() => {
+    const validTabs: AccountTabKey[] = ["weergave", "privacy", "notificaties", "geschiedenis"];
+    if (!validTabs.includes(activeTab)) {
+      setActiveTab("weergave");
+    }
+  }, [activeTab]);
 
   // Check for pending rewards on mount and periodically
   useEffect(() => {
@@ -140,6 +148,7 @@ export default function AccountPage() {
                 {isAuthenticated && (
                   <>
                     <UserRolesSection className="mb-4" />
+                    <UserLocationsSection className="mb-4" />
                     <SeninSection className="mb-4" />
                     <RhythmSection className="mb-4" />
                     <ContributionsSection className="mb-4" />
@@ -210,37 +219,6 @@ export default function AccountPage() {
               <div className="rounded-xl bg-surface-muted/50 p-6">
                 <PushNotificationSettings />
               </div>
-            )}
-
-            {activeTab === "referral" && (
-              isAuthenticated ? (
-                <div className="rounded-xl bg-surface-muted/50 p-6">
-                  <ReferralShare />
-                </div>
-              ) : (
-                <div className="rounded-xl bg-surface-muted/50 p-6">
-                  <div className="space-y-4">
-                    <div>
-                      <h2 className="text-lg font-gilroy font-medium text-foreground mb-1">Referral Programma</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Nodig vrienden uit en verdien XP wanneer zij zich aanmelden
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-center justify-center py-8 px-4 text-center border border-dashed border-border rounded-lg bg-muted/30">
-                      <Icon name="Users" className="h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Inloggen vereist</h3>
-                      <p className="text-sm text-muted-foreground mb-6 max-w-md">
-                        Om het referral programma te gebruiken, heb je een account nodig.
-                        Dit zorgt ervoor dat je referral code gekoppeld is aan jouw account.
-                      </p>
-                      <Button onClick={() => navigate("/auth")} className="inline-flex items-center gap-2">
-                        <Icon name="LogIn" className="h-4 w-4" />
-                        <span>Inloggen / Registreren</span>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )
             )}
 
             {activeTab === "geschiedenis" && (

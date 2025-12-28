@@ -10,6 +10,7 @@ import {
   getAuthenticatedClaim,
   approveAuthenticatedClaim,
   rejectAuthenticatedClaim,
+  unlinkAuthenticatedClaim,
   type AuthenticatedClaimResponse,
 } from "@/lib/apiAdmin";
 import { toast } from "sonner";
@@ -29,8 +30,11 @@ export default function AdminAuthenticatedClaimDetailPage() {
   const [loading, setLoading] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [unlinkDialogOpen, setUnlinkDialogOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [unlinkReason, setUnlinkReason] = useState("");
 
   const loadClaim = async () => {
     if (!claimId) return;
@@ -77,6 +81,22 @@ export default function AdminAuthenticatedClaimDetailPage() {
       setRejecting(false);
       setRejectDialogOpen(false);
       setRejectionReason("");
+    }
+  };
+
+  const handleUnlink = async () => {
+    if (!claimId) return;
+    setUnlinking(true);
+    try {
+      await unlinkAuthenticatedClaim(parseInt(claimId), unlinkReason || undefined);
+      toast.success("Locatie losgekoppeld");
+      navigate("/admin/authenticated-claims");
+    } catch (error: any) {
+      toast.error(`Failed to unlink claim: ${error.message}`);
+    } finally {
+      setUnlinking(false);
+      setUnlinkDialogOpen(false);
+      setUnlinkReason("");
     }
   };
 
@@ -269,6 +289,29 @@ export default function AdminAuthenticatedClaimDetailPage() {
         </Card>
       )}
 
+      {/* Unlink Action for Approved Claims */}
+      {claim.status === "approved" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <Button
+                onClick={() => setUnlinkDialogOpen(true)}
+                disabled={unlinking}
+                variant="destructive"
+              >
+                {unlinking ? "Loskoppelen..." : "Loskoppelen"}
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground mt-2">
+              Deze actie koppelt de locatie los van de gebruiker en verstuurt een afwijzingsmail.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Reject Dialog */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
         <DialogContent>
@@ -296,6 +339,39 @@ export default function AdminAuthenticatedClaimDetailPage() {
             </Button>
             <Button variant="destructive" onClick={handleReject} disabled={rejecting}>
               {rejecting ? "Rejecting..." : "Reject Claim"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unlink Dialog */}
+      <Dialog open={unlinkDialogOpen} onOpenChange={setUnlinkDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Locatie Loskoppelen</DialogTitle>
+            <DialogDescription>
+              Deze actie koppelt de locatie los van de gebruiker. De gebruiker ontvangt een afwijzingsmail.
+              Geef optioneel een reden op.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="unlink-reason">Reden (optioneel)</Label>
+              <Textarea
+                id="unlink-reason"
+                value={unlinkReason}
+                onChange={(e) => setUnlinkReason(e.target.value)}
+                placeholder="Optionele reden voor loskoppeling..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUnlinkDialogOpen(false)}>
+              Annuleren
+            </Button>
+            <Button variant="destructive" onClick={handleUnlink} disabled={unlinking}>
+              {unlinking ? "Loskoppelen..." : "Loskoppelen"}
             </Button>
           </DialogFooter>
         </DialogContent>

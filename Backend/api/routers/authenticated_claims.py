@@ -313,49 +313,6 @@ async def list_my_claims(
     ]
 
 
-@router.get("/my-locations", response_model=List[dict])
-async def list_my_locations(
-    user: User = Depends(get_current_user),
-):
-    """
-    List all locations owned by the authenticated user (from location_owners table).
-    Returns location details including name, category, and claim date.
-    """
-    sql = """
-        SELECT 
-            lo.location_id,
-            lo.claimed_at,
-            lo.google_business_link,
-            lo.logo_url,
-            l.name as location_name,
-            l.category,
-            l.address,
-            l.lat,
-            l.lng
-        FROM location_owners lo
-        JOIN locations l ON l.id = lo.location_id
-        WHERE lo.user_id = $1
-        ORDER BY lo.claimed_at DESC
-    """
-    
-    rows = await fetch(sql, user.user_id)
-    
-    return [
-        {
-            "location_id": row["location_id"],
-            "location_name": row.get("location_name"),
-            "category": row.get("category"),
-            "address": row.get("address"),
-            "lat": float(row["lat"]) if row.get("lat") else None,
-            "lng": float(row["lng"]) if row.get("lng") else None,
-            "claimed_at": row["claimed_at"].isoformat() if row.get("claimed_at") else None,
-            "google_business_link": row.get("google_business_link"),
-            "logo_url": row.get("logo_url"),
-        }
-        for row in rows
-    ]
-
-
 @router.post("/{location_id}/claim/logo", response_model=dict)
 async def upload_claim_logo(
     location_id: int = Path(..., description="Location ID to claim"),
