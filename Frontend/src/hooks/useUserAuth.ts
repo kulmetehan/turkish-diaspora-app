@@ -91,9 +91,9 @@ export function useUserAuth(): UserAuth {
         if (hasTokensInHash && data.session) {
           console.log("[useUserAuth] Session detected, cleaning up hash. Route part:", routePart);
           
-          // Clean up the hash - navigate to stored route or default
-          const cleaned = window.location.pathname + window.location.search + (routePart || "#/");
-          window.history.replaceState(null, "", cleaned);
+          // Clean up the hash using window.location.hash for HashRouter compatibility
+          const targetRoute = routePart || "#/";
+          window.location.hash = targetRoute;
           
           // Also clear the oauth_return_url from sessionStorage
           sessionStorage.removeItem("oauth_return_url");
@@ -119,13 +119,28 @@ export function useUserAuth(): UserAuth {
       }
     })();
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       const newUserId = session?.user?.id ?? null;
       const newUserEmail = session?.user?.email ?? null;
       
       setAccessToken(session?.access_token ?? null);
       setUserEmail(newUserEmail);
       setUserId(newUserId);
+      
+      // Clean up hash if we have a session and tokens are still in the URL
+      if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
+        const hash = window.location.hash || "";
+        if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
+          console.log("[useUserAuth] onAuthStateChange: Session detected, cleaning up hash");
+          
+          // Get stored return URL or default
+          const routePart = sessionStorage.getItem("oauth_return_url") || "#/";
+          sessionStorage.removeItem("oauth_return_url");
+          
+          // Clean up the hash using window.location.hash for HashRouter compatibility
+          window.location.hash = routePart;
+        }
+      }
       
       // Track analytics identity changes
       if (newUserId && prevUserIdRef.current !== newUserId) {
