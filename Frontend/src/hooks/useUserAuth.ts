@@ -30,6 +30,23 @@ export function useUserAuth(): UserAuth {
         console.log("[useUserAuth] ===== useUserAuth useEffect Starting =====");
         console.log("[useUserAuth] Current URL:", window.location.href);
         
+        // First, check for pending tokens stored by index.html script (before HashRouter navigated away)
+        const pendingTokensStr = sessionStorage.getItem("pending_oauth_tokens");
+        let pendingTokens: { access_token: string; refresh_token: string; route: string } | null = null;
+        
+        if (pendingTokensStr) {
+          try {
+            pendingTokens = JSON.parse(pendingTokensStr);
+            console.log("[useUserAuth] ✓ Found pending tokens in sessionStorage!");
+            console.log("[useUserAuth] Pending route:", pendingTokens.route);
+            // Remove immediately to prevent reprocessing
+            sessionStorage.removeItem("pending_oauth_tokens");
+          } catch (e) {
+            console.error("[useUserAuth] Failed to parse pending tokens:", e);
+            sessionStorage.removeItem("pending_oauth_tokens");
+          }
+        }
+        
         // Handle Supabase tokens delivered via URL hash (magic link / recovery / OAuth)
         // Can be in format: #access_token=... OR #/auth#access_token=... (double hash from OAuth redirect)
         // First, check if there are tokens in the URL hash
@@ -44,7 +61,18 @@ export function useUserAuth(): UserAuth {
         let accessToken: string | null = null;
         let refreshToken: string | null = null;
         
-        if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
+        // Use pending tokens if available (from index.html script), otherwise parse from hash
+        if (pendingTokens) {
+          accessToken = pendingTokens.access_token;
+          refreshToken = pendingTokens.refresh_token;
+          routePart = pendingTokens.route || routePart;
+          hasTokensInHash = true;
+          console.log("[useUserAuth] Using pending tokens from sessionStorage");
+          console.log("[useUserAuth] Route part from pending tokens:", routePart);
+        }
+        
+        // Only parse from hash if we don't have pending tokens
+        if (!pendingTokens && hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
           hasTokensInHash = true;
           console.log("[useUserAuth] ✓ Tokens found in hash!");
           
