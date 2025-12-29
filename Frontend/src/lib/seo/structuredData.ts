@@ -177,3 +177,4 @@ export function generateLocationSchema(location: {
   return schema;
 }
 
+

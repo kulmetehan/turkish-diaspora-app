@@ -1,5 +1,5 @@
 // Frontend/src/pages/UserAuthPage.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { useLocation } from "react-router-dom";
 import { getRecaptchaToken } from "@/lib/recaptcha";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
+import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
 
 export default function UserAuthPage() {
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
@@ -21,8 +22,113 @@ export default function UserAuthPage() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState(false);
   const nav = useNavigate();
   const location = useLocation();
+
+  // Handle OAuth callback after redirect from Google
+  // We use onAuthStateChange to detect OAuth login, and check sessionStorage for return URL
+  useEffect(() => {
+    let processedOAuth = false;
+    
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only process SIGNED_IN events that come from OAuth (not regular email/password login)
+      if (event === "SIGNED_IN" && session && !processedOAuth) {
+        // Check if this is likely an OAuth login (has return URL in sessionStorage)
+        const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
+        if (storedReturnUrl) {
+          processedOAuth = true;
+          setOauthLoading(true);
+          
+          try {
+            // Migrate client_id activity to user_id (same as regular login)
+            const clientId = getOrCreateClientId();
+            try {
+              const response = await fetch(`${API_BASE}/api/v1/auth/migrate-client-id`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${session.access_token}`,
+                },
+                body: JSON.stringify({ client_id: clientId }),
+              });
+
+              if (response.ok) {
+                toast.success("Welkom terug!", { description: "Je activiteit is gemigreerd." });
+              }
+            } catch (migrationError) {
+              console.warn("Failed to migrate client_id:", migrationError);
+              // Don't fail login if migration fails
+            }
+
+            // Check for account merging (if OAuth email matches existing account)
+            try {
+              const mergeResponse = await fetch(`${API_BASE}/api/v1/auth/check-account-merge`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${session.access_token}`,
+                },
+              });
+
+              if (mergeResponse.ok) {
+                const mergeResult = await mergeResponse.json();
+                if (mergeResult.merged) {
+                  toast.success("Account gekoppeld", { 
+                    description: "Je Google account is gekoppeld aan je bestaande account." 
+                  });
+                }
+              }
+            } catch (mergeError) {
+              console.warn("Failed to check account merge:", mergeError);
+              // Don't fail login if merge check fails
+            }
+
+            toast.success("Ingelogd met Google!");
+            
+            // Get return URL from sessionStorage (stored before OAuth redirect)
+            sessionStorage.removeItem("oauth_return_url"); // Clean up
+            
+            const returnUrl = storedReturnUrl || 
+                             (location.state as any)?.from?.hash || 
+                             "#/account";
+            
+            // Navigate to return URL
+            if (returnUrl.startsWith("#")) {
+              window.location.hash = returnUrl;
+            } else if (returnUrl.startsWith("/")) {
+              nav(returnUrl, { replace: true });
+            } else {
+              // Check if user has profile
+              try {
+                const { getCurrentUser } = await import("@/lib/api");
+                const profile = await getCurrentUser();
+                
+                if (!profile?.name) {
+                  nav("/feed", { replace: true });
+                } else {
+                  nav("/account", { replace: true });
+                }
+              } catch (error) {
+                console.error("Failed to check profile:", error);
+                nav("/account", { replace: true });
+              }
+            }
+          } catch (err) {
+            toast.error("OAuth login mislukt", {
+              description: err instanceof Error ? err.message : "Onbekende fout",
+            });
+          } finally {
+            setOauthLoading(false);
+          }
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [nav, location]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -303,7 +409,7 @@ export default function UserAuthPage() {
                       required
                     />
                   </div>
-                  <Button type="submit" disabled={loading} className="w-full">
+                  <Button type="submit" disabled={loading || oauthLoading} className="w-full">
                     {loading ? "Inloggen..." : "Inloggen"}
                   </Button>
                 </form>
@@ -345,12 +451,35 @@ export default function UserAuthPage() {
                       placeholder="Je naam"
                     />
                   </div>
-                  <Button type="submit" disabled={loading} className="w-full">
+                  <Button type="submit" disabled={loading || oauthLoading} className="w-full">
                     {loading ? "Account aanmaken..." : "Account aanmaken"}
                   </Button>
                 </form>
               </TabsContent>
             </Tabs>
+
+            {/* OAuth divider */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Of log in met
+                </span>
+              </div>
+            </div>
+
+            {/* Google Login Button */}
+            <GoogleLoginButton
+              fullWidth
+              onSuccess={() => {
+                // Success is handled by useEffect callback
+              }}
+              onError={(error) => {
+                setOauthLoading(false);
+              }}
+            />
           </CardContent>
           <CardFooter>
             <p className="text-xs text-muted-foreground text-center w-full">

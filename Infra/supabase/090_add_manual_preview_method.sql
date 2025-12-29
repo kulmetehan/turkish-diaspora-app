@@ -10,3 +10,4 @@ ALTER TABLE public.shared_links
 ADD CONSTRAINT shared_links_preview_method_check 
 CHECK (preview_method IN ('oembed', 'opengraph', 'fallback', 'manual'));
 
+

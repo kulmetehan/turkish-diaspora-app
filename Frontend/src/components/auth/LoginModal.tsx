@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { API_BASE } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { getRecaptchaToken } from "@/lib/recaptcha";
+import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
 
 interface LoginModalProps {
   open: boolean;
@@ -253,6 +254,27 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                     </form>
                   </TabsContent>
                 </Tabs>
+
+                {/* OAuth divider */}
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-surface-raised/95 px-2 text-muted-foreground">
+                      Of log in met
+                    </span>
+                  </div>
+                </div>
+
+                {/* Google Login Button */}
+                <GoogleLoginButton
+                  fullWidth
+                  onSuccess={() => {
+                    // Close modal on success
+                    onOpenChange(false);
+                  }}
+                />
               </CardContent>
               <CardFooter className="px-0">
                 <p className="text-xs text-muted-foreground text-center w-full">

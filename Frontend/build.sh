@@ -12,6 +12,7 @@ cat > .env.production << EOF
 # Generated during build - do not commit
 VITE_BASE_PATH=${VITE_BASE_PATH:-/}
 VITE_API_BASE_URL=${VITE_API_BASE_URL}
+VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-https://turkspot.app}
 VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN}
 VITE_MAPBOX_STYLE=${VITE_MAPBOX_STYLE:-mapbox://styles/mapbox/standard}
 VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
@@ -23,6 +24,7 @@ EOF
 echo "✅ Created .env.production"
 echo "📋 Environment variables:"
 echo "   VITE_API_BASE_URL=${VITE_API_BASE_URL:-NOT SET}"
+echo "   VITE_FRONTEND_URL=${VITE_FRONTEND_URL:-https://turkspot.app (default)}"
 echo "   VITE_MAPBOX_TOKEN=${VITE_MAPBOX_TOKEN:+SET}"
 echo "   VITE_SUPABASE_URL=${VITE_SUPABASE_URL:+SET}"
 echo "   VITE_POSTHOG_KEY=${VITE_POSTHOG_KEY:+SET}"

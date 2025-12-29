@@ -27,14 +27,30 @@ export function useUserAuth(): UserAuth {
     
     (async () => {
       try {
-        // Handle Supabase tokens delivered via URL hash (magic link / recovery)
+        // Handle Supabase tokens delivered via URL hash (magic link / recovery / OAuth)
         const hash = window.location.hash || "";
         if (hash && !hash.startsWith("#/")) {
           const raw = hash.startsWith("#") ? hash.slice(1) : hash;
           const params = new URLSearchParams(raw);
           const at = params.get("access_token");
           const rt = params.get("refresh_token");
+          const type = params.get("type");
+          
+          // Check if this is an OAuth callback (not recovery)
+          const isOAuthCallback = at && rt && type && type !== "recovery";
+          
           if (at && rt) {
+            // Store return URL from sessionStorage before cleaning hash (for OAuth callbacks)
+            if (isOAuthCallback) {
+              const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
+              // Keep it in sessionStorage for UserAuthPage to pick up
+              if (!storedReturnUrl) {
+                // Try to extract from hash if not in sessionStorage
+                const returnUrlFromHash = params.get("state") || "#/account";
+                sessionStorage.setItem("oauth_return_url", returnUrlFromHash);
+              }
+            }
+            
             await supabase.auth.setSession({ access_token: at, refresh_token: rt });
             const cleaned = window.location.pathname + window.location.search + "#/";
             window.history.replaceState(null, "", cleaned);
