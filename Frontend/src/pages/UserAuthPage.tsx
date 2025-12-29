@@ -236,9 +236,7 @@ export default function UserAuthPage() {
           // Don't block signup if verification fails
         }
       } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'UserAuthPage.tsx:152',message:'verify skipped no token',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-        // #endregion
+        // reCAPTCHA token not available, proceed without verification
       }
 
       // Proceed with Supabase signup

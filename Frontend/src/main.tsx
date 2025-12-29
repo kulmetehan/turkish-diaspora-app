@@ -52,6 +52,7 @@ const DiasporaPulsePage = React.lazy(() => import("@/pages/DiasporaPulsePage"));
 const PollDetailPage = React.lazy(() => import("@/pages/PollDetailPage"));
 const LocationDetailPage = React.lazy(() => import("@/pages/LocationDetailPage"));
 const ClaimPage = React.lazy(() => import("@/pages/ClaimPage"));
+const AccountPage = React.lazy(() => import("@/pages/AccountPage"));
 
 // Vite base path is configured in vite.config.ts (defaults to "/" for Render deployment)
 
@@ -98,7 +99,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/news" element={<App initialTab="news" />} />
           <Route path="/events" element={<App initialTab="events" />} />
           <Route path="/feed" element={<App initialTab="feed" />} />
-          <Route path="/account" element={<App initialTab="account" />} />
+          <Route path="/account" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AccountPage />
+            </Suspense>
+          } />
           <Route path="/prikbord" element={
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <PrikbordPage />

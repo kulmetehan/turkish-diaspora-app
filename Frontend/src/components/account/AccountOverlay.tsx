@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
+import { AboutUsSection } from "@/components/account/AboutUsSection";
 import { ProfileSection } from "@/components/account/ProfileSection";
 import { UserRolesSection } from "@/components/account/UserRolesSection";
 import { UserLocationsSection } from "@/components/account/UserLocationsSection";
@@ -45,7 +46,7 @@ export function AccountOverlay({ open, onOpenChange }: AccountOverlayProps) {
 
   // Reset activeTab if it's set to removed "referral" tab
   useEffect(() => {
-    const validTabs: AccountTabKey[] = ["weergave", "privacy", "notificaties", "geschiedenis"];
+    const validTabs: AccountTabKey[] = ["weergave", "privacy", "notificaties", "geschiedenis", "over_ons"];
     if (!validTabs.includes(activeTab)) {
       setActiveTab("weergave");
     }
@@ -251,6 +252,12 @@ export function AccountOverlay({ open, onOpenChange }: AccountOverlayProps) {
                       Activiteitsgeschiedenis
                     </h2>
                     <ActivityHistory />
+                  </div>
+                )}
+
+                {activeTab === "over_ons" && (
+                  <div className="rounded-xl bg-surface-muted/50 p-6">
+                    <AboutUsSection />
                   </div>
                 )}
               </div>
