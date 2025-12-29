@@ -14,9 +14,9 @@ export interface FeedFilterTabsProps {
 const FILTERS: Array<{ label: string; value: ActivityFilter }> = [
   { label: "Alles", value: "all" },
   { label: "Prikbord", value: "prikbord" },
+  { label: "Polls", value: "poll_response" },
   { label: "Check-ins", value: "check_in" },
   { label: "Notities", value: "note" },
-  { label: "Polls", value: "poll_response" },
   { label: "Öne Çıkanlar", value: "one_cikanlar" },
   { label: "Favorieten", value: "favorite" },
 ];

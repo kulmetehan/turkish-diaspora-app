@@ -25,19 +25,39 @@ export function PrikbordFilters({
         });
     };
 
+    const handlePostTypeChange = (postType: string) => {
+        onFiltersChange({
+            ...filters,
+            post_type: postType === "all" ? undefined : (postType as "link" | "media"),
+        });
+    };
+
     return (
         <div className="flex items-center gap-2">
+            <Select
+                value={filters.post_type || "all"}
+                onValueChange={handlePostTypeChange}
+            >
+                <SelectTrigger className="w-[90px] h-8 text-xs">
+                    <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all" className="text-xs">Alles</SelectItem>
+                    <SelectItem value="link" className="text-xs">Links</SelectItem>
+                    <SelectItem value="media" className="text-xs">Media</SelectItem>
+                </SelectContent>
+            </Select>
             <Select
                 value={filters.platform || "all"}
                 onValueChange={handlePlatformChange}
             >
-                <SelectTrigger className="w-[140px]">
+                <SelectTrigger className="w-[100px] h-8 text-xs">
                     <SelectValue placeholder="Platform" />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="all">Alle platforms</SelectItem>
+                    <SelectItem value="all" className="text-xs">Alles</SelectItem>
                     {Object.entries(PLATFORM_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
+                        <SelectItem key={value} value={value} className="text-xs">
                             {label}
                         </SelectItem>
                     ))}

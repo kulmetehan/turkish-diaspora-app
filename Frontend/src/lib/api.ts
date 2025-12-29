@@ -2528,3 +2528,32 @@ export async function getMySubmissions(status?: string): Promise<LocationSubmiss
   const params = status ? `?status=${encodeURIComponent(status)}` : "";
   return authFetch<LocationSubmissionResponse[]>(`/api/v1/locations/my-submissions${params}`);
 }
+
+// ============================================================================
+// Contact Form API
+// ============================================================================
+
+export interface ContactFormRequest {
+  name: string;
+  email?: string;
+  phone?: string;
+  message: string;
+}
+
+export interface ContactFormResponse {
+  ok: boolean;
+  message: string;
+  submission_id?: number;
+}
+
+export async function submitContactForm(
+  data: ContactFormRequest
+): Promise<ContactFormResponse> {
+  return apiFetch<ContactFormResponse>("/api/v1/contact", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+}

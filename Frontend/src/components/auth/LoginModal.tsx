@@ -25,6 +25,7 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showEmailPassword, setShowEmailPassword] = useState(false);
   const nav = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -176,105 +177,128 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="px-0">
-                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "signup")}>
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="login">Inloggen</TabsTrigger>
-                    <TabsTrigger value="signup">Registreren</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="login">
-                    <form onSubmit={handleLogin} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="login-email">Email</Label>
-                        <Input
-                          id="login-email"
-                          type="email"
-                          autoComplete="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="login-password">Wachtwoord</Label>
-                        <Input
-                          id="login-password"
-                          type="password"
-                          autoComplete="current-password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <Button type="submit" disabled={loading} className="w-full">
-                        {loading ? "Inloggen..." : "Inloggen"}
-                      </Button>
-                    </form>
-                  </TabsContent>
-
-                  <TabsContent value="signup">
-                    <form onSubmit={handleSignup} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-email">Email</Label>
-                        <Input
-                          id="signup-email"
-                          type="email"
-                          autoComplete="email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-password">Wachtwoord</Label>
-                        <Input
-                          id="signup-password"
-                          type="password"
-                          autoComplete="new-password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          required
-                          minLength={6}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="signup-display-name">Weergavenaam (optioneel)</Label>
-                        <Input
-                          id="signup-display-name"
-                          type="text"
-                          autoComplete="name"
-                          value={displayName}
-                          onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder="Je naam"
-                        />
-                      </div>
-                      <Button type="submit" disabled={loading} className="w-full">
-                        {loading ? "Account aanmaken..." : "Account aanmaken"}
-                      </Button>
-                    </form>
-                  </TabsContent>
-                </Tabs>
-
-                {/* OAuth divider */}
-                <div className="relative my-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-surface-raised/95 px-2 text-muted-foreground">
-                      Of log in met
-                    </span>
-                  </div>
+                {/* Google Login Button - PRIMARY */}
+                <div className="mb-6">
+                  <GoogleLoginButton
+                    fullWidth
+                    size="lg"
+                    variant="default"
+                    onSuccess={() => {
+                      // Close modal on success
+                      onOpenChange(false);
+                    }}
+                  />
                 </div>
 
-                {/* Google Login Button */}
-                <GoogleLoginButton
-                  fullWidth
-                  onSuccess={() => {
-                    // Close modal on success
-                    onOpenChange(false);
-                  }}
-                />
+                {/* Conditional: Show ghost button to reveal email/password */}
+                {!showEmailPassword && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowEmailPassword(true)}
+                    className="w-full text-muted-foreground"
+                  >
+                    Of gebruik email / wachtwoord
+                  </Button>
+                )}
+
+                {/* Conditional: Show divider and email/password forms */}
+                {showEmailPassword && (
+                  <>
+                    {/* Divider */}
+                    <div className="relative my-6">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-surface-raised/95 px-2 text-muted-foreground">
+                          Of gebruik email / wachtwoord
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Email/Password Forms - SECONDARY */}
+                    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "signup")}>
+                      <TabsList className="grid w-full grid-cols-2 mb-6">
+                        <TabsTrigger value="login">Inloggen</TabsTrigger>
+                        <TabsTrigger value="signup">Registreren</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="login">
+                        <form onSubmit={handleLogin} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="login-email">Email</Label>
+                            <Input
+                              id="login-email"
+                              type="email"
+                              autoComplete="email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="login-password">Wachtwoord</Label>
+                            <Input
+                              id="login-password"
+                              type="password"
+                              autoComplete="current-password"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <Button type="submit" disabled={loading} className="w-full">
+                            {loading ? "Inloggen..." : "Inloggen"}
+                          </Button>
+                        </form>
+                      </TabsContent>
+
+                      <TabsContent value="signup">
+                        <form onSubmit={handleSignup} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="signup-email">Email</Label>
+                            <Input
+                              id="signup-email"
+                              type="email"
+                              autoComplete="email"
+                              value={email}
+                              onChange={(e) => setEmail(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="signup-password">Wachtwoord</Label>
+                            <Input
+                              id="signup-password"
+                              type="password"
+                              autoComplete="new-password"
+                              value={password}
+                              onChange={(e) => setPassword(e.target.value)}
+                              required
+                              minLength={6}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="signup-display-name">Weergavenaam (optioneel)</Label>
+                            <Input
+                              id="signup-display-name"
+                              type="text"
+                              autoComplete="name"
+                              value={displayName}
+                              onChange={(e) => setDisplayName(e.target.value)}
+                              placeholder="Je naam"
+                            />
+                          </div>
+                          <Button type="submit" disabled={loading} className="w-full">
+                            {loading ? "Account aanmaken..." : "Account aanmaken"}
+                          </Button>
+                        </form>
+                      </TabsContent>
+                    </Tabs>
+                  </>
+                )}
               </CardContent>
               <CardFooter className="px-0">
                 <p className="text-xs text-muted-foreground text-center w-full">

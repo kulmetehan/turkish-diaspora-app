@@ -256,6 +256,12 @@ class NominatimService:
             elapsed = time.time() - _nominatim_last_request
             if elapsed < DEFAULT_MIN_DELAY_SECONDS:
                 sleep_time = DEFAULT_MIN_DELAY_SECONDS - elapsed
+                logger.debug(
+                    "geocoding_rate_limit_delay",
+                    elapsed_s=round(elapsed, 3),
+                    sleep_time_s=round(sleep_time, 3),
+                    min_delay_s=DEFAULT_MIN_DELAY_SECONDS,
+                )
                 await asyncio.sleep(sleep_time)
             _nominatim_last_request = time.time()
 
@@ -281,14 +287,34 @@ class NominatimService:
             params["countrycodes"] = ",".join(country_codes)
 
         try:
+            logger.debug(
+                "geocoding_request_start",
+                query=query,
+                country_codes=country_codes,
+            )
             response = await self._client.get(
                 NOMINATIM_BASE_URL,
                 params=params,
+            )
+            # Log response headers (especially useful for rate limiting - Retry-After header)
+            response_headers = dict(response.headers)
+            logger.debug(
+                "geocoding_response_received",
+                query=query,
+                status_code=response.status_code,
+                retry_after=response_headers.get("Retry-After"),
+                x_rate_limit_limit=response_headers.get("X-Rate-Limit-Limit"),
+                x_rate_limit_remaining=response_headers.get("X-Rate-Limit-Remaining"),
             )
             response.raise_for_status()
             data = response.json()
 
             if not data or len(data) == 0:
+                logger.debug(
+                    "geocoding_empty_response",
+                    query=query,
+                    country_codes=country_codes,
+                )
                 return None
 
             result = data[0]
@@ -299,6 +325,13 @@ class NominatimService:
             # Validate coordinates are in Europe
             if not (EUROPE_LAT_MIN <= lat <= EUROPE_LAT_MAX and
                     EUROPE_LNG_MIN <= lng <= EUROPE_LNG_MAX):
+                logger.debug(
+                    "geocoding_outside_europe_bounds",
+                    query=query,
+                    lat=lat,
+                    lng=lng,
+                    country_codes=country_codes,
+                )
                 return None
 
             # Extract country from address details and normalize to English
@@ -315,13 +348,65 @@ class NominatimService:
             
             # Block if in blocked list
             if country and any(blocked in country for blocked in BLOCKED_COUNTRIES):
+                logger.debug(
+                    "geocoding_blocked_country",
+                    query=query,
+                    country=country,
+                )
                 return None
 
             return (lat, lng, country or None, display_name)
 
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code if e.response else None
+            response_text = None
+            retry_after = None
+            
+            # Try to extract error details from response
+            if e.response:
+                try:
+                    response_text = e.response.text[:500]  # Limit length
+                    # Check for Retry-After header (common in rate limiting)
+                    retry_after = e.response.headers.get("Retry-After")
+                except Exception:
+                    pass
+            
+            logger.warning(
+                "geocoding_http_error",
+                query=query,
+                country_codes=country_codes,
+                status_code=status_code,
+                retry_after=retry_after,
+                response_preview=response_text,
+                error=str(e),
+            )
             return None
-        except Exception:
+        except httpx.TimeoutException as e:
+            logger.warning(
+                "geocoding_timeout",
+                query=query,
+                country_codes=country_codes,
+                timeout_s=self.timeout_s,
+                error=str(e),
+            )
+            return None
+        except httpx.NetworkError as e:
+            logger.warning(
+                "geocoding_network_error",
+                query=query,
+                country_codes=country_codes,
+                error=str(e),
+            )
+            return None
+        except Exception as e:
+            logger.warning(
+                "geocoding_exception",
+                query=query,
+                country_codes=country_codes,
+                error=str(e),
+                error_type=type(e).__name__,
+                exc_info=True,
+            )
             return None
 
     async def geocode(

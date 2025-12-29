@@ -1,11 +1,9 @@
 // Frontend/src/components/prikbord/SharedLinkCard.tsx
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/Icon";
 import { cn } from "@/lib/ui/cn";
 import type { SharedLink } from "@/types/prikbord";
-import { PLATFORM_LABELS } from "@/types/prikbord";
 import { bookmarkSharedLink } from "@/lib/api/prikbord";
 import { toast } from "sonner";
 import { Bookmark } from "lucide-react";
@@ -16,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { ReportButton } from "@/components/report/ReportButton";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { deleteAdminSharedLink } from "@/lib/apiAdmin";
+import { ImageModal } from "@/components/feed/ImageModal";
 
 interface SharedLinkCardProps {
   link: SharedLink;
@@ -86,6 +85,8 @@ export function SharedLinkCard({
   const { isAdmin } = useAdminAuth();
   const [isBookmarked, setIsBookmarked] = useState(link.is_bookmarked);
   const [isTogglingBookmark, setIsTogglingBookmark] = useState(false);
+  const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
 
   const timeLabel = useMemo(() => formatActivityTime(link.created_at), [link.created_at]);
 
@@ -108,8 +109,26 @@ export function SharedLinkCard({
 
   const handleOpenLink = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // For media posts, don't open URL - it's just a placeholder
+    if (link.post_type === "media") {
+      return;
+    }
     window.open(link.url, "_blank", "noopener,noreferrer");
   };
+
+  const handleImageClick = (mediaUrl: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setImageModalUrl(mediaUrl);
+    setImageModalOpen(true);
+  };
+
+  // Get display title for media posts (don't show URL or fallback)
+  const displayTitle = useMemo(() => {
+    if (link.post_type === "media") {
+      return link.title || null; // Don't show fallback for media posts
+    }
+    return link.title || link.url;
+  }, [link.post_type, link.title, link.url]);
 
   const handleUserClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -233,29 +252,81 @@ export function SharedLinkCard({
 
       {/* Content Text */}
       <div className="px-4 pb-3">
-        <h3
-          className="text-lg font-semibold mb-1 line-clamp-2 cursor-pointer hover:text-primary transition-colors"
-          onClick={handleOpenLink}
-        >
-          {link.title || link.url}
-        </h3>
+        {displayTitle && (
+          <h3
+            className={cn(
+              "text-lg font-semibold mb-1 line-clamp-2",
+              link.post_type !== "media" && "cursor-pointer hover:text-primary transition-colors"
+            )}
+            onClick={link.post_type !== "media" ? handleOpenLink : undefined}
+          >
+            {displayTitle}
+          </h3>
+        )}
         {link.description && (
           <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
             {link.description}
           </p>
         )}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="secondary" className="text-xs">
-            {PLATFORM_LABELS[link.platform]}
-          </Badge>
-          {link.city && (
+        {link.city && (
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground">{link.city}</span>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
-      {/* Preview Image/Video */}
-      {link.image_url && (
+      {/* Media Gallery (for media posts) */}
+      {link.post_type === "media" && link.media_urls && link.media_urls.length > 0 && (
+        <div className={cn(
+          "px-4 pb-4",
+          link.media_urls.length === 1 ? "grid grid-cols-1" : 
+          link.media_urls.length === 2 ? "grid grid-cols-2 gap-2" :
+          "grid grid-cols-2 gap-2"
+        )}>
+          {link.media_urls.slice(0, 4).map((mediaUrl, index) => {
+            const isVideo = mediaUrl.match(/\.(mp4|webm|mov)$/i);
+            const showOverlay = link.media_urls.length > 4 && index === 3;
+            return (
+              <div
+                key={index}
+                className={cn(
+                  "relative overflow-hidden rounded-lg bg-muted",
+                  link.media_urls.length === 1 ? "aspect-video max-h-[500px]" : "aspect-square"
+                )}
+              >
+                {isVideo ? (
+                  <video
+                    src={mediaUrl}
+                    className="w-full h-full object-cover cursor-pointer"
+                    controls={false}
+                    onClick={(e) => handleImageClick(mediaUrl, e)}
+                  />
+                ) : (
+                  <img
+                    src={mediaUrl}
+                    alt={link.title || `Media ${index + 1}`}
+                    className="w-full h-full object-cover cursor-pointer"
+                    loading="lazy"
+                    onClick={(e) => handleImageClick(mediaUrl, e)}
+                    onError={(e) => {
+                      // Hide image on error
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                )}
+                {showOverlay && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white font-semibold text-lg pointer-events-none">
+                    +{link.media_urls.length - 4}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Preview Image/Video (for link posts) */}
+      {link.post_type !== "media" && link.image_url && (
         <div className="relative w-full aspect-video max-h-[400px]">
           <img
             src={link.image_url}
@@ -324,6 +395,13 @@ export function SharedLinkCard({
           </button>
         </div>
       </div>
+
+      {/* Image Modal */}
+      <ImageModal
+        imageUrl={imageModalUrl}
+        open={imageModalOpen}
+        onOpenChange={setImageModalOpen}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ export type Platform =
   | "tiktok"
   | "news"
   | "event"
+  | "media"
   | "other";
 
 export type ContextTag = "🏠" | "🛍️" | "🎉" | "📺";
@@ -41,6 +42,8 @@ export interface SharedLink {
   city: string | null;
   neighborhood: string | null;
   context_tags: ContextTag[];
+  media_urls: string[];
+  post_type: "link" | "media";
   view_count: number;
   like_count: number;
   bookmark_count: number;
@@ -64,12 +67,16 @@ export interface SharedLinkCreate {
   title?: string;
   description?: string;
   image_url?: string;
+  // Media uploads support
+  media_urls?: string[];
+  post_type?: "link" | "media";
 }
 
 export interface SharedLinkFilters {
   platform?: Platform;
   city?: string;
   tags?: ContextTag[];
+  post_type?: "link" | "media";
   trending?: boolean;
   search?: string;
 }
@@ -90,6 +97,7 @@ export const PLATFORM_LABELS: Record<Platform, string> = {
   tiktok: "TikTok",
   news: "Nieuws",
   event: "Evenement",
+  media: "Media",
   other: "Anders",
 };
 

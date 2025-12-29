@@ -21,6 +21,7 @@ class Platform(str, Enum):
     TIKTOK = "tiktok"
     NEWS = "news"
     EVENT = "event"
+    MEDIA = "media"
     OTHER = "other"
 
 

@@ -164,12 +164,14 @@ class EmailTemplateService:
         # Register custom filters
         self.env.filters['date'] = _date_filter
     
-    def _get_default_context(self, language: str = "nl") -> Dict[str, Any]:
+    def _get_default_context(self, language: str = "nl", email: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Get default context variables for templates.
         
         Args:
             language: Language code (nl, tr, en)
+            email: Email address for unsubscribe token generation
+            user_id: User ID for unsubscribe token generation
             
         Returns:
             Dictionary with default context variables
@@ -178,6 +180,7 @@ class EmailTemplateService:
             - language: Language code (nl, tr, en)
             - base_url: Frontend base URL (from FRONTEND_URL env var)
             - unsubscribe_url: URL to account preferences page
+            - unsubscribe_token: Secure token for unsubscribe (if email/user_id provided)
             
         Outreach-specific variables (should be provided in context):
             - location_name: Name of the location (string)
@@ -186,10 +189,25 @@ class EmailTemplateService:
         """
         frontend_url = os.getenv("FRONTEND_URL", "https://turkspot.app")
         
+        # Generate unsubscribe token if email or user_id provided
+        unsubscribe_token = None
+        if email or user_id:
+            from api.routers.email_preferences import generate_unsubscribe_token
+            unsubscribe_token = generate_unsubscribe_token(email or "", user_id)
+        
+        unsubscribe_url = f"{frontend_url}/#/account?tab=notificaties"
+        if unsubscribe_token and (email or user_id):
+            unsubscribe_url = f"{frontend_url}/api/v1/email/unsubscribe?token={unsubscribe_token}"
+            if email:
+                unsubscribe_url += f"&email={email}"
+            if user_id:
+                unsubscribe_url += f"&user_id={user_id}"
+        
         return {
             "language": language,
             "base_url": frontend_url,
-            "unsubscribe_url": f"{frontend_url}/#/account?tab=notificaties",
+            "unsubscribe_url": unsubscribe_url,
+            "unsubscribe_token": unsubscribe_token,
             "mascotte_base64": _get_mascotte_base64(),
         }
     
@@ -198,6 +216,8 @@ class EmailTemplateService:
         template_name: str,
         context: Optional[Dict[str, Any]] = None,
         language: str = "nl",
+        email: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> tuple[str, str]:
         """
         Render an email template with base template inheritance.
@@ -207,6 +227,8 @@ class EmailTemplateService:
             context: Additional template variables (merged with defaults)
                 For outreach emails, provide: location_name, mapview_link, opt_out_link
             language: Language code (nl, tr, en)
+            email: Email address for unsubscribe token generation
+            user_id: User ID for unsubscribe token generation
             
         Returns:
             Tuple of (html_body, text_body)
@@ -217,10 +239,10 @@ class EmailTemplateService:
                 "mapview_link": "https://turkspot.app/#/map?focus=123",
                 "opt_out_link": "https://turkspot.app/#/opt-out?token=abc",
             }
-            html, text = service.render_template("outreach_email", context, language="nl")
+            html, text = service.render_template("outreach_email", context, language="nl", email="user@example.com")
         """
         # Merge default context with provided context
-        default_context = self._get_default_context(language)
+        default_context = self._get_default_context(language, email=email, user_id=user_id)
         if context:
             default_context.update(context)
         final_context = default_context

@@ -14,6 +14,7 @@ from app.deps.auth import get_current_user, get_current_user_optional, User
 from app.deps.admin_auth import verify_admin_user, AdminUser
 from services.db_service import fetch, fetchrow, execute
 from services.link_preview_service import get_link_preview_service, Platform
+from services.og_validation_service import get_og_validation_service
 from app.core.logging import logger
 from app.core.client_id import get_client_id
 
@@ -22,7 +23,9 @@ router = APIRouter(prefix="/prikbord", tags=["prikbord"])
 
 # Request/Response models
 class SharedLinkCreate(BaseModel):
-    url: str = Field(..., min_length=1)
+    url: Optional[str] = None  # Made optional for media posts
+    media_urls: List[str] = Field(default_factory=list)
+    post_type: str = Field("link", pattern="^(link|media)$")
     linked_location_id: Optional[int] = None
     city: Optional[str] = None
     neighborhood: Optional[str] = None
@@ -59,6 +62,8 @@ class SharedLinkResponse(BaseModel):
     city: Optional[str]
     neighborhood: Optional[str]
     context_tags: List[str]
+    media_urls: List[str] = Field(default_factory=list)
+    post_type: str = "link"
     view_count: int
     like_count: int
     bookmark_count: int
@@ -108,55 +113,90 @@ async def create_link(
     current_user: User = Depends(get_current_user),
     client_id: Optional[str] = Depends(get_client_id),
 ):
-    """Create a new shared link with automatic preview generation or manual preview data."""
+    """Create a new shared link with automatic preview generation or manual preview data, or create a media post."""
     
     # Rate limiting
     await check_rate_limit(current_user.user_id, client_id, request)
     
-    # Normalize URL
-    normalized_url = link.url.strip()
-    if not normalized_url.startswith(("http://", "https://")):
-        normalized_url = "https://" + normalized_url
+    # Determine post_type and media_urls
+    post_type = link.post_type
+    media_urls = link.media_urls or []
     
-    # Check for duplicate URL
-    check_sql = "SELECT id FROM shared_links WHERE url = $1"
-    existing = await fetchrow(check_sql, normalized_url)
-    if existing:
-        # Return existing link
-        return await get_link_by_id(existing["id"], current_user)
+    # If media_urls provided, ensure post_type is 'media'
+    if media_urls and post_type == "link":
+        post_type = "media"
     
     # Determine creator fields
     user_id = current_user.user_id if link.creator_type == "user" else None
     business_id = link.business_id if link.creator_type == "business" else None
     
-    # Use manual preview data if provided, otherwise generate automatically
-    if link.title or link.description or link.image_url:
-        # Manual preview data provided
-        preview_service = get_link_preview_service()
-        platform = preview_service.detect_platform(normalized_url)
+    # Handle media posts differently
+    if post_type == "media":
+        # Validate media post
+        if not media_urls:
+            raise HTTPException(status_code=400, detail="Media posts vereisen minimaal één media bestand")
         
-        title = link.title
-        description = link.description
-        image_url = link.image_url
+        # For media posts, use first media URL as placeholder URL if url not provided
+        normalized_url = link.url or (media_urls[0] if media_urls else "")
+        platform = Platform.MEDIA
+        title = link.title or None
+        description = link.description or None
+        image_url = media_urls[0] if media_urls else None  # Use first media as preview
         video_url = None
-        preview_method = "manual"
+        preview_method = "media_upload"
+        preview_cache_expires_at = datetime.utcnow() + timedelta(days=7)
     else:
-        # Generate preview automatically
-        preview_service = get_link_preview_service()
-        try:
-            preview = await preview_service.generate_preview(link.url)
-            title = preview.title
-            description = preview.description
-            image_url = preview.image_url
-            video_url = preview.video_url
-            platform = preview.platform
-            preview_method = preview.preview_method
-        except Exception as e:
-            logger.error("preview_generation_failed", url=link.url, error=str(e))
-            raise HTTPException(status_code=400, detail=f"Kon preview niet genereren: {str(e)}")
-    
-    # Set preview cache expiry (7 days)
-    preview_cache_expires_at = datetime.utcnow() + timedelta(days=7)
+        # Handle link posts
+        if not link.url:
+            raise HTTPException(status_code=400, detail="Link posts vereisen een URL")
+        
+        # Normalize URL
+        normalized_url = link.url.strip()
+        if not normalized_url.startswith(("http://", "https://")):
+            normalized_url = "https://" + normalized_url
+        
+        # Check for duplicate URL (only for link posts)
+        check_sql = "SELECT id FROM shared_links WHERE url = $1 AND post_type = 'link'"
+        existing = await fetchrow(check_sql, normalized_url)
+        if existing:
+            # Return existing link
+            return await get_link_by_id(existing["id"], current_user)
+        
+        # Validate Open Graph metadata (only if manual preview data is not provided)
+        if not (link.title or link.description or link.image_url):
+            og_validation_service = get_og_validation_service()
+            is_valid, error_message = await og_validation_service.validate_og_metadata(normalized_url)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=error_message or "Deze link kan niet worden gedeeld omdat er geen preview beschikbaar is. Probeer een link van YouTube, Marktplaats of een nieuwssite.")
+        
+        # Use manual preview data if provided, otherwise generate automatically
+        if link.title or link.description or link.image_url:
+            # Manual preview data provided
+            preview_service = get_link_preview_service()
+            platform = preview_service.detect_platform(normalized_url)
+            
+            title = link.title
+            description = link.description
+            image_url = link.image_url
+            video_url = None
+            preview_method = "manual"
+        else:
+            # Generate preview automatically
+            preview_service = get_link_preview_service()
+            try:
+                preview = await preview_service.generate_preview(link.url)
+                title = preview.title
+                description = preview.description
+                image_url = preview.image_url
+                video_url = preview.video_url
+                platform = preview.platform
+                preview_method = preview.preview_method
+            except Exception as e:
+                logger.error("preview_generation_failed", url=link.url, error=str(e))
+                raise HTTPException(status_code=400, detail=f"Kon preview niet genereren: {str(e)}")
+        
+        # Set preview cache expiry (7 days)
+        preview_cache_expires_at = datetime.utcnow() + timedelta(days=7)
     
     # Insert link
     insert_sql = """
@@ -165,9 +205,10 @@ async def create_link(
             preview_method, preview_fetched_at, preview_cache_expires_at,
             created_by_user_id, created_by_business_id, creator_type,
             linked_location_id, city, neighborhood, context_tags,
+            media_urls, post_type,
             created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, now(), $8, $9, $10, $11, $12, $13, $14, $15, now(), now()
+            $1, $2, $3, $4, $5, $6, $7, now(), $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now(), now()
         ) RETURNING *
     """
     
@@ -189,6 +230,8 @@ async def create_link(
             link.city,
             link.neighborhood,
             link.context_tags,
+            media_urls,
+            post_type,
         )
     except Exception as e:
         logger.error("shared_link_insert_failed", error=str(e), url=link.url)
@@ -819,6 +862,8 @@ async def _build_link_response(row: dict, current_user: Optional[User] = None) -
         city=row.get("city"),
         neighborhood=row.get("neighborhood"),
         context_tags=row.get("context_tags") or [],
+        media_urls=row.get("media_urls") or [],
+        post_type=row.get("post_type", "link"),
         view_count=row.get("view_count", 0),
         like_count=row.get("like_count", 0),
         bookmark_count=row.get("bookmark_count", 0),

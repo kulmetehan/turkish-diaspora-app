@@ -16,69 +16,101 @@ export default function CommunityGuidelinesPage() {
         maxWidth="4xl"
       >
         <Card>
-          <CardContent className="prose prose-sm max-w-none p-6 text-foreground dark:prose-invert">
-            <h2>1. Respect voor elkaar</h2>
-            <p>
-              We behandelen alle communityleden met respect en waardigheid. Discriminatie, haatzaaien, 
-              pesten of intimidatie in welke vorm dan ook wordt niet getolereerd. Wees vriendelijk en 
-              respectvol in al je interacties.
-            </p>
+          <CardContent className="p-6 md:p-8 lg:p-10">
+            <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
+              {/* Artikel 1 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">1. Respect voor elkaar</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  We behandelen alle communityleden met respect en waardigheid. Discriminatie, haatzaaien, 
+                  pesten of intimidatie in welke vorm dan ook wordt niet getolereerd. Wees vriendelijk en 
+                  respectvol in al je interacties.
+                </p>
+              </article>
 
-            <h2>2. Authentieke en nuttige inhoud</h2>
-            <p>
-              Deel alleen authentieke en nuttige informatie. Spam, misleidende informatie of valse 
-              recensies zijn niet toegestaan. Wees eerlijk en transparant in je beoordelingen en notities.
-            </p>
+              {/* Artikel 2 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">2. Authentieke en nuttige inhoud</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Deel alleen authentieke en nuttige informatie. Spam, misleidende informatie of valse 
+                  recensies zijn niet toegestaan. Wees eerlijk en transparant in je beoordelingen en notities.
+                </p>
+              </article>
 
-            <h2>3. Privacy en veiligheid</h2>
-            <p>
-              Respecteer de privacy van anderen. Deel geen persoonlijke informatie zonder toestemming. 
-              Als je merkt dat iemand je privacy schendt of zich onveilig gedraagt, 
-              <a href="#/account"> rapporteer dit</a>.
-            </p>
+              {/* Artikel 3 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">3. Privacy en veiligheid</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Respecteer de privacy van anderen. Deel geen persoonlijke informatie zonder toestemming. 
+                  Als je merkt dat iemand je privacy schendt of zich onveilig gedraagt,{" "}
+                  <a href="#/account" className="font-medium underline hover:text-primary transition-colors text-foreground">rapporteer dit</a>.
+                </p>
+              </article>
 
-            <h2>4. Commerciële activiteiten</h2>
-            <p>
-              Zelfpromotie en commerciële activiteiten zijn alleen toegestaan voor bedrijven met een 
-              goedgekeurd business account. Ongeautoriseerde advertenties of commerciële berichten 
-              zullen worden verwijderd.
-            </p>
+              {/* Artikel 4 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">4. Commerciële activiteiten</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Zelfpromotie en commerciële activiteiten zijn alleen toegestaan voor bedrijven met een 
+                  goedgekeurd business account. Ongeautoriseerde advertenties of commerciële berichten 
+                  zullen worden verwijderd.
+                </p>
+              </article>
 
-            <h2>5. Intellectueel eigendom</h2>
-            <p>
-              Respecteer het intellectueel eigendom van anderen. Deel geen auteursrechtelijk beschermd 
-              materiaal zonder toestemming. Gebruik je eigen foto's en content wanneer mogelijk.
-            </p>
+              {/* Artikel 5 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">5. Intellectueel eigendom</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Respecteer het intellectueel eigendom van anderen. Deel geen auteursrechtelijk beschermd 
+                  materiaal zonder toestemming. Gebruik je eigen foto's en content wanneer mogelijk.
+                </p>
+              </article>
 
-            <h2>6. Meldingen en rapportages</h2>
-            <p>
-              Als je inhoud ziet die deze richtlijnen schendt, gebruik dan de rapportagefunctie. 
-              We nemen alle meldingen serieus en zullen passende actie ondernemen. 
-              <a href="#/account"> Leer meer over rapporteren</a>.
-            </p>
+              {/* Artikel 6 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">6. Meldingen en rapportages</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Als je inhoud ziet die deze richtlijnen schendt, gebruik dan de rapportagefunctie. 
+                  We nemen alle meldingen serieus en zullen passende actie ondernemen.{" "}
+                  <a href="#/account" className="font-medium underline hover:text-primary transition-colors text-foreground">Leer meer over rapporteren</a>.
+                </p>
+              </article>
 
-            <h2>7. Gevolgen van overtredingen</h2>
-            <p>
-              Overtreding van deze richtlijnen kan leiden tot waarschuwingen, tijdelijke of permanente 
-              schorsing van je account, of verwijdering van inhoud. Ernstige overtredingen kunnen leiden 
-              tot een permanente ban.
-            </p>
+              {/* Artikel 7 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">7. Gevolgen van overtredingen</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Overtreding van deze richtlijnen kan leiden tot waarschuwingen, tijdelijke of permanente 
+                  schorsing van je account, of verwijdering van inhoud. Ernstige overtredingen kunnen leiden 
+                  tot een permanente ban.
+                </p>
+              </article>
 
-            <h2>8. Samen bouwen</h2>
-            <p>
-              Deze community is van ons allemaal. Help mee om Turkspot een positieve en welkome plek 
-              te maken voor iedereen in de Turkse diaspora. Wees constructief, behulpzaam en vriendelijk.
-            </p>
+              {/* Artikel 8 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">8. Samen bouwen</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Deze community is van ons allemaal. Help mee om Turkspot een positieve en welkome plek 
+                  te maken voor iedereen in de Turkse diaspora. Wees constructief, behulpzaam en vriendelijk.
+                </p>
+              </article>
 
-            <h2>9. Vragen of zorgen?</h2>
-            <p>
-              Heb je vragen over deze richtlijnen of zorgen over de community? Neem contact met ons op via: 
-              <a href="mailto:community@turkishdiaspora.app">community@turkishdiaspora.app</a>
-            </p>
+              {/* Artikel 9 */}
+              <article className="mb-8 pb-8 last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">9. Vragen of zorgen?</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Heb je vragen over deze richtlijnen of zorgen over de community? Neem contact met ons op via:{" "}
+                  <a href="mailto:info@turkspot.app" className="font-medium underline hover:text-primary transition-colors text-foreground">info@turkspot.app</a>
+                </p>
+              </article>
 
-            <p className="text-sm text-muted-foreground mt-6">
-              Laatste update: {new Date().toLocaleDateString("nl-NL", { year: "numeric", month: "long", day: "numeric" })}
-            </p>
+              {/* Footer */}
+              <div className="mt-10 pt-6 border-t border-border">
+                <p className="text-sm text-muted-foreground m-0">
+                  Laatste update: {new Date().toLocaleDateString("nl-NL", { year: "numeric", month: "long", day: "numeric" })}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </PageShell>
@@ -86,28 +118,3 @@ export default function CommunityGuidelinesPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

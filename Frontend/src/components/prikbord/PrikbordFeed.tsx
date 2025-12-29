@@ -138,15 +138,15 @@ export function PrikbordFeed({
     if (isLoading) {
         return (
             <div className={cn("space-y-4", className)}>
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                     <PrikbordFilters filters={filters} onFiltersChange={setFilters} />
                     <Button
                         onClick={() => setIsShareDialogOpen(true)}
                         size="sm"
-                        className="gap-2 shrink-0"
+                        className="gap-1.5 h-8 text-xs min-w-[80px]"
                     >
-                        <Icon name="Plus" className="h-4 w-4" />
-                        Deel link
+                        <Icon name="Plus" className="h-3.5 w-3.5" />
+                        Deel
                     </Button>
                 </div>
                 <div className="space-y-4">
@@ -161,15 +161,15 @@ export function PrikbordFeed({
     if (error) {
         return (
             <div className={cn("space-y-4", className)}>
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                     <PrikbordFilters filters={filters} onFiltersChange={setFilters} />
                     <Button
                         onClick={() => setIsShareDialogOpen(true)}
                         size="sm"
-                        className="gap-2 shrink-0"
+                        className="gap-1.5 h-8 text-xs min-w-[80px]"
                     >
-                        <Icon name="Plus" className="h-4 w-4" />
-                        Deel link
+                        <Icon name="Plus" className="h-3.5 w-3.5" />
+                        Deel
                     </Button>
                 </div>
                 <div className="text-center py-8">
@@ -184,15 +184,15 @@ export function PrikbordFeed({
 
     return (
         <div className={cn("space-y-4", className)}>
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
                 <PrikbordFilters filters={filters} onFiltersChange={setFilters} />
                 <Button
                     onClick={() => setIsShareDialogOpen(true)}
                     size="sm"
-                    className="gap-2 shrink-0"
+                    className="gap-1.5 h-8 text-xs min-w-[80px]"
                 >
-                    <Icon name="Plus" className="h-4 w-4" />
-                    Deel link
+                    <Icon name="Plus" className="h-3.5 w-3.5" />
+                    Deel
                 </Button>
             </div>
 

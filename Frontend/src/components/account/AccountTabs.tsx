@@ -1,7 +1,7 @@
 // Frontend/src/components/account/AccountTabs.tsx
 import { cn } from "@/lib/ui/cn";
 
-export type AccountTabKey = "weergave" | "privacy" | "notificaties" | "geschiedenis";
+export type AccountTabKey = "weergave" | "privacy" | "notificaties" | "geschiedenis" | "over_ons";
 
 export interface AccountTabsProps {
   value: AccountTabKey;
@@ -14,6 +14,7 @@ const TABS: Array<{ label: string; value: AccountTabKey }> = [
   { label: "Privacy", value: "privacy" },
   { label: "Notificaties", value: "notificaties" },
   { label: "Geschiedenis", value: "geschiedenis" },
+  { label: "Over ons", value: "over_ons" },
 ];
 
 export function AccountTabs({ value, onChange, className }: AccountTabsProps) {
