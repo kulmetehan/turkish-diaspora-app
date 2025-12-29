@@ -114,19 +114,19 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <ClaimPage />
             </Suspense>
           } />
+          <Route path="/privacy" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <PrivacyPolicyPage />
+            </Suspense>
+          } />
+          <Route path="/terms" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <TermsOfServicePage />
+            </Suspense>
+          } />
         </Route>
         <Route path="/ui-kit" element={<UiKit />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/privacy" element={
-          <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
-            <PrivacyPolicyPage />
-          </Suspense>
-        } />
-        <Route path="/terms" element={
-          <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
-            <TermsOfServicePage />
-          </Suspense>
-        } />
         <Route path="/guidelines" element={
           <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
             <CommunityGuidelinesPage />

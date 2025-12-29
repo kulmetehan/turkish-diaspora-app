@@ -28,32 +28,57 @@ export function useUserAuth(): UserAuth {
     (async () => {
       try {
         // Handle Supabase tokens delivered via URL hash (magic link / recovery / OAuth)
+        // Can be in format: #access_token=... OR #/auth#access_token=... (double hash from OAuth redirect)
         const hash = window.location.hash || "";
-        if (hash && !hash.startsWith("#/")) {
-          const raw = hash.startsWith("#") ? hash.slice(1) : hash;
-          const params = new URLSearchParams(raw);
-          const at = params.get("access_token");
-          const rt = params.get("refresh_token");
-          const type = params.get("type");
-          
-          // Check if this is an OAuth callback (not recovery)
-          const isOAuthCallback = at && rt && type && type !== "recovery";
-          
-          if (at && rt) {
-            // Store return URL from sessionStorage before cleaning hash (for OAuth callbacks)
-            if (isOAuthCallback) {
-              const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
-              // Keep it in sessionStorage for UserAuthPage to pick up
-              if (!storedReturnUrl) {
-                // Try to extract from hash if not in sessionStorage
-                const returnUrlFromHash = params.get("state") || "#/account";
-                sessionStorage.setItem("oauth_return_url", returnUrlFromHash);
+        if (hash) {
+          // Check if this is a double hash format: #/auth#access_token=...
+          // In this case, we need to extract the tokens from the second hash
+          let hashToParse = hash;
+          if (hash.includes("#access_token") || hash.includes("#refresh_token")) {
+            // Find the position where tokens start (after route hash like #/auth)
+            const tokenStart = hash.indexOf("#access_token");
+            if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
+              // Double hash detected: #/auth#access_token=...
+              // Extract the route part (e.g., #/auth) and token part separately
+              const routePart = hash.substring(0, tokenStart);
+              const tokenPart = hash.substring(tokenStart + 1); // Remove one # to get access_token=...
+              hashToParse = tokenPart;
+              
+              // Store the route as return URL if not already stored
+              if (!sessionStorage.getItem("oauth_return_url") && routePart.startsWith("#/")) {
+                sessionStorage.setItem("oauth_return_url", routePart);
               }
             }
+          }
+          
+          // Only process if it's not a route hash (starts with #/)
+          if (hashToParse && !hashToParse.startsWith("#/")) {
+            const raw = hashToParse.startsWith("#") ? hashToParse.slice(1) : hashToParse;
+            const params = new URLSearchParams(raw);
+            const at = params.get("access_token");
+            const rt = params.get("refresh_token");
+            const type = params.get("type");
             
-            await supabase.auth.setSession({ access_token: at, refresh_token: rt });
-            const cleaned = window.location.pathname + window.location.search + "#/";
-            window.history.replaceState(null, "", cleaned);
+            // Check if this is an OAuth callback (not recovery)
+            const isOAuthCallback = at && rt && type && type !== "recovery";
+            
+            if (at && rt) {
+              // Store return URL from sessionStorage before cleaning hash (for OAuth callbacks)
+              if (isOAuthCallback) {
+                const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
+                // Keep it in sessionStorage for UserAuthPage to pick up
+                if (!storedReturnUrl) {
+                  // Try to extract from hash if not in sessionStorage
+                  const returnUrlFromHash = params.get("state") || "#/account";
+                  sessionStorage.setItem("oauth_return_url", returnUrlFromHash);
+                }
+              }
+              
+              await supabase.auth.setSession({ access_token: at, refresh_token: rt });
+              // Clean up URL - navigate to /auth if OAuth callback, otherwise root
+              const cleaned = window.location.pathname + window.location.search + (isOAuthCallback ? "#/auth" : "#/");
+              window.history.replaceState(null, "", cleaned);
+            }
           }
         }
 
