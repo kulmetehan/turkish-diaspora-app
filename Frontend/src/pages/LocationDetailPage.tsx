@@ -7,6 +7,8 @@ import { getLocationById } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { toast } from "sonner";
 import { trackLocationView, getSourceFromLocation } from "@/lib/analytics";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { LocationSchema } from "@/components/seo/LocationSchema";
 
 export default function LocationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -104,14 +106,44 @@ export default function LocationDetailPage() {
     );
   }
 
+  // Generate SEO description from location data
+  const seoDescription = locationData
+    ? `${locationData.name}${locationData.address ? ` - ${locationData.address}` : ""}${locationData.city ? `, ${locationData.city}` : ""}. ${locationData.category ? `Categorie: ${locationData.category}` : ""}`
+    : "Bekijk details van deze locatie";
+
   return (
-    <ViewportProvider>
-      <UnifiedLocationDetail
-        location={locationData}
-        viewMode="list"
-        onBack={handleBack}
+    <>
+      <SeoHead
+        title={locationData?.name || "Locatie"}
+        description={seoDescription}
+        ogImage={locationData?.image || undefined}
       />
-    </ViewportProvider>
+      {locationData && (
+        <LocationSchema
+          location={{
+            name: locationData.name,
+            address: locationData.address || undefined,
+            city: locationData.city || undefined,
+            postal_code: locationData.postal_code || undefined,
+            country: locationData.country || "NL",
+            latitude: locationData.latitude,
+            longitude: locationData.longitude,
+            category: locationData.category || undefined,
+            phone: locationData.phone || undefined,
+            website: locationData.website || undefined,
+            image: locationData.image || undefined,
+            description: locationData.description || undefined,
+          }}
+        />
+      )}
+      <ViewportProvider>
+        <UnifiedLocationDetail
+          location={locationData}
+          viewMode="list"
+          onBack={handleBack}
+        />
+      </ViewportProvider>
+    </>
   );
 }
 

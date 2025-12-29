@@ -2,6 +2,7 @@
 import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { HelmetProvider } from "react-helmet-async";
 
 import "leaflet/dist/leaflet.css";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -11,11 +12,14 @@ import "./index.css";
 import { FooterTabs } from "@/components/FooterTabs";
 import AdminRouteWrapper from "@/components/admin/AdminRouteWrapper";
 import { Toaster } from "@/components/ui/toaster";
+import { OrganizationSchema } from "@/components/seo/OrganizationSchema";
+import { WebsiteSchema } from "@/components/seo/WebsiteSchema";
 import { initI18n } from "@/i18n";
 import { initTheme } from "@/lib/theme/darkMode";
 import { loadRecaptchaScript } from "@/lib/recaptcha";
 import { initAnalytics } from "@/lib/analytics";
 import { useScreenTracking } from "@/hooks/useScreenTracking";
+import { useHtmlLang } from "@/lib/seo/useHtmlLang";
 import LoginPage from "@/pages/LoginPage";
 import UiKit from "@/pages/UiKit";
 const AdminHomePage = React.lazy(() => import("@/pages/AdminHomePage"));
@@ -62,21 +66,31 @@ loadRecaptchaScript().catch((error) => {
 function AppLayout() {
   // Track screen views on route changes
   useScreenTracking();
+  
+  // Update HTML lang attribute based on i18n state
+  useHtmlLang();
 
   return (
-    <div className="flex min-h-[100svh] flex-col bg-background text-foreground">
-      <main className="relative flex-1 overflow-hidden bg-background">
-        <Outlet />
-      </main>
-      <FooterTabs />
-    </div>
+    <>
+      {/* Global SEO schemas */}
+      <OrganizationSchema />
+      <WebsiteSchema />
+      
+      <div className="flex min-h-[100svh] flex-col bg-background text-foreground">
+        <main className="relative flex-1 overflow-hidden bg-background">
+          <Outlet />
+        </main>
+        <FooterTabs />
+      </div>
+    </>
   );
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <HashRouter>
-      <Routes>
+    <HelmetProvider>
+      <HashRouter>
+        <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/feed" replace />} />
           <Route path="/map" element={<App initialTab="map" />} />
@@ -274,8 +288,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         } />
         {/* Catch-all naar feed */}
         <Route path="*" element={<Navigate to="/feed" replace />} />
-      </Routes>
-      <Toaster position="top-right" />
-    </HashRouter>
+        </Routes>
+        <Toaster position="top-right" />
+      </HashRouter>
+    </HelmetProvider>
   </React.StrictMode>
 );

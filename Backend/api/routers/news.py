@@ -98,7 +98,7 @@ async def get_news(
         all_items = await fetch_google_news_for_city(
             country="nl",
             city_key=city_key,
-            limit=limit + offset + 50,  # Fetch extra to account for pagination
+            limit=limit + offset + 100,  # Fetch extra to account for pagination
         )
         # Apply pagination
         total = len(all_items)
@@ -116,7 +116,7 @@ async def get_news(
         all_items = await fetch_google_news_for_city(
             country="tr",
             city_key=city_key,
-            limit=limit + offset + 50,  # Fetch extra to account for pagination
+            limit=limit + offset + 100,  # Fetch extra to account for pagination
         )
         # Apply pagination
         total = len(all_items)

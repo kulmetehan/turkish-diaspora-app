@@ -56,7 +56,8 @@ async def get_digest_opt_in_users() -> List[Dict[str, Any]]:
             u.email,
             COALESCE(up.display_name, split_part(u.email, '@', 1)) as display_name,
             COALESCE(up.city_key, 'rotterdam') as city_key,
-            up.language_pref
+            up.language_pref,
+            u.created_at
         FROM auth.users u
         INNER JOIN privacy_settings ps ON ps.user_id = u.id
         LEFT JOIN user_profiles up ON up.id = u.id

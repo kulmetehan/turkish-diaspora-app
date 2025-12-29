@@ -13,6 +13,8 @@ import { eventHasCoordinates } from "@/components/events/eventFormatters";
 import { AppHeader } from "@/components/feed/AppHeader";
 import { AppViewportShell } from "@/components/layout";
 import { useEventsFeed } from "@/hooks/useEventsFeed";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 import {
   readEventCategoriesFromHash,
   subscribeToEventCategoriesHashChange,
@@ -27,6 +29,7 @@ function categoriesAreEqual(a: EventCategoryKey[], b: EventCategoryKey[]) {
 }
 
 export default function EventsPage() {
+  const seo = useSeo();
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
@@ -223,8 +226,10 @@ export default function EventsPage() {
   }, [handleScrollPositionChange]);
 
   return (
-    <AppViewportShell variant="content">
-      <div className="flex flex-col h-full relative">
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
+        <div className="flex flex-col h-full relative">
         {/* Red gradient overlay */}
         <div
           className="absolute inset-x-0 top-0 pointer-events-none z-0"
@@ -308,6 +313,7 @@ export default function EventsPage() {
         <FooterTabs />
       </div>
     </AppViewportShell>
+    </>
   );
 }
 

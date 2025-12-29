@@ -5,8 +5,11 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/lib/supabaseClient";
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 export default function LoginPage() {
+    const seo = useSeo({ title: "Inloggen", noindex: true });
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -24,7 +27,9 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="flex items-center justify-center py-12">
+        <>
+            <SeoHead {...seo} />
+            <div className="flex items-center justify-center py-12">
             <Card className="w-full max-w-sm">
                 <CardHeader>
                     <CardTitle>Admin Login (Restricted Area)</CardTitle>
@@ -48,5 +53,6 @@ export default function LoginPage() {
                 </CardFooter>
             </Card>
         </div>
+        </>
     );
 }

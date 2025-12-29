@@ -1,10 +1,15 @@
 // Frontend/src/pages/CommunityGuidelinesPage.tsx
 import { AppViewportShell, PageShell } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 export default function CommunityGuidelinesPage() {
+  const seo = useSeo();
   return (
-    <AppViewportShell variant="content">
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
       <PageShell
         title="Community Richtlijnen"
         subtitle="Samen bouwen we een respectvolle en inclusieve community"
@@ -78,6 +83,7 @@ export default function CommunityGuidelinesPage() {
         </Card>
       </PageShell>
     </AppViewportShell>
+    </>
   );
 }
 

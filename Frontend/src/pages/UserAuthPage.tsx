@@ -12,6 +12,8 @@ import { getOrCreateClientId, API_BASE } from "@/lib/api";
 import { AppViewportShell, PageShell } from "@/components/layout";
 import { useLocation } from "react-router-dom";
 import { getRecaptchaToken } from "@/lib/recaptcha";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 export default function UserAuthPage() {
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
@@ -252,10 +254,14 @@ export default function UserAuthPage() {
     }
   };
 
+  const seo = useSeo();
+  
   return (
-    <AppViewportShell variant="content">
-      <PageShell
-        title="Inloggen / Registreren"
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
+        <PageShell
+          title="Inloggen / Registreren"
         subtitle="Maak een account aan of log in om je activiteit te behouden"
         maxWidth="md"
       >
@@ -362,6 +368,7 @@ export default function UserAuthPage() {
         </Card>
       </PageShell>
     </AppViewportShell>
+    </>
   );
 }
 

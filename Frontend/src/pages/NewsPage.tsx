@@ -17,6 +17,8 @@ import { useNewsCityPreferences, type CityLabelMap } from "@/hooks/useNewsCityPr
 import { NEWS_FEED_STALE_MS, useNewsFeed } from "@/hooks/useNewsFeed";
 import { useNewsSearch } from "@/hooks/useNewsSearch";
 import { getOnboardingStatus } from "@/lib/api";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 import {
   clearNewsCategoriesFromHash,
   readNewsCategoriesFromHash,
@@ -39,6 +41,7 @@ function categoriesAreEqual(a: NewsCategoryKey[], b: NewsCategoryKey[]) {
 }
 
 export default function NewsPage() {
+  const seo = useSeo();
   // Read navigation state from store
   const newsNavigation = useNewsNavigation();
 
@@ -188,6 +191,16 @@ export default function NewsPage() {
     navigationActions.setNews({ feed });
   }, [feed]);
 
+  // Auto-select "general" category when switching to "nl" or "tr" feeds
+  useEffect(() => {
+    if ((feed === "nl" || feed === "tr") && categories.length === 0) {
+      const defaultCategories: NewsCategoryKey[] = ["general"];
+      setCategories(defaultCategories);
+      writeNewsCategoriesToHash(defaultCategories);
+      navigationActions.setNews({ categories: defaultCategories });
+    }
+  }, [feed, categories]);
+
   // Sync default "general" category to hash and store on mount if needed
   useEffect(() => {
     const initialFeed = hasHashParams ? hashFeed : newsNavigation.feed;
@@ -291,8 +304,10 @@ export default function NewsPage() {
   }, []);
 
   return (
-    <AppViewportShell variant="content">
-      <div className="flex flex-col h-full relative">
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
+        <div className="flex flex-col h-full relative">
         {/* Red gradient overlay */}
         <div
           className="absolute inset-x-0 top-0 pointer-events-none z-0"
@@ -375,6 +390,7 @@ export default function NewsPage() {
         onClose={closeCityModal}
       />
     </AppViewportShell>
+    </>
   );
 }
 
