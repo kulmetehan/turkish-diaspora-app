@@ -15,6 +15,7 @@ import os
 
 from app.core.logging import get_logger
 from services.db_service import execute, fetch
+from services.outreach_analytics_service import get_outreach_analytics_service
 from datetime import datetime
 
 logger = get_logger()
@@ -118,7 +119,7 @@ async def _handle_bounce_event(payload: Dict[str, Any]) -> None:
         
         # Find email by message_id
         sql = """
-            SELECT id, email, location_id
+            SELECT id, email, location_id, campaign_day
             FROM outreach_emails
             WHERE message_id = $1
             LIMIT 1
@@ -135,6 +136,8 @@ async def _handle_bounce_event(payload: Dict[str, Any]) -> None:
         
         email_record = dict(rows[0])
         email_id = email_record["id"]
+        location_id = email_record["location_id"]
+        campaign_day = email_record.get("campaign_day")
         
         # Update email status to bounced
         sql_update = """
@@ -174,7 +177,7 @@ async def _handle_delivery_event(payload: Dict[str, Any]) -> None:
         
         # Find email by message_id
         sql = """
-            SELECT id, email, location_id
+            SELECT id, email, location_id, campaign_day
             FROM outreach_emails
             WHERE message_id = $1
             LIMIT 1
@@ -191,6 +194,8 @@ async def _handle_delivery_event(payload: Dict[str, Any]) -> None:
         
         email_record = dict(rows[0])
         email_id = email_record["id"]
+        location_id = email_record["location_id"]
+        campaign_day = email_record.get("campaign_day")
         
         # Update email status to delivered
         sql_update = """
@@ -201,6 +206,14 @@ async def _handle_delivery_event(payload: Dict[str, Any]) -> None:
             WHERE id = $1
         """
         await execute(sql_update, email_id)
+        
+        # Track in PostHog
+        analytics_service = get_outreach_analytics_service()
+        await analytics_service.track_outreach_email_delivered(
+            email_id=email_id,
+            location_id=location_id,
+            campaign_day=campaign_day,
+        )
         
         logger.info(
             "brevo_delivery_processed",

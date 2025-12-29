@@ -46,6 +46,7 @@ const AdminLocationSubmissionDetailPage = React.lazy(() => import("@/pages/admin
 const AdminBulletinModeration = React.lazy(() => import("@/pages/admin/AdminBulletinModeration"));
 const AdminAuthenticatedClaimsPage = React.lazy(() => import("@/pages/admin/AdminAuthenticatedClaimsPage"));
 const AdminOutreachContactsPage = React.lazy(() => import("@/pages/admin/AdminOutreachContactsPage"));
+const AdminOutreachMetricsPage = React.lazy(() => import("@/pages/admin/AdminOutreachMetricsPage"));
 const AdminAuthenticatedClaimDetailPage = React.lazy(() => import("@/pages/admin/AdminAuthenticatedClaimDetailPage"));
 const DiasporaPulsePage = React.lazy(() => import("@/pages/DiasporaPulsePage"));
 const PollDetailPage = React.lazy(() => import("@/pages/PollDetailPage"));
@@ -234,6 +235,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminOutreachContactsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/outreach-metrics" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminOutreachMetricsPage />
             </Suspense>
           </AdminRouteWrapper>
         } />

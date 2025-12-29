@@ -8,7 +8,7 @@ Full implementation with additional metrics will come later in the outreach plan
 
 from __future__ import annotations
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
 from app.core.logging import get_logger
@@ -315,6 +315,117 @@ class OutreachMetricsService:
             "removal_rate": removal_rate,
             "no_action_rate": no_action_rate,
         }
+    
+    async def get_daily_metrics(self, campaign_day: int) -> Dict[str, Any]:
+        """
+        Get metrics for a specific campaign day.
+        
+        Args:
+            campaign_day: Day number (1, 2, 3, etc.)
+            
+        Returns:
+            Dictionary with daily metrics:
+            - campaign_day: Campaign day number
+            - emails_sent: Number of emails sent
+            - emails_delivered: Number of emails delivered
+            - emails_clicked: Number of emails clicked
+            - emails_bounced: Number of emails bounced
+            - emails_opted_out: Number of emails opted out
+            - claims: Number of claims
+            - delivery_rate: Delivery rate as percentage
+            - click_rate: Click rate as percentage
+            - bounce_rate: Bounce rate as percentage
+            - claim_rate: Claim rate as percentage
+        """
+        # Get emails sent on this campaign day with status breakdown
+        sql = """
+            SELECT 
+                COUNT(*)::INTEGER as emails_sent,
+                COUNT(CASE WHEN status = 'delivered' THEN 1 END)::INTEGER as emails_delivered,
+                COUNT(CASE WHEN status = 'clicked' THEN 1 END)::INTEGER as emails_clicked,
+                COUNT(CASE WHEN status = 'bounced' THEN 1 END)::INTEGER as emails_bounced,
+                COUNT(CASE WHEN status = 'opted_out' THEN 1 END)::INTEGER as emails_opted_out
+            FROM outreach_emails
+            WHERE campaign_day = $1
+            AND status IN ('sent', 'delivered', 'clicked', 'bounced', 'opted_out')
+        """
+        
+        rows = await fetch(sql, campaign_day)
+        
+        if not rows or len(rows) == 0:
+            return {
+                "campaign_day": campaign_day,
+                "emails_sent": 0,
+                "emails_delivered": 0,
+                "emails_clicked": 0,
+                "emails_bounced": 0,
+                "emails_opted_out": 0,
+                "claims": 0,
+                "delivery_rate": 0.0,
+                "click_rate": 0.0,
+                "bounce_rate": 0.0,
+                "claim_rate": 0.0,
+            }
+        
+        row = dict(rows[0])
+        emails_sent = row.get("emails_sent", 0) or 0
+        emails_delivered = row.get("emails_delivered", 0) or 0
+        emails_clicked = row.get("emails_clicked", 0) or 0
+        emails_bounced = row.get("emails_bounced", 0) or 0
+        emails_opted_out = row.get("emails_opted_out", 0) or 0
+        
+        # Get claims for this campaign day
+        sql_claims = """
+            SELECT COUNT(DISTINCT oe.location_id)::INTEGER as claims
+            FROM outreach_emails oe
+            LEFT JOIN location_owners lo ON oe.location_id = lo.location_id
+            WHERE oe.campaign_day = $1
+            AND oe.status IN ('sent', 'delivered', 'clicked')
+            AND lo.claimed_at >= oe.sent_at
+        """
+        rows_claims = await fetch(sql_claims, campaign_day)
+        claims = dict(rows_claims[0]).get("claims", 0) or 0 if rows_claims and len(rows_claims) > 0 else 0
+        
+        # Calculate rates
+        delivery_rate = round((emails_delivered / emails_sent * 100) if emails_sent > 0 else 0.0, 2)
+        click_rate = round((emails_clicked / emails_delivered * 100) if emails_delivered > 0 else 0.0, 2)
+        bounce_rate = round((emails_bounced / emails_sent * 100) if emails_sent > 0 else 0.0, 2)
+        claim_rate = round((claims / emails_delivered * 100) if emails_delivered > 0 else 0.0, 2)
+        
+        return {
+            "campaign_day": campaign_day,
+            "emails_sent": emails_sent,
+            "emails_delivered": emails_delivered,
+            "emails_clicked": emails_clicked,
+            "emails_bounced": emails_bounced,
+            "emails_opted_out": emails_opted_out,
+            "claims": claims,
+            "delivery_rate": delivery_rate,
+            "click_rate": click_rate,
+            "bounce_rate": bounce_rate,
+            "claim_rate": claim_rate,
+        }
+    
+    async def get_all_campaign_days(self) -> List[int]:
+        """
+        Get list of all campaign days that exist in the database.
+        
+        Returns:
+            List of campaign day numbers (sorted ascending)
+        """
+        sql = """
+            SELECT DISTINCT campaign_day
+            FROM outreach_emails
+            WHERE campaign_day IS NOT NULL
+            ORDER BY campaign_day ASC
+        """
+        
+        rows = await fetch(sql)
+        
+        if not rows:
+            return []
+        
+        return [dict(row).get("campaign_day") for row in rows if dict(row).get("campaign_day") is not None]
 
 
 # Global instance (lazy initialization)

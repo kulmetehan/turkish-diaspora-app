@@ -41,6 +41,16 @@ class Settings(BaseSettings):
     # ---- Category Health Metrics ----
     CATEGORY_HEALTH_OVERPASS_WINDOW_HOURS: int = 168  # Default: 7 days
 
+    # ---- PostHog Analytics (Backend) ----
+    # Support both POSTHOG_API_KEY and VITE_PUBLIC_POSTHOG_KEY for backward compatibility
+    POSTHOG_API_KEY: Optional[str] = Field(
+        default_factory=lambda: os.getenv("POSTHOG_API_KEY") or os.getenv("VITE_PUBLIC_POSTHOG_KEY")
+    )
+    # Support both POSTHOG_HOST and VITE_PUBLIC_POSTHOG_HOST for backward compatibility
+    POSTHOG_HOST: str = Field(
+        default_factory=lambda: os.getenv("POSTHOG_HOST") or os.getenv("VITE_PUBLIC_POSTHOG_HOST") or "https://app.posthog.com"
+    )
+
     # Pydantic v2 configuratie
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE),          # absoluut pad
