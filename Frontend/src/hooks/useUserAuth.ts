@@ -30,75 +30,79 @@ export function useUserAuth(): UserAuth {
         // Handle Supabase tokens delivered via URL hash (magic link / recovery / OAuth)
         // Can be in format: #access_token=... OR #/auth#access_token=... (double hash from OAuth redirect)
         const hash = window.location.hash || "";
+        
         if (hash) {
-          // Check if this is a double hash format: #/auth#access_token=...
-          // In this case, we need to extract the tokens from the second hash
-          let hashToParse = hash;
+          // Normalize double hash format: #/auth#access_token=... -> #access_token=...
+          // This allows Supabase's detectSessionInUrl to work properly
+          let normalizedHash = hash;
+          let routePart = "";
+          
           if (hash.includes("#access_token") || hash.includes("#refresh_token")) {
-            // Find the position where tokens start (after route hash like #/auth)
             const tokenStart = hash.indexOf("#access_token");
             if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
               // Double hash detected: #/auth#access_token=...
-              // Extract the route part (e.g., #/auth) and token part separately
-              const routePart = hash.substring(0, tokenStart);
-              const tokenPart = hash.substring(tokenStart + 1); // Remove one # to get access_token=...
-              hashToParse = tokenPart;
+              routePart = hash.substring(0, tokenStart);
+              const tokenPart = hash.substring(tokenStart + 1);
+              normalizedHash = tokenPart;
               
-              // Store the route as return URL if not already stored
+              // Store return URL
               if (!sessionStorage.getItem("oauth_return_url") && routePart.startsWith("#/")) {
                 sessionStorage.setItem("oauth_return_url", routePart);
               }
+              
+              // Temporarily normalize the hash so Supabase can detect it
+              // We'll restore it after Supabase processes it
+              window.location.hash = normalizedHash;
+              
+              // Wait for Supabase to process (detectSessionInUrl runs automatically)
+              await new Promise(resolve => setTimeout(resolve, 50));
             }
           }
           
-          // Only process if it's not a route hash (starts with #/)
-          if (hashToParse && !hashToParse.startsWith("#/")) {
-            const raw = hashToParse.startsWith("#") ? hashToParse.slice(1) : hashToParse;
-            const params = new URLSearchParams(raw);
-            const at = params.get("access_token");
-            const rt = params.get("refresh_token");
-            const type = params.get("type");
-            
-            // Check if this is an OAuth callback (not recovery)
-            const isOAuthCallback = at && rt && type && type !== "recovery";
-            
-            if (at && rt) {
-              // Store return URL from sessionStorage before cleaning hash (for OAuth callbacks)
-              if (isOAuthCallback) {
-                const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
-                // Keep it in sessionStorage for UserAuthPage to pick up
-                if (!storedReturnUrl) {
-                  // Try to extract from hash if not in sessionStorage
-                  const returnUrlFromHash = params.get("state") || "#/account";
-                  sessionStorage.setItem("oauth_return_url", returnUrlFromHash);
-                }
-              }
-              
-              await supabase.auth.setSession({ access_token: at, refresh_token: rt });
-              // Clean up URL - navigate to /auth if OAuth callback, otherwise root
-              const cleaned = window.location.pathname + window.location.search + (isOAuthCallback ? "#/auth" : "#/");
-              window.history.replaceState(null, "", cleaned);
-            }
+          // Now check if Supabase detected and set the session
+          const { data } = await supabase.auth.getSession();
+          
+          // If session was set from URL, clean up the hash
+          if (data.session && (hash.includes("access_token") || hash.includes("refresh_token"))) {
+            const cleaned = window.location.pathname + window.location.search + (routePart || "#/");
+            window.history.replaceState(null, "", cleaned);
           }
+          
+          if (!active) return;
+          
+          const session = data.session;
+          const initialUserId = session?.user?.id ?? null;
+          const initialUserEmail = session?.user?.email ?? null;
+          
+          setAccessToken(session?.access_token ?? null);
+          setUserEmail(initialUserEmail);
+          setUserId(initialUserId);
+          
+          // Track analytics identity on initial load
+          if (initialUserId) {
+            identifyUser(initialUserId, initialUserEmail);
+          }
+          
+          prevUserIdRef.current = initialUserId;
+        } else {
+          // No hash, just get existing session
+          const { data } = await supabase.auth.getSession();
+          if (!active) return;
+          
+          const session = data.session;
+          const initialUserId = session?.user?.id ?? null;
+          const initialUserEmail = session?.user?.email ?? null;
+          
+          setAccessToken(session?.access_token ?? null);
+          setUserEmail(initialUserEmail);
+          setUserId(initialUserId);
+          
+          if (initialUserId) {
+            identifyUser(initialUserId, initialUserEmail);
+          }
+          
+          prevUserIdRef.current = initialUserId;
         }
-
-        const { data } = await supabase.auth.getSession();
-        if (!active) return;
-        
-        const session = data.session;
-        const initialUserId = session?.user?.id ?? null;
-        const initialUserEmail = session?.user?.email ?? null;
-        
-        setAccessToken(session?.access_token ?? null);
-        setUserEmail(initialUserEmail);
-        setUserId(initialUserId);
-        
-        // Track analytics identity on initial load
-        if (initialUserId) {
-          identifyUser(initialUserId, initialUserEmail);
-        }
-        
-        prevUserIdRef.current = initialUserId;
       } finally {
         if (active) setIsLoading(false);
       }
