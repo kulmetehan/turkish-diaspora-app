@@ -12,92 +12,139 @@ export default function PrivacyPolicyPage() {
       <AppViewportShell variant="content">
       <PageShell
         title="Privacybeleid"
-        subtitle="Hoe we jouw gegevens beschermen en gebruiken"
+        subtitle="Hoe Turkspot omgaat met jouw gegevens"
         maxWidth="4xl"
       >
         <Card>
-          <CardContent className="prose prose-sm max-w-none p-6 text-foreground dark:prose-invert">
-            <h2>1. Inleiding</h2>
-            <p>
-              Turkspot ("wij", "ons", "onze") respecteert jouw privacy en is toegewijd aan het beschermen van jouw persoonlijke gegevens. 
-              Dit privacybeleid legt uit hoe we jouw gegevens verzamelen, gebruiken, delen en beschermen wanneer je onze app gebruikt.
-            </p>
+          <CardContent className="p-6 md:p-8 lg:p-10">
+            <div className="prose prose-sm max-w-none text-foreground dark:prose-invert">
+              {/* Artikel 1 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">1. Inleiding</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Turkspot respecteert jouw privacy en verwerkt persoonsgegevens zorgvuldig en in overeenstemming met de geldende wetgeving (AVG/GDPR). In dit privacybeleid leggen wij uit welke gegevens wij verzamelen en met welk doel.
+                </p>
+              </article>
 
-            <h2>2. Gegevens die we verzamelen</h2>
-            <h3>2.1 Gegevens die je aan ons verstrekt</h3>
-            <ul>
-              <li>Account informatie (naam, e-mailadres) bij registratie</li>
-              <li>Profiel informatie (avatar, bio, privacy voorkeuren)</li>
-              <li>Inhoud die je deelt (check-ins, reacties, notities, poll responses)</li>
-            </ul>
+              {/* Artikel 2 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">2. Welke gegevens wij verwerken</h2>
+                
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium mb-3 mt-0 text-foreground">2.1 Gegevens die je zelf verstrekt</h3>
+                  <ul className="list-disc list-inside space-y-2.5 my-4 ml-4 text-base leading-7 text-foreground/90">
+                    <li>accountgegevens zoals naam en e-mailadres</li>
+                    <li>profielinformatie (bijvoorbeeld avatar, bio, voorkeuren)</li>
+                    <li>inhoud die je plaatst binnen de App (check-ins, reacties, notities, polls)</li>
+                  </ul>
+                </div>
 
-            <h3>2.2 Gegevens die automatisch worden verzameld</h3>
-            <ul>
-              <li>Client ID (anonieme identifier voor soft identity)</li>
-              <li>Activiteit data (check-ins, reacties, notities, favorites)</li>
-              <li>Gebruiksstatistieken en analytics (opt-in)</li>
-            </ul>
+                <div>
+                  <h3 className="text-lg font-medium mb-3 mt-0 text-foreground">2.2 Automatisch verzamelde gegevens</h3>
+                  <ul className="list-disc list-inside space-y-2.5 my-4 ml-4 text-base leading-7 text-foreground/90">
+                    <li>een anonieme client-ID (soft identity)</li>
+                    <li>gebruiks- en interactiegegevens binnen de App</li>
+                    <li>technische en statistische gegevens (alleen met toestemming)</li>
+                  </ul>
+                </div>
+              </article>
 
-            <h2>3. Hoe we jouw gegevens gebruiken</h2>
-            <p>We gebruiken jouw gegevens om:</p>
-            <ul>
-              <li>De app te leveren en te verbeteren</li>
-              <li>Jouw activiteit te tonen in de feed en trending</li>
-              <li>Gamification features te leveren (XP, badges, streaks)</li>
-              <li>Persoonlijke content aan te bevelen</li>
-              <li>Technische ondersteuning te bieden</li>
-            </ul>
+              {/* Artikel 3 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">3. Doeleinden van verwerking</h2>
+                <p className="text-base leading-7 text-foreground/90 mb-4">
+                  Wij gebruiken persoonsgegevens uitsluitend om:
+                </p>
+                <ul className="list-disc list-inside space-y-2.5 my-4 ml-4 text-base leading-7 text-foreground/90">
+                  <li>de App en functionaliteiten te leveren</li>
+                  <li>community-interacties mogelijk te maken</li>
+                  <li>content te personaliseren en te verbeteren</li>
+                  <li>statistieken en trends te berekenen</li>
+                  <li>ondersteuning en beveiliging te bieden</li>
+                </ul>
+              </article>
 
-            <h2>4. Delen van gegevens</h2>
-            <p>
-              We delen jouw gegevens niet met derden voor commerciële doeleinden. 
-              Gegevens kunnen gedeeld worden met service providers die ons helpen de app te opereren 
-              (bijv. hosting, analytics), onder strikte voorwaarden van vertrouwelijkheid.
-            </p>
+              {/* Artikel 4 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">4. Externe diensten en login</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Bij gebruik van externe loginmethoden (zoals Google) ontvangen wij uitsluitend de noodzakelijke gegevens om authenticatie mogelijk te maken (zoals naam en e-mailadres). Wij gebruiken deze gegevens niet voor andere doeleinden dan accounttoegang.
+                </p>
+              </article>
 
-            <h2>5. Jouw rechten</h2>
-            <p>Je hebt het recht om:</p>
-            <ul>
-              <li>Toegang te krijgen tot jouw persoonlijke gegevens</li>
-              <li>Jouw gegevens te corrigeren of bij te werken</li>
-              <li>Jouw account te verwijderen en gegevens te laten verwijderen</li>
-              <li>Je uit te schrijven voor marketing communicatie</li>
-              <li>Bezwaar te maken tegen bepaalde verwerkingen</li>
-            </ul>
+              {/* Artikel 5 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">5. Delen van gegevens</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Wij verkopen geen persoonsgegevens. Gegevens worden alleen gedeeld met betrouwbare dienstverleners (zoals hosting of analytics) die noodzakelijk zijn voor de werking van de App, onder strikte verwerkersovereenkomsten.
+                </p>
+              </article>
 
-            <h2>6. Data beveiliging</h2>
-            <p>
-              We nemen passende technische en organisatorische maatregelen om jouw gegevens te beschermen 
-              tegen ongeautoriseerde toegang, wijziging, openbaarmaking of vernietiging.
-            </p>
+              {/* Artikel 6 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">6. Jouw rechten</h2>
+                <p className="text-base leading-7 text-foreground/90 mb-4">
+                  Je hebt het recht om:
+                </p>
+                <ul className="list-disc list-inside space-y-2.5 my-4 ml-4 text-base leading-7 text-foreground/90">
+                  <li>inzage te krijgen in jouw gegevens</li>
+                  <li>gegevens te corrigeren of te verwijderen</li>
+                  <li>je account te beëindigen</li>
+                  <li>bezwaar te maken tegen bepaalde verwerkingen</li>
+                </ul>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Verzoeken kun je indienen via het contactadres hieronder.
+                </p>
+              </article>
 
-            <h2>7. Data retentie</h2>
-            <p>
-              We bewaren jouw gegevens zolang als nodig is voor de doeleinden beschreven in dit beleid, 
-              of zoals vereist door wetgeving. Je kunt op elk moment je account verwijderen.
-            </p>
+              {/* Artikel 7 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">7. Beveiliging</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Wij nemen passende technische en organisatorische maatregelen om persoonsgegevens te beschermen tegen verlies, misbruik of onbevoegde toegang.
+                </p>
+              </article>
 
-            <h2>8. Cookies en tracking</h2>
-            <p>
-              We gebruiken essentiële cookies voor het functioneren van de app. 
-              Analytics tracking is opt-in via privacy settings.
-            </p>
+              {/* Artikel 8 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">8. Bewaartermijnen</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Gegevens worden niet langer bewaard dan noodzakelijk. Bij het verwijderen van je account worden persoonsgegevens binnen redelijke termijn verwijderd, tenzij wettelijke verplichtingen anders vereisen.
+                </p>
+              </article>
 
-            <h2>9. Wijzigingen in dit beleid</h2>
-            <p>
-              We kunnen dit privacybeleid van tijd tot tijd bijwerken. 
-              Belangrijke wijzigingen zullen we communiceren via de app of e-mail.
-            </p>
+              {/* Artikel 9 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">9. Cookies en tracking</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Turkspot gebruikt uitsluitend functionele cookies. Analytics en tracking zijn opt-in en kunnen via privacy-instellingen worden beheerd.
+                </p>
+              </article>
 
-            <h2>10. Contact</h2>
-            <p>
-              Voor vragen over dit privacybeleid of jouw gegevens, neem contact met ons op via: 
-              <a href="mailto:privacy@turkishdiaspora.app">privacy@turkishdiaspora.app</a>
-            </p>
+              {/* Artikel 10 */}
+              <article className="mb-8 pb-8 border-b border-border last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">10. Wijzigingen</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Dit privacybeleid kan worden aangepast. Belangrijke wijzigingen communiceren wij via de App of per e-mail.
+                </p>
+              </article>
 
-            <p className="text-sm text-muted-foreground mt-6">
-              Laatste update: {new Date().toLocaleDateString("nl-NL", { year: "numeric", month: "long", day: "numeric" })}
-            </p>
+              {/* Artikel 11 */}
+              <article className="mb-8 pb-8 last:border-0">
+                <h2 className="text-xl font-semibold mb-4 mt-0 text-foreground">11. Contact</h2>
+                <p className="text-base leading-7 text-foreground/90 m-0">
+                  Voor vragen over privacy of gegevensverwerking:{" "}
+                  <a href="mailto:info@turkspot.app" className="font-medium underline hover:text-primary transition-colors text-foreground">info@turkspot.app</a>
+                </p>
+              </article>
+
+              {/* Footer */}
+              <div className="mt-10 pt-6 border-t border-border">
+                <p className="text-sm text-muted-foreground m-0">
+                  Laatste update: 29 december 2025
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </PageShell>
@@ -105,28 +152,3 @@ export default function PrivacyPolicyPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

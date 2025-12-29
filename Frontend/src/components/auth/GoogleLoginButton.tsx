@@ -40,7 +40,8 @@ export function GoogleLoginButton({
       
       // Build redirect URL - Supabase will redirect back here after OAuth
       // Use getFrontendBaseUrl() to ensure correct domain (turkspot.app, not kulmetehan.github.io)
-      // For HashRouter, we need to use the hash format
+      // For HashRouter, we need the hash format. Supabase will add tokens as #access_token=...
+      // which results in #/auth#access_token=... - our hash parser handles this double hash
       const baseUrl = getFrontendBaseUrl();
       const basePath = import.meta.env.BASE_URL || "/";
       const redirectTo = `${baseUrl}${basePath}#/auth`;
