@@ -29,95 +29,76 @@ export function useUserAuth(): UserAuth {
       try {
         // Handle Supabase tokens delivered via URL hash (magic link / recovery / OAuth)
         // Can be in format: #access_token=... OR #/auth#access_token=... (double hash from OAuth redirect)
+        // First, check if there are tokens in the URL hash
         const hash = window.location.hash || "";
+        let routePart = sessionStorage.getItem("oauth_return_url") || "";
+        let hasTokensInHash = false;
+        let accessToken: string | null = null;
+        let refreshToken: string | null = null;
         
-        if (hash) {
-          // Hash may have been normalized by the script in index.html
-          // Check if we have tokens in the hash (either normalized or double hash format)
-          let hashToParse = hash;
-          let routePart = sessionStorage.getItem("oauth_return_url") || "";
+        if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
+          hasTokensInHash = true;
           
-          // Check if this is still a double hash (script may not have run yet, or hash changed)
-          if (hash.includes("#access_token") || hash.includes("#refresh_token")) {
+          // Extract route part if double hash format
+          if (hash.includes("#access_token")) {
             const tokenStart = hash.indexOf("#access_token");
             if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
               // Double hash detected: #/auth#access_token=...
               routePart = hash.substring(0, tokenStart);
               const tokenPart = hash.substring(tokenStart + 1);
-              hashToParse = tokenPart;
               
               // Store return URL
-              if (!sessionStorage.getItem("oauth_return_url") && routePart.startsWith("#/")) {
+              if (routePart.startsWith("#/") && !sessionStorage.getItem("oauth_return_url")) {
                 sessionStorage.setItem("oauth_return_url", routePart);
               }
               
-              // Normalize hash if script didn't do it yet
-              window.location.hash = hashToParse;
-              // Wait a bit for Supabase's detectSessionInUrl to process
-              await new Promise(resolve => setTimeout(resolve, 100));
+              // Parse tokens from normalized hash
+              const raw = tokenPart.startsWith("#") ? tokenPart.slice(1) : tokenPart;
+              const params = new URLSearchParams(raw);
+              accessToken = params.get("access_token");
+              refreshToken = params.get("refresh_token");
+            } else {
+              // Single hash format: #access_token=...
+              const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+              const params = new URLSearchParams(raw);
+              accessToken = params.get("access_token");
+              refreshToken = params.get("refresh_token");
             }
           }
           
-          // Parse tokens from hash (should be normalized by now)
-          if (hashToParse && !hashToParse.startsWith("#/")) {
-            const raw = hashToParse.startsWith("#") ? hashToParse.slice(1) : hashToParse;
-            const params = new URLSearchParams(raw);
-            const accessToken = params.get("access_token");
-            const refreshToken = params.get("refresh_token");
+          // If we have tokens, set the session
+          if (accessToken && refreshToken) {
+            console.log("[useUserAuth] Found tokens in URL hash, setting session...");
             
-            if (accessToken && refreshToken) {
-              console.log("[useUserAuth] Found tokens in URL hash, setting session...");
-              
-              // Manually set the session with tokens from URL
-              // Supabase's detectSessionInUrl may have already set it, but we ensure it's set
-              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-              
-              if (sessionError) {
-                console.error("[useUserAuth] Failed to set session:", sessionError);
-              }
-              
-              // Verify session was set (either manually or by Supabase's detectSessionInUrl)
-              const { data: verifyData } = await supabase.auth.getSession();
-              
-              if (verifyData.session) {
-                console.log("[useUserAuth] Session set successfully, cleaning up hash");
-                
-                // Session set successfully, clean up the hash
-                const cleaned = window.location.pathname + window.location.search + (routePart || "#/");
-                window.history.replaceState(null, "", cleaned);
-                
-                if (!active) return;
-                
-                const session = verifyData.session;
-                const initialUserId = session.user?.id ?? null;
-                const initialUserEmail = session.user?.email ?? null;
-                
-                setAccessToken(session.access_token ?? null);
-                setUserEmail(initialUserEmail);
-                setUserId(initialUserId);
-                
-                // Track analytics identity on initial load
-                if (initialUserId) {
-                  identifyUser(initialUserId, initialUserEmail);
-                }
-                
-                prevUserIdRef.current = initialUserId;
-                
-                // Early return since we've handled the session
-                if (active) setIsLoading(false);
-                return;
-              } else {
-                console.warn("[useUserAuth] Session not set after setSession call, hash:", hash);
-              }
+            // Manually set the session with tokens from URL
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            
+            if (sessionError) {
+              console.error("[useUserAuth] Failed to set session:", sessionError);
+            } else {
+              console.log("[useUserAuth] setSession completed, sessionData:", !!sessionData.session);
             }
           }
         }
         
-        // No tokens in URL or session already set, just get existing session
+        // Always check for existing session (may have been set by Supabase's detectSessionInUrl)
         const { data } = await supabase.auth.getSession();
+        
+        // If we had tokens in hash and now have a session, clean up the hash
+        if (hasTokensInHash && data.session) {
+          console.log("[useUserAuth] Session detected, cleaning up hash. Route part:", routePart);
+          
+          // Clean up the hash - navigate to stored route or default
+          const cleaned = window.location.pathname + window.location.search + (routePart || "#/");
+          window.history.replaceState(null, "", cleaned);
+          
+          // Also clear the oauth_return_url from sessionStorage
+          sessionStorage.removeItem("oauth_return_url");
+        }
+        
         if (!active) return;
         
         const session = data.session;
