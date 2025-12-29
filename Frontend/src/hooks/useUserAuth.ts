@@ -52,34 +52,51 @@ export function useUserAuth(): UserAuth {
           if (hash.includes("#access_token")) {
             const tokenStart = hash.indexOf("#access_token");
             console.log("[useUserAuth] Token start position:", tokenStart);
+            console.log("[useUserAuth] Hash before tokenStart:", hash.substring(0, tokenStart));
             console.log("[useUserAuth] Character before tokenStart:", hash[tokenStart - 1]);
             
-            if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
-              // Double hash detected: #/auth#access_token=...
-              console.log("[useUserAuth] ✓ Double hash detected!");
-              routePart = hash.substring(0, tokenStart);
-              const tokenPart = hash.substring(tokenStart + 1);
+            // Check if there's a route part before the tokens (double hash format: #/auth#access_token=...)
+            if (tokenStart > 1) {
+              const potentialRoutePart = hash.substring(0, tokenStart);
               
-              console.log("[useUserAuth] Route part:", routePart);
-              console.log("[useUserAuth] Token part (first 100 chars):", tokenPart.substring(0, 100) + "...");
-              
-              // Store return URL
-              if (routePart.startsWith("#/") && !sessionStorage.getItem("oauth_return_url")) {
-                sessionStorage.setItem("oauth_return_url", routePart);
-                console.log("[useUserAuth] ✓ Stored oauth_return_url:", routePart);
+              // Check if this looks like a route (starts with #/)
+              if (potentialRoutePart.startsWith("#/")) {
+                // Double hash detected: #/auth#access_token=...
+                console.log("[useUserAuth] ✓ Double hash detected!");
+                routePart = potentialRoutePart;
+                const tokenPart = hash.substring(tokenStart); // Keep the # for #access_token
+                
+                console.log("[useUserAuth] Route part:", routePart);
+                console.log("[useUserAuth] Token part (first 100 chars):", tokenPart.substring(0, 100) + "...");
+                
+                // Store return URL
+                if (!sessionStorage.getItem("oauth_return_url")) {
+                  sessionStorage.setItem("oauth_return_url", routePart);
+                  console.log("[useUserAuth] ✓ Stored oauth_return_url:", routePart);
+                }
+                
+                // Parse tokens from hash (tokenPart already starts with #)
+                const raw = tokenPart.startsWith("#") ? tokenPart.slice(1) : tokenPart;
+                const params = new URLSearchParams(raw);
+                accessToken = params.get("access_token");
+                refreshToken = params.get("refresh_token");
+                
+                console.log("[useUserAuth] Extracted accessToken:", accessToken ? accessToken.substring(0, 20) + "..." : "null");
+                console.log("[useUserAuth] Extracted refreshToken:", refreshToken ? refreshToken.substring(0, 20) + "..." : "null");
+              } else {
+                // Single hash format: #access_token=... (or something else before it)
+                console.log("[useUserAuth] Single hash format detected (route part doesn't start with #/)");
+                const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+                const params = new URLSearchParams(raw);
+                accessToken = params.get("access_token");
+                refreshToken = params.get("refresh_token");
+                
+                console.log("[useUserAuth] Extracted accessToken:", accessToken ? accessToken.substring(0, 20) + "..." : "null");
+                console.log("[useUserAuth] Extracted refreshToken:", refreshToken ? refreshToken.substring(0, 20) + "..." : "null");
               }
-              
-              // Parse tokens from normalized hash
-              const raw = tokenPart.startsWith("#") ? tokenPart.slice(1) : tokenPart;
-              const params = new URLSearchParams(raw);
-              accessToken = params.get("access_token");
-              refreshToken = params.get("refresh_token");
-              
-              console.log("[useUserAuth] Extracted accessToken:", accessToken ? accessToken.substring(0, 20) + "..." : "null");
-              console.log("[useUserAuth] Extracted refreshToken:", refreshToken ? refreshToken.substring(0, 20) + "..." : "null");
             } else {
-              // Single hash format: #access_token=...
-              console.log("[useUserAuth] Single hash format detected");
+              // Single hash format: #access_token=... (tokens at start)
+              console.log("[useUserAuth] Single hash format detected (tokens at start)");
               const raw = hash.startsWith("#") ? hash.slice(1) : hash;
               const params = new URLSearchParams(raw);
               accessToken = params.get("access_token");

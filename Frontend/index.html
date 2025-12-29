@@ -24,32 +24,43 @@
         console.log("[index.html script] Tokens found in hash!");
         const tokenStart = hash.indexOf("#access_token");
         console.log("[index.html script] Token start position:", tokenStart);
+        console.log("[index.html script] Hash before tokenStart:", hash.substring(0, tokenStart));
         console.log("[index.html script] Character before tokenStart:", hash[tokenStart - 1]);
         
-        if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
-          // Double hash detected: #/auth#access_token=...
-          console.log("[index.html script] ✓ Double hash detected!");
+        // Check if there's a route part before the tokens (double hash format: #/auth#access_token=...)
+        // We detect this by checking if tokenStart > 1 (meaning there's something before #access_token)
+        // and if the part before starts with #/ (a route)
+        if (tokenStart > 1) {
           const routePart = hash.substring(0, tokenStart);
-          const tokenPart = hash.substring(tokenStart + 1);
+          console.log("[index.html script] Route part before tokens:", routePart);
           
-          console.log("[index.html script] Route part:", routePart);
-          console.log("[index.html script] Token part (first 100 chars):", tokenPart.substring(0, 100) + "...");
-          
-          // Store route part in sessionStorage for later use
-          if (routePart.startsWith("#/") && !sessionStorage.getItem("oauth_return_url")) {
-            sessionStorage.setItem("oauth_return_url", routePart);
-            console.log("[index.html script] ✓ Stored oauth_return_url in sessionStorage:", routePart);
+          // Check if this looks like a route (starts with #/)
+          if (routePart.startsWith("#/")) {
+            // Double hash detected: #/auth#access_token=...
+            console.log("[index.html script] ✓ Double hash detected!");
+            const tokenPart = hash.substring(tokenStart); // Keep the # for #access_token
+            
+            console.log("[index.html script] Route part:", routePart);
+            console.log("[index.html script] Token part (first 100 chars):", tokenPart.substring(0, 100) + "...");
+            
+            // Store route part in sessionStorage for later use
+            if (!sessionStorage.getItem("oauth_return_url")) {
+              sessionStorage.setItem("oauth_return_url", routePart);
+              console.log("[index.html script] ✓ Stored oauth_return_url in sessionStorage:", routePart);
+            } else {
+              console.log("[index.html script] oauth_return_url already exists:", sessionStorage.getItem("oauth_return_url"));
+            }
+            
+            // Normalize hash immediately so Supabase can detect it
+            console.log("[index.html script] Normalizing hash from:", hash.substring(0, 50) + "...");
+            console.log("[index.html script] Normalizing hash to:", tokenPart.substring(0, 50) + "...");
+            window.location.hash = tokenPart;
+            console.log("[index.html script] ✓ Hash normalized! New hash:", window.location.hash.substring(0, 50) + "...");
           } else {
-            console.log("[index.html script] oauth_return_url already exists or routePart invalid:", sessionStorage.getItem("oauth_return_url"));
+            console.log("[index.html script] Single hash format detected (route part doesn't start with #/)");
           }
-          
-          // Normalize hash immediately so Supabase can detect it
-          console.log("[index.html script] Normalizing hash from:", hash.substring(0, 50) + "...");
-          console.log("[index.html script] Normalizing hash to:", tokenPart.substring(0, 50) + "...");
-          window.location.hash = tokenPart;
-          console.log("[index.html script] ✓ Hash normalized! New hash:", window.location.hash.substring(0, 50) + "...");
         } else {
-          console.log("[index.html script] Single hash format detected (no double hash)");
+          console.log("[index.html script] Single hash format detected (tokens at start of hash)");
         }
       } else {
         console.log("[index.html script] No tokens found in hash");
