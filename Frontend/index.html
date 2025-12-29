@@ -14,23 +14,47 @@
     // Normalize double hash format (#/auth#access_token=... -> #access_token=...)
     // This must run BEFORE React/Supabase initializes so detectSessionInUrl works correctly
     (function() {
+      console.log("[index.html script] ===== OAuth Hash Normalization Script Starting =====");
+      console.log("[index.html script] Current URL:", window.location.href);
       const hash = window.location.hash || "";
+      console.log("[index.html script] Initial hash:", hash);
+      console.log("[index.html script] Hash length:", hash.length);
+      
       if (hash.includes("#access_token") || hash.includes("#refresh_token")) {
+        console.log("[index.html script] Tokens found in hash!");
         const tokenStart = hash.indexOf("#access_token");
+        console.log("[index.html script] Token start position:", tokenStart);
+        console.log("[index.html script] Character before tokenStart:", hash[tokenStart - 1]);
+        
         if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
           // Double hash detected: #/auth#access_token=...
+          console.log("[index.html script] ✓ Double hash detected!");
           const routePart = hash.substring(0, tokenStart);
           const tokenPart = hash.substring(tokenStart + 1);
+          
+          console.log("[index.html script] Route part:", routePart);
+          console.log("[index.html script] Token part (first 100 chars):", tokenPart.substring(0, 100) + "...");
           
           // Store route part in sessionStorage for later use
           if (routePart.startsWith("#/") && !sessionStorage.getItem("oauth_return_url")) {
             sessionStorage.setItem("oauth_return_url", routePart);
+            console.log("[index.html script] ✓ Stored oauth_return_url in sessionStorage:", routePart);
+          } else {
+            console.log("[index.html script] oauth_return_url already exists or routePart invalid:", sessionStorage.getItem("oauth_return_url"));
           }
           
           // Normalize hash immediately so Supabase can detect it
+          console.log("[index.html script] Normalizing hash from:", hash.substring(0, 50) + "...");
+          console.log("[index.html script] Normalizing hash to:", tokenPart.substring(0, 50) + "...");
           window.location.hash = tokenPart;
+          console.log("[index.html script] ✓ Hash normalized! New hash:", window.location.hash.substring(0, 50) + "...");
+        } else {
+          console.log("[index.html script] Single hash format detected (no double hash)");
         }
+      } else {
+        console.log("[index.html script] No tokens found in hash");
       }
+      console.log("[index.html script] ===== Script Complete =====");
     })();
   </script>
   <script type="module" src="/src/main.tsx"></script>
