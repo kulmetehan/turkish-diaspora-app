@@ -27,29 +27,46 @@ export function useUserAuth(): UserAuth {
     
     (async () => {
       try {
+        console.log("[useUserAuth] ===== useUserAuth useEffect Starting =====");
+        console.log("[useUserAuth] Current URL:", window.location.href);
+        
         // Handle Supabase tokens delivered via URL hash (magic link / recovery / OAuth)
         // Can be in format: #access_token=... OR #/auth#access_token=... (double hash from OAuth redirect)
         // First, check if there are tokens in the URL hash
         const hash = window.location.hash || "";
+        console.log("[useUserAuth] Initial hash:", hash);
+        console.log("[useUserAuth] Hash length:", hash.length);
+        
         let routePart = sessionStorage.getItem("oauth_return_url") || "";
+        console.log("[useUserAuth] Stored oauth_return_url from sessionStorage:", routePart);
+        
         let hasTokensInHash = false;
         let accessToken: string | null = null;
         let refreshToken: string | null = null;
         
         if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
           hasTokensInHash = true;
+          console.log("[useUserAuth] ✓ Tokens found in hash!");
           
           // Extract route part if double hash format
           if (hash.includes("#access_token")) {
             const tokenStart = hash.indexOf("#access_token");
+            console.log("[useUserAuth] Token start position:", tokenStart);
+            console.log("[useUserAuth] Character before tokenStart:", hash[tokenStart - 1]);
+            
             if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
               // Double hash detected: #/auth#access_token=...
+              console.log("[useUserAuth] ✓ Double hash detected!");
               routePart = hash.substring(0, tokenStart);
               const tokenPart = hash.substring(tokenStart + 1);
+              
+              console.log("[useUserAuth] Route part:", routePart);
+              console.log("[useUserAuth] Token part (first 100 chars):", tokenPart.substring(0, 100) + "...");
               
               // Store return URL
               if (routePart.startsWith("#/") && !sessionStorage.getItem("oauth_return_url")) {
                 sessionStorage.setItem("oauth_return_url", routePart);
+                console.log("[useUserAuth] ✓ Stored oauth_return_url:", routePart);
               }
               
               // Parse tokens from normalized hash
@@ -57,18 +74,25 @@ export function useUserAuth(): UserAuth {
               const params = new URLSearchParams(raw);
               accessToken = params.get("access_token");
               refreshToken = params.get("refresh_token");
+              
+              console.log("[useUserAuth] Extracted accessToken:", accessToken ? accessToken.substring(0, 20) + "..." : "null");
+              console.log("[useUserAuth] Extracted refreshToken:", refreshToken ? refreshToken.substring(0, 20) + "..." : "null");
             } else {
               // Single hash format: #access_token=...
+              console.log("[useUserAuth] Single hash format detected");
               const raw = hash.startsWith("#") ? hash.slice(1) : hash;
               const params = new URLSearchParams(raw);
               accessToken = params.get("access_token");
               refreshToken = params.get("refresh_token");
+              
+              console.log("[useUserAuth] Extracted accessToken:", accessToken ? accessToken.substring(0, 20) + "..." : "null");
+              console.log("[useUserAuth] Extracted refreshToken:", refreshToken ? refreshToken.substring(0, 20) + "..." : "null");
             }
           }
           
           // If we have tokens, set the session
           if (accessToken && refreshToken) {
-            console.log("[useUserAuth] Found tokens in URL hash, setting session...");
+            console.log("[useUserAuth] ✓ Tokens extracted successfully, calling setSession...");
             
             // Manually set the session with tokens from URL
             const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
@@ -77,49 +101,94 @@ export function useUserAuth(): UserAuth {
             });
             
             if (sessionError) {
-              console.error("[useUserAuth] Failed to set session:", sessionError);
+              console.error("[useUserAuth] ✗ Failed to set session:", sessionError);
+              console.error("[useUserAuth] Error details:", JSON.stringify(sessionError, null, 2));
             } else {
-              console.log("[useUserAuth] setSession completed, sessionData:", !!sessionData.session);
+              console.log("[useUserAuth] ✓ setSession completed");
+              console.log("[useUserAuth] Session data exists:", !!sessionData.session);
+              console.log("[useUserAuth] User ID:", sessionData.session?.user?.id);
+              console.log("[useUserAuth] User email:", sessionData.session?.user?.email);
             }
+          } else {
+            console.warn("[useUserAuth] ⚠ Tokens found in hash but extraction failed");
+            console.warn("[useUserAuth] accessToken:", accessToken);
+            console.warn("[useUserAuth] refreshToken:", refreshToken);
           }
+        } else {
+          console.log("[useUserAuth] No tokens found in hash");
         }
         
         // Always check for existing session (may have been set by Supabase's detectSessionInUrl)
-        const { data } = await supabase.auth.getSession();
+        console.log("[useUserAuth] Checking for existing session...");
+        const { data, error: sessionCheckError } = await supabase.auth.getSession();
+        
+        if (sessionCheckError) {
+          console.error("[useUserAuth] ✗ Error checking session:", sessionCheckError);
+        } else {
+          console.log("[useUserAuth] Session check result:");
+          console.log("[useUserAuth] - Session exists:", !!data.session);
+          console.log("[useUserAuth] - User ID:", data.session?.user?.id);
+          console.log("[useUserAuth] - User email:", data.session?.user?.email);
+          console.log("[useUserAuth] - Access token exists:", !!data.session?.access_token);
+        }
         
         // If we had tokens in hash and now have a session, clean up the hash
         if (hasTokensInHash && data.session) {
-          console.log("[useUserAuth] Session detected, cleaning up hash. Route part:", routePart);
+          console.log("[useUserAuth] ✓ Session detected with tokens in hash, cleaning up hash");
+          console.log("[useUserAuth] Route part to navigate to:", routePart || "#/");
           
           // Clean up the hash using window.location.hash for HashRouter compatibility
           const targetRoute = routePart || "#/";
+          console.log("[useUserAuth] Setting hash to:", targetRoute);
           window.location.hash = targetRoute;
+          console.log("[useUserAuth] ✓ Hash set to:", window.location.hash);
           
           // Also clear the oauth_return_url from sessionStorage
           sessionStorage.removeItem("oauth_return_url");
+          console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
+        } else if (hasTokensInHash && !data.session) {
+          console.warn("[useUserAuth] ⚠ Tokens in hash but no session found!");
         }
         
-        if (!active) return;
+        if (!active) {
+          console.log("[useUserAuth] Component unmounted, returning early");
+          return;
+        }
         
         const session = data.session;
         const initialUserId = session?.user?.id ?? null;
         const initialUserEmail = session?.user?.email ?? null;
+        
+        console.log("[useUserAuth] Setting state:");
+        console.log("[useUserAuth] - userId:", initialUserId);
+        console.log("[useUserAuth] - email:", initialUserEmail);
+        console.log("[useUserAuth] - accessToken exists:", !!session?.access_token);
         
         setAccessToken(session?.access_token ?? null);
         setUserEmail(initialUserEmail);
         setUserId(initialUserId);
         
         if (initialUserId) {
+          console.log("[useUserAuth] ✓ Calling identifyUser for analytics");
           identifyUser(initialUserId, initialUserEmail);
         }
         
         prevUserIdRef.current = initialUserId;
+        console.log("[useUserAuth] ===== useEffect Complete =====");
       } finally {
         if (active) setIsLoading(false);
       }
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[useUserAuth] ===== onAuthStateChange Event =====");
+      console.log("[useUserAuth] Event type:", event);
+      console.log("[useUserAuth] Session exists:", !!session);
+      console.log("[useUserAuth] User ID:", session?.user?.id);
+      console.log("[useUserAuth] User email:", session?.user?.email);
+      console.log("[useUserAuth] Access token exists:", !!session?.access_token);
+      console.log("[useUserAuth] Current hash:", window.location.hash);
+      
       const newUserId = session?.user?.id ?? null;
       const newUserEmail = session?.user?.email ?? null;
       
@@ -130,28 +199,40 @@ export function useUserAuth(): UserAuth {
       // Clean up hash if we have a session and tokens are still in the URL
       if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
         const hash = window.location.hash || "";
+        console.log("[useUserAuth] Checking hash for cleanup. Hash:", hash);
+        
         if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
-          console.log("[useUserAuth] onAuthStateChange: Session detected, cleaning up hash");
+          console.log("[useUserAuth] ✓ Tokens still in hash, cleaning up...");
           
           // Get stored return URL or default
           const routePart = sessionStorage.getItem("oauth_return_url") || "#/";
+          console.log("[useUserAuth] Route part from sessionStorage:", routePart);
+          
           sessionStorage.removeItem("oauth_return_url");
+          console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
           
           // Clean up the hash using window.location.hash for HashRouter compatibility
+          console.log("[useUserAuth] Setting hash to:", routePart);
           window.location.hash = routePart;
+          console.log("[useUserAuth] ✓ Hash set to:", window.location.hash);
+        } else {
+          console.log("[useUserAuth] No tokens in hash, no cleanup needed");
         }
       }
       
       // Track analytics identity changes
       if (newUserId && prevUserIdRef.current !== newUserId) {
         // User logged in
+        console.log("[useUserAuth] ✓ User logged in, calling identifyUser");
         identifyUser(newUserId, newUserEmail);
       } else if (!newUserId && prevUserIdRef.current !== null) {
         // User logged out
+        console.log("[useUserAuth] ✓ User logged out, calling resetUser");
         resetUser();
       }
       
       prevUserIdRef.current = newUserId;
+      console.log("[useUserAuth] ===== onAuthStateChange Complete =====");
     });
     
     return () => {
