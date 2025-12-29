@@ -51,6 +51,23 @@
               console.log("[index.html script] oauth_return_url already exists:", sessionStorage.getItem("oauth_return_url"));
             }
             
+            // Extract tokens and store them in sessionStorage BEFORE normalizing hash
+            // This prevents HashRouter from navigating away before we can process them
+            const raw = tokenPart.startsWith("#") ? tokenPart.slice(1) : tokenPart;
+            const params = new URLSearchParams(raw);
+            const accessToken = params.get("access_token");
+            const refreshToken = params.get("refresh_token");
+            
+            if (accessToken && refreshToken) {
+              console.log("[index.html script] ✓ Extracted tokens, storing in sessionStorage");
+              sessionStorage.setItem("pending_oauth_tokens", JSON.stringify({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+                route: routePart
+              }));
+              console.log("[index.html script] ✓ Tokens stored, will be processed by useUserAuth");
+            }
+            
             // Normalize hash immediately so Supabase can detect it
             console.log("[index.html script] Normalizing hash from:", hash.substring(0, 50) + "...");
             console.log("[index.html script] Normalizing hash to:", tokenPart.substring(0, 50) + "...");
