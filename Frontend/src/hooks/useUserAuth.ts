@@ -69,6 +69,8 @@ export function useUserAuth(): UserAuth {
           hasTokensInHash = true;
           console.log("[useUserAuth] Using pending tokens from sessionStorage");
           console.log("[useUserAuth] Route part from pending tokens:", routePart);
+          console.log("[useUserAuth] Access token exists:", !!accessToken);
+          console.log("[useUserAuth] Refresh token exists:", !!refreshToken);
         }
         
         // Only parse from hash if we don't have pending tokens
@@ -134,33 +136,35 @@ export function useUserAuth(): UserAuth {
               console.log("[useUserAuth] Extracted refreshToken:", refreshToken ? refreshToken.substring(0, 20) + "..." : "null");
             }
           }
-          
-          // If we have tokens, set the session
-          if (accessToken && refreshToken) {
-            console.log("[useUserAuth] ✓ Tokens extracted successfully, calling setSession...");
-            
-            // Manually set the session with tokens from URL
-            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            
-            if (sessionError) {
-              console.error("[useUserAuth] ✗ Failed to set session:", sessionError);
-              console.error("[useUserAuth] Error details:", JSON.stringify(sessionError, null, 2));
-            } else {
-              console.log("[useUserAuth] ✓ setSession completed");
-              console.log("[useUserAuth] Session data exists:", !!sessionData.session);
-              console.log("[useUserAuth] User ID:", sessionData.session?.user?.id);
-              console.log("[useUserAuth] User email:", sessionData.session?.user?.email);
-            }
-          } else {
-            console.warn("[useUserAuth] ⚠ Tokens found in hash but extraction failed");
-            console.warn("[useUserAuth] accessToken:", accessToken);
-            console.warn("[useUserAuth] refreshToken:", refreshToken);
-          }
-        } else {
+        } else if (!pendingTokens) {
           console.log("[useUserAuth] No tokens found in hash");
+        }
+        
+        // If we have tokens (from pending tokens OR hash), set the session
+        if (accessToken && refreshToken) {
+          console.log("[useUserAuth] ✓ Tokens available, calling setSession...");
+          console.log("[useUserAuth] Access token (first 20 chars):", accessToken.substring(0, 20) + "...");
+          console.log("[useUserAuth] Refresh token (first 20 chars):", refreshToken.substring(0, 20) + "...");
+          
+          // Manually set the session with tokens
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          
+          if (sessionError) {
+            console.error("[useUserAuth] ✗ Failed to set session:", sessionError);
+            console.error("[useUserAuth] Error details:", JSON.stringify(sessionError, null, 2));
+          } else {
+            console.log("[useUserAuth] ✓ setSession completed");
+            console.log("[useUserAuth] Session data exists:", !!sessionData.session);
+            console.log("[useUserAuth] User ID:", sessionData.session?.user?.id);
+            console.log("[useUserAuth] User email:", sessionData.session?.user?.email);
+          }
+        } else if (hasTokensInHash) {
+          console.warn("[useUserAuth] ⚠ Tokens expected but extraction failed");
+          console.warn("[useUserAuth] accessToken:", accessToken);
+          console.warn("[useUserAuth] refreshToken:", refreshToken);
         }
         
         // Always check for existing session (may have been set by Supabase's detectSessionInUrl)
