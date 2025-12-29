@@ -91,6 +91,8 @@ from api.routers.user_groups import router as user_groups_router
 from api.routers.promotions import router as promotions_router
 from api.routers.bulletin import router as bulletin_router
 from api.routers.prikbord import router as prikbord_router
+from api.routers.contact import router as contact_router
+from api.routers.email_preferences import router as email_preferences_router
 from api.routers.feed import router as feed_router
 from api.routers.ses_webhooks import router as ses_webhooks_router
 from api.routers.brevo_webhooks import router as brevo_webhooks_router
@@ -308,6 +310,8 @@ api_v1_router.include_router(google_business_router)
 api_v1_router.include_router(user_groups_router)
 api_v1_router.include_router(bulletin_router)
 api_v1_router.include_router(prikbord_router)
+api_v1_router.include_router(contact_router)
+api_v1_router.include_router(email_preferences_router)
 api_v1_router.include_router(feed_router)
 api_v1_router.include_router(ses_webhooks_router)
 api_v1_router.include_router(brevo_webhooks_router)

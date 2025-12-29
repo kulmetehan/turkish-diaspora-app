@@ -13,6 +13,9 @@ export function ImageModal({ imageUrl, open, onOpenChange }: ImageModalProps) {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
+  // Check if URL is a video
+  const isVideo = imageUrl ? /\.(mp4|webm|mov)$/i.test(imageUrl) : false;
+
   // Reset loading state when image changes
   useEffect(() => {
     if (imageUrl) {
@@ -62,8 +65,19 @@ export function ImageModal({ imageUrl, open, onOpenChange }: ImageModalProps) {
           )}
           {imageError ? (
             <div className="flex flex-col items-center justify-center p-8 text-white">
-              <p className="text-sm">Afbeelding kon niet worden geladen</p>
+              <p className="text-sm">{isVideo ? "Video kon niet worden geladen" : "Afbeelding kon niet worden geladen"}</p>
             </div>
+          ) : isVideo ? (
+            <video
+              src={imageUrl}
+              controls
+              className="max-w-[90vw] max-h-[90vh] w-auto h-auto"
+              onLoadedData={() => setImageLoading(false)}
+              onError={() => {
+                setImageLoading(false);
+                setImageError(true);
+              }}
+            />
           ) : (
             <img
               src={imageUrl}

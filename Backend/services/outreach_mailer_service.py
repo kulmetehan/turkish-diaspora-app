@@ -210,6 +210,7 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
     # Process emails
     sent_count = 0
     failed_count = 0
+    skipped_count = 0
     errors = []
     
     for email_record in queued_emails:
@@ -238,7 +239,31 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
                 WHERE id = $1
             """
             await execute(sql_update_skipped, email_record["id"])
-            failed_count += 1
+            skipped_count += 1
+            continue
+        
+        # Check if email is unsubscribed
+        check_unsubscribed_sql = """
+            SELECT unsubscribed_at FROM email_preferences
+            WHERE email = $1 AND unsubscribed_at IS NOT NULL
+            LIMIT 1
+        """
+        unsubscribed_rows = await fetch(check_unsubscribed_sql, email_address)
+        if unsubscribed_rows:
+            logger.info(
+                "outreach_email_skipped_unsubscribed",
+                location_id=email_record["location_id"],
+                email=email_address,
+            )
+            # Mark email as skipped
+            sql_update_skipped = """
+                UPDATE outreach_emails
+                SET status = 'opted_out',
+                    updated_at = NOW()
+                WHERE id = $1
+            """
+            await execute(sql_update_skipped, email_record["id"])
+            skipped_count += 1
             continue
         
         # Ensure service consent record exists (implicit consent for outreach)
@@ -279,6 +304,7 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
                     template_name="outreach_email",
                     context=template_context,
                     language=language,
+                    email=email_record["email"],
                 )
             except Exception as e:
                 error_msg = f"Template rendering failed for location {email_record['location_id']}: {str(e)}"
@@ -439,6 +465,7 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
     return {
         "sent": sent_count,
         "failed": failed_count,
+        "skipped": skipped_count,
         "errors": errors,
     }
 

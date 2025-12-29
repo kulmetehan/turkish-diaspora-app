@@ -26,6 +26,7 @@ export async function getSharedLinks(
   if (filters?.tags && filters.tags.length > 0) {
     params.set("tags", filters.tags.join(","));
   }
+  if (filters?.post_type) params.set("post_type", filters.post_type);
   if (filters?.trending) params.set("trending", "true");
   if (filters?.search) params.set("search", filters.search);
   params.set("limit", limit.toString());

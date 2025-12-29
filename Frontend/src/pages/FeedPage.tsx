@@ -228,7 +228,8 @@ export default function FeedPage() {
     setError(null);
     try {
       // Don't pass "one_cikanlar", "all", or "prikbord" as activityType
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord"
+      // "poll_response" has its own component, so don't pass it here either
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord" || activeFilter === "poll_response"
         ? undefined
         : activeFilter;
       const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
@@ -251,7 +252,8 @@ export default function FeedPage() {
     setIsLoadingMore(true);
     try {
       // Don't pass "one_cikanlar", "all", or "prikbord" as activityType
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord"
+      // "poll_response" has its own component, so don't pass it here either
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord" || activeFilter === "poll_response"
         ? undefined
         : activeFilter;
       const data = await getActivityFeed(LOAD_MORE_LIMIT, offset, activityType);
@@ -297,8 +299,8 @@ export default function FeedPage() {
 
   // Reload when filter changes
   useEffect(() => {
-    // Only load activity feed if not showing Öne Çıkanlar or Prikbord and user is authenticated
-    if (activeFilter !== "one_cikanlar" && activeFilter !== "prikbord" && isAuthenticated) {
+    // Only load activity feed if not showing Öne Çıkanlar or Prikbord or Polls and user is authenticated
+    if (activeFilter !== "one_cikanlar" && activeFilter !== "prikbord" && activeFilter !== "poll_response" && isAuthenticated) {
       setFeedItems([]);
       setOffset(0);
       setHasMore(true);
@@ -482,7 +484,18 @@ export default function FeedPage() {
               className="mt-2"
             />
           )}
-          {activeFilter === "one_cikanlar" ? (
+          {activeFilter === "one_cikanlar" && !isAuthenticated ? (
+            <FeedList
+              items={[]}
+              isLoading={false}
+              isLoadingMore={false}
+              hasMore={false}
+              emptyMessage=""
+              className="mt-2"
+              showLoginPrompt={true}
+              loginMessage="Log in om Öne Çıkanlar te zien"
+            />
+          ) : activeFilter === "one_cikanlar" ? (
             <>
               {leaderboardLoading && (
                 <div className="mt-4 text-center py-8 text-muted-foreground">Laden...</div>
@@ -529,12 +542,24 @@ export default function FeedPage() {
             </div>
           ) : (
             <FeedList
-              items={feedCardProps}
+              items={
+                activeFilter === "check_in"
+                  ? feedCardProps.filter((item) => item.type === "check_in")
+                  : activeFilter === "note"
+                  ? feedCardProps.filter((item) => item.type === "note")
+                  : feedCardProps
+              }
               isLoading={isLoading}
               isLoadingMore={isLoadingMore}
               hasMore={hasMore}
               onLoadMore={handleLoadMore}
-              emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
+              emptyMessage={
+                activeFilter === "check_in"
+                  ? "Er zijn nog geen check-ins. Begin met inchecken bij locaties!"
+                  : activeFilter === "note"
+                  ? "Er zijn nog geen notities. Schrijf je eerste notitie!"
+                  : "Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
+              }
               className="mt-2"
               showLoginPrompt={false}
             />

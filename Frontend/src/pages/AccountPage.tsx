@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
+import { AboutUsSection } from "@/components/account/AboutUsSection";
 import { ContributionsSection } from "@/components/account/ContributionsSection";
 import { ProfileSection } from "@/components/account/ProfileSection";
 import { RecognitionSection } from "@/components/account/RecognitionSection";
@@ -42,7 +43,7 @@ export default function AccountPage() {
 
   // Read tab parameter from URL hash
   useEffect(() => {
-    const validTabs: AccountTabKey[] = ["weergave", "privacy", "notificaties", "geschiedenis"];
+    const validTabs: AccountTabKey[] = ["weergave", "privacy", "notificaties", "geschiedenis", "over_ons"];
     
     // Parse tab parameter from hash (e.g., #/account?tab=notificaties)
     const hash = location.hash || "";
@@ -268,6 +269,12 @@ export default function AccountPage() {
                   Activiteitsgeschiedenis
                 </h2>
                 <ActivityHistory />
+              </div>
+            )}
+
+            {activeTab === "over_ons" && (
+              <div className="rounded-xl bg-surface-muted/50 p-6">
+                <AboutUsSection />
               </div>
             )}
           </div>
