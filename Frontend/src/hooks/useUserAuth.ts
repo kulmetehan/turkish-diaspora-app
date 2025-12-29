@@ -54,6 +54,9 @@ export function useUserAuth(): UserAuth {
         console.log("[useUserAuth] Initial hash:", hash);
         console.log("[useUserAuth] Hash length:", hash.length);
         
+        // Get return URL from sessionStorage (set by GoogleLoginButton before OAuth redirect)
+        // This is the page the user came from (e.g., #/feed, #/account)
+        // Priority: oauth_return_url from GoogleLoginButton > route from pending tokens > default to #/feed
         let routePart = sessionStorage.getItem("oauth_return_url") || "";
         console.log("[useUserAuth] Stored oauth_return_url from sessionStorage:", routePart);
         
@@ -65,10 +68,15 @@ export function useUserAuth(): UserAuth {
         if (pendingTokens) {
           accessToken = pendingTokens.access_token;
           refreshToken = pendingTokens.refresh_token;
-          routePart = pendingTokens.route || routePart;
+          // Only use route from pending tokens if oauth_return_url is not already set
+          // The oauth_return_url from GoogleLoginButton is the correct return destination
+          if (!routePart) {
+            routePart = pendingTokens.route || "";
+          }
           hasTokensInHash = true;
           console.log("[useUserAuth] Using pending tokens from sessionStorage");
-          console.log("[useUserAuth] Route part from pending tokens:", routePart);
+          console.log("[useUserAuth] Route part from pending tokens:", pendingTokens.route);
+          console.log("[useUserAuth] Final route part (oauth_return_url takes priority):", routePart);
           console.log("[useUserAuth] Access token exists:", !!accessToken);
           console.log("[useUserAuth] Refresh token exists:", !!refreshToken);
         }
@@ -184,10 +192,13 @@ export function useUserAuth(): UserAuth {
         // If we had tokens in hash and now have a session, clean up the hash
         if (hasTokensInHash && data.session) {
           console.log("[useUserAuth] ✓ Session detected with tokens in hash, cleaning up hash");
-          console.log("[useUserAuth] Route part to navigate to:", routePart || "#/");
+          
+          // Use oauth_return_url if available, otherwise default to #/feed (main app page)
+          // Don't redirect to #/auth (login page) - that's where Google redirected to, not where user should go
+          const targetRoute = routePart || "#/feed";
+          console.log("[useUserAuth] Route part to navigate to:", targetRoute);
           
           // Clean up the hash using window.location.hash for HashRouter compatibility
-          const targetRoute = routePart || "#/";
           console.log("[useUserAuth] Setting hash to:", targetRoute);
           window.location.hash = targetRoute;
           console.log("[useUserAuth] ✓ Hash set to:", window.location.hash);
@@ -253,8 +264,9 @@ export function useUserAuth(): UserAuth {
         if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
           console.log("[useUserAuth] ✓ Tokens still in hash, cleaning up...");
           
-          // Get stored return URL or default
-          const routePart = sessionStorage.getItem("oauth_return_url") || "#/";
+          // Get stored return URL or default to #/feed (main app page)
+          // Don't redirect to #/auth (login page) - that's where Google redirected to
+          const routePart = sessionStorage.getItem("oauth_return_url") || "#/feed";
           console.log("[useUserAuth] Route part from sessionStorage:", routePart);
           
           sessionStorage.removeItem("oauth_return_url");
