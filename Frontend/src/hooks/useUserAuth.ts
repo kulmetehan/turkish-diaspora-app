@@ -193,19 +193,21 @@ export function useUserAuth(): UserAuth {
         if (hasTokensInHash && data.session) {
           console.log("[useUserAuth] ✓ Session detected with tokens in hash, cleaning up hash");
           
-          // Use oauth_return_url if available, otherwise default to #/feed (main app page)
-          // Don't redirect to #/auth (login page) - that's where Google redirected to, not where user should go
-          const targetRoute = routePart || "#/feed";
-          console.log("[useUserAuth] Route part to navigate to:", targetRoute);
+          // ALWAYS read oauth_return_url fresh from sessionStorage (don't use routePart variable)
+          // This ensures we get the correct return URL even if it was set after component mount
+          const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
+          const targetRoute = storedReturnUrl || "#/feed";
+          console.log("[useUserAuth] Stored oauth_return_url from sessionStorage:", storedReturnUrl);
+          console.log("[useUserAuth] Target route:", targetRoute);
+          
+          // Clear oauth_return_url BEFORE redirect to prevent loops
+          sessionStorage.removeItem("oauth_return_url");
+          console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
           
           // Clean up the hash using window.location.hash for HashRouter compatibility
           console.log("[useUserAuth] Setting hash to:", targetRoute);
           window.location.hash = targetRoute;
           console.log("[useUserAuth] ✓ Hash set to:", window.location.hash);
-          
-          // Also clear the oauth_return_url from sessionStorage
-          sessionStorage.removeItem("oauth_return_url");
-          console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
         } else if (hasTokensInHash && !data.session) {
           console.warn("[useUserAuth] ⚠ Tokens in hash but no session found!");
         }
@@ -264,17 +266,20 @@ export function useUserAuth(): UserAuth {
         if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
           console.log("[useUserAuth] ✓ Tokens still in hash, cleaning up...");
           
-          // Get stored return URL or default to #/feed (main app page)
-          // Don't redirect to #/auth (login page) - that's where Google redirected to
-          const routePart = sessionStorage.getItem("oauth_return_url") || "#/feed";
-          console.log("[useUserAuth] Route part from sessionStorage:", routePart);
+          // ALWAYS read oauth_return_url fresh from sessionStorage (don't use closure variable)
+          // This ensures we get the correct return URL even if it was set after component mount
+          const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
+          const targetRoute = storedReturnUrl || "#/feed";
+          console.log("[useUserAuth] Stored oauth_return_url from sessionStorage:", storedReturnUrl);
+          console.log("[useUserAuth] Target route:", targetRoute);
           
+          // Clear oauth_return_url BEFORE redirect to prevent loops
           sessionStorage.removeItem("oauth_return_url");
           console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
           
           // Clean up the hash using window.location.hash for HashRouter compatibility
-          console.log("[useUserAuth] Setting hash to:", routePart);
-          window.location.hash = routePart;
+          console.log("[useUserAuth] Setting hash to:", targetRoute);
+          window.location.hash = targetRoute;
           console.log("[useUserAuth] ✓ Hash set to:", window.location.hash);
         } else {
           console.log("[useUserAuth] No tokens in hash, no cleanup needed");
