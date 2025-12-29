@@ -120,10 +120,6 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
       setPassword("");
       setDisplayName("");
     } catch (error) {
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'LoginModal.tsx:180',message:'signup catch error',data:{error:String(error),errorType:error instanceof Error ? error.constructor.name : typeof error},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      
       toast.error("Registreren mislukt", {
         description: error instanceof Error ? error.message : "Onbekende fout",
       });

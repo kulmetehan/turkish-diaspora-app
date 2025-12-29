@@ -41,12 +41,23 @@ export default function AccountPage() {
     setThemeState(getTheme());
   }, []);
 
-  // Read tab parameter from URL hash
+  // Read tab parameter from URL (hash or search params)
   useEffect(() => {
     const validTabs: AccountTabKey[] = ["weergave", "privacy", "notificaties", "geschiedenis", "over_ons"];
     
-    // Parse tab parameter from hash (e.g., #/account?tab=notificaties)
-    const hash = location.hash || "";
+    // Try location.search first (React Router HashRouter puts query params here)
+    if (location.search) {
+      const params = new URLSearchParams(location.search);
+      const tabParam = params.get("tab");
+      
+      if (tabParam && validTabs.includes(tabParam as AccountTabKey)) {
+        setActiveTab(tabParam as AccountTabKey);
+        return;
+      }
+    }
+    
+    // Fallback: try parsing from window.location.hash (for direct navigation)
+    const hash = window.location.hash || "";
     const queryIndex = hash.indexOf("?");
     if (queryIndex >= 0) {
       const queryString = hash.slice(queryIndex + 1);
@@ -59,18 +70,25 @@ export default function AccountPage() {
       }
     }
     
-    // Fallback: validate current activeTab
-    if (!validTabs.includes(activeTab)) {
-      setActiveTab("weergave");
+    // If no tab parameter in URL and we're on /account route, default to "weergave"
+    // Only reset if we're actually on the account page
+    if (location.pathname === "/account") {
+      // Check if current tab is valid, if not set to default
+      setActiveTab((current) => {
+        if (!validTabs.includes(current)) {
+          return "weergave";
+        }
+        return current;
+      });
     }
-  }, [location.hash]);
+  }, [location.hash, location.pathname, location.search]);
 
   // Update URL when tab changes
   const handleTabChange = (tab: AccountTabKey) => {
     setActiveTab(tab);
-    // Update URL hash with tab parameter
-    const newHash = `#/account?tab=${tab}`;
-    window.history.replaceState(null, "", newHash);
+    // Update URL hash with tab parameter using React Router navigate
+    // This ensures React Router detects the change
+    navigate(`/account?tab=${tab}`, { replace: true });
   };
 
   // Redirect to login if not authenticated
