@@ -32,16 +32,18 @@ export function useUserAuth(): UserAuth {
         const hash = window.location.hash || "";
         
         if (hash) {
-          // Extract tokens from hash, handling both single and double hash formats
+          // Hash may have been normalized by the script in index.html
+          // Check if we have tokens in the hash (either normalized or double hash format)
           let hashToParse = hash;
-          let routePart = "";
+          let routePart = sessionStorage.getItem("oauth_return_url") || "";
           
+          // Check if this is still a double hash (script may not have run yet, or hash changed)
           if (hash.includes("#access_token") || hash.includes("#refresh_token")) {
             const tokenStart = hash.indexOf("#access_token");
             if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
               // Double hash detected: #/auth#access_token=...
               routePart = hash.substring(0, tokenStart);
-              const tokenPart = hash.substring(tokenStart + 1); // Remove one # to get access_token=...
+              const tokenPart = hash.substring(tokenStart + 1);
               hashToParse = tokenPart;
               
               // Store return URL
@@ -49,13 +51,14 @@ export function useUserAuth(): UserAuth {
                 sessionStorage.setItem("oauth_return_url", routePart);
               }
               
-              // Normalize hash immediately so Supabase's detectSessionInUrl can also work
-              // This provides a backup mechanism in case manual setSession fails
+              // Normalize hash if script didn't do it yet
               window.location.hash = hashToParse;
+              // Wait a bit for Supabase's detectSessionInUrl to process
+              await new Promise(resolve => setTimeout(resolve, 100));
             }
           }
           
-          // Parse tokens from hash
+          // Parse tokens from hash (should be normalized by now)
           if (hashToParse && !hashToParse.startsWith("#/")) {
             const raw = hashToParse.startsWith("#") ? hashToParse.slice(1) : hashToParse;
             const params = new URLSearchParams(raw);
@@ -63,24 +66,25 @@ export function useUserAuth(): UserAuth {
             const refreshToken = params.get("refresh_token");
             
             if (accessToken && refreshToken) {
+              console.log("[useUserAuth] Found tokens in URL hash, setting session...");
+              
               // Manually set the session with tokens from URL
-              // This is more reliable than relying on Supabase's detectSessionInUrl
-              // which may not work correctly with HashRouter and double hash formats
+              // Supabase's detectSessionInUrl may have already set it, but we ensure it's set
               const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
                 access_token: accessToken,
                 refresh_token: refreshToken,
               });
               
               if (sessionError) {
-                console.error("Failed to set session from URL hash:", sessionError);
-                // If manual setSession fails, wait a bit for Supabase's detectSessionInUrl to work
-                await new Promise(resolve => setTimeout(resolve, 100));
+                console.error("[useUserAuth] Failed to set session:", sessionError);
               }
               
-              // Verify session was set (either manually or by Supabase)
+              // Verify session was set (either manually or by Supabase's detectSessionInUrl)
               const { data: verifyData } = await supabase.auth.getSession();
               
               if (verifyData.session) {
+                console.log("[useUserAuth] Session set successfully, cleaning up hash");
+                
                 // Session set successfully, clean up the hash
                 const cleaned = window.location.pathname + window.location.search + (routePart || "#/");
                 window.history.replaceState(null, "", cleaned);
@@ -105,6 +109,8 @@ export function useUserAuth(): UserAuth {
                 // Early return since we've handled the session
                 if (active) setIsLoading(false);
                 return;
+              } else {
+                console.warn("[useUserAuth] Session not set after setSession call, hash:", hash);
               }
             }
           }

@@ -10,6 +10,29 @@
 
 <body>
   <div id="root"></div>
+  <script>
+    // Normalize double hash format (#/auth#access_token=... -> #access_token=...)
+    // This must run BEFORE React/Supabase initializes so detectSessionInUrl works correctly
+    (function() {
+      const hash = window.location.hash || "";
+      if (hash.includes("#access_token") || hash.includes("#refresh_token")) {
+        const tokenStart = hash.indexOf("#access_token");
+        if (tokenStart > 0 && hash[tokenStart - 1] === "#") {
+          // Double hash detected: #/auth#access_token=...
+          const routePart = hash.substring(0, tokenStart);
+          const tokenPart = hash.substring(tokenStart + 1);
+          
+          // Store route part in sessionStorage for later use
+          if (routePart.startsWith("#/") && !sessionStorage.getItem("oauth_return_url")) {
+            sessionStorage.setItem("oauth_return_url", routePart);
+          }
+          
+          // Normalize hash immediately so Supabase can detect it
+          window.location.hash = tokenPart;
+        }
+      }
+    })();
+  </script>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 
