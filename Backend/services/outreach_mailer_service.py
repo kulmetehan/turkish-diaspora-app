@@ -25,6 +25,7 @@ from services.mapview_link_service import generate_mapview_link
 from services.outreach_rate_limiting_service import get_outreach_rate_limiting_service
 from services.outreach_audit_service import log_outreach_action
 from services.consent_service import get_consent_service
+from services.outreach_analytics_service import get_outreach_analytics_service
 
 logger = get_logger()
 
@@ -97,7 +98,8 @@ async def get_queued_emails(limit: int = 50) -> List[Dict[str, Any]]:
             l.lat as location_lat,
             l.lng as location_lng,
             oe.retry_count,
-            oe.last_retry_at
+            oe.last_retry_at,
+            oe.campaign_day
         FROM outreach_emails oe
         INNER JOIN locations l ON oe.location_id = l.id
         WHERE oe.status = 'queued'
@@ -391,6 +393,17 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
                     "location_name": email_record["location_name"],
                     "sent_at": datetime.utcnow().isoformat(),
                 },
+            )
+            
+            # Track in PostHog
+            analytics_service = get_outreach_analytics_service()
+            campaign_day = email_record.get("campaign_day")
+            await analytics_service.track_outreach_email_sent(
+                email_id=email_record["id"],
+                location_id=email_record["location_id"],
+                email=email_record["email"],
+                campaign_day=campaign_day,
+                batch_size=None,  # Will be set by campaign manager if needed
             )
             
             sent_count += 1

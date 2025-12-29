@@ -21,6 +21,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
 import { useUserAuth } from "@/hooks/useUserAuth";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
@@ -115,6 +117,7 @@ export default function FeedPage() {
   const location = useLocation();
   const { showMascotteFeedback } = useMascotteFeedback();
   const { isAuthenticated } = useUserAuth();
+  const seo = useSeo();
 
   // State management
   // Read filter from hash params (for email links) or navigation state
@@ -444,8 +447,10 @@ export default function FeedPage() {
   }
 
   return (
-    <AppViewportShell variant="content">
-      <div className="flex flex-col h-full relative">
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
+        <div className="flex flex-col h-full relative">
         {/* Red gradient overlay */}
         <div
           className="absolute inset-x-0 top-0 pointer-events-none z-0"
@@ -548,5 +553,6 @@ export default function FeedPage() {
         onOpenChange={setPollModalOpen}
       />
     </AppViewportShell>
+    </>
   );
 }

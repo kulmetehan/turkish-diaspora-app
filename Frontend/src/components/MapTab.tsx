@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import AddLocationButton from "@/components/AddLocationButton";
 import AddLocationDialog from "@/components/AddLocationDialog";
 import { useUserAuth } from "@/hooks/useUserAuth";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 export default function MapTab() {
     // Global locations state (viewport-independent, fetched on mount)
@@ -736,17 +738,21 @@ export default function MapTab() {
         </div>
     );
 
-    return (
-        <ViewportProvider>
-            <AppViewportShell
-                variant="map"
-                data-route-viewport
-            >
-                {viewMode === "map"
-                    ? mapView
-                    : (isCompact ? listViewMobile : listViewDesktop)}
+    const seo = useSeo({ title: "Kaart" });
 
-                {detail && (isDesktop || viewMode === "map") && (
+    return (
+        <>
+            <SeoHead {...seo} />
+            <ViewportProvider>
+                <AppViewportShell
+                    variant="map"
+                    data-route-viewport
+                >
+                    {viewMode === "map"
+                        ? mapView
+                        : (isCompact ? listViewMobile : listViewDesktop)}
+
+                    {detail && (isDesktop || viewMode === "map") && (
                     <UnifiedLocationDetail
                         location={detail}
                         viewMode="map"
@@ -789,8 +795,9 @@ export default function MapTab() {
                         setLocationSelectionMode(mode);
                     }}
                 />
-            </AppViewportShell>
-        </ViewportProvider>
+                </AppViewportShell>
+            </ViewportProvider>
+        </>
     );
 }
 

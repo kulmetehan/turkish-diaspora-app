@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { SeoHead } from "@/lib/seo/SeoHead";
 
 export default function PollDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -101,27 +102,32 @@ export default function PollDetailPage() {
   }
 
   return (
-    <AppViewportShell variant="content">
-      <div className="flex flex-col h-full">
-        {/* Header */}
-        <div className="flex items-center gap-4 p-4 border-b border-border">
-          <button
-            type="button"
-            onClick={() => navigate("/#/feed")}
-            className="p-2 hover:bg-muted rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
-            aria-label="Terug"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-xl font-semibold">Poll</h1>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-          <div>
-            <h2 className="text-2xl font-bold mb-2">{poll.title}</h2>
-            <p className="text-lg text-muted-foreground">{poll.question}</p>
+    <>
+      <SeoHead
+        title={poll.title}
+        description={poll.question || `Bekijk en stem op deze poll: ${poll.title}`}
+      />
+      <AppViewportShell variant="content">
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center gap-4 p-4 border-b border-border">
+            <button
+              type="button"
+              onClick={() => navigate("/#/feed")}
+              className="p-2 hover:bg-muted rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30"
+              aria-label="Terug"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-xl font-semibold">Poll</h1>
           </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">{poll.title}</h2>
+              <p className="text-lg text-muted-foreground">{poll.question}</p>
+            </div>
 
           {poll.user_has_responded ? (
             <div className="space-y-4">
@@ -195,6 +201,7 @@ export default function PollDetailPage() {
         </div>
       </div>
     </AppViewportShell>
+    </>
   );
 }
 

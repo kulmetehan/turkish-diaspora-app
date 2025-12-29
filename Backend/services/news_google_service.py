@@ -123,6 +123,9 @@ async def fetch_google_news_for_city(
         # Normalize feed entries
         normalized_items, norm_errors = normalize_feed_entries(parsed, source)
 
+        # Sort by published_at descending (newest first)
+        normalized_items.sort(key=lambda x: x.published_at, reverse=True)
+
         # Log normalization errors
         for err in norm_errors:
             logger.debug(

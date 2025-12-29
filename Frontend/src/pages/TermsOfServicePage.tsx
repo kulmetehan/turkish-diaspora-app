@@ -1,10 +1,15 @@
 // Frontend/src/pages/TermsOfServicePage.tsx
 import { AppViewportShell, PageShell } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 export default function TermsOfServicePage() {
+  const seo = useSeo();
   return (
-    <AppViewportShell variant="content">
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
       <PageShell
         title="Gebruiksvoorwaarden"
         subtitle="De regels voor het gebruik van Turkspot"
@@ -116,6 +121,7 @@ export default function TermsOfServicePage() {
         </Card>
       </PageShell>
     </AppViewportShell>
+    </>
   );
 }
 

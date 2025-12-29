@@ -1,10 +1,15 @@
 // Frontend/src/pages/PrivacyPolicyPage.tsx
 import { AppViewportShell, PageShell } from "@/components/layout";
 import { Card, CardContent } from "@/components/ui/card";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 export default function PrivacyPolicyPage() {
+  const seo = useSeo();
   return (
-    <AppViewportShell variant="content">
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
       <PageShell
         title="Privacybeleid"
         subtitle="Hoe we jouw gegevens beschermen en gebruiken"
@@ -97,6 +102,7 @@ export default function PrivacyPolicyPage() {
         </Card>
       </PageShell>
     </AppViewportShell>
+    </>
   );
 }
 

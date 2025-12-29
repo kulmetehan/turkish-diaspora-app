@@ -12,6 +12,14 @@ const NEWS_FEED_CACHE = new Map<string, NewsFeedCacheEntry>();
 const CACHE_TTL_MS = 60_000;
 export const NEWS_FEED_STALE_MS = 120_000;
 
+function getCacheTTL(feed: string): number {
+  // Reduce cache TTL for Google News feeds (local/origin) to ensure fresher content
+  if (feed === "local" || feed === "origin") {
+    return 10_000; // 10 seconds for Google News feeds
+  }
+  return CACHE_TTL_MS; // 60 seconds for other feeds
+}
+
 function createCacheKey(
   feed: string,
   pageSize: number,
@@ -105,7 +113,8 @@ export function useNewsFeed({
       if (isInitialPage) {
         const cached = NEWS_FEED_CACHE.get(cacheKey);
         const now = Date.now();
-        if (!options?.force && cached && now - cached.timestamp < CACHE_TTL_MS) {
+        const cacheTTL = getCacheTTL(feed);
+        if (!options?.force && cached && now - cached.timestamp < cacheTTL) {
           setTotal(cached.total);
           setItems(cached.items);
           setOffset(cached.items.length);

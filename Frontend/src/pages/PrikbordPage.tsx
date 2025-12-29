@@ -6,8 +6,11 @@ import { PrikbordFeed } from "@/components/prikbord/PrikbordFeed";
 import { ShareLinkDialog } from "@/components/prikbord/ShareLinkDialog";
 import type { SharedLink } from "@/types/prikbord";
 import { PageShell } from "@/components/layout/PageShell";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 
 export default function PrikbordPage() {
+  const seo = useSeo();
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -22,10 +25,12 @@ export default function PrikbordPage() {
   };
 
   return (
-    <PageShell
-      title="Prikbord"
-      subtitle="Ontdek wat de community deelt — zonder ruis, zonder discussies."
-    >
+    <>
+      <SeoHead {...seo} />
+      <PageShell
+        title="Prikbord"
+        subtitle="Ontdek wat de community deelt — zonder ruis, zonder discussies."
+      >
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -55,6 +60,7 @@ export default function PrikbordPage() {
         />
       </div>
     </PageShell>
+    </>
   );
 }
 

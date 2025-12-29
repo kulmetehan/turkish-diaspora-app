@@ -94,6 +94,13 @@ export const adminNavigation: NavGroup[] = [
         path: "/admin/outreach-contacts",
         group: "dashboard",
       },
+      {
+        id: "outreach-metrics",
+        label: "Outreach Metrics",
+        icon: "TrendingUp",
+        path: "/admin/outreach-metrics",
+        group: "dashboard",
+      },
     ],
   },
   {

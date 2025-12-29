@@ -1372,6 +1372,43 @@ export async function listOutreachEmails(params?: {
     return authFetch(`/api/v1/admin/outreach/emails?${q.toString()}`);
 }
 
+// Outreach Metrics Types and Functions
+
+export type OutreachMetricsResponse = {
+    mails_sent: number;
+    bounce_rate: number;
+    claim_rate: number;
+    removal_rate: number;
+    no_action_rate: number;
+    click_rate: number;
+};
+
+export type DailyOutreachMetrics = {
+    campaign_day: number;
+    emails_sent: number;
+    emails_delivered: number;
+    emails_clicked: number;
+    emails_bounced: number;
+    emails_opted_out: number;
+    claims: number;
+    delivery_rate: number;
+    click_rate: number;
+    bounce_rate: number;
+    claim_rate: number;
+};
+
+export async function getOutreachMetrics(): Promise<OutreachMetricsResponse> {
+    return authFetch("/api/v1/outreach/metrics");
+}
+
+export async function getDailyOutreachMetrics(campaignDay: number): Promise<DailyOutreachMetrics> {
+    return authFetch(`/api/v1/outreach/metrics/daily?campaign_day=${campaignDay}`);
+}
+
+export async function getCampaignDays(): Promise<number[]> {
+    return authFetch("/api/v1/outreach/metrics/campaign-days");
+}
+
 // Location Submission Admin API Functions
 export async function listLocationSubmissions(params: {
   status?: string;

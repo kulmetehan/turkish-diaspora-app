@@ -17,6 +17,7 @@ from app.core.logging import get_logger
 from services.db_service import fetch, execute
 from services.outreach_audit_service import log_outreach_action
 from services.consent_service import get_consent_service
+from services.outreach_analytics_service import get_outreach_analytics_service
 
 logger = get_logger()
 
@@ -152,7 +153,7 @@ async def track_click(
     try:
         # Find email by ID
         sql = """
-            SELECT id, email, location_id, status
+            SELECT id, email, location_id, status, campaign_day
             FROM outreach_emails
             WHERE id = $1
             LIMIT 1
@@ -170,6 +171,8 @@ async def track_click(
             )
         
         email_record = dict(rows[0])
+        location_id = email_record.get("location_id")
+        campaign_day = email_record.get("campaign_day")
         
         # Only update if not already clicked (idempotent)
         if email_record["status"] == "clicked":
@@ -192,11 +195,19 @@ async def track_click(
         """
         await execute(sql_update, email_id)
         
+        # Track in PostHog
+        analytics_service = get_outreach_analytics_service()
+        await analytics_service.track_outreach_email_clicked(
+            email_id=email_id,
+            location_id=location_id,
+            campaign_day=campaign_day,
+        )
+        
         logger.info(
             "click_tracking_successful",
             email_id=email_id,
             email=email_record.get("email"),
-            location_id=email_record.get("location_id"),
+            location_id=location_id,
         )
         
         return ClickTrackingResponse(

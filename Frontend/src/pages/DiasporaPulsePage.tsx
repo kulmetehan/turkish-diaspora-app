@@ -6,6 +6,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DiasporaPulseLite } from "@/components/trending/DiasporaPulseLite";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 import { 
   getCityStats, 
   getTrendingLocations, 
@@ -109,10 +111,14 @@ export default function DiasporaPulsePage() {
     return cityStats.find((stat) => stat.city_key === selectedCity);
   }, [cityStats, selectedCity]);
 
+  const seo = useSeo();
+  
   return (
-    <AppViewportShell variant="content">
-      <PageShell
-        title="Diaspora Pulse"
+    <>
+      <SeoHead {...seo} />
+      <AppViewportShell variant="content">
+        <PageShell
+          title="Diaspora Pulse"
         subtitle="Analytics dashboard voor de Turkish diaspora community"
         maxWidth="full"
       >
@@ -356,6 +362,7 @@ export default function DiasporaPulsePage() {
         </div>
       </PageShell>
     </AppViewportShell>
+    </>
   );
 }
 
