@@ -54,6 +54,9 @@ export function useUserAuth(): UserAuth {
         console.log("[useUserAuth] Initial hash:", hash);
         console.log("[useUserAuth] Hash length:", hash.length);
         
+        // Get return URL from sessionStorage (set by GoogleLoginButton before OAuth redirect)
+        // This is the page the user came from (e.g., #/feed, #/account)
+        // Priority: oauth_return_url from GoogleLoginButton > route from pending tokens > default to #/feed
         let routePart = sessionStorage.getItem("oauth_return_url") || "";
         console.log("[useUserAuth] Stored oauth_return_url from sessionStorage:", routePart);
         
@@ -65,10 +68,15 @@ export function useUserAuth(): UserAuth {
         if (pendingTokens) {
           accessToken = pendingTokens.access_token;
           refreshToken = pendingTokens.refresh_token;
-          routePart = pendingTokens.route || routePart;
+          // Only use route from pending tokens if oauth_return_url is not already set
+          // The oauth_return_url from GoogleLoginButton is the correct return destination
+          if (!routePart) {
+            routePart = pendingTokens.route || "";
+          }
           hasTokensInHash = true;
           console.log("[useUserAuth] Using pending tokens from sessionStorage");
-          console.log("[useUserAuth] Route part from pending tokens:", routePart);
+          console.log("[useUserAuth] Route part from pending tokens:", pendingTokens.route);
+          console.log("[useUserAuth] Final route part (oauth_return_url takes priority):", routePart);
           console.log("[useUserAuth] Access token exists:", !!accessToken);
           console.log("[useUserAuth] Refresh token exists:", !!refreshToken);
         }
@@ -184,17 +192,22 @@ export function useUserAuth(): UserAuth {
         // If we had tokens in hash and now have a session, clean up the hash
         if (hasTokensInHash && data.session) {
           console.log("[useUserAuth] ✓ Session detected with tokens in hash, cleaning up hash");
-          console.log("[useUserAuth] Route part to navigate to:", routePart || "#/");
+          
+          // ALWAYS read oauth_return_url fresh from sessionStorage (don't use routePart variable)
+          // This ensures we get the correct return URL even if it was set after component mount
+          const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
+          const targetRoute = storedReturnUrl || "#/feed";
+          console.log("[useUserAuth] Stored oauth_return_url from sessionStorage:", storedReturnUrl);
+          console.log("[useUserAuth] Target route:", targetRoute);
+          
+          // Clear oauth_return_url BEFORE redirect to prevent loops
+          sessionStorage.removeItem("oauth_return_url");
+          console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
           
           // Clean up the hash using window.location.hash for HashRouter compatibility
-          const targetRoute = routePart || "#/";
           console.log("[useUserAuth] Setting hash to:", targetRoute);
           window.location.hash = targetRoute;
           console.log("[useUserAuth] ✓ Hash set to:", window.location.hash);
-          
-          // Also clear the oauth_return_url from sessionStorage
-          sessionStorage.removeItem("oauth_return_url");
-          console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
         } else if (hasTokensInHash && !data.session) {
           console.warn("[useUserAuth] ⚠ Tokens in hash but no session found!");
         }
@@ -253,16 +266,20 @@ export function useUserAuth(): UserAuth {
         if (hash && (hash.includes("access_token") || hash.includes("refresh_token"))) {
           console.log("[useUserAuth] ✓ Tokens still in hash, cleaning up...");
           
-          // Get stored return URL or default
-          const routePart = sessionStorage.getItem("oauth_return_url") || "#/";
-          console.log("[useUserAuth] Route part from sessionStorage:", routePart);
+          // ALWAYS read oauth_return_url fresh from sessionStorage (don't use closure variable)
+          // This ensures we get the correct return URL even if it was set after component mount
+          const storedReturnUrl = sessionStorage.getItem("oauth_return_url");
+          const targetRoute = storedReturnUrl || "#/feed";
+          console.log("[useUserAuth] Stored oauth_return_url from sessionStorage:", storedReturnUrl);
+          console.log("[useUserAuth] Target route:", targetRoute);
           
+          // Clear oauth_return_url BEFORE redirect to prevent loops
           sessionStorage.removeItem("oauth_return_url");
           console.log("[useUserAuth] ✓ Cleared oauth_return_url from sessionStorage");
           
           // Clean up the hash using window.location.hash for HashRouter compatibility
-          console.log("[useUserAuth] Setting hash to:", routePart);
-          window.location.hash = routePart;
+          console.log("[useUserAuth] Setting hash to:", targetRoute);
+          window.location.hash = targetRoute;
           console.log("[useUserAuth] ✓ Hash set to:", window.location.hash);
         } else {
           console.log("[useUserAuth] No tokens in hash, no cleanup needed");
