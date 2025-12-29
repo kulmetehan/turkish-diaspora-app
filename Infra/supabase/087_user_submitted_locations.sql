@@ -37,3 +37,4 @@ COMMENT ON COLUMN public.user_submitted_locations.created_location_id IS 'Refere
 COMMENT ON COLUMN public.user_submitted_locations.status IS 'Submission status: pending (awaiting review), approved (location created), rejected (denied).';
 
 
+

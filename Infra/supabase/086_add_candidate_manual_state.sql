@@ -16,3 +16,4 @@ END $$;
 COMMENT ON TYPE location_state IS 'Location state enum. CANDIDATE_MANUAL is for user-submitted locations that need admin review.';
 
 
+

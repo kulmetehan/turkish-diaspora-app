@@ -3,6 +3,7 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { useNavigate } from "react-router-dom";
+import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
 
 interface LoginPromptProps {
   message?: string;
@@ -39,15 +40,25 @@ export function LoginPrompt({ message, className, onLoginClick }: LoginPromptPro
             Maak een account aan of log in om verder te gaan
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleLoginClick}
-          className="mt-1"
-        >
-          <Icon name="LogIn" className="mr-2 h-4 w-4" />
-          Inloggen / Registreren
-        </Button>
+        <div className="flex flex-col gap-2 w-full">
+          <GoogleLoginButton
+            size="sm"
+            fullWidth
+            onSuccess={() => {
+              // Success is handled by useUserAuth hook
+            }}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleLoginClick}
+            className="mt-1"
+          >
+            <Icon name="LogIn" className="mr-2 h-4 w-4" />
+            Email / Wachtwoord
+          </Button>
+        </div>
       </div>
     </div>
   );

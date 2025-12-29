@@ -646,3 +646,4 @@ Emails worden verzonden via Brevo (voorheen Sendinblue) email provider:
 - Weekly digest heeft complexe context data die wordt gegenereerd door `digest_worker.py`
 
 
+

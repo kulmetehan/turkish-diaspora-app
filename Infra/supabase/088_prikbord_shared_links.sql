@@ -160,3 +160,4 @@ COMMENT ON COLUMN public.shared_links.preview_method IS 'Method used to generate
 COMMENT ON COLUMN public.shared_links.preview_cache_expires_at IS 'When to refresh the preview (default 7 days)';
 COMMENT ON COLUMN public.shared_links.context_tags IS 'Context tags for categorization (emoji-based: 🏠 Wonen, 🛍️ Ondernemer, 🎉 Event, 📺 Media)';
 
+

@@ -23,3 +23,4 @@ COMMENT ON TABLE public.shared_link_reactions IS 'Emoji reactions on shared link
 COMMENT ON COLUMN public.shared_link_reactions.reaction_type IS 'Emoji reaction string (e.g., "👍", "❤️", "🔥")';
 COMMENT ON COLUMN public.shared_link_reactions.identity_key IS 'Generated column: user_id if available, otherwise client_id';
 
+

@@ -26,6 +26,22 @@ export function normalizeApiBase(raw: string | undefined): string {
 // If not set, it will be undefined and normalizeApiBase returns empty string
 export const API_BASE = normalizeApiBase(import.meta.env.VITE_API_BASE_URL);
 
+/**
+ * Get the frontend base URL for OAuth redirects.
+ * Uses VITE_FRONTEND_URL if set, otherwise falls back to window.location.origin.
+ * This ensures OAuth redirects work correctly across different domains (turkspot.app, kulmetehan.github.io, localhost).
+ */
+export function getFrontendBaseUrl(): string {
+  // Check for explicit frontend URL environment variable first
+  const envUrl = import.meta.env.VITE_FRONTEND_URL;
+  if (envUrl) {
+    return envUrl.replace(/\/+$/, ""); // Remove trailing slashes
+  }
+  
+  // Fallback to current origin (works for localhost and current domain)
+  return window.location.origin;
+}
+
 // Debug logging in development to help troubleshoot environment variable issues
 if (import.meta.env.DEV) {
   // eslint-disable-next-line no-console
