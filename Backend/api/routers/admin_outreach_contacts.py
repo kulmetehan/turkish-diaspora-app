@@ -7,9 +7,38 @@ from datetime import datetime
 
 from app.deps.admin_auth import verify_admin_user, AdminUser
 from services.db_service import fetch, execute, fetchrow
+from services.cities_config_service import get_city_key_from_coords
 from app.core.logging import get_logger
+import re
 
 logger = get_logger()
+
+
+def parse_city_from_address(address: Optional[str]) -> Optional[str]:
+    """
+    Parse city name from address string.
+    Returns city name (not city_key) or None.
+    """
+    if not address:
+        return None
+    
+    # Split by comma and process segments
+    segments = [s.strip() for s in address.split(",") if s.strip()]
+    
+    # Process from end (city is usually near the end)
+    for segment in reversed(segments):
+        # Remove postal code pattern (e.g., "3012 AK")
+        candidate = re.sub(r'\b\d{4}\s?[A-Z]{2}\b', '', segment, flags=re.IGNORECASE).strip()
+        
+        # Skip if empty or country name
+        if not candidate or re.match(r'^(netherlands|nederland|the netherlands)$', candidate, re.IGNORECASE):
+            continue
+        
+        # Return first segment with letters
+        if re.search(r'[a-zA-Z]', candidate):
+            return candidate
+    
+    return None
 
 router = APIRouter(prefix="/admin/outreach/contacts", tags=["admin-outreach-contacts"])
 
@@ -29,6 +58,8 @@ class AdminContactResponse(BaseModel):
     confidence_score: int
     discovered_at: datetime
     created_at: datetime
+    city: Optional[str] = None
+    email_status: Optional[str] = None
 
 
 @router.post("", response_model=AdminContactResponse, status_code=201)
@@ -115,21 +146,56 @@ async def create_outreach_contact(
 @router.get("", response_model=List[AdminContactResponse])
 async def list_outreach_contacts(
     location_id: Optional[int] = Query(None, description="Filter by location ID"),
+    city: Optional[str] = Query(None, description="Filter by city key (e.g., 'rotterdam')"),
+    email_status: Optional[str] = Query(None, description="Filter by email status: 'all', 'not_sent', 'sent'"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     admin: AdminUser = Depends(verify_admin_user),
 ):
     """
     List outreach contacts (admin only).
+    
+    Supports filtering by:
+    - location_id: Filter by specific location ID
+    - city: Filter by city key (e.g., 'rotterdam', 'den_haag')
+    - email_status: Filter by email status ('all', 'not_sent', 'sent')
     """
     conditions = []
     params = []
     param_num = 1
     
+    # Base query with JOIN to outreach_emails for status
+    base_sql = """
+        SELECT 
+            oc.id, oc.location_id, oc.email, oc.source,
+            oc.confidence_score, oc.discovered_at, oc.created_at,
+            l.name as location_name,
+            l.address as location_address,
+            l.lat as location_lat,
+            l.lng as location_lng,
+            oe.status as email_status
+        FROM outreach_contacts oc
+        LEFT JOIN locations l ON l.id = oc.location_id
+        LEFT JOIN LATERAL (
+            SELECT status 
+            FROM outreach_emails 
+            WHERE location_id = oc.location_id 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        ) oe ON true
+    """
+    
     if location_id:
         conditions.append(f"oc.location_id = ${param_num}")
         params.append(location_id)
         param_num += 1
+    
+    # Email status filter
+    if email_status == "not_sent":
+        conditions.append("oe.status IS NULL")
+    elif email_status == "sent":
+        conditions.append("oe.status IN ('sent', 'delivered', 'clicked')")
+    # "all" or None means no filter
     
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     
@@ -137,12 +203,7 @@ async def list_outreach_contacts(
     params.append(offset)
     
     sql = f"""
-        SELECT 
-            oc.id, oc.location_id, oc.email, oc.source,
-            oc.confidence_score, oc.discovered_at, oc.created_at,
-            l.name as location_name
-        FROM outreach_contacts oc
-        LEFT JOIN locations l ON l.id = oc.location_id
+        {base_sql}
         {where_clause}
         ORDER BY oc.created_at DESC
         LIMIT ${param_num} OFFSET ${param_num + 1}
@@ -150,19 +211,62 @@ async def list_outreach_contacts(
     
     rows = await fetch(sql, *params)
     
-    return [
-        AdminContactResponse(
-            id=row["id"],
-            location_id=row["location_id"],
-            location_name=row.get("location_name"),
-            email=row["email"],
-            source=row["source"],
-            confidence_score=row["confidence_score"],
-            discovered_at=row["discovered_at"],
-            created_at=row["created_at"],
+    # Process rows to derive city and apply city filter
+    results = []
+    for row in rows:
+        # Derive city from coordinates first, then address
+        city_key = None
+        city_name = None
+        
+        if row.get("location_lat") and row.get("location_lng"):
+            city_key = get_city_key_from_coords(
+                float(row["location_lat"]),
+                float(row["location_lng"])
+            )
+        
+        # If no city from coords, try parsing from address
+        if not city_key and row.get("location_address"):
+            city_name = parse_city_from_address(row["location_address"])
+            # Try to match city_name to city_key (normalize)
+            if city_name:
+                # Normalize city name to city_key format (lowercase, replace spaces with underscores)
+                normalized = city_name.lower().replace(" ", "_").replace("-", "_")
+                # Load cities config to check if normalized matches a city_key
+                try:
+                    from services.cities_config_service import load_cities_config
+                    cities_config = load_cities_config()
+                    cities = cities_config.get("cities", {})
+                    # Check if normalized matches any city_key
+                    for ck, cd in cities.items():
+                        if normalized == ck or city_name.lower() == cd.get("city_name", "").lower():
+                            city_key = ck
+                            break
+                except Exception:
+                    pass
+        
+        # Apply city filter if specified
+        if city and city_key != city:
+            continue
+        
+        # Use city_key as city field, or city_name if available
+        city_value = city_key if city_key else city_name
+        
+        results.append(
+            AdminContactResponse(
+                id=row["id"],
+                location_id=row["location_id"],
+                location_name=row.get("location_name"),
+                email=row["email"],
+                source=row["source"],
+                confidence_score=row["confidence_score"],
+                discovered_at=row["discovered_at"],
+                created_at=row["created_at"],
+                city=city_value,
+                email_status=row.get("email_status"),
+            )
         )
-        for row in rows
-    ]
+    
+    return results
 
 
 @router.delete("/{contact_id}", status_code=204)

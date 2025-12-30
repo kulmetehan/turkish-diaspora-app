@@ -1,7 +1,7 @@
 // Onboarding Flow - Main orchestrator component
 import { useNewsCityPreferences } from "@/hooks/useNewsCityPreferences";
 import { useUserAuth } from "@/hooks/useUserAuth";
-import { completeOnboarding, type OnboardingData } from "@/lib/api";
+import { completeOnboarding, getCurrentUser, type OnboardingData } from "@/lib/api";
 import {
   trackOnboardingStarted,
   trackOnboardingScreenViewed,
@@ -9,7 +9,7 @@ import {
   trackOnboardingCompleted,
   trackOnboardingAbandoned,
 } from "@/lib/analytics";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { OnboardingScreen0 } from "./OnboardingScreen0";
 import { OnboardingScreen1 } from "./OnboardingScreen1";
@@ -35,12 +35,14 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [currentScreen, setCurrentScreen] = useState(0);
   const [onboardingData, setOnboardingData] = useState<OnboardingState>({});
   const [isCompleting, setIsCompleting] = useState(false);
+  const [hasDisplayName, setHasDisplayName] = useState<boolean | null>(null);
 
   // Hook for managing news city preferences
   const { savePreferences, rememberCityLabels } = useNewsCityPreferences();
   
   // Check authentication status to conditionally show Screen 6
-  const { isAuthenticated } = useUserAuth();
+  // IMPORTANT: Wait for auth to finish loading before making decisions
+  const { isAuthenticated, isLoading: authLoading } = useUserAuth();
 
   // Track onboarding timing
   const startTimeRef = useRef<number>(Date.now());
@@ -99,11 +101,17 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleScreen5Next = () => {
-    // Only proceed to Screen 6 if user is authenticated
-    if (isAuthenticated) {
+    // Wait for auth to finish loading before deciding
+    if (authLoading) {
+      // Don't proceed yet, wait for auth state to be determined
+      return;
+    }
+    
+    // Only proceed to Screen 6 if user is authenticated AND doesn't have display_name
+    if (isAuthenticated && hasDisplayName === false) {
       setCurrentScreen(6);
     } else {
-      // For anonymous users, complete onboarding directly
+      // For anonymous users or users with display_name, complete onboarding directly
       handleScreen5Complete();
     }
   };
@@ -180,7 +188,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   };
 
-  const handleScreen5Complete = async () => {
+  const handleScreen5Complete = useCallback(async () => {
     if (isCompleting) return;
 
     setIsCompleting(true);
@@ -249,7 +257,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       toast.error("Kon onboarding niet voltooien. Probeer het opnieuw.");
       setIsCompleting(false);
     }
-  };
+  }, [isCompleting, onboardingData, rememberCityLabels, savePreferences, onComplete]);
 
   // Track onboarding start
   useEffect(() => {
@@ -286,12 +294,32 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
   }, [currentScreen, isCompleting]);
 
-  // Safety check: If we're on Screen 6 but user is not authenticated, complete onboarding
+  // Check if authenticated user has display_name when auth is loaded
   useEffect(() => {
-    if (currentScreen === 6 && !isAuthenticated) {
+    if (!authLoading && isAuthenticated) {
+      getCurrentUser()
+        .then((user) => {
+          setHasDisplayName(!!user?.name);
+        })
+        .catch(() => {
+          // If getCurrentUser fails, assume no display_name (will show Screen 6)
+          setHasDisplayName(false);
+        });
+    } else if (!authLoading && !isAuthenticated) {
+      // Not authenticated, so no display_name check needed
+      setHasDisplayName(false);
+    }
+  }, [isAuthenticated, authLoading]);
+
+  // Safety check: If we're on Screen 6 but user is not authenticated or has display_name, complete onboarding
+  useEffect(() => {
+    // Wait for auth to finish loading before checking
+    if (authLoading) return;
+    
+    if (currentScreen === 6 && (!isAuthenticated || hasDisplayName === true)) {
       handleScreen5Complete();
     }
-  }, [currentScreen, isAuthenticated]);
+  }, [currentScreen, isAuthenticated, authLoading, hasDisplayName, handleScreen5Complete]);
 
   // Render current screen
   switch (currentScreen) {
@@ -308,16 +336,21 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     case 5:
       return (
         <OnboardingScreen5 
-          onNext={isAuthenticated ? handleScreen5Next : undefined}
+          // Only show onNext if auth is loaded AND user is authenticated AND doesn't have display_name
+          onNext={!authLoading && isAuthenticated && hasDisplayName === false ? handleScreen5Next : undefined}
           onComplete={handleScreen5Complete}
         />
       );
     case 6:
-      // Screen 6 only for authenticated users
-      if (isAuthenticated) {
+      // Screen 6 only for authenticated users without display_name (and wait for auth to load)
+      if (!authLoading && isAuthenticated && hasDisplayName === false) {
         return <OnboardingScreen6 onComplete={handleScreen6Complete} />;
+      } else if (!authLoading && (!isAuthenticated || hasDisplayName === true)) {
+        // Auth loaded but user not authenticated or has display_name, complete onboarding
+        handleScreen5Complete();
+        return null;
       } else {
-        // Fallback: return null (useEffect will handle completing onboarding)
+        // Still loading auth, wait (useEffect will handle completing onboarding if needed)
         return null;
       }
     default:

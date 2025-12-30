@@ -1,10 +1,10 @@
 // Frontend/src/components/feed/PollFeed.tsx
 import { Card } from "@/components/ui/card";
-import { getPollStats, listPolls, type Poll, type PollStats } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { getPollStats, listPolls, submitPollResponse, type Poll, type PollStats } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { PollModal } from "./PollModal";
 
 interface PollFeedProps {
   className?: string;
@@ -17,14 +17,24 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
   const [polls, setPolls] = useState<Poll[]>([]);
   const [pollStats, setPollStats] = useState<Record<number, PollStats>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedPollId, setSelectedPollId] = useState<number | null>(null);
-  const [pollModalOpen, setPollModalOpen] = useState(false);
+  const [selectedOptions, setSelectedOptions] = useState<Record<number, number>>({});
+  const [submittingPolls, setSubmittingPolls] = useState<Set<number>>(new Set());
+  const [respondedPolls, setRespondedPolls] = useState<Set<number>>(new Set());
 
   const loadPolls = useCallback(async () => {
     setIsLoading(true);
     try {
       const pollsData = await listPolls(undefined, INITIAL_LIMIT);
       setPolls(pollsData);
+
+      // Track which polls user has responded to
+      const respondedSet = new Set<number>();
+      pollsData.forEach(poll => {
+        if (poll.user_has_responded) {
+          respondedSet.add(poll.id);
+        }
+      });
+      setRespondedPolls(respondedSet);
 
       // Fetch stats for polls that user has responded to
       const respondedPolls = pollsData.filter(p => p.user_has_responded);
@@ -55,16 +65,69 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
     loadPolls();
   }, [loadPolls]);
 
-  const handlePollClick = (pollId: number) => {
-    setSelectedPollId(pollId);
-    setPollModalOpen(true);
-    onPollClick?.(pollId);
+  const handleOptionSelect = (pollId: number, optionId: number) => {
+    if (respondedPolls.has(pollId) || submittingPolls.has(pollId)) {
+      return; // Don't allow selection if already responded or submitting
+    }
+    setSelectedOptions(prev => ({
+      ...prev,
+      [pollId]: optionId
+    }));
   };
 
-  const handleModalClose = () => {
-    setPollModalOpen(false);
-    // Reload polls to get updated response status
-    loadPolls();
+  const handleSubmitVote = async (pollId: number) => {
+    const optionId = selectedOptions[pollId];
+    if (!optionId || respondedPolls.has(pollId) || submittingPolls.has(pollId)) {
+      return;
+    }
+
+    try {
+      setSubmittingPolls(prev => new Set(prev).add(pollId));
+      await submitPollResponse(pollId, optionId);
+      
+      // Optimistically update state
+      setRespondedPolls(prev => new Set(prev).add(pollId));
+      
+      // Show gamification feedback
+      toast.success("Diaspora Nabzı'na katkı sağladın", {
+        duration: 3000,
+      });
+
+      // Fetch stats immediately for this poll
+      try {
+        const stats = await getPollStats(pollId);
+        setPollStats(prev => ({
+          ...prev,
+          [pollId]: stats
+        }));
+      } catch (err) {
+        console.error("Failed to load poll stats:", err);
+      }
+
+      // Update the poll in the list to mark as responded
+      setPolls(prev => prev.map(poll => 
+        poll.id === pollId 
+          ? { ...poll, user_has_responded: true }
+          : poll
+      ));
+
+      // Clear selected option
+      setSelectedOptions(prev => {
+        const next = { ...prev };
+        delete next[pollId];
+        return next;
+      });
+
+      onPollClick?.(pollId);
+    } catch (err) {
+      toast.error("Kon niet stemmen");
+    } finally {
+      setSubmittingPolls(prev => {
+        const next = new Set(prev);
+        next.delete(pollId);
+        return next;
+      });
+    }
   };
 
   if (isLoading) {
@@ -88,78 +151,94 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
   }
 
   return (
-    <>
-      <div className={cn("space-y-4 mt-2", className)}>
-        {polls.map((poll) => {
-          const stats = pollStats[poll.id];
-          const hasResults = poll.user_has_responded && stats && stats.total_responses > 0;
+    <div className={cn("space-y-4 mt-2", className)}>
+      {polls.map((poll) => {
+        const hasResponded = respondedPolls.has(poll.id);
+        const stats = pollStats[poll.id];
+        const hasResults = hasResponded && stats && stats.total_responses > 0;
+        const selectedOption = selectedOptions[poll.id];
+        const isSubmitting = submittingPolls.has(poll.id);
 
-          return (
-            <Card
-              key={poll.id}
-              className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => handlePollClick(poll.id)}
-            >
-              <div className="space-y-3">
-                <div>
-                  <h3 className="font-gilroy font-semibold text-lg text-foreground">{poll.title}</h3>
-                  <p className="text-sm text-muted-foreground mt-1">{poll.question}</p>
-                </div>
-
-                {hasResults ? (
-                  <div className="space-y-2 pt-2">
-                    <p className="text-sm font-gilroy font-medium text-foreground">Resultaten:</p>
-                    {poll.options.map((option) => {
-                      const count = stats.option_counts[option.id] || 0;
-                      const percentage = stats.total_responses > 0
-                        ? Math.round((count / stats.total_responses) * 100)
-                        : 0;
-                      return (
-                        <div key={option.id} className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-foreground">{option.option_text}</span>
-                            <span className="text-muted-foreground font-medium">{percentage}%</span>
-                          </div>
-                          <div className="h-2 bg-muted rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-primary transition-all"
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <p className="text-xs text-muted-foreground pt-1">
-                      {stats.total_responses} {stats.total_responses === 1 ? "stem" : "stemmen"}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 pt-2">
-                    <p className="text-sm text-muted-foreground">Klik om te stemmen</p>
-                    <div className="space-y-1">
-                      {poll.options.map((option) => (
-                        <div
-                          key={option.id}
-                          className="text-sm text-foreground/70 border border-border rounded p-2"
-                        >
-                          {option.option_text}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+        return (
+          <Card
+            key={poll.id}
+            className="p-4"
+          >
+            <div className="space-y-3">
+              <div>
+                <h3 className="font-gilroy font-semibold text-lg text-foreground">{poll.title}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{poll.question}</p>
               </div>
-            </Card>
-          );
-        })}
-      </div>
 
-      <PollModal
-        pollId={selectedPollId}
-        open={pollModalOpen}
-        onOpenChange={handleModalClose}
-      />
-    </>
+              {hasResults ? (
+                <div className="space-y-2 pt-2">
+                  <p className="text-sm font-gilroy font-medium text-foreground">Resultaten:</p>
+                  {poll.options.map((option) => {
+                    const count = stats.option_counts[option.id] || 0;
+                    const percentage = stats.total_responses > 0
+                      ? Math.round((count / stats.total_responses) * 100)
+                      : 0;
+                    const isSelected = selectedOption === option.id;
+                    return (
+                      <div key={option.id} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className={cn(
+                            "text-foreground",
+                            isSelected && "font-medium"
+                          )}>
+                            {option.option_text}
+                            {isSelected && " ✓"}
+                          </span>
+                          <span className="text-muted-foreground font-medium">{percentage}%</span>
+                        </div>
+                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-primary transition-all"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <p className="text-xs text-muted-foreground pt-1">
+                    {stats.total_responses} {stats.total_responses === 1 ? "stem" : "stemmen"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 pt-2">
+                  {poll.options.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleOptionSelect(poll.id, option.id)}
+                      disabled={hasResponded || isSubmitting}
+                      className={cn(
+                        "w-full text-left p-3 rounded-lg border transition-colors",
+                        "hover:border-primary hover:bg-primary/5",
+                        "focus:outline-none focus:ring-2 focus:ring-primary/30",
+                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                        selectedOption === option.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border"
+                      )}
+                    >
+                      {option.option_text}
+                    </button>
+                  ))}
+                  <Button
+                    onClick={() => handleSubmitVote(poll.id)}
+                    disabled={!selectedOption || hasResponded || isSubmitting}
+                    className="w-full"
+                  >
+                    {isSubmitting ? "Stemmen..." : "Stem"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
   );
 }
 

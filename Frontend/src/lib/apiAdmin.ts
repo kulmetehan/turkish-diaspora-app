@@ -1233,6 +1233,8 @@ export type AdminContactResponse = {
     confidence_score: number;
     discovered_at: string;
     created_at: string;
+    city?: string | null;
+    email_status?: string | null;
 };
 
 export type AdminContactCreate = {
@@ -1243,11 +1245,15 @@ export type AdminContactCreate = {
 
 export async function listOutreachContacts(params?: {
     location_id?: number;
+    city?: string;
+    email_status?: "all" | "not_sent" | "sent";
     limit?: number;
     offset?: number;
 }): Promise<AdminContactResponse[]> {
     const q = new URLSearchParams();
     if (params?.location_id) q.set("location_id", String(params.location_id));
+    if (params?.city) q.set("city", params.city);
+    if (params?.email_status) q.set("email_status", params.email_status);
     if (params?.limit) q.set("limit", String(params.limit));
     if (params?.offset) q.set("offset", String(params.offset));
     
@@ -1346,6 +1352,24 @@ export async function queueOutreachEmail(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ location_id: locationId }),
+    });
+}
+
+export type BulkQueueResponse = {
+    queued_count: number;
+    failed_count: number;
+    already_queued_count: number;
+    already_sent_count: number;
+    errors: string[];
+};
+
+export async function bulkQueueOutreachEmails(
+    locationIds: number[]
+): Promise<BulkQueueResponse> {
+    return authFetch(`/api/v1/admin/outreach/emails/bulk-queue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ location_ids: locationIds }),
     });
 }
 
