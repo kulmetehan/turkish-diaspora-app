@@ -71,12 +71,13 @@ def generate_mapview_link_with_tracking(location_id: int, email_id: int) -> str:
     return f"{base_link}{separator}utm_source=outreach&utm_medium=email&email_id={email_id}"
 
 
-async def get_queued_emails(limit: int = 50) -> List[Dict[str, Any]]:
+async def get_queued_emails(limit: int = 50, skip_retry_logic: bool = False) -> List[Dict[str, Any]]:
     """
     Get queued emails from outreach_emails table.
     
     Args:
         limit: Maximum number of queued emails to return
+        skip_retry_logic: If True, return all queued emails regardless of retry logic (for manual sending)
         
     Returns:
         List of queued email records, each dict contains:
@@ -88,38 +89,62 @@ async def get_queued_emails(limit: int = 50) -> List[Dict[str, Any]]:
         - location_lat: location latitude
         - location_lng: location longitude
     """
-    sql = """
-        SELECT 
-            oe.id,
-            oe.location_id,
-            oe.contact_id,
-            oe.email,
-            l.name as location_name,
-            l.lat as location_lat,
-            l.lng as location_lng,
-            oe.retry_count,
-            oe.last_retry_at,
-            oe.campaign_day
-        FROM outreach_emails oe
-        INNER JOIN locations l ON oe.location_id = l.id
-        WHERE oe.status = 'queued'
-            AND oe.retry_count < 2  -- Max 2 retries
-            AND (
-                -- New emails (no retry yet)
-                (oe.retry_count = 0 AND oe.last_retry_at IS NULL)
-                OR
-                -- First retry: wait 1 hour
-                (
-                    oe.retry_count = 1 
-                    AND oe.last_retry_at IS NOT NULL 
-                    AND oe.last_retry_at < NOW() - INTERVAL '1 hour'
+    if skip_retry_logic:
+        # For manual sending: return all queued emails regardless of retry logic
+        sql = """
+            SELECT 
+                oe.id,
+                oe.location_id,
+                oe.contact_id,
+                oe.email,
+                l.name as location_name,
+                l.lat as location_lat,
+                l.lng as location_lng,
+                oe.retry_count,
+                oe.last_retry_at,
+                oe.campaign_day
+            FROM outreach_emails oe
+            INNER JOIN locations l ON oe.location_id = l.id
+            WHERE oe.status = 'queued'
+            ORDER BY 
+                oe.retry_count ASC,  -- New emails first, then retries
+                oe.created_at ASC    -- Oldest first within same retry count
+            LIMIT $1
+        """
+    else:
+        # For automatic sending: apply retry logic
+        sql = """
+            SELECT 
+                oe.id,
+                oe.location_id,
+                oe.contact_id,
+                oe.email,
+                l.name as location_name,
+                l.lat as location_lat,
+                l.lng as location_lng,
+                oe.retry_count,
+                oe.last_retry_at,
+                oe.campaign_day
+            FROM outreach_emails oe
+            INNER JOIN locations l ON oe.location_id = l.id
+            WHERE oe.status = 'queued'
+                AND oe.retry_count < 2  -- Max 2 retries
+                AND (
+                    -- New emails (no retry yet)
+                    (oe.retry_count = 0 AND oe.last_retry_at IS NULL)
+                    OR
+                    -- First retry: wait 1 hour
+                    (
+                        oe.retry_count = 1 
+                        AND oe.last_retry_at IS NOT NULL 
+                        AND oe.last_retry_at < NOW() - INTERVAL '1 hour'
+                    )
                 )
-            )
-        ORDER BY 
-            oe.retry_count ASC,  -- New emails first, then retries
-            oe.created_at ASC    -- Oldest first within same retry count
-        LIMIT $1
-    """
+            ORDER BY 
+                oe.retry_count ASC,  -- New emails first, then retries
+                oe.created_at ASC    -- Oldest first within same retry count
+            LIMIT $1
+        """
     
     try:
         rows = await fetch(sql, limit)
@@ -154,7 +179,7 @@ async def get_queued_emails(limit: int = 50) -> List[Dict[str, Any]]:
         raise
 
 
-async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
+async def send_queued_emails(limit: int = 50, skip_retry_logic: bool = False) -> Dict[str, Any]:
     """
     Send queued outreach emails.
     
@@ -170,6 +195,7 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
     
     Args:
         limit: Maximum number of emails to process
+        skip_retry_logic: If True, send all queued emails regardless of retry logic (for manual sending)
         
     Returns:
         Dictionary with statistics:
@@ -182,22 +208,23 @@ async def send_queued_emails(limit: int = 50) -> Dict[str, Any]:
     template_service = get_email_template_service()
     consent_service = get_consent_service()
     
-    # Check if we can send emails today
-    can_send = await rate_limiting_service.can_send_email()
-    if not can_send:
-        logger.info(
-            "outreach_rate_limit_reached",
-            daily_limit=rate_limiting_service.daily_limit,
-            today_count=await rate_limiting_service.get_today_count(),
-        )
-        return {
-            "sent": 0,
-            "failed": 0,
-            "errors": ["Rate limit reached for today"],
-        }
+    # Check if we can send emails today (skip for manual sending)
+    if not skip_retry_logic:
+        can_send = await rate_limiting_service.can_send_email()
+        if not can_send:
+            logger.info(
+                "outreach_rate_limit_reached",
+                daily_limit=rate_limiting_service.daily_limit,
+                today_count=await rate_limiting_service.get_today_count(),
+            )
+            return {
+                "sent": 0,
+                "failed": 0,
+                "errors": ["Rate limit reached for today"],
+            }
     
     # Get queued emails
-    queued_emails = await get_queued_emails(limit)
+    queued_emails = await get_queued_emails(limit, skip_retry_logic=skip_retry_logic)
     
     if not queued_emails:
         logger.debug("no_queued_emails_to_send")
