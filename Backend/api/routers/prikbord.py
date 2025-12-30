@@ -243,6 +243,20 @@ async def create_link(
     return await _build_link_response(row, current_user)
 
 
+@router.get("/platforms")
+async def get_available_platforms():
+    """Get list of platforms that have active content."""
+    sql = """
+        SELECT DISTINCT platform
+        FROM shared_links
+        WHERE status = 'active'
+        ORDER BY platform
+    """
+    rows = await fetch(sql)
+    platforms = [row["platform"] for row in rows]
+    return {"platforms": platforms}
+
+
 @router.get("/links", response_model=List[SharedLinkResponse])
 async def list_links(
     platform: Optional[str] = Query(None, pattern="^(marktplaats|instagram|facebook|youtube|twitter|tiktok|news|event|other)$"),

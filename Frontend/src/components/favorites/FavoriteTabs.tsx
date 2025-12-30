@@ -1,31 +1,25 @@
-// Frontend/src/components/feed/FeedFilterTabs.tsx
-import type { ActivityItem } from "@/lib/api";
+// Frontend/src/components/favorites/FavoriteTabs.tsx
 import { cn } from "@/lib/ui/cn";
 
-export type ActivityFilter = "all" | "one_cikanlar" | "prikbord" | ActivityItem["activity_type"];
+export type FavoriteFilter = "mijn" | "anderen";
 
-export interface FeedFilterTabsProps {
-  activeFilter: ActivityFilter;
-  onFilterChange: (filter: ActivityFilter) => void;
+export interface FavoriteTabsProps {
+  activeFilter: FavoriteFilter;
+  onFilterChange: (filter: FavoriteFilter) => void;
   className?: string;
 }
 
-// Filter configuration: display label -> activity_type value
-const FILTERS: Array<{ label: string; value: ActivityFilter }> = [
-  { label: "Alles", value: "all" },
-  { label: "Prikbord", value: "prikbord" },
-  { label: "Polls", value: "poll_response" },
-  { label: "Check-ins", value: "check_in" },
-  { label: "Notities", value: "note" },
-  { label: "Öne Çıkanlar", value: "one_cikanlar" },
-  // { label: "Favorieten", value: "favorite" }, // Temporarily hidden - will be re-enabled later
+// Filter configuration: display label -> filter value
+const FILTERS: Array<{ label: string; value: FavoriteFilter }> = [
+  { label: "Mijn", value: "mijn" },
+  { label: "Anderen", value: "anderen" },
 ];
 
-export function FeedFilterTabs({
+export function FavoriteTabs({
   activeFilter,
   onFilterChange,
   className,
-}: FeedFilterTabsProps) {
+}: FavoriteTabsProps) {
   return (
     <div
       className={cn(
@@ -61,14 +55,4 @@ export function FeedFilterTabs({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
 

@@ -16,6 +16,7 @@ import { getActivityFeed, getActivityReactions, getCurrentUser, getOnboardingSta
 import { WeekFeedbackCard } from "@/components/feed/WeekFeedbackCard";
 import { PeriodTabs, type PeriodFilter } from "@/components/onecikanlar/PeriodTabs";
 import { LeaderboardCards } from "@/components/onecikanlar/LeaderboardCards";
+import { FavoriteTabs, type FavoriteFilter } from "@/components/favorites/FavoriteTabs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -81,7 +82,7 @@ function transformActivityItem(
     id: item.id,
     user: {
       avatar: item.user?.avatar_url || null,
-      name: item.user?.name || "Anonieme gebruiker",
+      name: item.user?.name || null,
       primary_role: item.user?.primary_role || null,
       secondary_role: item.user?.secondary_role || null,
       id: item.user?.id || null,
@@ -164,6 +165,10 @@ export default function FeedPage() {
   const [leaderboardData, setLeaderboardData] = useState<Awaited<ReturnType<typeof getOneCikanlar>> | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState<boolean>(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  
+  // Favorieten state
+  const [favoriteFilter, setFavoriteFilter] = useState<FavoriteFilter>("mijn");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const hasProcessedNavigationStateRef = useRef(false);
 
@@ -172,10 +177,12 @@ export default function FeedPage() {
     getCurrentUser()
       .then((user) => {
         setUserName(user?.name || null);
+        setCurrentUserId(user?.id || null);
       })
       .catch((error) => {
         console.error("Failed to load user profile:", error);
         setUserName(null);
+        setCurrentUserId(null);
       });
 
     // Check onboarding status from localStorage (synchronous)
@@ -344,6 +351,13 @@ export default function FeedPage() {
     }
   }, [weekFeedback, weekFeedbackDismissed, showMascotteFeedback]);
 
+  // Reset favorite filter when switching away from favorites tab
+  useEffect(() => {
+    if (activeFilter !== "favorite") {
+      setFavoriteFilter("mijn");
+    }
+  }, [activeFilter]);
+
   // Handle reaction toggle
   const handleReactionToggle = useCallback(async (activityId: number, reactionType: ReactionType) => {
     try {
@@ -424,10 +438,27 @@ export default function FeedPage() {
 
   // Transform feed items to FeedCard props
   const feedCardProps = useMemo(() => {
-    return feedItems.map((item) =>
+    let transformed = feedItems.map((item) =>
       transformActivityItem(item, handleReactionToggle, handleBookmark, handleImageClick, handleLocationClick, handlePollClick, handleUserClick)
     );
-  }, [feedItems, handleReactionToggle, handleBookmark, handleImageClick, handleLocationClick, handlePollClick, handleUserClick]);
+
+    // Apply favorite filter if activeFilter is "favorite"
+    if (activeFilter === "favorite") {
+      // Filter out anonymous users (no user.id)
+      transformed = transformed.filter((item) => item.user.id !== null);
+
+      // Apply favorite filter (mijn vs anderen)
+      if (favoriteFilter === "mijn") {
+        // Only show favorites from current user
+        transformed = transformed.filter((item) => item.user.id === currentUserId);
+      } else {
+        // Show favorites from others (already filtered out anonymous users above)
+        transformed = transformed.filter((item) => item.user.id !== currentUserId);
+      }
+    }
+
+    return transformed;
+  }, [feedItems, handleReactionToggle, handleBookmark, handleImageClick, handleLocationClick, handlePollClick, handleUserClick, activeFilter, favoriteFilter, currentUserId]);
 
   // Handle notification click (placeholder)
   const handleNotificationClick = useCallback(() => {
@@ -472,6 +503,13 @@ export default function FeedPage() {
               className="mt-2" 
             />
           )}
+          {activeFilter === "favorite" && (
+            <FavoriteTabs 
+              activeFilter={favoriteFilter} 
+              onFilterChange={setFavoriteFilter} 
+              className="mt-2" 
+            />
+          )}
           {weekFeedback && !weekFeedbackDismissed && activeFilter !== "one_cikanlar" && (
             <WeekFeedbackCard
               message={weekFeedback.message}
@@ -513,6 +551,38 @@ export default function FeedPage() {
                 />
               )}
             </>
+          ) : activeFilter === "favorite" ? (
+            !isAuthenticated ? (
+              <FeedList
+                items={[]}
+                isLoading={false}
+                isLoadingMore={false}
+                hasMore={false}
+                emptyMessage=""
+                className="mt-2"
+                showLoginPrompt={true}
+                loginMessage="Log in om favorieten te zien"
+              />
+            ) : error ? (
+              <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
+                <p className="text-foreground">{error}</p>
+              </div>
+            ) : (
+              <FeedList
+                items={feedCardProps}
+                isLoading={isLoading}
+                isLoadingMore={isLoadingMore}
+                hasMore={hasMore}
+                onLoadMore={handleLoadMore}
+                emptyMessage={
+                  favoriteFilter === "mijn"
+                    ? "Je hebt nog geen favorieten toegevoegd. Voeg locaties toe aan je favorieten!"
+                    : "Er zijn nog geen favorieten van anderen."
+                }
+                className="mt-2"
+                showLoginPrompt={false}
+              />
+            )
           ) : activeFilter === "all" ? (
             <DashboardOverview className="mt-2" />
           ) : activeFilter === "prikbord" ? (
