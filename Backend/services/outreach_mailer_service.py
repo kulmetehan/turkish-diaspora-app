@@ -241,13 +241,14 @@ async def send_queued_emails(limit: int = 50, skip_retry_logic: bool = False) ->
     errors = []
     
     for email_record in queued_emails:
-        # Check rate limiting before each email
-        if not await rate_limiting_service.can_send_email():
-            logger.info(
-                "outreach_rate_limit_reached_during_sending",
-                sent_so_far=sent_count,
-            )
-            break
+        # Check rate limiting before each email (skip for manual sending)
+        if not skip_retry_logic:
+            if not await rate_limiting_service.can_send_email():
+                logger.info(
+                    "outreach_rate_limit_reached_during_sending",
+                    sent_so_far=sent_count,
+                )
+                break
         
         # Check consent before sending
         email_address = email_record["email"]
