@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 from app.deps.admin_auth import verify_admin_user, AdminUser
-from services.db_service import fetch, fetchrow
+from services.db_service import fetch, fetchrow, execute
 from services.outreach_mailer_service import send_queued_emails
 from app.core.logging import get_logger
 
@@ -23,6 +23,18 @@ class QueueEmailResponse(BaseModel):
     success: bool
     message: str
     email_id: Optional[int] = None
+
+
+class BulkQueueRequest(BaseModel):
+    location_ids: List[int] = Field(..., min_items=1, description="List of location IDs to queue emails for")
+
+
+class BulkQueueResponse(BaseModel):
+    queued_count: int
+    failed_count: int
+    already_queued_count: int
+    already_sent_count: int
+    errors: List[str] = Field(default_factory=list)
 
 
 @router.post("/queue", response_model=QueueEmailResponse)
@@ -110,8 +122,6 @@ async def queue_email_for_location(
     
     # Create queue entry
     try:
-        from services.db_service import execute
-        
         result = await fetchrow(
             """
             INSERT INTO outreach_emails (
@@ -153,6 +163,158 @@ async def queue_email_for_location(
             status_code=500,
             detail=f"Failed to queue email: {str(e)}"
         )
+
+
+@router.post("/bulk-queue", response_model=BulkQueueResponse)
+async def bulk_queue_emails(
+    request: BulkQueueRequest,
+    admin: AdminUser = Depends(verify_admin_user),
+):
+    """
+    Bulk queue outreach emails for multiple locations (admin only).
+    
+    This will:
+    1. Validate all location_ids
+    2. Check eligibility per location (VERIFIED, has contact, not already sent)
+    3. Queue emails for eligible locations
+    4. Return detailed results with counts and errors
+    """
+    location_ids = request.location_ids
+    queued_count = 0
+    failed_count = 0
+    already_queued_count = 0
+    already_sent_count = 0
+    errors = []
+    
+    # Fetch all locations with their eligibility info in one query
+    locations_data = await fetch(
+        """
+        SELECT 
+            l.id, l.name, l.state,
+            oc.id as contact_id, oc.email,
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM outreach_emails oe 
+                    WHERE oe.location_id = l.id 
+                    AND oe.status IN ('sent', 'delivered', 'clicked')
+                ) THEN true
+                ELSE false
+            END as already_sent,
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM outreach_emails oe 
+                    WHERE oe.location_id = l.id 
+                    AND oe.status = 'queued'
+                ) THEN true
+                ELSE false
+            END as already_queued
+        FROM locations l
+        LEFT JOIN outreach_contacts oc ON l.id = oc.location_id
+        WHERE l.id = ANY($1::bigint[])
+        """,
+        location_ids,
+    )
+    
+    # Create a map of location_id -> location data
+    locations_map = {row["id"]: row for row in locations_data}
+    
+    # Process each location
+    for location_id in location_ids:
+        try:
+            location_row = locations_map.get(location_id)
+            
+            if not location_row:
+                failed_count += 1
+                errors.append(f"Location {location_id}: not found")
+                continue
+            
+            # Check if already sent
+            if location_row.get("already_sent"):
+                already_sent_count += 1
+                continue
+            
+            # Check if already queued
+            if location_row.get("already_queued"):
+                already_queued_count += 1
+                continue
+            
+            # Check eligibility
+            if location_row["state"] != "VERIFIED":
+                failed_count += 1
+                errors.append(f"Location {location_id}: not VERIFIED (current state: {location_row['state']})")
+                continue
+            
+            if not location_row.get("contact_id"):
+                failed_count += 1
+                errors.append(f"Location {location_id}: no contact information")
+                continue
+            
+            # Queue email
+            try:
+                result = await fetchrow(
+                    """
+                    INSERT INTO outreach_emails (
+                        location_id,
+                        contact_id,
+                        email,
+                        status
+                    )
+                    VALUES ($1, $2, $3, 'queued')
+                    RETURNING id
+                    """,
+                    location_id,
+                    location_row["contact_id"],
+                    location_row["email"],
+                )
+                
+                queued_count += 1
+                logger.info(
+                    "admin_email_queued",
+                    admin_email=admin.email,
+                    location_id=location_id,
+                    email_id=result["id"],
+                )
+            except Exception as e:
+                failed_count += 1
+                error_msg = f"Location {location_id}: failed to queue email - {str(e)}"
+                errors.append(error_msg)
+                logger.error(
+                    "admin_email_queue_error",
+                    admin_email=admin.email,
+                    location_id=location_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+                
+        except Exception as e:
+            failed_count += 1
+            error_msg = f"Location {location_id}: processing error - {str(e)}"
+            errors.append(error_msg)
+            logger.error(
+                "admin_bulk_queue_location_error",
+                admin_email=admin.email,
+                location_id=location_id,
+                error=str(e),
+                exc_info=True,
+            )
+    
+    logger.info(
+        "admin_bulk_emails_queued",
+        admin_email=admin.email,
+        total_requested=len(location_ids),
+        queued_count=queued_count,
+        failed_count=failed_count,
+        already_queued_count=already_queued_count,
+        already_sent_count=already_sent_count,
+    )
+    
+    return BulkQueueResponse(
+        queued_count=queued_count,
+        failed_count=failed_count,
+        already_queued_count=already_queued_count,
+        already_sent_count=already_sent_count,
+        errors=errors,
+    )
 
 
 @router.post("/send")

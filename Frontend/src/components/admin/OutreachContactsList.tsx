@@ -9,16 +9,20 @@ import {
   bulkDeleteOutreachContacts,
   listLocationsWithoutContact,
   queueOutreachEmail,
+  bulkQueueOutreachEmails,
   sendQueuedOutreachEmails,
   listOutreachEmails,
+  getCities,
   type AdminContactResponse,
   type LocationWithoutContact,
   type OutreachEmailResponse,
+  type CityInfo,
 } from "@/lib/apiAdmin";
 import { toast } from "sonner";
 import AddContactDialog from "./AddContactDialog";
 
 type FilterMode = "with_email" | "without_email";
+type EmailStatusFilter = "all" | "not_sent" | "sent";
 
 export default function OutreachContactsList() {
   const [filterMode, setFilterMode] = useState<FilterMode>("with_email");
@@ -29,16 +33,27 @@ export default function OutreachContactsList() {
   const [locationsWithoutContactLimit] = useState(100); // Items per page
   const [loading, setLoading] = useState(false);
   const [locationIdFilter, setLocationIdFilter] = useState<string>("");
+  const [emailStatusFilter, setEmailStatusFilter] = useState<EmailStatusFilter>("all");
+  const [cityFilter, setCityFilter] = useState<string>("");
+  const [cities, setCities] = useState<CityInfo[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<LocationWithoutContact | null>(null);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set());
   const [emailStatuses, setEmailStatuses] = useState<Map<number, OutreachEmailResponse>>(new Map());
   const [sending, setSending] = useState(false);
+  const [bulkQueueing, setBulkQueueing] = useState(false);
 
   const loadContacts = async () => {
     setLoading(true);
     try {
-      const params: { location_id?: number; limit?: number; offset?: number } = {
+      const params: { 
+        location_id?: number; 
+        city?: string;
+        email_status?: "all" | "not_sent" | "sent";
+        limit?: number; 
+        offset?: number 
+      } = {
         limit: 500,
         offset: 0,
       };
@@ -48,12 +63,30 @@ export default function OutreachContactsList() {
           params.location_id = id;
         }
       }
+      if (cityFilter) {
+        params.city = cityFilter;
+      }
+      if (emailStatusFilter !== "all") {
+        params.email_status = emailStatusFilter;
+      }
       const data = await listOutreachContacts(params);
       setContacts(data);
     } catch (error: any) {
       toast.error(`Failed to load contacts: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadCities = async () => {
+    setCitiesLoading(true);
+    try {
+      const citiesData = await getCities();
+      setCities(citiesData);
+    } catch (error: any) {
+      toast.error(`Failed to load cities: ${error.message}`);
+    } finally {
+      setCitiesLoading(false);
     }
   };
 
@@ -74,6 +107,11 @@ export default function OutreachContactsList() {
     }
   };
 
+  // Load cities on mount
+  useEffect(() => {
+    loadCities();
+  }, []);
+
   // Load data when filter mode changes
   useEffect(() => {
     if (filterMode === "with_email") {
@@ -85,21 +123,17 @@ export default function OutreachContactsList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterMode]);
 
-  // Reload contacts when locationIdFilter changes (only for with_email mode)
+  // Reload contacts when filters change (only for with_email mode)
   useEffect(() => {
     if (filterMode === "with_email") {
       loadContacts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locationIdFilter]);
+  }, [locationIdFilter, cityFilter, emailStatusFilter]);
 
-  // Load email statuses on mount and when contacts change
-  useEffect(() => {
-    if (filterMode === "with_email") {
-      loadEmailStatuses();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMode, contacts]);
+  // Note: Email statuses are now included in the contact response, 
+  // so we don't need a separate loadEmailStatuses call for display.
+  // We still use it for refreshing after queue operations.
 
   const handleDelete = async (contactId: number) => {
     if (!confirm("Are you sure you want to delete this contact?")) {
@@ -200,6 +234,71 @@ export default function OutreachContactsList() {
     }
   };
 
+  const handleBulkQueue = async () => {
+    if (selectedContactIds.size === 0) {
+      toast.error("Please select at least one contact");
+      return;
+    }
+
+    const selectedContacts = contacts.filter(c => selectedContactIds.has(c.id));
+    const locationIds = selectedContacts.map(c => c.location_id);
+
+    if (locationIds.length === 0) {
+      toast.error("No valid locations selected");
+      return;
+    }
+
+    setBulkQueueing(true);
+    try {
+      const result = await bulkQueueOutreachEmails(locationIds);
+      
+      let message = `Queued ${result.queued_count} email(s)`;
+      const details: string[] = [];
+      
+      if (result.already_queued_count > 0) {
+        details.push(`${result.already_queued_count} already queued`);
+      }
+      if (result.already_sent_count > 0) {
+        details.push(`${result.already_sent_count} already sent`);
+      }
+      if (result.failed_count > 0) {
+        details.push(`${result.failed_count} failed`);
+      }
+      
+      if (details.length > 0) {
+        message += ` (${details.join(", ")})`;
+      }
+      
+      if (result.queued_count > 0) {
+        toast.success(message);
+      } else if (result.failed_count > 0) {
+        toast.error(message);
+      } else {
+        toast.info(message);
+      }
+      
+      if (result.errors.length > 0 && result.errors.length <= 5) {
+        result.errors.forEach(error => {
+          toast.error(error, { duration: 5000 });
+        });
+      } else if (result.errors.length > 5) {
+        toast.error(`${result.errors.length} errors occurred. Check console for details.`);
+        console.error("Bulk queue errors:", result.errors);
+      }
+      
+      // Clear selection
+      setSelectedContactIds(new Set());
+      
+      // Reload email statuses and contacts
+      await loadEmailStatuses();
+      await loadContacts();
+    } catch (error: any) {
+      toast.error(`Failed to queue emails: ${error.message}`);
+    } finally {
+      setBulkQueueing(false);
+    }
+  };
+
   const handleSendEmails = async () => {
     setSending(true);
     try {
@@ -291,14 +390,25 @@ export default function OutreachContactsList() {
                       {sending ? "Sending..." : "Send Queued Emails"}
                     </Button>
                     {selectedContactIds.size > 0 && (
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
-                        onClick={handleBulkDelete}
-                      >
-                        <Icon name="Trash2" sizeRem={1} className="mr-2" />
-                        Delete Selected ({selectedContactIds.size})
-                      </Button>
+                      <>
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          onClick={handleBulkQueue}
+                          disabled={bulkQueueing}
+                        >
+                          <Icon name="Mail" sizeRem={1} className="mr-2" />
+                          {bulkQueueing ? "Queueing..." : `Queue All Selected (${selectedContactIds.size})`}
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm" 
+                          onClick={handleBulkDelete}
+                        >
+                          <Icon name="Trash2" sizeRem={1} className="mr-2" />
+                          Delete Selected ({selectedContactIds.size})
+                        </Button>
+                      </>
                     )}
                     <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
                       <Icon name="Plus" sizeRem={1} className="mr-2" />
@@ -339,16 +449,46 @@ export default function OutreachContactsList() {
                 </div>
               </div>
               {filterMode === "with_email" && (
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Location ID:</label>
-                  <input
-                    type="number"
-                    value={locationIdFilter}
-                    onChange={(e) => setLocationIdFilter(e.target.value)}
-                    placeholder="Filter by location ID"
-                    className="w-40 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
-                  />
-                </div>
+                <>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">Email Status:</label>
+                    <select
+                      value={emailStatusFilter}
+                      onChange={(e) => setEmailStatusFilter(e.target.value as EmailStatusFilter)}
+                      className="w-40 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                    >
+                      <option value="all">Alle</option>
+                      <option value="not_sent">Niet verzonden</option>
+                      <option value="sent">Verzonden</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">Stad:</label>
+                    <select
+                      value={cityFilter}
+                      onChange={(e) => setCityFilter(e.target.value)}
+                      disabled={citiesLoading}
+                      className="w-48 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                    >
+                      <option value="">Alle steden</option>
+                      {cities.map((city) => (
+                        <option key={city.key} value={city.key}>
+                          {city.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium">Location ID:</label>
+                    <input
+                      type="number"
+                      value={locationIdFilter}
+                      onChange={(e) => setLocationIdFilter(e.target.value)}
+                      placeholder="Filter by location ID"
+                      className="w-40 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                </>
               )}
             </div>
 
@@ -402,6 +542,11 @@ export default function OutreachContactsList() {
                               <div>
                                 <strong>Location ID:</strong> {contact.location_id}
                               </div>
+                              {contact.city && (
+                                <div>
+                                  <strong>Stad:</strong> {contact.city}
+                                </div>
+                              )}
                               <div>
                                 <strong>Discovered:</strong> {formatDate(contact.discovered_at)}
                               </div>
@@ -412,7 +557,7 @@ export default function OutreachContactsList() {
                           </div>
                           <div className="flex items-center gap-2">
                             {(() => {
-                              const emailStatus = emailStatuses.get(contact.location_id);
+                              const emailStatus = contact.email_status;
                               if (emailStatus) {
                                 const statusColors: Record<string, string> = {
                                   queued: "bg-yellow-50 text-yellow-700 border-yellow-200",
@@ -422,10 +567,10 @@ export default function OutreachContactsList() {
                                   bounced: "bg-red-50 text-red-700 border-red-200",
                                   opted_out: "bg-gray-50 text-gray-700 border-gray-200",
                                 };
-                                const colorClass = statusColors[emailStatus.status] || "bg-gray-50 text-gray-700 border-gray-200";
+                                const colorClass = statusColors[emailStatus] || "bg-gray-50 text-gray-700 border-gray-200";
                                 return (
                                   <Badge variant="outline" className={colorClass}>
-                                    {emailStatus.status.toUpperCase()}
+                                    {emailStatus.toUpperCase()}
                                   </Badge>
                                 );
                               } else {

@@ -7,7 +7,6 @@ import { FeedList } from "@/components/feed/FeedList";
 import { GreetingBlock } from "@/components/feed/GreetingBlock";
 import { ImageModal } from "@/components/feed/ImageModal";
 import { PollFeed } from "@/components/feed/PollFeed";
-import { PollModal } from "@/components/feed/PollModal";
 import { PrikbordFeed } from "@/components/prikbord/PrikbordFeed";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
@@ -147,8 +146,6 @@ export default function FeedPage() {
   const [userName, setUserName] = useState<string | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
-  const [pollModalOpen, setPollModalOpen] = useState(false);
-  const [pollModalId, setPollModalId] = useState<number | null>(null);
   const [weekFeedback, setWeekFeedback] = useState<{
     should_show: boolean;
     message: string;
@@ -394,10 +391,9 @@ export default function FeedPage() {
     navigate(`/locations/${locationId}`);
   }, [navigate]);
 
-  // Handle poll click
+  // Handle poll click (no longer needed, polls are inline)
   const handlePollClick = useCallback((pollId: number) => {
-    setPollModalId(pollId);
-    setPollModalOpen(true);
+    // Polls are now inline, no modal needed
   }, []);
 
   // Handle period change for Öne Çıkanlar
@@ -607,11 +603,6 @@ export default function FeedPage() {
         imageUrl={imageModalUrl}
         open={imageModalOpen}
         onOpenChange={setImageModalOpen}
-      />
-      <PollModal
-        pollId={pollModalId}
-        open={pollModalOpen}
-        onOpenChange={setPollModalOpen}
       />
     </AppViewportShell>
     </>

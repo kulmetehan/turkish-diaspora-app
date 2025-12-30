@@ -316,7 +316,7 @@ export function FeedCard({
           ) : type === "poll_response" && pollId ? (
             <div className="space-y-1">
               <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
-              <PollPreview pollId={pollId} onOpenModal={onPollClick} />
+              <PollPreview pollId={pollId} />
             </div>
           ) : (
             <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
