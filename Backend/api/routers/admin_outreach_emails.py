@@ -326,9 +326,10 @@ async def send_queued_emails_admin(
     Manually trigger sending of queued outreach emails (admin only).
     
     This calls the outreach_mailer_service to send queued emails.
+    For manual sending, skip retry logic to send all queued emails.
     """
     try:
-        result = await send_queued_emails(limit=limit)
+        result = await send_queued_emails(limit=limit, skip_retry_logic=True)
         
         logger.info(
             "admin_emails_sent",

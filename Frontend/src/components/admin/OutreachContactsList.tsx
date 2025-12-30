@@ -451,8 +451,13 @@ export default function OutreachContactsList() {
       } else {
         toast.error("Failed to send emails");
       }
-      // Reload all email statuses
+      // Reload all email statuses and current view
       await loadEmailStatuses();
+      if (filterMode === "with_email") {
+        await loadContacts();
+      } else if (filterMode === "queued") {
+        await loadQueuedContacts();
+      }
     } catch (error: any) {
       toast.error(`Failed to send emails: ${error.message}`);
     } finally {
@@ -530,7 +535,7 @@ export default function OutreachContactsList() {
                   <Icon name="RefreshCw" sizeRem={1} className="mr-2" />
                   Refresh
                 </Button>
-                {filterMode === "with_email" && (
+                {(filterMode === "with_email" || filterMode === "queued") && (
                   <>
                     <Button 
                       variant="default" 
