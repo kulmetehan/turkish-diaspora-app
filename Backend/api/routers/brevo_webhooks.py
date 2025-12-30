@@ -93,7 +93,7 @@ async def brevo_webhook(
                 logger.info(
                     "brevo_webhook_unhandled_event",
                     event_type=event_type,
-                    event=event,
+                    event_data=event,
                 )
         
         return {"ok": True, "message": f"Processed {len(events)} event(s)"}

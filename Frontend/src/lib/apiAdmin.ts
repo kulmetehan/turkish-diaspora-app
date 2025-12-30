@@ -1309,10 +1309,14 @@ export type LocationsWithoutContactResponse = {
 export async function listLocationsWithoutContact(params?: {
     limit?: number;
     offset?: number;
+    category?: string;
+    city?: string;
 }): Promise<LocationsWithoutContactResponse> {
     const q = new URLSearchParams();
     if (params?.limit) q.set("limit", String(params.limit));
     if (params?.offset) q.set("offset", String(params.offset));
+    if (params?.category) q.set("category", params.category);
+    if (params?.city) q.set("city", params.city);
     
     return authFetch(`/api/v1/admin/outreach/contacts/locations-without-contact?${q.toString()}`);
 }
