@@ -242,13 +242,13 @@ class OutreachAnalyticsService:
                 
                 logger.debug(
                     "posthog_event_sent",
-                    event=event,
+                    posthog_event=event,
                     distinct_id=distinct_id,
                 )
         except httpx.HTTPError as e:
             logger.warning(
                 "posthog_event_failed",
-                event=event,
+                posthog_event=event,
                 distinct_id=distinct_id,
                 error=str(e),
                 error_type=type(e).__name__,
@@ -256,7 +256,7 @@ class OutreachAnalyticsService:
         except Exception as e:
             logger.warning(
                 "posthog_event_unexpected_error",
-                event=event,
+                posthog_event=event,
                 distinct_id=distinct_id,
                 error=str(e),
                 error_type=type(e).__name__,
