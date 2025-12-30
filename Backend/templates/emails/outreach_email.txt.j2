@@ -4,18 +4,19 @@
 {% if language == 'tr' %}
 Merhaba,
 
-{{ location_name }} işletmeniz Türk diasporası topluluğu için önemli bir kaynak olarak Turkspot haritasında yer alıyor.
+İşletmeniz/konumunuz {{ location_name }} Türk topluluğu için bir kaynak olarak Turkspot haritasında listelenmiştir.
 
-Turkspot, Hollanda'daki Türk topluluğunun işletmelerini, restoranlarını ve hizmetlerini keşfetmek için kullanılan bir platformdur. İşletmeniz zaten haritamızda görünüyor ve topluluk üyeleri tarafından bulunabilir.
+Turkspot, Hollanda'daki Türk topluluğu işletmelerini, restoranlarını ve hizmetlerini keşfetmek için kullanılan bir yapay zeka uygulamasıdır. İşletmeniz/konumunuz zaten haritamızda listelenmiştir ve topluluk üyeleri tarafından bulunabilir.
 
-İşletmenizi görüntülemek için:
-{{ mapview_link }}
+İşletmenizi görüntülemek ve yönetmek için:
 
-İşletmenizin bilgilerini güncellemek veya ek bilgiler eklemek isterseniz, haritadaki işletmenize tıklayarak "Claim" butonunu kullanabilirsiniz.
+Haritada Görüntüle: {{ mapview_link }}
 
-VERİ KORUMA: Bu e-posta, işletmenizin iletişim bilgilerinin kamuya açık kaynaklardan (örneğin OSM) elde edildiğini bildirmek için gönderilmiştir. İşletmenizi haritadan kaldırmak isterseniz, haritadaki report linkini kullanın veya bu mesaja bir yanıt gönderin.
+İşletme bilgilerinizi güncellemek veya ek ayrıntılar eklemek isterseniz, haritadaki işletmenize tıklayabilir ve "Talep Et" düğmesini kullanabilirsiniz.
 
-Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin.
+Veri Koruması: Bu e-posta, işletmenizin iletişim bilgilerinin kamuya açık kaynaklardan elde edildiğini size bildirmek için gönderilmektedir. İşletmenizi haritadan kaldırmak isterseniz, lütfen haritadaki rapor bağlantısını kullanın.
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin. Potansiyel iş birliklerine de açığız.
 
 Teşekkürler,
 Turkspot Ekibi
@@ -40,11 +41,11 @@ Thank you,
 The Turkspot Team
 
 {% else %}
-Beste {{ location_name }},
+Hallo,
 
-Uw bedrijf {{ location_name }} staat op de Turkspot kaart als belangrijke bron voor de Turkse gemeenschap.
+Uw bedrijf/locatie {{ location_name }} staat op de Turkspot kaart als bron voor de Turkse gemeenschap.
 
-Turkspot is een platform dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf staat al op onze kaart en kan door de gemeenschap worden gevonden.
+Turkspot is een AI app dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf/locatie staat al op onze kaart en kan door gemeenschapsleden worden gevonden.
 
 Om uw bedrijf te bekijken en te beheren:
 
@@ -52,12 +53,33 @@ Bekijk op Kaart: {{ mapview_link }}
 
 Als u de informatie van uw bedrijf wilt bijwerken of aanvullende gegevens wilt toevoegen, kunt u op uw bedrijf op de kaart klikken en de "Claim" knop gebruiken.
 
-Gegevensbescherming: Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen. Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de report link op de kaart of stuur ons een reactie op dit bericht.
+Gegevensbescherming: Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen. Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de rapporteer link op de kaart.
 
-Aarzel niet om contact met ons op te nemen voor vragen of eventuele samenwerkingen.
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen. Natuurlijk staan wij ook open voor eventuele samenwerkingen.
 
 Bedankt,
 Het Turkspot Team
+
+---
+
+Merhaba,
+
+İşletmeniz/konumunuz {{ location_name }} Türk topluluğu için bir kaynak olarak Turkspot haritasında listelenmiştir.
+
+Turkspot, Hollanda'daki Türk topluluğu işletmelerini, restoranlarını ve hizmetlerini keşfetmek için kullanılan bir yapay zeka uygulamasıdır. İşletmeniz/konumunuz zaten haritamızda listelenmiştir ve topluluk üyeleri tarafından bulunabilir.
+
+İşletmenizi görüntülemek ve yönetmek için:
+
+Haritada Görüntüle: {{ mapview_link }}
+
+İşletme bilgilerinizi güncellemek veya ek ayrıntılar eklemek isterseniz, haritadaki işletmenize tıklayabilir ve "Talep Et" düğmesini kullanabilirsiniz.
+
+Veri Koruması: Bu e-posta, işletmenizin iletişim bilgilerinin kamuya açık kaynaklardan elde edildiğini size bildirmek için gönderilmektedir. İşletmenizi haritadan kaldırmak isterseniz, lütfen haritadaki rapor bağlantısını kullanın.
+
+Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin. Potansiyel iş birliklerine de açığız.
+
+Teşekkürler,
+Turkspot Ekibi
 {% endif %}
 
 {% endblock %}

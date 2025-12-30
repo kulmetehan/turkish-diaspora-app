@@ -114,47 +114,18 @@ async def get_own_activity(
     client_id: Optional[str] = Depends(get_client_id),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Get own activity stream (user_id or client_id)."""
+    """Get activity feed - shows all activity (including bots) with user's like/bookmark status."""
     require_feature("check_ins_enabled")  # Or create separate flag
     
     user_id = user.user_id if user else None
     
-    # Require either user_id or client_id
-    if not user_id and not client_id:
-        return []
-    
-    # Build WHERE clause with optional activity_type filter
-    # Match activities by user_id OR client_id to find activities regardless of login state
-    # when they were created (e.g., check-ins made while logged in should still appear when not logged in)
+    # Build WHERE clause - show ALL activity (not filtered by user_id/client_id)
+    # This allows bots and other users' activity to appear in the feed
     conditions = []
     params = []
+    param_num = 1
     
-    if user_id:
-        # Match activities created while logged in (actor_type = 'user')
-        conditions.append("(ast.actor_id = $1 AND ast.actor_type = 'user')")
-        params.append(user_id)
-    
-    if client_id:
-        # Also match activities by client_id (works for both logged in and anonymous)
-        if user_id:
-            conditions.append("ast.client_id = $2")
-            params.append(client_id)
-            param_num = 3
-        else:
-            conditions.append("ast.client_id = $1")
-            params.append(client_id)
-            param_num = 2
-    else:
-        param_num = 2 if user_id else 1
-    
-    # Combine conditions with OR if both user_id and client_id exist
-    if len(conditions) > 1:
-        where_clause_base = "(" + ") OR (".join(conditions) + ")"
-    else:
-        where_clause_base = conditions[0]
-    
-    conditions = [where_clause_base]
-    
+    # Optional activity_type filter
     if activity_type:
         # Validate activity_type
         valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post", "event"]
@@ -167,16 +138,25 @@ async def get_own_activity(
         params.append(activity_type)
         param_num += 1
     
-    where_clause = " AND ".join(conditions)
+    # If no conditions, show all activity
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
     
     # Build LIKE join condition for current user/client
+    # This still tracks whether the current user has liked/bookmarked/reacted
     like_join_condition = "al.activity_id = ast.id AND "
     bookmark_join_condition = "ab.activity_id = ast.id AND "
-    if client_id:
+    if user_id:
+        # Check by user_id if authenticated
+        like_join_condition += f"(al.user_id = '{user_id}')"
+        bookmark_join_condition += f"(ab.user_id = '{user_id}')"
+        user_reaction_condition = f"ar2.user_id = '{user_id}'"
+    elif client_id:
+        # Fallback to client_id if not authenticated
         like_join_condition += f"(al.client_id = '{client_id}')"
         bookmark_join_condition += f"(ab.client_id = '{client_id}')"
         user_reaction_condition = f"ar2.client_id = '{client_id}'"
     else:
+        # No user or client_id - no likes/bookmarks/reactions
         like_join_condition += "al.client_id IS NULL"
         bookmark_join_condition += "ab.client_id IS NULL"
         user_reaction_condition = "ar2.client_id IS NULL"

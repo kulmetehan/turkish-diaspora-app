@@ -89,3 +89,8 @@ export async function getSharedLinkReactions(
   return apiFetch(`/api/v1/prikbord/links/${id}/reactions`);
 }
 
+export async function getAvailablePlatforms(): Promise<string[]> {
+  const response = await apiFetch<{ platforms: string[] }>("/api/v1/prikbord/platforms");
+  return response.platforms;
+}
+

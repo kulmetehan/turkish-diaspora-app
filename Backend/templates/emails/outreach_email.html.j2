@@ -18,31 +18,23 @@
 
 {% block content %}
 {% if language == 'tr' %}
-<p>Beste {{ location_name }},</p>
+<p>Merhaba,</p>
 
-<p>Uw bedrijf <strong>{{ location_name }}</strong> staat op de Turkspot kaart als belangrijke bron voor de Turkse gemeenschap.</p>
+<p>İşletmeniz/konumunuz <strong>{{ location_name }}</strong> Türk topluluğu için bir kaynak olarak Turkspot haritasında listelenmiştir.</p>
 
-<p>Turkspot is een platform dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf staat al op onze kaart en kan door de gemeenschap worden gevonden.</p>
+<p>Turkspot, Hollanda'daki Türk topluluğu işletmelerini, restoranlarını ve hizmetlerini keşfetmek için kullanılan bir yapay zeka uygulamasıdır. İşletmeniz/konumunuz zaten haritamızda listelenmiştir ve topluluk üyeleri tarafından bulunabilir.</p>
 
-<p>Om uw bedrijf te bekijken en te beheren:</p>
+<p>İşletmenizi görüntülemek ve yönetmek için:</p>
 
-<a href="{{ mapview_link }}" class="button">
-    {% if language == 'tr' %}
-        Haritada Görüntüle
-    {% elif language == 'en' %}
-        View on Map
-    {% else %}
-        Bekijk op Kaart
-    {% endif %}
-</a>
+<a href="{{ mapview_link }}" class="button">Haritada Görüntüle</a>
 
-<p>Als u de informatie van uw bedrijf wilt bijwerken of aanvullende gegevens wilt toevoegen, kunt u op uw bedrijf op de kaart klikken en de "Claim" knop gebruiken.</p>
+<p>İşletme bilgilerinizi güncellemek veya ek ayrıntılar eklemek isterseniz, haritadaki işletmenize tıklayabilir ve "Talep Et" düğmesini kullanabilirsiniz.</p>
 
-<p><strong>Gegevensbescherming:</strong> Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen. Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de report link op de kaart of stuur ons een reactie op dit bericht.</p>
+<p><strong>Veri Koruması:</strong> Bu e-posta, işletmenizin iletişim bilgilerinin kamuya açık kaynaklardan elde edildiğini size bildirmek için gönderilmektedir. İşletmenizi haritadan kaldırmak isterseniz, lütfen haritadaki rapor bağlantısını kullanın.</p>
 
-<p>Aarzel niet om contact met ons op te nemen voor vragen of eventuele samenwerkingen.</p>
+<p>Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin. Potansiyel iş birliklerine de açığız.</p>
 
-<p>Bedankt,<br>Het Turkspot Team</p>
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
 
 {% elif language == 'en' %}
 <p>Hello,</p>
@@ -64,11 +56,12 @@
 <p>Thank you,<br>The Turkspot Team</p>
 
 {% else %}
-<p>Beste {{ location_name }},</p>
+<!-- Nederlandse tekst -->
+<p>Hallo,</p>
 
-<p>Uw bedrijf <strong>{{ location_name }}</strong> staat op de Turkspot kaart als belangrijke bron voor de Turkse gemeenschap.</p>
+<p>Uw bedrijf/locatie <strong>{{ location_name }}</strong> staat op de Turkspot kaart als bron voor de Turkse gemeenschap.</p>
 
-<p>Turkspot is een platform dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf staat al op onze kaart en kan door de gemeenschap worden gevonden.</p>
+<p>Turkspot is een AI app dat gebruikt wordt om Turkse gemeenschapsbedrijven, restaurants en diensten in Nederland te ontdekken. Uw bedrijf/locatie staat al op onze kaart en kan door gemeenschapsleden worden gevonden.</p>
 
 <p>Om uw bedrijf te bekijken en te beheren:</p>
 
@@ -76,11 +69,32 @@
 
 <p>Als u de informatie van uw bedrijf wilt bijwerken of aanvullende gegevens wilt toevoegen, kunt u op uw bedrijf op de kaart klikken en de "Claim" knop gebruiken.</p>
 
-<p><strong>Gegevensbescherming:</strong> Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen. Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de report link op de kaart of stuur ons een reactie op dit bericht.</p>
+<p><strong>Gegevensbescherming:</strong> Deze e-mail wordt verzonden om u te informeren dat de contactgegevens van uw bedrijf zijn verkregen uit openbaar beschikbare bronnen. Als u uw bedrijf van de kaart wilt verwijderen, gebruikt u de rapporteer link op de kaart.</p>
 
-<p>Aarzel niet om contact met ons op te nemen voor vragen of eventuele samenwerkingen.</p>
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen. Natuurlijk staan wij ook open voor eventuele samenwerkingen.</p>
 
 <p>Bedankt,<br>Het Turkspot Team</p>
+
+<!-- Turkse tekst -->
+<hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+<p>Merhaba,</p>
+
+<p>İşletmeniz/konumunuz <strong>{{ location_name }}</strong> Türk topluluğu için bir kaynak olarak Turkspot haritasında listelenmiştir.</p>
+
+<p>Turkspot, Hollanda'daki Türk topluluğu işletmelerini, restoranlarını ve hizmetlerini keşfetmek için kullanılan bir yapay zeka uygulamasıdır. İşletmeniz/konumunuz zaten haritamızda listelenmiştir ve topluluk üyeleri tarafından bulunabilir.</p>
+
+<p>İşletmenizi görüntülemek ve yönetmek için:</p>
+
+<a href="{{ mapview_link }}" class="button">Haritada Görüntüle</a>
+
+<p>İşletme bilgilerinizi güncellemek veya ek ayrıntılar eklemek isterseniz, haritadaki işletmenize tıklayabilir ve "Talep Et" düğmesini kullanabilirsiniz.</p>
+
+<p><strong>Veri Koruması:</strong> Bu e-posta, işletmenizin iletişim bilgilerinin kamuya açık kaynaklardan elde edildiğini size bildirmek için gönderilmektedir. İşletmenizi haritadan kaldırmak isterseniz, lütfen haritadaki rapor bağlantısını kullanın.</p>
+
+<p>Herhangi bir sorunuz varsa, lütfen bizimle iletişime geçmekten çekinmeyin. Potansiyel iş birliklerine de açığız.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
 {% endif %}
 
 {% endblock %}
