@@ -8,6 +8,7 @@ from datetime import datetime
 from app.deps.admin_auth import verify_admin_user, AdminUser
 from services.db_service import fetch, execute, fetchrow
 from services.cities_config_service import get_city_key_from_coords
+from services.metrics_service import _compute_city_bbox
 from app.core.logging import get_logger
 import re
 
@@ -158,13 +159,13 @@ async def list_outreach_contacts(
     Supports filtering by:
     - location_id: Filter by specific location ID
     - city: Filter by city key (e.g., 'rotterdam', 'den_haag')
-    - email_status: Filter by email status ('all', 'not_sent', 'sent')
+    - email_status: Filter by email status ('all', 'not_sent', 'sent', 'queued')
     """
     conditions = []
     params = []
     param_num = 1
     
-    # Base query with JOIN to outreach_emails for status
+    # Base query with optimized JOIN using DISTINCT ON subquery
     base_sql = """
         SELECT 
             oc.id, oc.location_id, oc.email, oc.source,
@@ -176,13 +177,12 @@ async def list_outreach_contacts(
             oe.status as email_status
         FROM outreach_contacts oc
         LEFT JOIN locations l ON l.id = oc.location_id
-        LEFT JOIN LATERAL (
-            SELECT status 
+        LEFT JOIN (
+            SELECT DISTINCT ON (location_id) 
+                location_id, status
             FROM outreach_emails 
-            WHERE location_id = oc.location_id 
-            ORDER BY created_at DESC 
-            LIMIT 1
-        ) oe ON true
+            ORDER BY location_id, created_at DESC
+        ) oe ON oe.location_id = oc.location_id
     """
     
     if location_id:
@@ -190,11 +190,31 @@ async def list_outreach_contacts(
         params.append(location_id)
         param_num += 1
     
+    # City filter: use bbox filtering in SQL for better performance
+    if city:
+        bbox = _compute_city_bbox(city)
+        if bbox:
+            lat_min, lat_max, lng_min, lng_max = bbox
+            conditions.append(f"l.lat BETWEEN ${param_num} AND ${param_num + 1}")
+            conditions.append(f"l.lng BETWEEN ${param_num + 2} AND ${param_num + 3}")
+            params.extend([lat_min, lat_max, lng_min, lng_max])
+            param_num += 4
+        else:
+            # If bbox not found, return empty result
+            logger.warning(
+                "city_bbox_not_found",
+                city=city,
+                admin_email=admin.email,
+            )
+            return []
+    
     # Email status filter
     if email_status == "not_sent":
         conditions.append("oe.status IS NULL")
     elif email_status == "sent":
         conditions.append("oe.status IN ('sent', 'delivered', 'clicked')")
+    elif email_status == "queued":
+        conditions.append("oe.status = 'queued'")
     # "all" or None means no filter
     
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
@@ -211,10 +231,10 @@ async def list_outreach_contacts(
     
     rows = await fetch(sql, *params)
     
-    # Process rows to derive city and apply city filter
+    # Process rows to derive city for display (filtering already done in SQL)
     results = []
     for row in rows:
-        # Derive city from coordinates first, then address
+        # Derive city from coordinates first, then address (for display only)
         city_key = None
         city_name = None
         
@@ -243,10 +263,6 @@ async def list_outreach_contacts(
                             break
                 except Exception:
                     pass
-        
-        # Apply city filter if specified
-        if city and city_key != city:
-            continue
         
         # Use city_key as city field, or city_name if available
         city_value = city_key if city_key else city_name
@@ -404,33 +420,72 @@ class LocationsWithoutContactResponse(BaseModel):
 async def list_locations_without_contact(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    city: Optional[str] = Query(None, description="Filter by city key"),
     admin: AdminUser = Depends(verify_admin_user),
 ):
     """
     List verified locations that don't have a contact yet (admin only).
     Returns paginated results with total count.
+    
+    Supports filtering by:
+    - category: Filter by location category
+    - city: Filter by city key (e.g., 'rotterdam', 'den_haag') using bbox filtering
     """
-    # Get total count
-    count_sql = """
+    conditions = [
+        "l.state = 'VERIFIED'",
+        "(l.is_retired = false OR l.is_retired IS NULL)",
+        "(l.confidence_score IS NOT NULL AND l.confidence_score >= 0.80)",
+        "l.lat IS NOT NULL",
+        "l.lng IS NOT NULL",
+        "NOT EXISTS (SELECT 1 FROM outreach_contacts oc WHERE oc.location_id = l.id)",
+    ]
+    params = []
+    param_num = 1
+    
+    # Category filter
+    if category:
+        conditions.append(f"l.category = ${param_num}")
+        params.append(category)
+        param_num += 1
+    
+    # City filter: use bbox filtering in SQL for better performance
+    if city:
+        bbox = _compute_city_bbox(city)
+        if bbox:
+            lat_min, lat_max, lng_min, lng_max = bbox
+            conditions.append(f"l.lat BETWEEN ${param_num} AND ${param_num + 1}")
+            conditions.append(f"l.lng BETWEEN ${param_num + 2} AND ${param_num + 3}")
+            params.extend([lat_min, lat_max, lng_min, lng_max])
+            param_num += 4
+        else:
+            # If bbox not found, return empty result
+            logger.warning(
+                "city_bbox_not_found_locations_without_contact",
+                city=city,
+                admin_email=admin.email,
+            )
+            return LocationsWithoutContactResponse(
+                items=[],
+                total=0,
+                limit=limit,
+                offset=offset,
+            )
+    
+    where_clause = " AND ".join(conditions)
+    
+    # Get total count with filters
+    count_sql = f"""
         SELECT COUNT(*)::int AS total
         FROM locations l
-        WHERE l.state = 'VERIFIED'
-          AND (l.is_retired = false OR l.is_retired IS NULL)
-          AND (l.confidence_score IS NOT NULL AND l.confidence_score >= 0.80)
-          AND l.lat IS NOT NULL
-          AND l.lng IS NOT NULL
-          AND NOT EXISTS (
-              SELECT 1 
-              FROM outreach_contacts oc 
-              WHERE oc.location_id = l.id
-          )
+        WHERE {where_clause}
     """
-    count_row = await fetchrow(count_sql)
+    count_row = await fetchrow(count_sql, *params)
     total = int(count_row["total"]) if count_row else 0
     
-    # Get paginated results
-    params = [limit, offset]
-    sql = """
+    # Get paginated results with filters
+    params.extend([limit, offset])
+    sql = f"""
         SELECT 
             l.id,
             l.name,
@@ -438,18 +493,9 @@ async def list_locations_without_contact(
             l.category,
             l.state
         FROM locations l
-        WHERE l.state = 'VERIFIED'
-          AND (l.is_retired = false OR l.is_retired IS NULL)
-          AND (l.confidence_score IS NOT NULL AND l.confidence_score >= 0.80)
-          AND l.lat IS NOT NULL
-          AND l.lng IS NOT NULL
-          AND NOT EXISTS (
-              SELECT 1 
-              FROM outreach_contacts oc 
-              WHERE oc.location_id = l.id
-          )
+        WHERE {where_clause}
         ORDER BY l.last_verified_at DESC NULLS LAST, l.id DESC
-        LIMIT $1 OFFSET $2
+        LIMIT ${param_num} OFFSET ${param_num + 1}
     """
     
     rows = await fetch(sql, *params)
