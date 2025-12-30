@@ -11,8 +11,7 @@ import { PollModal } from "@/components/feed/PollModal";
 import { PrikbordFeed } from "@/components/prikbord/PrikbordFeed";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
-import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
-import { getActivityFeed, getActivityReactions, getCurrentUser, getOnboardingStatus, getOneCikanlar, getWeekFeedback, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type OnboardingStatus, type ReactionType } from "@/lib/api";
+import { getActivityFeed, getActivityReactions, getCurrentUser, getOneCikanlar, getWeekFeedback, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type ReactionType } from "@/lib/api";
 import { WeekFeedbackCard } from "@/components/feed/WeekFeedbackCard";
 import { PeriodTabs, type PeriodFilter } from "@/components/onecikanlar/PeriodTabs";
 import { LeaderboardCards } from "@/components/onecikanlar/LeaderboardCards";
@@ -150,8 +149,6 @@ export default function FeedPage() {
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   const [pollModalOpen, setPollModalOpen] = useState(false);
   const [pollModalId, setPollModalId] = useState<number | null>(null);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingStatus, setOnboardingStatus] = useState<OnboardingStatus | null>(null);
   const [weekFeedback, setWeekFeedback] = useState<{
     should_show: boolean;
     message: string;
@@ -172,7 +169,7 @@ export default function FeedPage() {
 
   const hasProcessedNavigationStateRef = useRef(false);
 
-  // Fetch user profile, onboarding status, and week feedback on mount
+  // Fetch user profile and week feedback on mount
   useEffect(() => {
     getCurrentUser()
       .then((user) => {
@@ -184,24 +181,6 @@ export default function FeedPage() {
         setUserName(null);
         setCurrentUserId(null);
       });
-
-    // Check onboarding status from localStorage (synchronous)
-    try {
-      const status = getOnboardingStatus();
-      console.log("[FeedPage] Onboarding status:", status);
-      setOnboardingStatus(status);
-      if (status.first_run) {
-        console.log("[FeedPage] Showing onboarding (first_run=true)");
-        setShowOnboarding(true);
-      } else {
-        console.log("[FeedPage] Not showing onboarding (first_run=false)");
-        setShowOnboarding(false);
-      }
-    } catch (error) {
-      console.error("Failed to load onboarding status:", error);
-      // Default to showing onboarding if we can't determine status
-      setShowOnboarding(true);
-    }
 
     // Fetch week feedback
     getWeekFeedback()
@@ -465,19 +444,6 @@ export default function FeedPage() {
     // TODO: Implement notification navigation
     console.log("Notification clicked");
   }, []);
-
-  // Show onboarding if first_run is true
-  if (showOnboarding && onboardingStatus?.first_run) {
-    return (
-      <OnboardingFlow
-        onComplete={() => {
-          setShowOnboarding(false);
-          // Reload feed data
-          loadInitialData();
-        }}
-      />
-    );
-  }
 
   return (
     <>
