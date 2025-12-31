@@ -17,7 +17,9 @@ import { attachCategoryIconFallback, ensureCategoryIcons } from "@/lib/map/categ
 import { cn } from "@/lib/ui/cn";
 import { isMobile } from "@/lib/utils";
 import { navigationActions, useActiveTab, useMapNavigation, type TabId } from "@/state/navigation";
+import type { CheckInItem } from "@/lib/api";
 import MarkerLayer from "./MarkerLayer";
+import UserCheckInLayer from "./UserCheckInLayer";
 
 // Zorg dat je VITE_MAPBOX_TOKEN in .env staat
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
@@ -38,6 +40,9 @@ type Props = {
   centerOnSelect?: boolean;
   onSuppressNextViewportFetch?: () => void;
   initialCenterOverride?: { lng: number; lat: number; zoom?: number } | null; // Override initial center (e.g., for events)
+  showCheckInsMode?: boolean;
+  checkIns?: CheckInItem[];
+  onCheckInsViewportChange?: (bbox: string | null) => void;
 };
 
 const TOOLTIP_POINTER_HEIGHT = MARKER_POINT_OUTER_RADIUS;
@@ -490,6 +495,9 @@ export default function MapView({
   centerOnSelect = true,
   onSuppressNextViewportFetch,
   initialCenterOverride,
+  showCheckInsMode = false,
+  checkIns = [],
+  onCheckInsViewportChange,
 }: Props) {
   const { setViewport } = useViewportContext();
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1878,13 +1886,39 @@ export default function MapView({
         />
       )}
       {mapReady && mapRef.current && (
-        <MarkerLayer
-          map={mapRef.current}
-          locations={locations}
-          selectedId={highlightedId}
-          onSelect={handleMarkerSelect}
-          onClusterFocus={handleClusterFocus}
-        />
+        <>
+          {(() => {
+            console.debug("[MapView] Rendering MarkerLayer, visible:", !showCheckInsMode, "showCheckInsMode:", showCheckInsMode);
+            return null;
+          })()}
+          <MarkerLayer
+            map={mapRef.current}
+            locations={locations}
+            selectedId={highlightedId}
+            onSelect={handleMarkerSelect}
+            onClusterFocus={handleClusterFocus}
+            visible={!showCheckInsMode}
+          />
+        </>
+      )}
+      {(() => {
+        console.debug("[MapView] Check rendering conditions - mapReady:", mapReady, "mapRef:", !!mapRef.current, "showCheckInsMode:", showCheckInsMode, "checkIns count:", checkIns?.length || 0);
+        return null;
+      })()}
+      {mapReady && mapRef.current && showCheckInsMode && (
+        <>
+          {(() => {
+            console.debug("[MapView] Rendering UserCheckInLayer, checkIns count:", checkIns?.length || 0, "checkIns:", checkIns);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapView.tsx:1908',message:'Rendering UserCheckInLayer',data:{mapReady,hasMap:!!mapRef.current,showCheckInsMode,checkInsCount:checkIns?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            return null;
+          })()}
+          <UserCheckInLayer
+            map={mapRef.current}
+            checkIns={checkIns || []}
+          />
+        </>
       )}
     </div>
   );

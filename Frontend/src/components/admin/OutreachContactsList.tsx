@@ -29,8 +29,13 @@ type EmailStatusFilter = "all" | "not_sent" | "sent";
 export default function OutreachContactsList() {
   const [filterMode, setFilterMode] = useState<FilterMode>("with_email");
   const [contacts, setContacts] = useState<AdminContactResponse[]>([]);
+  const [contactsTotal, setContactsTotal] = useState(0);
+  const [contactsOffset, setContactsOffset] = useState(0);
+  const [contactsLimit] = useState(20);
   const [queuedContacts, setQueuedContacts] = useState<AdminContactResponse[]>([]);
   const [queuedContactsTotal, setQueuedContactsTotal] = useState(0);
+  const [queuedContactsOffset, setQueuedContactsOffset] = useState(0);
+  const [queuedContactsLimit] = useState(20);
   const [locationsWithoutContact, setLocationsWithoutContact] = useState<LocationWithoutContact[]>([]);
   const [locationsWithoutContactTotal, setLocationsWithoutContactTotal] = useState(0);
   const [locationsWithoutContactOffset, setLocationsWithoutContactOffset] = useState(0);
@@ -55,7 +60,7 @@ export default function OutreachContactsList() {
   const [categoryOptions, setCategoryOptions] = useState<CategoryOption[]>([]);
   const [categoryOptionsLoading, setCategoryOptionsLoading] = useState(false);
 
-  const loadContacts = async () => {
+  const loadContacts = async (offset: number = 0) => {
     setLoading(true);
     try {
       const params: { 
@@ -65,8 +70,8 @@ export default function OutreachContactsList() {
         limit?: number; 
         offset?: number 
       } = {
-        limit: 500,
-        offset: 0,
+        limit: contactsLimit,
+        offset: offset,
       };
       if (locationIdFilter.trim()) {
         const id = parseInt(locationIdFilter.trim(), 10);
@@ -82,6 +87,8 @@ export default function OutreachContactsList() {
       }
       const data = await listOutreachContacts(params);
       setContacts(data);
+      setContactsTotal(data.length); // Note: backend doesn't return total, so we use length
+      setContactsOffset(offset);
     } catch (error: any) {
       toast.error(`Failed to load contacts: ${error.message}`);
     } finally {
@@ -89,7 +96,7 @@ export default function OutreachContactsList() {
     }
   };
 
-  const loadQueuedContacts = async () => {
+  const loadQueuedContacts = async (offset: number = 0) => {
     setLoading(true);
     try {
       const params: { 
@@ -100,8 +107,8 @@ export default function OutreachContactsList() {
         offset?: number 
       } = {
         email_status: "queued",
-        limit: 500,
-        offset: 0,
+        limit: queuedContactsLimit,
+        offset: offset,
       };
       if (locationIdFilter.trim()) {
         const id = parseInt(locationIdFilter.trim(), 10);
@@ -114,7 +121,8 @@ export default function OutreachContactsList() {
       }
       const data = await listOutreachContacts(params);
       setQueuedContacts(data);
-      setQueuedContactsTotal(data.length);
+      setQueuedContactsTotal(data.length); // Note: backend doesn't return total, so we use length
+      setQueuedContactsOffset(offset);
     } catch (error: any) {
       toast.error(`Failed to load queued contacts: ${error.message}`);
     } finally {
@@ -187,10 +195,12 @@ export default function OutreachContactsList() {
   // Load data when filter mode changes
   useEffect(() => {
     if (filterMode === "with_email") {
-      loadContacts();
+      setContactsOffset(0);
+      loadContacts(0);
       setSelectedLocationIds(new Set()); // Clear location selection when switching modes
     } else if (filterMode === "queued") {
-      loadQueuedContacts();
+      setQueuedContactsOffset(0);
+      loadQueuedContacts(0);
       setSelectedLocationIds(new Set()); // Clear location selection when switching modes
       setSelectedContactIds(new Set()); // Clear contact selection when switching modes
     } else {
@@ -204,7 +214,8 @@ export default function OutreachContactsList() {
   // Reload contacts when filters change (only for with_email mode)
   useEffect(() => {
     if (filterMode === "with_email") {
-      loadContacts();
+      setContactsOffset(0);
+      loadContacts(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationIdFilter, cityFilter, emailStatusFilter]);
@@ -212,7 +223,8 @@ export default function OutreachContactsList() {
   // Reload queued contacts when filters change (only for queued mode)
   useEffect(() => {
     if (filterMode === "queued") {
-      loadQueuedContacts();
+      setQueuedContactsOffset(0);
+      loadQueuedContacts(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationIdFilter, cityFilter]);
@@ -454,9 +466,9 @@ export default function OutreachContactsList() {
       // Reload all email statuses and current view
       await loadEmailStatuses();
       if (filterMode === "with_email") {
-        await loadContacts();
+        await loadContacts(contactsOffset);
       } else if (filterMode === "queued") {
-        await loadQueuedContacts();
+        await loadQueuedContacts(queuedContactsOffset);
       }
     } catch (error: any) {
       toast.error(`Failed to send emails: ${error.message}`);
@@ -524,9 +536,9 @@ export default function OutreachContactsList() {
                   size="sm" 
                   onClick={() => {
                     if (filterMode === "with_email") {
-                      loadContacts();
+                      loadContacts(contactsOffset);
                     } else if (filterMode === "queued") {
-                      loadQueuedContacts();
+                      loadQueuedContacts(queuedContactsOffset);
                     } else {
                       loadLocationsWithoutContact(locationsWithoutContactOffset);
                     }
@@ -802,6 +814,35 @@ export default function OutreachContactsList() {
                       </CardContent>
                     </Card>
                   ))}
+                  
+                  {/* Pagination Controls for Queued */}
+                  {queuedContactsTotal > queuedContactsLimit && (
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Toont {queuedContactsOffset + 1} - {Math.min(queuedContactsOffset + queuedContactsLimit, queuedContactsTotal)} van {queuedContactsTotal} contacten
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadQueuedContacts(Math.max(0, queuedContactsOffset - queuedContactsLimit))}
+                          disabled={queuedContactsOffset === 0 || loading}
+                        >
+                          <Icon name="ChevronLeft" sizeRem={1} className="mr-1" />
+                          Vorige
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadQueuedContacts(queuedContactsOffset + queuedContactsLimit)}
+                          disabled={queuedContactsOffset + queuedContactsLimit >= queuedContactsTotal || loading}
+                        >
+                          Volgende
+                          <Icon name="ChevronRight" sizeRem={1} className="ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             ) : filterMode === "with_email" ? (
@@ -906,6 +947,35 @@ export default function OutreachContactsList() {
                       </CardContent>
                     </Card>
                   ))}
+                  
+                  {/* Pagination Controls for With Email */}
+                  {contactsTotal > contactsLimit && (
+                    <div className="flex items-center justify-between pt-4 border-t">
+                      <div className="text-sm text-muted-foreground">
+                        Toont {contactsOffset + 1} - {Math.min(contactsOffset + contactsLimit, contactsTotal)} van {contactsTotal} contacten
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadContacts(Math.max(0, contactsOffset - contactsLimit))}
+                          disabled={contactsOffset === 0 || loading}
+                        >
+                          <Icon name="ChevronLeft" sizeRem={1} className="mr-1" />
+                          Vorige
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => loadContacts(contactsOffset + contactsLimit)}
+                          disabled={contactsOffset + contactsLimit >= contactsTotal || loading}
+                        >
+                          Volgende
+                          <Icon name="ChevronRight" sizeRem={1} className="ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             ) : (

@@ -20,10 +20,11 @@ import { clearFocusId, onHashChange, readFocusId, readViewMode, writeFocusId, wr
 import { navigationActions, useMapNavigation } from "@/state/navigation";
 
 import { fetchCategories, fetchLocations, fetchLocationsCount, type CategoryOption, type LocationMarker } from "@/api/fetchLocations";
-import { createNote, updateNote, trackOutreachClick, type NoteResponse } from "@/lib/api";
+import { createNote, updateNote, trackOutreachClick, getActiveCheckIns, type NoteResponse, type CheckInItem } from "@/lib/api";
 import { toast } from "sonner";
 import AddLocationButton from "@/components/AddLocationButton";
 import AddLocationDialog from "@/components/AddLocationDialog";
+import CheckInsToggleButton from "@/components/CheckInsToggleButton";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
@@ -94,6 +95,96 @@ export default function MapTab() {
 
     // User authentication state
     const { isAuthenticated } = useUserAuth();
+
+    // Check-ins mode state
+    const [showCheckInsMode, setShowCheckInsMode] = useState(false);
+    const [checkIns, setCheckIns] = useState<CheckInItem[]>([]);
+    const [checkInsLoading, setCheckInsLoading] = useState(false);
+    const checkInsDebounceRef = useRef<number | null>(null);
+
+    // Fetch check-ins function
+    const fetchCheckIns = useCallback(async (bbox: string | null) => {
+        console.debug("[MapTab] fetchCheckIns called with bbox:", bbox);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapTab.tsx:106',message:'fetchCheckIns called',data:{bbox},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        setCheckInsLoading(true);
+        try {
+            const response = await getActiveCheckIns({
+                bbox: bbox || undefined,
+                limit: 200,
+            });
+            console.debug("[MapTab] fetchCheckIns response:", response.items?.length || 0, "items");
+            console.debug("[MapTab] fetchCheckIns response items:", response.items);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapTab.tsx:114',message:'fetchCheckIns response received',data:{itemsCount:response.items?.length||0,items:response.items?.map(i=>({location_id:i.location_id,lat:i.lat,lng:i.lng,usersCount:i.users.length,count:i.count}))||[]},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            setCheckIns(response.items || []);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapTab.tsx:116',message:'checkIns state updated',data:{itemsCount:response.items?.length||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+        } catch (error) {
+            console.error("[MapTab] Failed to fetch check-ins:", error);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapTab.tsx:118',message:'fetchCheckIns error',data:{error:String(error),errorMessage:error instanceof Error?error.message:'unknown'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            setCheckIns([]);
+        } finally {
+            setCheckInsLoading(false);
+        }
+    }, []); // Remove showCheckInsMode dependency - function should be stable
+
+    // Handle check-ins toggle
+    const handleCheckInsToggle = useCallback(() => {
+        const newMode = !showCheckInsMode;
+        console.debug("[MapTab] Toggling check-ins mode:", newMode);
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapTab.tsx:126',message:'handleCheckInsToggle called',data:{currentMode:showCheckInsMode,newMode},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        
+        if (newMode) {
+            // Set state first, then fetch will be triggered by useEffect
+            setShowCheckInsMode(true);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapTab.tsx:132',message:'showCheckInsMode set to true',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+        } else {
+            // Clear check-ins when leaving check-ins mode
+            setShowCheckInsMode(false);
+            console.debug("[MapTab] Clearing check-ins");
+            setCheckIns([]);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/37069a88-cc21-4ee6-bcd0-7b771fa9b5c4',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MapTab.tsx:137',message:'showCheckInsMode set to false, checkIns cleared',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+        }
+    }, [showCheckInsMode]);
+
+    // Fetch check-ins when entering check-ins mode
+    useEffect(() => {
+        if (!showCheckInsMode) return;
+        const bboxToUse = viewportBbox || null;
+        fetchCheckIns(bboxToUse);
+    }, [showCheckInsMode, viewportBbox, fetchCheckIns]); // Fetch when showCheckInsMode becomes true
+
+    // Handle viewport changes for check-ins (debounced)
+    useEffect(() => {
+        if (!showCheckInsMode) return;
+
+        if (checkInsDebounceRef.current !== null) {
+            window.clearTimeout(checkInsDebounceRef.current);
+        }
+
+        checkInsDebounceRef.current = window.setTimeout(() => {
+            fetchCheckIns(viewportBbox);
+        }, 500);
+
+        return () => {
+            if (checkInsDebounceRef.current !== null) {
+                window.clearTimeout(checkInsDebounceRef.current);
+                checkInsDebounceRef.current = null;
+            }
+        };
+    }, [viewportBbox, showCheckInsMode, fetchCheckIns]);
 
     useEffect(() => {
         if (typeof window === "undefined") return;
@@ -680,6 +771,8 @@ export default function MapTab() {
                     setViewportBbox(bbox);
                 }}
                 onSuppressNextViewportFetch={suppressNextViewportFetch}
+                showCheckInsMode={showCheckInsMode}
+                checkIns={checkIns}
             />
             <div className="hidden" aria-hidden>
                 {renderFilters("map-overlay")}
@@ -719,6 +812,21 @@ export default function MapTab() {
                     Locaties worden geladen…
                 </div>
             )}
+            {/* Check-ins Toggle Button - positioned above Add Location Button */}
+            {isAuthenticated && (
+                <div
+                    className="pointer-events-none fixed right-3 z-40 md:right-4"
+                    style={{ bottom: "calc(var(--bottom-offset) + 11rem)" }}
+                >
+                    <div className="pointer-events-auto">
+                        <CheckInsToggleButton
+                            isCheckInsMode={showCheckInsMode}
+                            onToggle={handleCheckInsToggle}
+                            disabled={checkInsLoading}
+                        />
+                    </div>
+                </div>
+            )}
             {/* Add Location Button - positioned above MapControls */}
             {isAuthenticated && (
                 <div
@@ -733,6 +841,11 @@ export default function MapTab() {
                             }}
                         />
                     </div>
+                </div>
+            )}
+            {checkInsLoading && showCheckInsMode && (
+                <div className="absolute top-4 right-4 z-10 rounded-3xl border border-border bg-card px-4 py-2 text-sm text-foreground shadow-soft">
+                    Check-ins worden geladen…
                 </div>
             )}
         </div>

@@ -15,10 +15,11 @@ type Props = {
     selectedId: string | null;
     onSelect?: (id: string) => void;
     onClusterFocus?: (center: LngLatLike, zoom: number) => void;
+    visible?: boolean; // Control layer visibility
 };
 
 // Stable IDs for source/layers
-const { SRC_ID, L_CLUSTER, L_CLUSTER_COUNT, L_POINT, L_HI } = MarkerLayerIds;
+const { SRC_ID, L_CLUSTER, L_CLUSTER_COUNT, L_POINT, L_HALO, L_POINT_FALLBACK, L_HI } = MarkerLayerIds;
 
 // Safely check if style exists on the map
 function hasStyleObject(m: MapboxMap) {
@@ -30,7 +31,7 @@ function hasStyleObject(m: MapboxMap) {
     }
 }
 
-export default function MarkerLayer({ map, locations, selectedId, onSelect, onClusterFocus }: Props) {
+export default function MarkerLayer({ map, locations, selectedId, onSelect, onClusterFocus, visible = true }: Props) {
     // Have we already added source/layers to THIS map instance?
     const layersReady = useRef(false);
     // Have we already attached event handlers to THIS map instance?
@@ -92,6 +93,27 @@ export default function MarkerLayer({ map, locations, selectedId, onSelect, onCl
             src.setData(data as any);
         }
     }, [map, data, locations]);
+
+    // 2.5. Control layer visibility
+    useEffect(() => {
+        if (!layersReady.current) return;
+        if (!hasStyleObject(map)) return;
+        
+        const layers = [L_CLUSTER, L_POINT, L_HALO, L_POINT_FALLBACK];
+        const visibility = visible ? "visible" : "none";
+        
+        console.debug("[MarkerLayer] Setting visibility to", visibility, "for", layers.length, "layers");
+        
+        layers.forEach((layerId) => {
+            try {
+                if (map.getLayer(layerId)) {
+                    map.setLayoutProperty(layerId, "visibility", visibility);
+                }
+            } catch (error) {
+                console.error("[MarkerLayer] Error setting visibility for", layerId, error);
+            }
+        });
+    }, [map, visible]);
 
     // 3. Attach interactivity handlers once
     useEffect(() => {

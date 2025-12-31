@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from starlette.requests import Request
-from typing import Optional, List
+from typing import Optional, List, Dict, Literal, Any
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -212,4 +214,163 @@ async def get_nearby_check_ins(
     # TODO: Geospatial query for nearby check-ins
     # For now, return empty list
     return {"items": [], "total": 0}
+
+
+class UserCheckIn(BaseModel):
+    user_id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    checked_in_at: str
+
+
+class CheckInItem(BaseModel):
+    location_id: int
+    type: Literal["single", "cluster"]
+    lat: float
+    lng: float
+    count: Optional[int] = None
+    users: List[UserCheckIn]
+
+
+class ActiveCheckInsResponse(BaseModel):
+    items: List[CheckInItem]
+
+
+@router.get("/check-ins/active-users", response_model=ActiveCheckInsResponse)
+async def get_active_check_ins(
+    bbox: Optional[str] = Query(None, description="Bounding box: min_lng,min_lat,max_lng,max_lat"),
+    limit: int = Query(200, le=500, description="Maximum number of check-ins to return"),
+):
+    """Get recent check-ins with user avatars for map display (last 24 hours)."""
+    require_feature("check_ins_enabled")
+    
+    logger = logging.getLogger(__name__)
+    
+    # Build base query
+    params: List[Any] = []
+    param_num = 1
+    
+    sql = """
+        SELECT DISTINCT ON (ci.location_id, ci.user_id)
+            ci.location_id,
+            ci.user_id,
+            ci.created_at,
+            l.lat,
+            l.lng,
+            up.display_name,
+            up.avatar_url
+        FROM check_ins ci
+        INNER JOIN locations l ON ci.location_id = l.id
+        LEFT JOIN user_profiles up ON ci.user_id = up.id
+        WHERE ci.user_id IS NOT NULL
+          AND ci.created_at >= NOW() - INTERVAL '24 hours'
+          AND l.lat IS NOT NULL 
+          AND l.lng IS NOT NULL
+    """
+    
+    # Add bbox filter if provided
+    if bbox:
+        try:
+            parts = bbox.split(",")
+            if len(parts) == 4:
+                min_lng, min_lat, max_lng, max_lat = map(float, parts)
+                logger.info(f"[check-ins] Filtering by bbox: {min_lng},{min_lat},{max_lng},{max_lat}")
+                sql += f"""
+                  AND l.lng >= ${param_num} AND l.lng <= ${param_num + 1}
+                  AND l.lat >= ${param_num + 2} AND l.lat <= ${param_num + 3}
+                """
+                params.extend([min_lng, max_lng, min_lat, max_lat])
+                param_num += 4
+        except (ValueError, IndexError) as e:
+            # Invalid bbox format, ignore it
+            logger.warning(f"[check-ins] Invalid bbox format: {bbox}, error: {e}")
+            pass
+    
+    sql += f"""
+        ORDER BY ci.location_id, ci.user_id, ci.created_at DESC
+        LIMIT ${param_num}
+    """
+    params.append(limit)
+    
+    logger.info(f"[check-ins] Executing query with {len(params)} params, limit={limit}")
+    logger.debug(f"[check-ins] SQL: {sql}")
+    
+    rows = await fetch(sql, *params)
+    logger.info(f"[check-ins] Query returned {len(rows)} rows")
+    
+    # Group by location_id
+    locations_map: Dict[int, List[Dict]] = defaultdict(list)
+    skipped_count = 0
+    for r in rows:
+        loc_id = r["location_id"]
+        # Ensure lat/lng are floats (they might come as strings from DB)
+        try:
+            lat = float(r["lat"]) if r["lat"] is not None else None
+            lng = float(r["lng"]) if r["lng"] is not None else None
+        except (ValueError, TypeError) as e:
+            logger.warning(f"[check-ins] Invalid lat/lng for location {loc_id}: lat={r.get('lat')}, lng={r.get('lng')}, error={e}")
+            skipped_count += 1
+            continue
+        
+        if lat is None or lng is None:
+            logger.warning(f"[check-ins] Missing lat/lng for location {loc_id}")
+            skipped_count += 1
+            continue  # Skip entries without valid coordinates
+        
+        locations_map[loc_id].append({
+            "user_id": str(r["user_id"]),
+            "lat": lat,
+            "lng": lng,
+            "display_name": r.get("display_name"),
+            "avatar_url": r.get("avatar_url"),
+            "checked_in_at": r["created_at"].isoformat() if isinstance(r["created_at"], datetime) else str(r["created_at"]),
+        })
+    
+    logger.info(f"[check-ins] Grouped into {len(locations_map)} locations, skipped {skipped_count} rows")
+    
+    # Convert to response format
+    items: List[CheckInItem] = []
+    for loc_id, users in locations_map.items():
+        if len(users) == 0:
+            continue
+        
+        # Limit users per location to 5 for preview
+        preview_users = users[:5]
+        
+        if len(users) == 1:
+            items.append(CheckInItem(
+                location_id=loc_id,
+                type="single",
+                lat=preview_users[0]["lat"],
+                lng=preview_users[0]["lng"],
+                users=[
+                    UserCheckIn(
+                        user_id=u["user_id"],
+                        display_name=u["display_name"],
+                        avatar_url=u["avatar_url"],
+                        checked_in_at=u["checked_in_at"],
+                    )
+                    for u in preview_users
+                ],
+            ))
+        else:
+            items.append(CheckInItem(
+                location_id=loc_id,
+                type="cluster",
+                lat=preview_users[0]["lat"],
+                lng=preview_users[0]["lng"],
+                count=len(users),
+                users=[
+                    UserCheckIn(
+                        user_id=u["user_id"],
+                        display_name=u["display_name"],
+                        avatar_url=u["avatar_url"],
+                        checked_in_at=u["checked_in_at"],
+                    )
+                    for u in preview_users
+                ],
+            ))
+    
+    logger.info(f"[check-ins] Returning {len(items)} items")
+    return ActiveCheckInsResponse(items=items)
 
