@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path
 from starlette.requests import Request
@@ -9,7 +10,7 @@ from typing import List, Optional, Dict
 from pydantic import BaseModel
 from datetime import datetime
 
-from app.core.client_id import require_client_id, get_client_id
+from app.core.client_id import require_client_id, get_client_id, get_last_user_id
 from app.core.feature_flags import require_feature
 from app.deps.auth import get_current_user_optional, User
 from app.deps.rate_limiting import require_rate_limit_factory
@@ -52,6 +53,7 @@ class PollResponseCreate(BaseModel):
 
 @router.get("", response_model=List[PollResponse])
 async def list_polls(
+    request: Request,
     city_key: Optional[str] = Query(None, description="Filter by city"),
     limit: int = Query(10, le=50),
     client_id: Optional[str] = Depends(get_client_id),
@@ -61,6 +63,7 @@ async def list_polls(
     require_feature("polls_enabled")
     
     user_id = user.user_id if user else None
+    last_user_id = await get_last_user_id(request)
     
     sql = """
         SELECT p.id, p.title, p.question, p.poll_type, p.is_sponsored, 
@@ -96,18 +99,49 @@ async def list_polls(
         ]
         
         # Check if user has responded
-        # Check both user_id and client_id columns directly to find responses
-        # regardless of login state when response was created
+        # Use identity_key which is COALESCE(user_id::text, client_id::text)
+        # This ensures we find responses regardless of whether user was logged in or not
         has_responded = False
         if user_id or client_id:
-            # Build conditions for checking response
+            # Calculate current identity_key (same logic as database trigger)
+            # identity_key = COALESCE(user_id::text, client_id::text)
+            current_identity_key = str(user_id) if user_id else client_id
+            
+            # If user is logged out but has last_user_id from localStorage, use that
+            # This allows us to track poll responses even after user logs out
+            associated_user_id = last_user_id if not user_id and last_user_id else None
+            
+            # Fallback: check if this client_id was ever associated with a user_id
+            if not associated_user_id and not user_id and client_id:
+                client_session_check = "SELECT user_id FROM client_id_sessions WHERE client_id = $1 AND user_id IS NOT NULL LIMIT 1"
+                client_session_rows = await fetch(client_session_check, client_id)
+                if client_session_rows:
+                    associated_user_id = client_session_rows[0].get("user_id")
+            
+            # Search using identity_key, but also check user_id and client_id directly
+            # to handle edge cases where identity_key might not match exactly
             conditions = []
             params = [row["id"]]
             param_num = 2
             
+            # Primary check: use identity_key
+            conditions.append(f"identity_key = ${param_num}")
+            params.append(current_identity_key)
+            param_num += 1
+            
+            # Fallback checks: also check user_id and client_id directly
             if user_id:
                 conditions.append(f"user_id = ${param_num}")
                 params.append(user_id)
+                param_num += 1
+            
+            if associated_user_id:
+                # Check responses with the associated user_id (in case user answered while logged in)
+                conditions.append(f"identity_key = ${param_num}")
+                params.append(str(associated_user_id))
+                param_num += 1
+                conditions.append(f"user_id = ${param_num}")
+                params.append(associated_user_id)
                 param_num += 1
             
             if client_id:
@@ -181,15 +215,24 @@ async def get_poll(
     ]
     
     # Check if user has responded
-    # Check both user_id and client_id columns directly to find responses
-    # regardless of login state when response was created
+    # Use identity_key which is COALESCE(user_id::text, client_id::text)
+    # This ensures we find responses regardless of whether user was logged in or not
     has_responded = False
     if user_id or client_id:
-        # Build conditions for checking response
+        # Calculate current identity_key (same logic as database trigger)
+        current_identity_key = str(user_id) if user_id else client_id
+        
+        # Search using identity_key, but also check user_id and client_id directly
         conditions = []
         params = [poll_id]
         param_num = 2
         
+        # Primary check: use identity_key
+        conditions.append(f"identity_key = ${param_num}")
+        params.append(current_identity_key)
+        param_num += 1
+        
+        # Fallback checks: also check user_id and client_id directly
         if user_id:
             conditions.append(f"user_id = ${param_num}")
             params.append(user_id)
@@ -251,34 +294,44 @@ async def create_poll_response(
     poll_type = poll_rows[0].get("poll_type")
     
     # For single_choice polls, check for duplicate response
-    # Check both user_id and client_id columns directly to catch duplicates
-    # regardless of login state when response was created
+    # Use identity_key which is COALESCE(user_id::text, client_id::text)
+    # This ensures we find responses regardless of whether user was logged in or not
     if poll_type == "single_choice":
-        # Build conditions for checking duplicates
-        conditions = []
-        params = [poll_id]
-        param_num = 2
-        
-        if user_id:
-            conditions.append(f"user_id = ${param_num}")
-            params.append(user_id)
+        if user_id or client_id:
+            # Calculate current identity_key (same logic as database trigger)
+            current_identity_key = str(user_id) if user_id else client_id
+            
+            # Search using identity_key, but also check user_id and client_id directly
+            conditions = []
+            params = [poll_id]
+            param_num = 2
+            
+            # Primary check: use identity_key
+            conditions.append(f"identity_key = ${param_num}")
+            params.append(current_identity_key)
             param_num += 1
-        
-        if client_id:
-            conditions.append(f"client_id = ${param_num}")
-            params.append(client_id)
-            param_num += 1
-        
-        if conditions:
-            where_clause = " OR ".join(conditions)
-            duplicate_check = f"""
-                SELECT 1 FROM poll_responses
-                WHERE poll_id = $1 AND ({where_clause})
-                LIMIT 1
-            """
-            duplicate_rows = await fetch(duplicate_check, *params)
-            if duplicate_rows:
-                raise HTTPException(status_code=409, detail="Already responded to this poll")
+            
+            # Fallback checks: also check user_id and client_id directly
+            if user_id:
+                conditions.append(f"user_id = ${param_num}")
+                params.append(user_id)
+                param_num += 1
+            
+            if client_id:
+                conditions.append(f"client_id = ${param_num}")
+                params.append(client_id)
+                param_num += 1
+            
+            if conditions:
+                where_clause = " OR ".join(conditions)
+                duplicate_check = f"""
+                    SELECT 1 FROM poll_responses
+                    WHERE poll_id = $1 AND ({where_clause})
+                    LIMIT 1
+                """
+                duplicate_rows = await fetch(duplicate_check, *params)
+                if duplicate_rows:
+                    raise HTTPException(status_code=409, detail="Already responded to this poll")
     
     # Verify option belongs to poll
     option_check = """

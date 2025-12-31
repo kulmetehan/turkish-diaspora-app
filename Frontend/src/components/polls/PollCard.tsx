@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/Icon";
 import { cn } from "@/lib/ui/cn";
-import { submitPollResponse, getPollStats, type Poll, type PollStats } from "@/lib/api";
+import { submitPollResponse, getPollStats, getPoll, type Poll, type PollStats } from "@/lib/api";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
@@ -26,9 +26,18 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
   const [stats, setStats] = useState<PollStats | null>(null);
   const [showStats, setShowStats] = useState(false);
 
+  // Sync hasResponded with poll.user_has_responded when poll prop changes
+  useEffect(() => {
+    setHasResponded(poll.user_has_responded);
+  }, [poll.user_has_responded]);
+
   useEffect(() => {
     if (hasResponded) {
       loadStats();
+    } else {
+      // Reset stats when poll is not responded to
+      setStats(null);
+      setShowStats(false);
     }
   }, [hasResponded, poll.id]);
 
@@ -36,9 +45,12 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
     try {
       const pollStats = await getPollStats(poll.id);
       setStats(pollStats);
-      setShowStats(!!pollStats);
+      // Always show stats if user has responded
+      setShowStats(true);
     } catch (err) {
       console.error("Failed to load poll stats:", err);
+      // Still show stats UI even if loading failed, so user knows they've responded
+      setShowStats(true);
     }
   };
 
@@ -55,7 +67,39 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
       }
       await loadStats();
     } catch (err: any) {
-      const message = err.message || "Kon stem niet opslaan";
+      // If user already responded (409), refresh poll data and show results
+      const errorMessage = err.message || "";
+      const isAlreadyResponded = 
+        err.status === 409 || 
+        errorMessage.includes("409") ||
+        errorMessage.includes("Already responded") || 
+        errorMessage.includes("already");
+      
+      if (isAlreadyResponded) {
+        // Refresh poll data to get updated user_has_responded status
+        try {
+          const updatedPoll = await getPoll(poll.id);
+          // Update local state
+          setHasResponded(updatedPoll.user_has_responded);
+          await loadStats();
+          // Notify parent to refresh poll list
+          if (onResponse) {
+            onResponse();
+          }
+          // Don't show error toast, just silently refresh to show results
+          return;
+        } catch (refreshErr) {
+          console.error("Failed to refresh poll after 409:", refreshErr);
+          // Fallback: just mark as responded locally
+          setHasResponded(true);
+          await loadStats();
+          if (onResponse) {
+            onResponse();
+          }
+          return;
+        }
+      }
+      const message = errorMessage || "Kon stem niet opslaan";
       toast.error("Fout", { description: message });
     } finally {
       setIsSubmitting(false);
@@ -157,6 +201,7 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
           </>
         ) : (
           <>
+            {/* Always show results when user has responded */}
             <div className="space-y-2">
               {poll.options.map((option) => {
                 const count = stats?.option_counts[option.id] || 0;
@@ -175,13 +220,17 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium">{option.option_text}</span>
-                      {showStats && (
-                        <span className="text-xs text-muted-foreground">
-                          {count} ({percentage.toFixed(1)}%)
-                        </span>
-                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {stats ? (
+                          <>
+                            {count} ({percentage.toFixed(1)}%)
+                          </>
+                        ) : (
+                          "Laden..."
+                        )}
+                      </span>
                     </div>
-                    {showStats && (
+                    {stats && (
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
                           className="h-full bg-primary transition-all"
@@ -193,9 +242,14 @@ export function PollCard({ poll, onResponse, className }: PollCardProps) {
                 );
               })}
             </div>
-            {showStats && (
+            {stats && (
               <p className="text-xs text-muted-foreground text-center">
                 Totaal {totalResponses} {totalResponses === 1 ? "stem" : "stemmen"}
+              </p>
+            )}
+            {!stats && (
+              <p className="text-xs text-muted-foreground text-center">
+                Resultaten worden geladen...
               </p>
             )}
           </>

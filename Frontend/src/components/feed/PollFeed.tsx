@@ -119,7 +119,23 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
       });
 
       onPollClick?.(pollId);
-    } catch (err) {
+    } catch (err: any) {
+      // If user already responded (409), refresh poll data and show results
+      const errorMessage = err.message || "";
+      const isAlreadyResponded = 
+        err.status === 409 || 
+        errorMessage.includes("409") ||
+        errorMessage.includes("Already responded") || 
+        errorMessage.includes("already");
+      
+      if (isAlreadyResponded) {
+        // Mark as responded and reload polls to get updated status
+        setRespondedPolls(prev => new Set(prev).add(pollId));
+        // Reload polls to get updated user_has_responded status
+        loadPolls();
+        // Don't show error toast
+        return;
+      }
       toast.error("Kon niet stemmen");
     } finally {
       setSubmittingPolls(prev => {
@@ -153,9 +169,11 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
   return (
     <div className={cn("space-y-4 mt-2", className)}>
       {polls.map((poll) => {
-        const hasResponded = respondedPolls.has(poll.id);
+        // Use poll.user_has_responded as source of truth, fallback to respondedPolls Set
+        const hasResponded = poll.user_has_responded || respondedPolls.has(poll.id);
         const stats = pollStats[poll.id];
-        const hasResults = hasResponded && stats && stats.total_responses > 0;
+        // Always show results if user has responded, even if stats are still loading
+        const hasResults = hasResponded;
         const selectedOption = selectedOptions[poll.id];
         const isSubmitting = submittingPolls.has(poll.id);
 
@@ -174,9 +192,10 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
                 <div className="space-y-2 pt-2">
                   <p className="text-sm font-gilroy font-medium text-foreground">Resultaten:</p>
                   {poll.options.map((option) => {
-                    const count = stats.option_counts[option.id] || 0;
-                    const percentage = stats.total_responses > 0
-                      ? Math.round((count / stats.total_responses) * 100)
+                    const count = stats?.option_counts[option.id] || 0;
+                    const totalResponses = stats?.total_responses || 0;
+                    const percentage = totalResponses > 0
+                      ? Math.round((count / totalResponses) * 100)
                       : 0;
                     const isSelected = selectedOption === option.id;
                     return (
@@ -189,20 +208,31 @@ export function PollFeed({ className, onPollClick }: PollFeedProps) {
                             {option.option_text}
                             {isSelected && " ✓"}
                           </span>
-                          <span className="text-muted-foreground font-medium">{percentage}%</span>
+                          <span className="text-muted-foreground font-medium">
+                            {stats ? `${percentage}%` : "Laden..."}
+                          </span>
                         </div>
-                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-primary transition-all"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
+                        {stats && (
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary transition-all"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                     );
                   })}
-                  <p className="text-xs text-muted-foreground pt-1">
-                    {stats.total_responses} {stats.total_responses === 1 ? "stem" : "stemmen"}
-                  </p>
+                  {stats && (
+                    <p className="text-xs text-muted-foreground pt-1">
+                      {stats.total_responses} {stats.total_responses === 1 ? "stem" : "stemmen"}
+                    </p>
+                  )}
+                  {!stats && (
+                    <p className="text-xs text-muted-foreground pt-1">
+                      Resultaten worden geladen...
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-2 pt-2">

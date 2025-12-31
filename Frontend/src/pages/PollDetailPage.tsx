@@ -74,7 +74,30 @@ export default function PollDetailPage() {
       ]);
       setPoll(updatedPoll);
       setStats(updatedStats);
-    } catch (err) {
+    } catch (err: any) {
+      // If user already responded (409), refresh poll data and show results
+      const errorMessage = err.message || "";
+      const isAlreadyResponded = 
+        err.status === 409 || 
+        errorMessage.includes("409") ||
+        errorMessage.includes("Already responded") || 
+        errorMessage.includes("already");
+      
+      if (isAlreadyResponded) {
+        // Refresh poll data
+        try {
+          const [updatedPoll, updatedStats] = await Promise.all([
+            getPoll(poll.id),
+            getPollStats(poll.id).catch(() => null),
+          ]);
+          setPoll(updatedPoll);
+          setStats(updatedStats);
+          // Don't show error toast, just refresh to show results
+          return;
+        } catch (refreshErr) {
+          console.error("Failed to refresh poll after 409:", refreshErr);
+        }
+      }
       toast.error("Kon niet stemmen");
     } finally {
       setIsSubmitting(false);

@@ -116,6 +116,7 @@ export async function apiFetch<T>(
       try {
         // Automatically add X-Client-Id header for anonymous user tracking
         const clientId = getOrCreateClientId();
+        const lastUserId = getLastKnownUserId();
 
         // Merge headers correctly: start with init.headers (if it's an object), then add our defaults
         // This ensures X-Client-Id is always included and not overwritten
@@ -126,6 +127,7 @@ export async function apiFetch<T>(
         const headers = {
           "Content-Type": "application/json",
           "X-Client-Id": clientId,
+          ...(lastUserId ? { "X-Last-User-Id": lastUserId } : {}),
           ...initHeaders,
         };
 
@@ -241,6 +243,28 @@ export function getOrCreateClientId(): string {
   }
 
   return clientId;
+}
+
+/**
+ * Store the user_id in localStorage when user logs in.
+ * This allows us to track poll responses even after user logs out.
+ */
+export function setLastKnownUserId(userId: string | null) {
+  const STORAGE_KEY = "TDA_LAST_USER_ID";
+  if (userId) {
+    localStorage.setItem(STORAGE_KEY, userId);
+  } else {
+    localStorage.removeItem(STORAGE_KEY);
+  }
+}
+
+/**
+ * Get the last known user_id from localStorage.
+ * Returns null if user was never logged in on this device.
+ */
+export function getLastKnownUserId(): string | null {
+  const STORAGE_KEY = "TDA_LAST_USER_ID";
+  return localStorage.getItem(STORAGE_KEY);
 }
 
 export async function authFetch<T>(
@@ -1313,6 +1337,48 @@ export async function createCheckIn(locationId: number): Promise<{ ok: boolean; 
  */
 export async function getCheckInStats(locationId: number): Promise<CheckInStats> {
   return apiFetch<CheckInStats>(`/api/v1/locations/${locationId}/check-ins`);
+}
+
+// Active Check-ins for Map
+export interface UserCheckIn {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  checked_in_at: string;
+}
+
+export interface CheckInItem {
+  location_id: number;
+  type: "single" | "cluster";
+  lat: number;
+  lng: number;
+  count?: number;
+  users: UserCheckIn[];
+}
+
+export interface ActiveCheckInsResponse {
+  items: CheckInItem[];
+}
+
+/**
+ * Get active check-ins with user avatars for map display (last 4 hours).
+ */
+export async function getActiveCheckIns(params?: {
+  bbox?: string;
+  limit?: number;
+}): Promise<ActiveCheckInsResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.bbox) {
+    searchParams.append("bbox", params.bbox);
+  }
+  if (params?.limit) {
+    searchParams.append("limit", params.limit.toString());
+  }
+  
+  const queryString = searchParams.toString();
+  const url = `/api/v1/locations/check-ins/active-users${queryString ? `?${queryString}` : ""}`;
+  
+  return apiFetchWithOptionalAuth<ActiveCheckInsResponse>(url);
 }
 
 // Mahallelisi

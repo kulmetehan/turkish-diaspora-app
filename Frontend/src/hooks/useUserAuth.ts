@@ -2,6 +2,7 @@
 import { supabase } from "@/lib/supabaseClient";
 import { useEffect, useState, useRef } from "react";
 import { identifyUser, resetUser } from "@/lib/analytics";
+import { setLastKnownUserId } from "@/lib/api";
 
 export interface UserAuth {
   userId: string | null;
@@ -164,6 +165,7 @@ export function useUserAuth(): UserAuth {
         
         if (initialUserId) {
           identifyUser(initialUserId, initialUserEmail);
+          setLastKnownUserId(initialUserId);
         }
         
         prevUserIdRef.current = initialUserId;
@@ -179,6 +181,11 @@ export function useUserAuth(): UserAuth {
       setAccessToken(session?.access_token ?? null);
       setUserEmail(newUserEmail);
       setUserId(newUserId);
+      
+      // Store last known user_id for poll response tracking
+      if (newUserId) {
+        setLastKnownUserId(newUserId);
+      }
       
       // Clean up hash if we have a session and tokens are still in the URL
       if (session && (event === "SIGNED_IN" || event === "TOKEN_REFRESHED")) {
