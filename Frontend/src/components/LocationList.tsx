@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { LocationMarker } from "@/api/fetchLocations";
 import { Icon, type IconProps } from "@/components/Icon";
 import { ShareButton } from "@/components/share/ShareButton";
-import { humanizeCategoryLabel } from "@/lib/categories";
+import { getCategoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/ui/cn";
 import { useTranslation } from "@/hooks/useTranslation";
 
@@ -64,7 +64,7 @@ export default function LocationList({
   error = null,
   hasActiveSearch = false,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -178,7 +178,7 @@ export default function LocationList({
                   "text-xs font-gilroy font-normal mt-1",
                   active ? "text-brand-white/80" : "text-muted-foreground"
                 )}>
-                  {humanizeCategoryLabel(l.category_label ?? l.category)}
+                  {getCategoryLabel(l.category_label ?? l.category, lang)}
                 </div>
               </div>
               <div className="flex flex-row items-center gap-2 shrink-0">
@@ -194,7 +194,7 @@ export default function LocationList({
                       onShowOnMap(l.id);
                     }}
                   >
-                    Toon op kaart
+                    {t("map.showOnMap")}
                   </button>
                 )}
                 {onSelectDetail && (

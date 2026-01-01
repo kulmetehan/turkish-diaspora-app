@@ -38,3 +38,4 @@ COMMENT ON SCHEMA storage IS 'Supabase Storage schema for file uploads';
 COMMENT ON TABLE storage.objects IS 'Storage objects table managed by Supabase';
 
 
+

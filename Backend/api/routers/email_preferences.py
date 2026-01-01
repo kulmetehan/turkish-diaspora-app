@@ -284,3 +284,4 @@ async def update_email_preferences(
     return await get_email_preferences(current_user)
 
 
+

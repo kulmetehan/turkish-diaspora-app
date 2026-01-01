@@ -100,3 +100,31 @@ export function clearNewsSearchQueryFromHash() {
   });
 }
 
+const ARTICLE_KEY = "article";
+
+export function readNewsArticleIdFromHash(): number | null {
+  const params = getHashSearch();
+  const raw = params.get(ARTICLE_KEY);
+  if (!raw) return null;
+  const id = parseInt(raw, 10);
+  return Number.isNaN(id) ? null : id;
+}
+
+export function writeNewsArticleIdToHash(articleId: number | null) {
+  updateHashParams((params) => {
+    if (articleId !== null) {
+      params.set(ARTICLE_KEY, articleId.toString());
+    } else {
+      params.delete(ARTICLE_KEY);
+    }
+  });
+}
+
+export function clearNewsArticleIdFromHash() {
+  updateHashParams((params) => {
+    if (params.has(ARTICLE_KEY)) {
+      params.delete(ARTICLE_KEY);
+    }
+  });
+}
+

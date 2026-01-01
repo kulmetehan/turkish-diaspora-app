@@ -7,6 +7,7 @@ import { Bookmark } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { EmojiReactions } from "./EmojiReactions";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { EventBadge } from "./EventBadge";
 import { PollPreview } from "./PollPreview";
 import { ReportButton } from "@/components/report/ReportButton";
@@ -351,12 +352,14 @@ export function FeedCard({
       {/* Action Row: Emoji Reactions + Report + Bookmark */}
       <div className="flex items-center justify-between gap-4 px-4 py-3 border-t border-border/50">
         {onReactionToggle ? (
-          <EmojiReactions
-            activityId={id}
-            reactions={reactionCounts}
-            userReaction={userReaction || null}
-            onReactionToggle={onReactionToggle}
-          />
+          <ErrorBoundary>
+            <EmojiReactions
+              activityId={id}
+              reactions={reactionCounts}
+              userReaction={userReaction || null}
+              onReactionToggle={onReactionToggle}
+            />
+          </ErrorBoundary>
         ) : (
           <div /> // Spacer
         )}

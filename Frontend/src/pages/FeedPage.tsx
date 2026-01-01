@@ -6,8 +6,7 @@ import { FeedFilterTabs, type ActivityFilter } from "@/components/feed/FeedFilte
 import { FeedList } from "@/components/feed/FeedList";
 import { GreetingBlock } from "@/components/feed/GreetingBlock";
 import { ImageModal } from "@/components/feed/ImageModal";
-import { PollFeed } from "@/components/feed/PollFeed";
-import { PrikbordFeed } from "@/components/prikbord/PrikbordFeed";
+import { TimelineFeed } from "@/components/timeline/TimelineFeed";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
 import { getActivityFeed, getActivityReactions, getCurrentUser, getOneCikanlar, getWeekFeedback, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type ReactionType } from "@/lib/api";
@@ -133,8 +132,9 @@ export default function FeedPage() {
     const query = hash.slice(queryIndex + 1);
     const params = new URLSearchParams(query);
     const filter = params.get("filter");
-    if (filter && ["all", "one_cikanlar", "check_in", "note", "poll_response", "favorite", "prikbord"].includes(filter)) {
-      return filter as ActivityFilter;
+    if (filter && ["all", "one_cikanlar", "check_in", "note", "poll_response", "favorite", "timeline", "prikbord"].includes(filter)) {
+      // Support both old "prikbord" and new "timeline" for backwards compatibility
+      return (filter === "prikbord" ? "timeline" : filter) as ActivityFilter;
     }
     return null;
   };
@@ -215,9 +215,9 @@ export default function FeedPage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Don't pass "one_cikanlar", "all", or "prikbord" as activityType
-      // "poll_response" has its own component, so don't pass it here either
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord" || activeFilter === "poll_response"
+      // Don't pass "one_cikanlar", "all", "timeline", or "prikbord" as activityType
+      // These have their own components
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "timeline" || activeFilter === "prikbord"
         ? undefined
         : activeFilter;
       const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
@@ -239,9 +239,9 @@ export default function FeedPage() {
 
     setIsLoadingMore(true);
     try {
-      // Don't pass "one_cikanlar", "all", or "prikbord" as activityType
-      // "poll_response" has its own component, so don't pass it here either
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "prikbord" || activeFilter === "poll_response"
+      // Don't pass "one_cikanlar", "all", "timeline", or "prikbord" as activityType
+      // These have their own components
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "timeline" || activeFilter === "prikbord"
         ? undefined
         : activeFilter;
       const data = await getActivityFeed(LOAD_MORE_LIMIT, offset, activityType);
@@ -287,8 +287,8 @@ export default function FeedPage() {
 
   // Reload when filter changes
   useEffect(() => {
-    // Only load activity feed if not showing Öne Çıkanlar or Prikbord or Polls and user is authenticated
-    if (activeFilter !== "one_cikanlar" && activeFilter !== "prikbord" && activeFilter !== "poll_response" && isAuthenticated) {
+    // Only load activity feed if not showing Öne Çıkanlar, Timeline, or Prikbord and user is authenticated
+    if (activeFilter !== "one_cikanlar" && activeFilter !== "timeline" && activeFilter !== "prikbord" && isAuthenticated) {
       setFeedItems([]);
       setOffset(0);
       setHasMore(true);
@@ -552,10 +552,8 @@ export default function FeedPage() {
             )
           ) : activeFilter === "all" ? (
             <DashboardOverview className="mt-2" />
-          ) : activeFilter === "prikbord" ? (
-            <PrikbordFeed className="mt-2" />
-          ) : activeFilter === "poll_response" ? (
-            <PollFeed className="mt-2" />
+          ) : activeFilter === "timeline" || activeFilter === "prikbord" ? (
+            <TimelineFeed className="mt-2" />
           ) : !isAuthenticated ? (
             <FeedList
               items={[]}
@@ -565,13 +563,7 @@ export default function FeedPage() {
               emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
               className="mt-2"
               showLoginPrompt={true}
-              loginMessage={
-                activeFilter === "check_in"
-                  ? "Log in om je check-ins te zien"
-                  : activeFilter === "note"
-                  ? "Log in om je notities te zien"
-                  : "Log in om je activiteit te zien"
-              }
+              loginMessage="Log in om je activiteit te zien"
             />
           ) : error ? (
             <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
@@ -579,24 +571,12 @@ export default function FeedPage() {
             </div>
           ) : (
             <FeedList
-              items={
-                activeFilter === "check_in"
-                  ? feedCardProps.filter((item) => item.type === "check_in")
-                  : activeFilter === "note"
-                  ? feedCardProps.filter((item) => item.type === "note")
-                  : feedCardProps
-              }
+              items={feedCardProps}
               isLoading={isLoading}
               isLoadingMore={isLoadingMore}
               hasMore={hasMore}
               onLoadMore={handleLoadMore}
-              emptyMessage={
-                activeFilter === "check_in"
-                  ? "Er zijn nog geen check-ins. Begin met inchecken bij locaties!"
-                  : activeFilter === "note"
-                  ? "Er zijn nog geen notities. Schrijf je eerste notitie!"
-                  : "Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
-              }
+              emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
               className="mt-2"
               showLoginPrompt={false}
             />

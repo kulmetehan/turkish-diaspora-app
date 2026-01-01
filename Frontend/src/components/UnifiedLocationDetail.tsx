@@ -372,18 +372,18 @@ export default function UnifiedLocationDetail({
             if (isFavorited) {
                 await removeFavorite(locationId);
                 setIsFavorited(false);
-                toast.success("Verwijderd uit favorieten");
+                toast.success(t("location.detail.removedFromFavorites"));
             } else {
                 await addFavorite(locationId);
                 setIsFavorited(true);
-                toast.success("Toegevoegd aan favorieten");
+                toast.success(t("location.detail.addedToFavorites"));
             }
         } catch (error: any) {
             if (error.message?.includes("409") || error.message?.includes("already")) {
                 setIsFavorited(true);
-                toast.info("Locatie staat al in je favorieten");
+                toast.info(t("location.detail.alreadyFavorite"));
             } else {
-                toast.error(error.message || "Fout bij bijwerken van favorieten");
+                toast.error(error.message || t("location.detail.favoriteError"));
             }
         } finally {
             setFavoriteLoading(false);
@@ -395,7 +395,7 @@ export default function UnifiedLocationDetail({
         ? Object.values(reactionStats.reactions).reduce((sum, count) => sum + count, 0)
         : 0;
 
-    const backButtonText = viewMode === "list" ? "Back to List" : "Terug naar kaart";
+    const backButtonText = viewMode === "list" ? t("location.detail.backToList") : t("location.detail.backToMap");
 
     // Content for map view (with white Card container)
     const mapViewContent = (

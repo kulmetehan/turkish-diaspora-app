@@ -6,21 +6,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { submitReport, type ReportCreateRequest } from "@/lib/api";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface ReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  reportType: "location" | "note" | "reaction" | "user";
+  reportType: "location" | "note" | "reaction" | "user" | "check_in" | "prikbord_post" | "poll";
   targetId: number;
   targetName?: string; // Optional name for display
 }
-
-const REPORT_REASONS: Record<string, string[]> = {
-  location: ["Geen Turkse affiniteit", "Permanent gesloten", "Locatie is fake/spam", "Anders"],
-  note: ["Spam", "Inappropriate Content", "Harassment", "False Information", "Other"],
-  reaction: ["Spam", "Inappropriate", "Harassment", "Other"],
-  user: ["Spam", "Harassment", "Impersonation", "Inappropriate Behavior", "Other"],
-};
 
 export function ReportDialog({
   open,
@@ -29,21 +23,67 @@ export function ReportDialog({
   targetId,
   targetName,
 }: ReportDialogProps) {
+  const { t } = useTranslation();
   const [reason, setReason] = useState<string>("");
   const [details, setDetails] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
-  const reasons = REPORT_REASONS[reportType] || REPORT_REASONS.location;
+  // Map report types to their reason keys
+  const getReportReasons = (type: string): string[] => {
+    if (type === "location") {
+      return [
+        t("report.reasons.noTurkishAffinity"),
+        t("report.reasons.permanentlyClosed"),
+        t("report.reasons.fakeSpam"),
+        t("report.reasons.other"),
+      ];
+    } else if (type === "note") {
+      return [
+        t("report.reasons.spam"),
+        t("report.reasons.inappropriateContent"),
+        t("report.reasons.harassment"),
+        t("report.reasons.falseInformation"),
+        t("report.reasons.other"),
+      ];
+    } else if (type === "reaction") {
+      return [
+        t("report.reasons.spam"),
+        t("report.reasons.inappropriate"),
+        t("report.reasons.harassment"),
+        t("report.reasons.other"),
+      ];
+    } else if (type === "user") {
+      return [
+        t("report.reasons.spam"),
+        t("report.reasons.harassment"),
+        t("report.reasons.impersonation"),
+        t("report.reasons.inappropriateBehavior"),
+        t("report.reasons.other"),
+      ];
+    }
+    // Default fallback
+    return [
+      t("report.reasons.noTurkishAffinity"),
+      t("report.reasons.permanentlyClosed"),
+      t("report.reasons.fakeSpam"),
+      t("report.reasons.other"),
+    ];
+  };
+
+  const reasons = getReportReasons(reportType);
   const typeLabels: Record<string, string> = {
-    location: "Locatie",
-    note: "Notitie",
-    reaction: "Reactie",
-    user: "Gebruiker",
+    location: t("report.types.location"),
+    note: t("report.types.note"),
+    reaction: t("report.types.reaction"),
+    user: t("report.types.user"),
+    check_in: t("report.types.checkIn"),
+    prikbord_post: t("report.types.prikbordPost"),
+    poll: t("report.types.poll"),
   };
 
   const handleSubmit = async () => {
     if (!reason.trim()) {
-      toast.error("Selecteer een reden");
+      toast.error(t("report.errors.reasonRequired"));
       return;
     }
 
@@ -57,16 +97,16 @@ export function ReportDialog({
       };
 
       await submitReport(report);
-      toast.success("Melding verzonden. Bedankt voor je feedback!");
+      toast.success(t("report.success"));
       onOpenChange(false);
       // Reset form
       setReason("");
       setDetails("");
     } catch (error: any) {
       if (error.message?.includes("409") || error.message?.includes("already")) {
-        toast.error("Je hebt deze melding al eerder ingediend");
+        toast.error(t("report.errors.alreadyReported"));
       } else {
-        toast.error("Kon melding niet verzenden", {
+        toast.error(t("report.errors.submitFailed"), {
           description: error.message || "Probeer het later opnieuw",
         });
       }
@@ -90,22 +130,22 @@ export function ReportDialog({
         overlayClassName="z-[79]"
       >
         <DialogHeader>
-          <DialogTitle>Rapporteer {typeLabels[reportType]}</DialogTitle>
+          <DialogTitle>{t("report.title").replace("{type}", typeLabels[reportType])}</DialogTitle>
           <DialogDescription>
             {targetName && (
               <span className="block mb-2">
-                Je rapporteert: <strong>{targetName}</strong>
+                {t("report.reporting").replace("{name}", targetName)}
               </span>
             )}
-            Help ons om de community veilig en respectvol te houden door problematische inhoud te melden.
+            {t("report.description")}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="reason">Reden *</Label>
+            <Label htmlFor="reason">{t("report.reason")}</Label>
             <Select value={reason} onValueChange={setReason}>
               <SelectTrigger id="reason">
-                <SelectValue placeholder="Selecteer een reden" />
+                <SelectValue placeholder={t("report.selectReason")} />
               </SelectTrigger>
               <SelectContent className="z-[81]">
                 {reasons.map((r) => (
@@ -117,26 +157,26 @@ export function ReportDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="details">Extra details (optioneel)</Label>
+            <Label htmlFor="details">{t("report.details")}</Label>
             <Textarea
               id="details"
-              placeholder="Beschrijf het probleem in detail..."
+              placeholder={t("report.detailsPlaceholder")}
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               rows={4}
               maxLength={1000}
             />
             <p className="text-xs text-muted-foreground">
-              {details.length}/1000 tekens
+              {t("report.characterCount").replace("{count}", details.length.toString())}
             </p>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleClose} disabled={loading}>
-            Annuleren
+            {t("common.buttons.cancel")}
           </Button>
           <Button onClick={handleSubmit} disabled={loading || !reason}>
-            {loading ? "Verzenden..." : "Verzenden"}
+            {loading ? t("report.submitting") : t("report.submit")}
           </Button>
         </DialogFooter>
       </DialogContent>

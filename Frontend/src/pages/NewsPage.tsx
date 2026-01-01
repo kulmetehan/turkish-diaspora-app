@@ -28,9 +28,11 @@ import {
 import {
   readNewsFeedFromHash,
   readNewsSearchQueryFromHash,
+  readNewsArticleIdFromHash,
   subscribeToNewsFeedHashChange,
   writeNewsFeedToHash,
   writeNewsSearchQueryToHash,
+  clearNewsArticleIdFromHash,
   type NewsFeedKey,
 } from "@/lib/routing/newsFeed";
 import { navigationActions, useNewsNavigation } from "@/state/navigation";
@@ -303,6 +305,7 @@ export default function NewsPage() {
     setShowSearch(false);
   }, []);
 
+
   return (
     <>
       <SeoHead {...seo} />
@@ -409,6 +412,7 @@ interface StandardNewsSectionProps {
   onEditCities: () => void;
   trendCountry: "nl" | "tr";
   onTrendCountryChange: (country: "nl" | "tr") => void;
+  scrollContainerRef: React.RefObject<HTMLDivElement>;
 }
 
 function StandardNewsSection({
@@ -426,6 +430,7 @@ function StandardNewsSection({
   onEditCities,
   trendCountry,
   onTrendCountryChange,
+  scrollContainerRef,
 }: StandardNewsSectionProps) {
   const trimmedSearch = searchQuery.trim();
   const isSearchMode = trimmedSearch.length >= 2;
@@ -482,6 +487,60 @@ function StandardNewsSection({
   const displayedHasMore = isSearchMode ? searchHasMore : hasMore;
   const displayedReload = isSearchMode ? searchReload : reload;
   const displayedLoadMore = isSearchMode ? searchLoadMore : loadMore;
+
+  // Scroll to article when article ID is in hash
+  const articleIdRef = useRef<number | null>(null);
+  
+  // Read article ID from hash on mount and when hash changes
+  useEffect(() => {
+    const articleId = readNewsArticleIdFromHash();
+    if (articleId) {
+      articleIdRef.current = articleId;
+    }
+  }, []);
+
+  // Listen for hash changes
+  useEffect(() => {
+    const handleHashChange = () => {
+      const articleId = readNewsArticleIdFromHash();
+      if (articleId) {
+        articleIdRef.current = articleId;
+      }
+    };
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  // Scroll to article when items are loaded
+  useEffect(() => {
+    const articleId = articleIdRef.current;
+    if (!articleId || !scrollContainerRef.current || displayedItems.length === 0) return;
+
+    // Wait for items to load and render
+    const scrollToArticle = () => {
+      const articleElement = document.querySelector(`[data-article-id="${articleId}"]`);
+      if (articleElement && scrollContainerRef.current) {
+        const containerRect = scrollContainerRef.current.getBoundingClientRect();
+        const elementRect = articleElement.getBoundingClientRect();
+        const scrollTop = scrollContainerRef.current.scrollTop;
+        const elementTop = elementRect.top - containerRect.top + scrollTop;
+        
+        scrollContainerRef.current.scrollTo({
+          top: elementTop - 20, // 20px offset from top
+          behavior: "smooth",
+        });
+
+        // Clear article ID from hash after scrolling
+        clearNewsArticleIdFromHash();
+        articleIdRef.current = null;
+      }
+    };
+
+    // Try immediately, then retry after a short delay to ensure items are rendered
+    scrollToArticle();
+    const timeoutId = setTimeout(scrollToArticle, 500);
+    return () => clearTimeout(timeoutId);
+  }, [displayedItems]);
 
   const maybeAutoRefresh = useCallback(() => {
     if (!lastUpdatedAt) return;

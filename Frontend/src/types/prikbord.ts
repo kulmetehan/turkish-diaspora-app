@@ -43,7 +43,7 @@ export interface SharedLink {
   neighborhood: string | null;
   context_tags: ContextTag[];
   media_urls: string[];
-  post_type: "link" | "media";
+  post_type: "link" | "media" | "text";
   view_count: number;
   like_count: number;
   bookmark_count: number;
@@ -56,7 +56,7 @@ export interface SharedLink {
 }
 
 export interface SharedLinkCreate {
-  url: string;
+  url?: string;
   linked_location_id?: number;
   city?: string;
   neighborhood?: string;
@@ -69,14 +69,14 @@ export interface SharedLinkCreate {
   image_url?: string;
   // Media uploads support
   media_urls?: string[];
-  post_type?: "link" | "media";
+  post_type?: "link" | "media" | "text";
 }
 
 export interface SharedLinkFilters {
   platform?: Platform;
   city?: string;
   tags?: ContextTag[];
-  post_type?: "link" | "media";
+  post_type?: "link" | "media" | "text";
   trending?: boolean;
   search?: string;
 }
