@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface EventDateRangePickerProps {
     dateFrom: string | null;
@@ -17,6 +18,7 @@ export function EventDateRangePicker({
     onDateToChange,
     onClear,
 }: EventDateRangePickerProps) {
+    const { t } = useTranslation();
     const handleFromChange = useCallback(
         (e: React.ChangeEvent<HTMLInputElement>) => {
             const value = e.target.value;
@@ -49,7 +51,7 @@ export function EventDateRangePicker({
                 {/* Van date picker */}
                 <div className="flex items-center gap-1.5">
                     <label htmlFor="date-from" className="text-xs font-gilroy font-medium text-muted-foreground whitespace-nowrap">
-                        van
+                        {t("events.datePicker.from")}
                     </label>
                     <input
                         id="date-from"
@@ -70,7 +72,7 @@ export function EventDateRangePicker({
                 {/* Tot date picker */}
                 <div className="flex items-center gap-1.5">
                     <label htmlFor="date-to" className="text-xs font-gilroy font-medium text-muted-foreground whitespace-nowrap">
-                        tot
+                        {t("events.datePicker.to")}
                     </label>
                     <input
                         id="date-to"
@@ -96,7 +98,7 @@ export function EventDateRangePicker({
                         onClick={handleClear}
                         className="text-xs text-muted-foreground hover:text-foreground underline ml-auto"
                     >
-                        Wissen
+                        {t("events.datePicker.clear")}
                     </button>
                 )}
             </div>

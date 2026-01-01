@@ -32,6 +32,7 @@ import { cn } from "@/lib/ui/cn";
 import { buildGoogleSearchUrl, buildRouteUrl, deriveCityForLocation } from "@/lib/urlBuilders";
 import { toast } from "sonner";
 import { trackClaimCTAClick } from "@/lib/analytics";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type OverlayDetailCardProps = {
     location: LocationMarker;
@@ -68,6 +69,7 @@ function safeString(value: unknown): string | null {
 }
 
 export default function OverlayDetailCard({ location, open, onClose, onAddNote, onEditNote, onNotesRefresh }: OverlayDetailCardProps) {
+    const { t } = useTranslation();
     const { viewport } = useViewportContext();
     const { isAuthenticated } = useUserAuth();
     const navigate = useNavigate();
@@ -405,8 +407,8 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                 <Button
                                     variant="outline"
                                     size="icon"
-                                    aria-label="Claim deze locatie"
-                                    title="Claim deze locatie"
+                                    aria-label={t("location.claimLocation")}
+                                    title={t("location.claimLocation")}
                                     onClick={() => {
                                         // Track claim CTA click
                                         trackClaimCTAClick(locationId, "map", claimStatus?.status || undefined);
@@ -423,7 +425,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                 </Button>
                                 <DialogPrimitive.Close
                                     className="ml-1 rounded-full border border-white/10 p-2 text-brand-white/70 transition hover:border-white/30 hover:text-brand-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-white/70"
-                                    aria-label="Close details"
+                                    aria-label={t("location.closeDetails")}
                                 >
                                     <Icon name="X" className="h-4 w-4" />
                                 </DialogPrimitive.Close>
@@ -440,7 +442,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                         <div className="flex items-start gap-3">
                                             <Icon name="MapPin" className="mt-0.5 h-4 w-4 text-foreground/70" />
                                             <div>
-                                                <p className="text-sm font-medium text-foreground/70">Address</p>
+                                                <p className="text-sm font-medium text-foreground/70">{t("location.address")}</p>
                                                 <p className="mt-1 text-sm leading-snug">{address}</p>
                                             </div>
                                         </div>
@@ -452,7 +454,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                         <div className="flex items-center gap-3">
                                             <Icon name="Tags" className="h-4 w-4" />
                                             <span>
-                                                Category:{" "}
+                                                {t("location.category")}:{" "}
                                                 <span className="font-medium text-foreground">
                                                     {categoryLabel ?? "Unknown"}
                                                 </span>
@@ -461,14 +463,14 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                         <div className="flex items-center gap-3">
                                             <Icon name="Map" className="h-4 w-4" />
                                             <span>
-                                                City: <span className="font-medium text-foreground">{city}</span>
+                                                {t("location.city")}: <span className="font-medium text-foreground">{city}</span>
                                             </span>
                                         </div>
                                         {location.state && (
                                             <div className="flex items-center gap-3">
                                                 <Icon name="Shield" className="h-4 w-4" />
                                                 <span>
-                                                    Verification state:{" "}
+                                                    {t("location.verificationState")}:{" "}
                                                     <span className="font-medium text-foreground capitalize">
                                                         {location.state.toLowerCase()}
                                                     </span>
@@ -480,7 +482,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
 
                                 {initialLoading ? (
                                     <Card className="p-4">
-                                        <div className="text-center text-sm text-foreground/70">Laden...</div>
+                                        <div className="text-center text-sm text-foreground/70">{t("common.loading")}</div>
                                     </Card>
                                 ) : (
                                     <>
@@ -601,7 +603,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                                 {isAuthenticated ? (
                                                     <Button onClick={handleAddNote} size="sm" variant="outline" className="border-white/30 bg-white/10 text-foreground hover:bg-white/20 hover:border-white/40">
                                                         <Icon name="Plus" className="h-4 w-4 mr-2" />
-                                                        Notitie toevoegen
+                                                        {t("location.addNote")}
                                                     </Button>
                                                 ) : null}
                                             </div>
@@ -610,7 +612,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                             )}
 
                                             {notesLoading ? (
-                                                <div className="text-center text-sm text-foreground/70 py-4">Laden...</div>
+                                                <div className="text-center text-sm text-foreground/70 py-4">{t("common.loading")}</div>
                                             ) : notes.length === 0 ? (
                                                 <div className="text-center text-sm text-foreground/70 py-4">
                                                     Nog geen notities. Voeg de eerste toe!
@@ -641,7 +643,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                                                         variant="ghost"
                                                                         className="h-6 px-2 text-xs text-foreground hover:bg-white/10"
                                                                     >
-                                                                        Bewerken
+                                                                        {t("common.buttons.edit")}
                                                                     </Button>
                                                                     <Button
                                                                         onClick={() => handleDeleteNote(note.id)}
@@ -650,7 +652,7 @@ export default function OverlayDetailCard({ location, open, onClose, onAddNote, 
                                                                         className="h-6 px-2 text-xs text-destructive hover:bg-white/10"
                                                                         disabled={noteDeleting === note.id}
                                                                     >
-                                                                        {noteDeleting === note.id ? "Verwijderen..." : "Verwijderen"}
+                                                                        {noteDeleting === note.id ? t("location.deleting") : t("common.buttons.delete")}
                                                                     </Button>
                                                                 </div>
                                                             </div>

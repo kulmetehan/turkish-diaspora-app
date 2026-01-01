@@ -24,3 +24,4 @@ CREATE INDEX IF NOT EXISTS idx_contact_submissions_email ON public.contact_submi
 COMMENT ON TABLE public.contact_submissions IS 'Contact form submissions from users';
 COMMENT ON COLUMN public.contact_submissions.status IS 'Status: new, read, replied, archived';
 
+

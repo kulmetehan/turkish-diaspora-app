@@ -161,3 +161,4 @@ COMMENT ON COLUMN public.shared_links.preview_cache_expires_at IS 'When to refre
 COMMENT ON COLUMN public.shared_links.context_tags IS 'Context tags for categorization (emoji-based: 🏠 Wonen, 🛍️ Ondernemer, 🎉 Event, 📺 Media)';
 
 
+

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
+import { LanguageSwitcher } from "@/components/account/LanguageSwitcher";
 import { AboutUsSection } from "@/components/account/AboutUsSection";
 import { ContributionsSection } from "@/components/account/ContributionsSection";
 import { ProfileSection } from "@/components/account/ProfileSection";
@@ -20,6 +21,7 @@ import { PushNotificationSettings } from "@/components/push/PushNotificationSett
 import { RewardModal } from "@/components/rewards/RewardModal";
 import { PrivacySettings } from "@/components/settings/PrivacySettings";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { getMyPendingRewards, type UserReward } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
@@ -27,6 +29,7 @@ import { getTheme, setTheme, type ThemeSetting } from "@/lib/theme/darkMode";
 import { toast } from "sonner";
 
 export default function AccountPage() {
+  const { t } = useTranslation();
   const [theme, setThemeState] = useState<ThemeSetting>("system");
   const [activeTab, setActiveTab] = useState<AccountTabKey>("weergave");
   const { isAuthenticated, userId, email, isLoading } = useUserAuth();
@@ -149,11 +152,11 @@ export default function AccountPage() {
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
-      toast.success("Uitgelogd");
+      toast.success(t("toast.logout.success"));
       navigate("/feed", { replace: true });
     } catch (error) {
-      toast.error("Uitloggen mislukt", {
-        description: error instanceof Error ? error.message : "Onbekende fout",
+      toast.error(t("toast.logout.error"), {
+        description: error instanceof Error ? error.message : t("common.errors.invalid"),
       });
     }
   };
@@ -185,7 +188,9 @@ export default function AccountPage() {
         <AppHeader onNotificationClick={handleNotificationClick} />
         <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
           <div className="max-w-4xl mx-auto py-4">
-            <AccountTabs value={activeTab} onChange={handleTabChange} className="mb-4" />
+            <div className="mb-4">
+              <AccountTabs value={activeTab} onChange={handleTabChange} />
+            </div>
 
             {activeTab === "weergave" && (
               <>
@@ -216,52 +221,70 @@ export default function AccountPage() {
                   </>
                 )}
 
+                {/* Display settings: Language and Theme */}
                 <div className="rounded-xl bg-surface-muted/50 p-6 mb-4">
-                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-4">
                     <div className="space-y-1">
                       <h2 className="text-lg font-gilroy font-medium text-foreground">
-                        Weergave
+                        {t("account.display.title")}
                       </h2>
                       <p className="text-sm text-muted-foreground">
-                        Beheer het thema van de app
+                        {t("account.display.description")}
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={cycleTheme}
-                      aria-label="Schakel thema"
-                      className="inline-flex items-center gap-2 text-foreground"
-                    >
-                      <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
-                      <span>Theme: {theme}</span>
-                    </Button>
+                    
+                    {/* Language switcher - always visible */}
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm font-medium text-foreground">
+                        {t("account.display.language")}
+                      </label>
+                      <div className="w-full">
+                        <LanguageSwitcher />
+                      </div>
+                    </div>
+
+                    {/* Theme switcher */}
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <label className="text-sm font-medium text-foreground">
+                        {t("account.display.theme")}
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={cycleTheme}
+                        aria-label={t("account.display.theme")}
+                        className="inline-flex items-center gap-2 text-foreground w-full md:w-auto"
+                      >
+                        <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
+                        <span>{t("account.display.theme")} {theme}</span>
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
                 {/* Legal section */}
                 <div className="rounded-xl bg-surface-muted/50 p-6">
                   <div className="space-y-4">
-                    <h2 className="text-lg font-gilroy font-medium text-foreground">Legal</h2>
+                    <h2 className="text-lg font-gilroy font-medium text-foreground">{t("account.legal.title")}</h2>
                     <div className="flex flex-col gap-2">
                       <a
                         href="#/privacy"
                         className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
                       >
-                        Privacybeleid
+                        {t("account.legal.privacy")}
                       </a>
                       <a
                         href="#/terms"
                         className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
                       >
-                        Gebruiksvoorwaarden
+                        {t("account.legal.terms")}
                       </a>
                       <a
                         href="#/guidelines"
                         className="text-sm text-muted-foreground hover:text-foreground underline transition-colors"
                       >
-                        Community Richtlijnen
+                        {t("account.legal.guidelines")}
                       </a>
                     </div>
                   </div>
@@ -284,7 +307,7 @@ export default function AccountPage() {
             {activeTab === "geschiedenis" && (
               <div className="rounded-xl bg-surface-muted/50 p-6">
                 <h2 className="text-lg font-gilroy font-medium text-foreground mb-4">
-                  Activiteitsgeschiedenis
+                  {t("account.history.title")}
                 </h2>
                 <ActivityHistory />
               </div>

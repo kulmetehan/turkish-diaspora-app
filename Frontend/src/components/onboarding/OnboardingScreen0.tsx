@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 import { MascotteAvatar } from "./MascotteAvatar";
 
 export interface OnboardingScreen0Props {
@@ -9,6 +10,7 @@ export interface OnboardingScreen0Props {
 }
 
 export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
+  const { t } = useTranslation();
   const [showFirstText, setShowFirstText] = useState(false);
   const [showSecondText, setShowSecondText] = useState(false);
 
@@ -51,7 +53,7 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
               showFirstText ? "opacity-100" : "opacity-0"
             )}
           >
-            Hoş geldin.
+            {t("onboarding.welcome.greeting")}
           </h1>
           <h2
             className={cn(
@@ -59,7 +61,7 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
               showSecondText ? "opacity-100" : "opacity-0"
             )}
           >
-            Welkom in de Turkse wereld.
+            {t("onboarding.welcome.subtitle")}
           </h2>
         </div>
 
@@ -69,9 +71,9 @@ export function OnboardingScreen0({ onNext }: OnboardingScreen0Props) {
           size="lg"
           variant="default"
           className="min-w-[200px]"
-          aria-label="Verder"
+          aria-label={t("onboarding.welcome.continue")}
         >
-          Verder
+          {t("onboarding.welcome.continue")}
         </Button>
       </div>
     </div>

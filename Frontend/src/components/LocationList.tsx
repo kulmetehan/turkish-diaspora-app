@@ -5,6 +5,7 @@ import { Icon, type IconProps } from "@/components/Icon";
 import { ShareButton } from "@/components/share/ShareButton";
 import { humanizeCategoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type Props = {
   locations: LocationMarker[];
@@ -57,12 +58,13 @@ export default function LocationList({
   onSelectDetail,
   onShowOnMap,
   autoScrollToSelected = true,
-  emptyText: _legacyEmptyText = "Geen resultaten",
+  emptyText: _legacyEmptyText,
   fullHeight = false,
   isLoading = false,
   error = null,
   hasActiveSearch = false,
 }: Props) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -108,7 +110,7 @@ export default function LocationList({
   if (isLoading) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6 text-center text-muted-foreground shadow-soft">
-        Warming up the backend… Getting your data…
+        {t("location.list.warmingUp")}
       </div>
     );
   }
@@ -117,7 +119,7 @@ export default function LocationList({
   if (error) {
     return (
       <div className="rounded-2xl border border-border bg-card p-6 text-center text-foreground shadow-soft">
-        {error || "Er ging iets mis bij het laden van de locaties."}
+        {error || t("location.list.loadError")}
       </div>
     );
   }
@@ -125,8 +127,8 @@ export default function LocationList({
   // Empty state - distinguish between search vs no data
   if (!locations.length) {
     const message = hasActiveSearch
-      ? "Geen resultaten gevonden voor deze zoekopdracht."
-      : "Er zijn nog geen locaties beschikbaar in deze stad.";
+      ? t("location.list.noSearchResults")
+      : t("location.list.noLocationsInCity");
     return (
       <div className="rounded-2xl border border-border bg-card p-6 text-center text-muted-foreground shadow-soft">
         {message}

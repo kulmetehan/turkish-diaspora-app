@@ -7,6 +7,7 @@ import type { NewsItem } from "@/api/news";
 import { EmojiReactions } from "@/components/feed/EmojiReactions";
 import { getNewsReactions, toggleNewsReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 // Module-level cache to persist across component remounts
 // Use Map to track both "fetched" and "in-flight" states
@@ -43,6 +44,7 @@ export function NewsCard({
   isBookmarked = false,
   onToggleBookmark,
 }: NewsCardProps) {
+  const { t } = useTranslation();
   const visibleTags = useMemo(() => item.tags.slice(0, 3), [item.tags]);
   const publishedLabel = useMemo(
     () => formatPublishedDate(item.published_at),
@@ -249,7 +251,7 @@ export function NewsCard({
             </h3>
             {item.tags?.includes("promoted") && (
               <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
-                Promoted
+                {t("news.promoted")}
               </span>
             )}
           </div>

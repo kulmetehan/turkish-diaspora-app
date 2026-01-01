@@ -1,5 +1,6 @@
 // Frontend/src/components/events/EventsIntroHeading.tsx
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface EventsIntroHeadingProps {
   className?: string;
@@ -12,10 +13,11 @@ export function EventsIntroHeading({
   viewMode = "list",
   onViewModeChange,
 }: EventsIntroHeadingProps) {
+  const { t } = useTranslation();
   return (
     <div className={cn("px-4 py-1.5 flex items-center justify-between", className)}>
       <h2 className="text-2xl font-gilroy font-black text-foreground">
-        Events voor jou
+        {t("events.heading")}
       </h2>
       {onViewModeChange && (
         <div className="flex items-center gap-3">
@@ -29,7 +31,7 @@ export function EventsIntroHeading({
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            Lijst
+            {t("events.viewMode.list")}
           </button>
           <span className="text-xs text-muted-foreground">|</span>
           <button
@@ -42,7 +44,7 @@ export function EventsIntroHeading({
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            Kaart
+            {t("events.viewMode.map")}
           </button>
         </div>
       )}

@@ -1,5 +1,6 @@
 // Onboarding Screen 1: Uitleg scherm met 3 feature bullets
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "@/hooks/useTranslation";
 import { MascotteAvatar } from "./MascotteAvatar";
 
 export interface OnboardingScreen1Props {
@@ -7,6 +8,7 @@ export interface OnboardingScreen1Props {
 }
 
 export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background px-6">
       {/* Mascotte */}
@@ -18,28 +20,28 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
       <div className="mb-8 space-y-6 w-full max-w-md">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-2xl font-gilroy font-semibold text-foreground">
-            Nieuws
+            {t("onboarding.explanation.features.news")}
           </div>
           <div className="text-lg font-gilroy font-normal text-muted-foreground">
-            → Uit Turkije & Nederland
+            {t("onboarding.explanation.features.newsSubtitle")}
           </div>
         </div>
 
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-2xl font-gilroy font-semibold text-foreground">
-            Locaties
+            {t("onboarding.explanation.features.locations")}
           </div>
           <div className="text-lg font-gilroy font-normal text-muted-foreground">
-            → Alle Turkse hotspots in Nederland
+            {t("onboarding.explanation.features.locationsSubtitle")}
           </div>
         </div>
 
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="text-2xl font-gilroy font-semibold text-foreground">
-            Events
+            {t("onboarding.explanation.features.events")}
           </div>
           <div className="text-lg font-gilroy font-normal text-muted-foreground">
-            → Wat is er deze week te doen?
+            {t("onboarding.explanation.features.eventsSubtitle")}
           </div>
         </div>
       </div>
@@ -50,9 +52,9 @@ export function OnboardingScreen1({ onNext }: OnboardingScreen1Props) {
         size="lg"
         variant="default"
         className="min-w-[200px] font-gilroy"
-        aria-label="Open de App"
+        aria-label={t("onboarding.explanation.cta")}
       >
-        Open de App
+        {t("onboarding.explanation.cta")}
       </Button>
     </div>
   );

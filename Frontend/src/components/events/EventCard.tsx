@@ -17,7 +17,8 @@ import {
   formatCityLabel,
   formatEventDateRange
 } from "./eventFormatters";
-import { EVENT_CATEGORY_LABELS, type EventCategoryKey } from "@/lib/routing/eventCategories";
+import { type EventCategoryKey } from "@/lib/routing/eventCategories";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type EventCardProps = {
   event: EventItem;
@@ -34,6 +35,7 @@ export function EventCard({
   onOpenDetail,
   onShowOnMap,
 }: EventCardProps) {
+  const { t } = useTranslation();
   const showMapButton = Boolean(onShowOnMap && eventHasCoordinates(event));
 
   // Reactions state
@@ -150,7 +152,7 @@ export function EventCard({
       // Rollback on error
       setReactions(previousReactions);
       setUserReaction(previousUserReaction);
-      toast.error("Kon reactie niet bijwerken. Probeer het opnieuw.");
+      toast.error(t("events.card.reactionUpdateError"));
       console.error("Failed to toggle event reaction:", error);
     }
   };
@@ -178,13 +180,13 @@ export function EventCard({
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
             <p className="text-base font-gilroy font-semibold text-foreground line-clamp-2">{event.title}</p>
-            <p className="text-sm font-gilroy font-normal text-muted-foreground">{formatEventDateRange(event.start_time_utc, event.end_time_utc)}</p>
+            <p className="text-sm font-gilroy font-normal text-muted-foreground">{formatEventDateRange(event.start_time_utc, event.end_time_utc, t)}</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {event.category_key ? (
               <Badge variant="secondary" className="capitalize">
                 <Icon name="Tags" className="mr-1 h-3.5 w-3.5" aria-hidden />
-                {EVENT_CATEGORY_LABELS[event.category_key as EventCategoryKey] || event.category_key}
+                {t(`events.categories.${event.category_key as EventCategoryKey}`) || event.category_key}
               </Badge>
             ) : null}
             {event.city_key ? (

@@ -1,6 +1,7 @@
 // Frontend/src/components/news/NewsFeedTabs.tsx
 import { NEWS_FEEDS, type NewsFeedKey } from "@/lib/routing/newsFeed";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface NewsFeedTabsProps {
   value: NewsFeedKey;
@@ -9,6 +10,8 @@ export interface NewsFeedTabsProps {
 }
 
 export function NewsFeedTabs({ value, onChange, className }: NewsFeedTabsProps) {
+  const { t } = useTranslation();
+  
   return (
     <div
       className={cn(
@@ -22,6 +25,7 @@ export function NewsFeedTabs({ value, onChange, className }: NewsFeedTabsProps) 
     >
       {NEWS_FEEDS.map((feed) => {
         const isActive = value === feed.key;
+        const label = t(feed.labelKey);
         return (
           <button
             key={feed.key}
@@ -35,9 +39,9 @@ export function NewsFeedTabs({ value, onChange, className }: NewsFeedTabsProps) 
                 : "bg-gray-100 text-black hover:bg-gray-200"
             )}
             aria-pressed={isActive}
-            aria-label={`Filter by ${feed.label}`}
+            aria-label={`Filter by ${label}`}
           >
-            {feed.label}
+            {label}
           </button>
         );
       })}

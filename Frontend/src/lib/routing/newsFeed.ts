@@ -11,13 +11,13 @@ export type NewsFeedKey =
   | "trending"
   | "bookmarks";
 
-export const NEWS_FEEDS: Array<{ key: NewsFeedKey; label: string }> = [
-  { key: "nl", label: "Nederland" },
-  { key: "tr", label: "Turkije" },
-  { key: "local", label: "Woonplaats" },
-  { key: "origin", label: "Memleket" },
-  { key: "trending", label: "Trending" },
-  { key: "bookmarks", label: "Opgeslagen" },
+export const NEWS_FEEDS: Array<{ key: NewsFeedKey; labelKey: string }> = [
+  { key: "nl", labelKey: "news.feeds.nl" },
+  { key: "tr", labelKey: "news.feeds.tr" },
+  { key: "local", labelKey: "news.feeds.local" },
+  { key: "origin", labelKey: "news.feeds.origin" },
+  { key: "trending", labelKey: "news.feeds.trending" },
+  { key: "bookmarks", labelKey: "news.feeds.bookmarks" },
 ];
 
 const ALLOWED_FEEDS = NEWS_FEEDS.map((feed) => feed.key);

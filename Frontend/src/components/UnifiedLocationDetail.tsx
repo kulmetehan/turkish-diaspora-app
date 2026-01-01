@@ -38,6 +38,7 @@ import { cn } from "@/lib/ui/cn";
 import { buildGoogleSearchUrl, buildRouteUrl, deriveCityForLocation } from "@/lib/urlBuilders";
 import { toast } from "sonner";
 import { trackClaimCTAClick } from "@/lib/analytics";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type Props = {
     location: LocationMarker;
@@ -76,6 +77,7 @@ export default function UnifiedLocationDetail({
     onEditNote,
     onNotesRefresh,
 }: Props) {
+    const { t } = useTranslation();
     const { viewport } = useViewportContext();
     const { isAuthenticated } = useUserAuth();
     const navigate = useNavigate();
@@ -544,7 +546,7 @@ export default function UnifiedLocationDetail({
 
                 {/* Rest of content */}
                 {initialLoading ? (
-                    <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">Laden...</div>
+                    <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">{t("common.loading")}</div>
                 ) : (
                     <>
                         {/* Stats Overview */}
@@ -636,15 +638,15 @@ export default function UnifiedLocationDetail({
                                     className="text-foreground dark:text-gray-900 hover:!bg-red-600 hover:!text-white hover:!border-red-600 transition-colors"
                                 >
                                     <Icon name="Plus" className="h-4 w-4 mr-2" />
-                                    Notitie toevoegen
+                                    {t("location.addNote")}
                                 </Button>
                             </div>
 
                             {notesLoading ? (
-                                <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">Laden...</div>
+                                <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">{t("common.loading")}</div>
                             ) : notes.length === 0 ? (
                                 <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">
-                                    Nog geen notities. Voeg de eerste toe!
+                                    {t("location.noNotes")}
                                 </div>
                             ) : (
                                 <div className="space-y-3">
@@ -663,7 +665,7 @@ export default function UnifiedLocationDetail({
                                                         hour: "2-digit",
                                                         minute: "2-digit",
                                                     })}
-                                                    {note.is_edited && " (bewerkt)"}
+                                                    {note.is_edited && ` (${t("location.edited")})`}
                                                 </span>
                                                 <div className="flex gap-2">
                                                     <Button
@@ -672,7 +674,7 @@ export default function UnifiedLocationDetail({
                                                         variant="ghost"
                                                         className="h-6 px-2 text-xs text-foreground"
                                                     >
-                                                        Bewerken
+                                                        {t("common.buttons.edit")}
                                                     </Button>
                                                     <Button
                                                         onClick={() => handleDeleteNote(note.id)}
@@ -681,7 +683,7 @@ export default function UnifiedLocationDetail({
                                                         className="h-6 px-2 text-xs text-destructive"
                                                         disabled={noteDeleting === note.id}
                                                     >
-                                                        {noteDeleting === note.id ? "Verwijderen..." : "Verwijderen"}
+                                                        {noteDeleting === note.id ? t("location.deleting") : t("common.buttons.delete")}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -847,7 +849,7 @@ export default function UnifiedLocationDetail({
 
                 {/* Rest of content */}
                 {initialLoading ? (
-                    <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">Laden...</div>
+                    <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">{t("common.loading")}</div>
                 ) : (
                     <>
 
@@ -940,15 +942,15 @@ export default function UnifiedLocationDetail({
                                     className="text-foreground hover:!bg-red-600 hover:!text-white hover:!border-red-600 transition-colors"
                                 >
                                     <Icon name="Plus" className="h-4 w-4 mr-2" />
-                                    Notitie toevoegen
+                                    {t("location.addNote")}
                                 </Button>
                             </div>
 
                             {notesLoading ? (
-                                <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">Laden...</div>
+                                <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">{t("common.loading")}</div>
                             ) : notes.length === 0 ? (
                                 <div className="text-center text-sm font-gilroy font-normal text-muted-foreground py-4">
-                                    Nog geen notities. Voeg de eerste toe!
+                                    {t("location.noNotes")}
                                 </div>
                             ) : (
                                 <div className="space-y-3">
@@ -967,7 +969,7 @@ export default function UnifiedLocationDetail({
                                                         hour: "2-digit",
                                                         minute: "2-digit",
                                                     })}
-                                                    {note.is_edited && " (bewerkt)"}
+                                                    {note.is_edited && ` (${t("location.edited")})`}
                                                 </span>
                                                 <div className="flex gap-2">
                                                     <Button
@@ -976,7 +978,7 @@ export default function UnifiedLocationDetail({
                                                         variant="ghost"
                                                         className="h-6 px-2 text-xs text-foreground"
                                                     >
-                                                        Bewerken
+                                                        {t("common.buttons.edit")}
                                                     </Button>
                                                     <Button
                                                         onClick={() => handleDeleteNote(note.id)}
@@ -985,7 +987,7 @@ export default function UnifiedLocationDetail({
                                                         className="h-6 px-2 text-xs text-destructive"
                                                         disabled={noteDeleting === note.id}
                                                     >
-                                                        {noteDeleting === note.id ? "Verwijderen..." : "Verwijderen"}
+                                                        {noteDeleting === note.id ? t("location.deleting") : t("common.buttons.delete")}
                                                     </Button>
                                                 </div>
                                             </div>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import { useNavigate } from "react-router-dom";
 import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface LoginPromptProps {
   message?: string;
@@ -12,6 +13,7 @@ interface LoginPromptProps {
 }
 
 export function LoginPrompt({ message, className, onLoginClick }: LoginPromptProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const handleLoginClick = () => {
@@ -34,10 +36,10 @@ export function LoginPrompt({ message, className, onLoginClick }: LoginPromptPro
         <Icon name="LogIn" className="h-5 w-5 text-muted-foreground" />
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">
-            {message || "Log in om deze actie uit te voeren"}
+            {message || t("auth.loginPrompt.title")}
           </p>
           <p className="text-xs text-muted-foreground">
-            Maak een account aan of log in om verder te gaan
+            {t("auth.loginPrompt.subtitle")}
           </p>
         </div>
         <div className="flex flex-col gap-2 w-full">
@@ -56,7 +58,7 @@ export function LoginPrompt({ message, className, onLoginClick }: LoginPromptPro
             className="mt-1"
           >
             <Icon name="LogIn" className="mr-2 h-4 w-4" />
-            Email / Wachtwoord
+            {t("auth.loginPrompt.emailPassword")}
           </Button>
         </div>
       </div>

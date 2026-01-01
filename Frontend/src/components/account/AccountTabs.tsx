@@ -1,5 +1,6 @@
 // Frontend/src/components/account/AccountTabs.tsx
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export type AccountTabKey = "weergave" | "privacy" | "notificaties" | "geschiedenis" | "over_ons";
 
@@ -9,15 +10,16 @@ export interface AccountTabsProps {
   className?: string;
 }
 
-const TABS: Array<{ label: string; value: AccountTabKey }> = [
-  { label: "Algemeen", value: "weergave" },
-  { label: "Privacy", value: "privacy" },
-  { label: "Notificaties", value: "notificaties" },
-  { label: "Geschiedenis", value: "geschiedenis" },
-  { label: "Over ons", value: "over_ons" },
-];
-
 export function AccountTabs({ value, onChange, className }: AccountTabsProps) {
+  const { t } = useTranslation();
+  
+  const TABS: Array<{ label: string; value: AccountTabKey }> = [
+    { label: t("account.tabs.general"), value: "weergave" },
+    { label: t("account.tabs.privacy"), value: "privacy" },
+    { label: t("account.tabs.notifications"), value: "notificaties" },
+    { label: t("account.tabs.history"), value: "geschiedenis" },
+    { label: t("account.tabs.about"), value: "over_ons" },
+  ];
   return (
     <div
       className={cn(

@@ -1,6 +1,7 @@
 // Onboarding Screen 5: Success/Reward
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useEffect, useState } from "react";
 import { MascotteAvatar } from "./MascotteAvatar";
 
@@ -10,6 +11,7 @@ export interface OnboardingScreen5Props {
 }
 
 export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props) {
+  const { t } = useTranslation();
   const [showFirstText, setShowFirstText] = useState(false);
   const [showSecondText, setShowSecondText] = useState(false);
 
@@ -70,7 +72,7 @@ export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props
             showFirstText ? "opacity-100" : "opacity-0"
           )}
         >
-          Klaar.
+          {t("onboarding.success.title")}
         </h1>
         <h2
           className={cn(
@@ -78,7 +80,7 @@ export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props
             showSecondText ? "opacity-100" : "opacity-0"
           )}
         >
-          Ontdek de Turkse wereld.
+          {t("onboarding.success.subtitle")}
         </h2>
       </div>
 
@@ -86,8 +88,8 @@ export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props
       <div className="mb-8 rounded-lg border border-primary/20 bg-primary/5 px-6 py-4">
         <div className="text-center">
           <div className="mb-2 text-2xl">🎉</div>
-          <div className="font-semibold text-foreground">Gelukt. Welkom in de app.</div>
-          <div className="text-lg text-primary">Nieuwkomer</div>
+          <div className="font-semibold text-foreground">{t("onboarding.success.badge")}</div>
+          <div className="text-lg text-primary">{t("onboarding.success.badgeTitle")}</div>
         </div>
       </div>
 
@@ -97,9 +99,9 @@ export function OnboardingScreen5({ onComplete, onNext }: OnboardingScreen5Props
         size="lg"
         variant="default"
         className="min-w-[200px] font-gilroy"
-        aria-label="Naar de App"
+        aria-label={t("onboarding.success.cta")}
       >
-        Naar de App
+        {t("onboarding.success.cta")}
       </Button>
     </div>
   );

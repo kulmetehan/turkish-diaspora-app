@@ -11,6 +11,8 @@ import {
 } from "@/lib/analytics";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "@/hooks/useTranslation";
+import { OnboardingScreenLanguage } from "./OnboardingScreenLanguage";
 import { OnboardingScreen0 } from "./OnboardingScreen0";
 import { OnboardingScreen1 } from "./OnboardingScreen1";
 import { OnboardingScreen2 } from "./OnboardingScreen2";
@@ -36,11 +38,12 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const [onboardingData, setOnboardingData] = useState<OnboardingState>({});
   const [isCompleting, setIsCompleting] = useState(false);
   const [hasDisplayName, setHasDisplayName] = useState<boolean | null>(null);
+  const { t } = useTranslation();
 
   // Hook for managing news city preferences
   const { savePreferences, rememberCityLabels } = useNewsCityPreferences();
   
-  // Check authentication status to conditionally show Screen 6
+  // Check authentication status to conditionally show Screen 7
   // IMPORTANT: Wait for auth to finish loading before making decisions
   const { isAuthenticated, isLoading: authLoading } = useUserAuth();
 
@@ -48,6 +51,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const startTimeRef = useRef<number>(Date.now());
   const screenStartTimeRef = useRef<number>(Date.now());
   const screenNames = [
+    "language",
     "welcome",
     "explanation",
     "home_city",
@@ -57,17 +61,21 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     "username_avatar",
   ];
 
-  const handleScreen0Next = () => {
+  const handleScreenLanguageNext = () => {
     setCurrentScreen(1);
   };
 
-  const handleScreen1Next = () => {
+  const handleScreen0Next = () => {
     setCurrentScreen(2);
+  };
+
+  const handleScreen1Next = () => {
+    setCurrentScreen(3);
   };
 
   const handleScreen2Next = (data: { home_city: string; home_region: string; home_city_key: string }) => {
     // Track data collection
-    trackOnboardingDataCollected(2, "home_city", "home_city", data.home_city);
+    trackOnboardingDataCollected(3, "home_city", "home_city", data.home_city);
     
     setOnboardingData((prev) => ({
       ...prev,
@@ -75,29 +83,29 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       home_region: data.home_region,
       home_city_key: data.home_city_key,
     }));
-    setCurrentScreen(3);
+    setCurrentScreen(4);
   };
 
   const handleScreen3Next = (data: { memleket: string[] | null }) => {
     // Track data collection
-    trackOnboardingDataCollected(3, "memleket", "memleket", data.memleket);
+    trackOnboardingDataCollected(4, "memleket", "memleket", data.memleket);
     
     setOnboardingData((prev) => ({
       ...prev,
       memleket: data.memleket,
     }));
-    setCurrentScreen(4);
+    setCurrentScreen(5);
   };
 
   const handleScreen4Next = (data: { gender: string | null }) => {
     // Track data collection
-    trackOnboardingDataCollected(4, "gender", "gender", data.gender);
+    trackOnboardingDataCollected(5, "gender", "gender", data.gender);
     
     setOnboardingData((prev) => ({
       ...prev,
       gender: data.gender,
     }));
-    setCurrentScreen(5);
+    setCurrentScreen(6);
   };
 
   const handleScreen5Next = () => {
@@ -107,17 +115,17 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return;
     }
     
-    // Only proceed to Screen 6 if user is authenticated AND doesn't have display_name
+    // Only proceed to Screen 7 if user is authenticated AND doesn't have display_name
     if (isAuthenticated && hasDisplayName === false) {
-      setCurrentScreen(6);
+      setCurrentScreen(7);
     } else {
       // For anonymous users or users with display_name, complete onboarding directly
-      handleScreen5Complete();
+      handleScreen6Complete();
     }
   };
 
-  const handleScreen6Complete = async () => {
-    // Screen 6 handles its own profile update, so we just complete onboarding
+  const handleScreen7Complete = async () => {
+    // Screen 7 handles its own profile update, so we just complete onboarding
     if (isCompleting) return;
 
     setIsCompleting(true);
@@ -142,11 +150,11 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           home_city_key: data.home_city_key,
           memleket: data.memleket,
           gender: data.gender,
-          has_username: true, // Screen 6 is for authenticated users
-          has_avatar: true, // Screen 6 includes avatar upload
+          has_username: true, // Screen 7 is for authenticated users
+          has_avatar: true, // Screen 7 includes avatar upload
         },
         totalDuration,
-        7 // All screens completed (0-6)
+        8 // All screens completed (0-7)
       );
 
       // Set news city preferences from onboarding data
@@ -179,16 +187,16 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         savePreferences(cityPreferences);
       }
 
-      toast.success("Onboarding voltooid!");
+      toast.success(t("onboarding.complete.success"));
       onComplete();
     } catch (error) {
       console.error("Failed to complete onboarding:", error);
-      toast.error("Kon onboarding niet voltooien. Probeer het opnieuw.");
+      toast.error(t("onboarding.complete.error"));
       setIsCompleting(false);
     }
   };
 
-  const handleScreen5Complete = useCallback(async () => {
+  const handleScreen6Complete = useCallback(async () => {
     if (isCompleting) return;
 
     setIsCompleting(true);
@@ -205,7 +213,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       // Save to backend API (with localStorage fallback)
       await completeOnboarding(data);
 
-      // Track completion (for anonymous users, screen 5 is the last screen)
+      // Track completion (for anonymous users, screen 6 is the last screen)
       const totalDuration = Date.now() - startTimeRef.current;
       trackOnboardingCompleted(
         {
@@ -213,11 +221,11 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           home_city_key: data.home_city_key,
           memleket: data.memleket,
           gender: data.gender,
-          has_username: false, // Screen 5 is for anonymous users
+          has_username: false, // Screen 6 is for anonymous users
           has_avatar: false,
         },
         totalDuration,
-        6 // Screens 0-5 completed
+        7 // Screens 0-6 completed
       );
 
       // Set news city preferences from onboarding data
@@ -250,14 +258,14 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         savePreferences(cityPreferences);
       }
 
-      toast.success("Onboarding voltooid!");
+      toast.success(t("onboarding.complete.success"));
       onComplete();
     } catch (error) {
       console.error("Failed to complete onboarding:", error);
-      toast.error("Kon onboarding niet voltooien. Probeer het opnieuw.");
+      toast.error(t("onboarding.complete.error"));
       setIsCompleting(false);
     }
-  }, [isCompleting, onboardingData, rememberCityLabels, savePreferences, onComplete]);
+  }, [isCompleting, onboardingData, rememberCityLabels, savePreferences, onComplete, t]);
 
   // Track onboarding start
   useEffect(() => {
@@ -277,7 +285,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       );
       screenStartTimeRef.current = Date.now();
     }
-  }, [currentScreen]);
+  }, [currentScreen, screenNames]);
 
   // Track abandonment if component unmounts before completion
   useEffect(() => {
@@ -311,43 +319,45 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   }, [isAuthenticated, authLoading]);
 
-  // Safety check: If we're on Screen 6 but user is not authenticated or has display_name, complete onboarding
+  // Safety check: If we're on Screen 7 but user is not authenticated or has display_name, complete onboarding
   useEffect(() => {
     // Wait for auth to finish loading before checking
     if (authLoading) return;
     
-    if (currentScreen === 6 && (!isAuthenticated || hasDisplayName === true)) {
-      handleScreen5Complete();
+    if (currentScreen === 7 && (!isAuthenticated || hasDisplayName === true)) {
+      handleScreen6Complete();
     }
-  }, [currentScreen, isAuthenticated, authLoading, hasDisplayName, handleScreen5Complete]);
+  }, [currentScreen, isAuthenticated, authLoading, hasDisplayName, handleScreen6Complete]);
 
   // Render current screen
   switch (currentScreen) {
     case 0:
-      return <OnboardingScreen0 onNext={handleScreen0Next} />;
+      return <OnboardingScreenLanguage onNext={handleScreenLanguageNext} />;
     case 1:
-      return <OnboardingScreen1 onNext={handleScreen1Next} />;
+      return <OnboardingScreen0 onNext={handleScreen0Next} />;
     case 2:
-      return <OnboardingScreen2 onNext={handleScreen2Next} onPrevious={() => setCurrentScreen(1)} />;
+      return <OnboardingScreen1 onNext={handleScreen1Next} />;
     case 3:
-      return <OnboardingScreen3 onNext={handleScreen3Next} />;
+      return <OnboardingScreen2 onNext={handleScreen2Next} onPrevious={() => setCurrentScreen(2)} />;
     case 4:
-      return <OnboardingScreen4 onNext={handleScreen4Next} />;
+      return <OnboardingScreen3 onNext={handleScreen3Next} />;
     case 5:
+      return <OnboardingScreen4 onNext={handleScreen4Next} />;
+    case 6:
       return (
         <OnboardingScreen5 
           // Only show onNext if auth is loaded AND user is authenticated AND doesn't have display_name
           onNext={!authLoading && isAuthenticated && hasDisplayName === false ? handleScreen5Next : undefined}
-          onComplete={handleScreen5Complete}
+          onComplete={handleScreen6Complete}
         />
       );
-    case 6:
-      // Screen 6 only for authenticated users without display_name (and wait for auth to load)
+    case 7:
+      // Screen 7 only for authenticated users without display_name (and wait for auth to load)
       if (!authLoading && isAuthenticated && hasDisplayName === false) {
-        return <OnboardingScreen6 onComplete={handleScreen6Complete} />;
+        return <OnboardingScreen6 onComplete={handleScreen7Complete} />;
       } else if (!authLoading && (!isAuthenticated || hasDisplayName === true)) {
         // Auth loaded but user not authenticated or has display_name, complete onboarding
-        handleScreen5Complete();
+        handleScreen6Complete();
         return null;
       } else {
         // Still loading auth, wait (useEffect will handle completing onboarding if needed)

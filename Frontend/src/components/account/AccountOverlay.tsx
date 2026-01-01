@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
+import { LanguageSwitcher } from "@/components/account/LanguageSwitcher";
 import { AboutUsSection } from "@/components/account/AboutUsSection";
 import { ProfileSection } from "@/components/account/ProfileSection";
 import { UserRolesSection } from "@/components/account/UserRolesSection";
@@ -19,6 +20,7 @@ import { RewardModal } from "@/components/rewards/RewardModal";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/Icon";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { supabase } from "@/lib/supabaseClient";
 import { getMyPendingRewards, type UserReward } from "@/lib/api";
@@ -31,6 +33,7 @@ interface AccountOverlayProps {
 }
 
 export function AccountOverlay({ open, onOpenChange }: AccountOverlayProps) {
+  const { t } = useTranslation();
   const [theme, setThemeState] = useState<ThemeSetting>("system");
   const [activeTab, setActiveTab] = useState<AccountTabKey>("weergave");
   const { isAuthenticated, userId, email, isLoading } = useUserAuth();
@@ -144,6 +147,9 @@ export function AccountOverlay({ open, onOpenChange }: AccountOverlayProps) {
               >
                 Account
               </DialogPrimitive.Title>
+              <DialogPrimitive.Description className="sr-only">
+                {t("account.tabs.general")}
+              </DialogPrimitive.Description>
               <DialogPrimitive.Close className="rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <X className="h-5 w-5" aria-label="Sluiten" />
               </DialogPrimitive.Close>
@@ -181,27 +187,45 @@ export function AccountOverlay({ open, onOpenChange }: AccountOverlayProps) {
                       </>
                     )}
 
+                    {/* Display settings: Language and Theme */}
                     <div className="rounded-xl bg-surface-muted/50 p-6 mb-4">
-                      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                      <div className="space-y-4">
                         <div className="space-y-1">
                           <h2 className="text-lg font-gilroy font-medium text-foreground">
-                            Weergave
+                            {t("account.display.title")}
                           </h2>
                           <p className="text-sm text-muted-foreground">
-                            Beheer het thema van de app
+                            {t("account.display.description")}
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={cycleTheme}
-                          aria-label="Schakel thema"
-                          className="inline-flex items-center gap-2 text-foreground"
-                        >
-                          <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
-                          <span>Theme: {theme}</span>
-                        </Button>
+                        
+                        {/* Language switcher */}
+                        <div className="flex flex-col gap-2">
+                          <label className="text-sm font-medium text-foreground">
+                            {t("account.display.language")}
+                          </label>
+                          <div className="w-full">
+                            <LanguageSwitcher />
+                          </div>
+                        </div>
+
+                        {/* Theme switcher */}
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <label className="text-sm font-medium text-foreground">
+                            {t("account.display.theme")}
+                          </label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={cycleTheme}
+                            aria-label={t("account.display.theme")}
+                            className="inline-flex items-center gap-2 text-foreground w-full md:w-auto"
+                          >
+                            <Icon name="SunMoon" className="h-4 w-4" aria-hidden />
+                            <span>{t("account.display.theme")} {theme}</span>
+                          </Button>
+                        </div>
                       </div>
                     </div>
 

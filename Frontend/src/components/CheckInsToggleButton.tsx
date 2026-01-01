@@ -1,6 +1,7 @@
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface CheckInsToggleButtonProps {
   isCheckInsMode: boolean;
@@ -13,14 +14,15 @@ export default function CheckInsToggleButton({
   onToggle,
   disabled = false,
 }: CheckInsToggleButtonProps) {
+  const { t } = useTranslation();
   return (
     <Button
       type="button"
       size="icon"
       onClick={onToggle}
       disabled={disabled}
-      aria-label={isCheckInsMode ? "Toon locaties" : "Toon check-ins"}
-      title={isCheckInsMode ? "Toon locaties" : "Toon check-ins"}
+      aria-label={isCheckInsMode ? t("map.checkIns.showLocations") : t("map.checkIns.showCheckIns")}
+      title={isCheckInsMode ? t("map.checkIns.showLocations") : t("map.checkIns.showCheckIns")}
       className={cn(
         "h-12 w-12 rounded-full border-0 shadow-soft transition",
         "focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",

@@ -1,24 +1,26 @@
 // Frontend/src/components/feed/GreetingBlock.tsx
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface GreetingBlockProps {
   userName?: string | null;
   className?: string;
 }
 
-function getTimeBasedGreeting(): string {
+function getTimeBasedGreeting(t: (key: string) => string): string {
   const hour = new Date().getHours();
   if (hour < 12) {
-    return "Goedemorgen";
+    return t("feed.greeting.morning");
   } else if (hour < 18) {
-    return "Goedemiddag";
+    return t("feed.greeting.afternoon");
   } else {
-    return "Goedenavond";
+    return t("feed.greeting.evening");
   }
 }
 
 export function GreetingBlock({ userName, className }: GreetingBlockProps) {
-  const greeting = getTimeBasedGreeting();
+  const { t } = useTranslation();
+  const greeting = getTimeBasedGreeting(t);
   const displayName = userName?.trim() || null;
 
   return (
@@ -33,7 +35,7 @@ export function GreetingBlock({ userName, className }: GreetingBlockProps) {
         ) : null}
       </h2>
       <p className="mt-1 text-sm font-gilroy font-normal text-black">
-        Wat er gebeurt in je omgeving...
+        {t("feed.greeting.subtitle")}
       </p>
     </div>
   );

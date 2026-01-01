@@ -73,3 +73,4 @@ GROUP BY ci.location_id, l.name
 ORDER BY user_count DESC, latest_check_in DESC
 LIMIT 20;
 
+

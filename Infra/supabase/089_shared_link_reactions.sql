@@ -24,3 +24,4 @@ COMMENT ON COLUMN public.shared_link_reactions.reaction_type IS 'Emoji reaction 
 COMMENT ON COLUMN public.shared_link_reactions.identity_key IS 'Generated column: user_id if available, otherwise client_id';
 
 
+

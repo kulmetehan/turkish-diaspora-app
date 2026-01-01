@@ -4,11 +4,13 @@ export const EVENT_CATEGORIES = ["club", "theater", "concert", "familie"] as con
 
 export type EventCategoryKey = (typeof EVENT_CATEGORIES)[number];
 
+// Event category labels are now translated via i18n
+// Use translation keys: events.categories.club, events.categories.theater, etc.
 export const EVENT_CATEGORY_LABELS: Record<EventCategoryKey, string> = {
-  club: "Club",
-  theater: "Theater",
-  concert: "Concert",
-  familie: "Familie",
+  club: "Club", // Deprecated: use translation keys instead
+  theater: "Theater", // Deprecated: use translation keys instead
+  concert: "Concert", // Deprecated: use translation keys instead
+  familie: "Familie", // Deprecated: use translation keys instead
 };
 
 function getHashSearch(): URLSearchParams {

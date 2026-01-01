@@ -1,7 +1,7 @@
 // src/i18n/index.ts
 
 const STORAGE_KEY = "tda-language";
-const SUPPORTED = ["nl", "en"] as const;
+const SUPPORTED = ["nl", "tr"] as const;
 type SupportedLang = (typeof SUPPORTED)[number];
 
 let initialized = false;
@@ -59,7 +59,9 @@ export function subscribeLanguage(listener: (lang: SupportedLang) => void) {
 
 export function getAcceptLanguageHeader(): string {
   const lang = getCurrentLanguage();
-  return lang === "nl" ? "nl-NL" : lang === "en" ? "en-US" : lang;
+  return lang === "nl" ? "nl-NL" : lang === "tr" ? "tr-TR" : lang;
 }
+
+export type { SupportedLang };
 
 
