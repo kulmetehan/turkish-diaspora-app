@@ -3,14 +3,13 @@ import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ReactionType } from "@/lib/api";
-import { getSharedLinks, toggleSharedLinkReaction } from "@/lib/api/prikbord";
+import { getSharedLinks, toggleSharedLinkReaction, deleteSharedLink } from "@/lib/api/prikbord";
 import { cn } from "@/lib/ui/cn";
 import type { SharedLink, SharedLinkFilters } from "@/types/prikbord";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PrikbordFilters } from "./PrikbordFilters";
 import { SharedLinkCard } from "./SharedLinkCard";
-import { ShareLinkDialog } from "./ShareLinkDialog";
+import { PrikbordComposer } from "./PrikbordComposer";
 
 interface PrikbordFeedProps {
     className?: string;
@@ -20,6 +19,9 @@ interface PrikbordFeedProps {
 
 const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
+
+// Stable empty filters object to prevent infinite loops
+const EMPTY_FILTERS: SharedLinkFilters = {};
 
 export function PrikbordFeed({
     className,
@@ -32,12 +34,24 @@ export function PrikbordFeed({
     const [error, setError] = useState<string | null>(null);
     const [hasMore, setHasMore] = useState(true);
     const [offset, setOffset] = useState(0);
-    const [filters, setFilters] = useState<SharedLinkFilters>(
-        initialFilters || {}
-    );
-    const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+    const isLoadingRef = useRef(false);
+    
+    // Memoize filters to prevent infinite loops - use stable empty object as default
+    const filters = useMemo(() => {
+        if (!initialFilters) return EMPTY_FILTERS;
+        return initialFilters;
+    }, [
+        initialFilters?.platform,
+        initialFilters?.city,
+        initialFilters?.tags?.join(','),
+        initialFilters?.post_type,
+        initialFilters?.trending,
+        initialFilters?.search,
+    ]);
 
     const loadInitialData = useCallback(async () => {
+        if (isLoadingRef.current) return; // Prevent concurrent loads
+        isLoadingRef.current = true;
         setIsLoading(true);
         setError(null);
         try {
@@ -52,6 +66,7 @@ export function PrikbordFeed({
             toast.error(message);
         } finally {
             setIsLoading(false);
+            isLoadingRef.current = false;
         }
     }, [filters]);
 
@@ -77,19 +92,66 @@ export function PrikbordFeed({
         }
     }, [isLoadingMore, hasMore, offset, filters]);
 
+    // Serialize filters for stable comparison
+    const filtersKey = useMemo(() => {
+        return JSON.stringify({
+            platform: filters.platform,
+            city: filters.city,
+            tags: filters.tags?.sort().join(','),
+            post_type: filters.post_type,
+            trending: filters.trending,
+            search: filters.search,
+        });
+    }, [
+        filters.platform,
+        filters.city,
+        filters.tags?.join(','),
+        filters.post_type,
+        filters.trending,
+        filters.search,
+    ]);
+
     useEffect(() => {
         // Reset and reload when filters change
+        if (isLoadingRef.current) return; // Prevent concurrent loads
         setOffset(0);
         setHasMore(true);
         loadInitialData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filtersKey]);
+
+    const handlePostSuccess = useCallback((newPost?: SharedLink) => {
+        // Optimistic update: add new post to beginning of list
+        if (newPost) {
+            setLinks((prev) => [newPost, ...prev]);
+            // Update offset to account for new post
+            setOffset((prev) => prev + 1);
+        } else {
+            // Fallback: refresh feed if no post provided
+            setOffset(0);
+            setHasMore(true);
+            loadInitialData();
+        }
     }, [loadInitialData]);
 
-    const handleShareSuccess = () => {
-        // Refresh feed
-        setOffset(0);
-        setHasMore(true);
-        loadInitialData();
-    };
+    const handleDelete = useCallback(async (linkId: number) => {
+        try {
+            // Optimistic delete: remove post from list immediately
+            setLinks((prev) => prev.filter((link) => link.id !== linkId));
+            setOffset((prev) => Math.max(0, prev - 1));
+            
+            // Call API to delete
+            await deleteSharedLink(linkId);
+            toast.success("Post verwijderd");
+        } catch (err: any) {
+            // Rollback on error: reload feed
+            toast.error("Kon post niet verwijderen", {
+                description: err.message || "Er is een fout opgetreden",
+            });
+            // Reload feed to sync state
+            loadInitialData();
+        }
+    }, [loadInitialData]);
 
     const handleReactionToggle = useCallback(async (linkId: number, reactionType: ReactionType) => {
         try {
@@ -138,17 +200,6 @@ export function PrikbordFeed({
     if (isLoading) {
         return (
             <div className={cn("space-y-4", className)}>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <PrikbordFilters filters={filters} onFiltersChange={setFilters} />
-                    <Button
-                        onClick={() => setIsShareDialogOpen(true)}
-                        size="sm"
-                        className="gap-1.5 h-8 text-xs min-w-[80px]"
-                    >
-                        <Icon name="Plus" className="h-3.5 w-3.5" />
-                        Deel
-                    </Button>
-                </div>
                 <div className="space-y-4">
                     {Array.from({ length: 3 }).map((_, i) => (
                         <Skeleton key={i} className="h-64 w-full rounded-xl" />
@@ -161,17 +212,6 @@ export function PrikbordFeed({
     if (error) {
         return (
             <div className={cn("space-y-4", className)}>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <PrikbordFilters filters={filters} onFiltersChange={setFilters} />
-                    <Button
-                        onClick={() => setIsShareDialogOpen(true)}
-                        size="sm"
-                        className="gap-1.5 h-8 text-xs min-w-[80px]"
-                    >
-                        <Icon name="Plus" className="h-3.5 w-3.5" />
-                        Deel
-                    </Button>
-                </div>
                 <div className="text-center py-8">
                     <p className="text-destructive">{error}</p>
                     <Button variant="outline" onClick={loadInitialData} className="mt-4">
@@ -184,17 +224,7 @@ export function PrikbordFeed({
 
     return (
         <div className={cn("space-y-4", className)}>
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-                <PrikbordFilters filters={filters} onFiltersChange={setFilters} />
-                <Button
-                    onClick={() => setIsShareDialogOpen(true)}
-                    size="sm"
-                    className="gap-1.5 h-8 text-xs min-w-[80px]"
-                >
-                    <Icon name="Plus" className="h-3.5 w-3.5" />
-                    Deel
-                </Button>
-            </div>
+            <PrikbordComposer onSuccess={handlePostSuccess} />
 
             {links.length === 0 ? (
                 <div className="text-center py-12">
@@ -211,6 +241,7 @@ export function PrikbordFeed({
                                 link={link}
                                 onDetailClick={() => onLinkClick?.(link)}
                                 onReactionToggle={(reactionType) => handleReactionToggle(link.id, reactionType)}
+                                onDelete={() => handleDelete(link.id)}
                                 reactions={link.reactions || null}
                                 userReaction={(link.user_reaction as ReactionType) || null}
                             />
@@ -229,12 +260,6 @@ export function PrikbordFeed({
                     )}
                 </>
             )}
-
-            <ShareLinkDialog
-                open={isShareDialogOpen}
-                onOpenChange={setIsShareDialogOpen}
-                onSuccess={handleShareSuccess}
-            />
         </div>
     );
 }

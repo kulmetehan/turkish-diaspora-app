@@ -200,6 +200,7 @@ export function NewsCard({
       role="button"
       tabIndex={0}
       aria-label={`Open nieuwsartikel: ${item.title}`}
+      data-article-id={item.id}
       onClick={handleActivate}
       onKeyDown={handleKeyDown}
       className={cn(

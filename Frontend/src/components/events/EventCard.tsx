@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { EventItem } from "@/api/events";
 import { EmojiReactions } from "@/components/feed/EmojiReactions";
+import { ErrorBoundary } from "@/components/feed/ErrorBoundary";
 import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
 import { getEventReactions, toggleEventReaction } from "@/lib/api";
@@ -38,33 +39,27 @@ export function EventCard({
   const { t } = useTranslation();
   const showMapButton = Boolean(onShowOnMap && eventHasCoordinates(event));
 
-  // Reactions state
-  const [reactions, setReactions] = useState<Record<string, number>>({});
-  const [userReaction, setUserReaction] = useState<string | null>(null);
+  // Reactions state - only for local optimistic updates
+  // Use props directly, state only for local changes before API confirms
+  const [localReactions, setLocalReactions] = useState<Record<string, number> | null>(null);
+  const [localUserReaction, setLocalUserReaction] = useState<string | null | undefined>(undefined);
   const [isLoadingReactions, setIsLoadingReactions] = useState(false);
-
-  // Initialize reactions from event props if available
-  // Use a ref to track the last reactions values to avoid unnecessary updates
-  const lastReactionsRef = useRef<string | null>(null);
-  const lastUserReactionRef = useRef<string | null>(null);
-
+  
+  // Track current event ID to reset local state when event changes
+  const currentEventIdRef = useRef<number>(event.id);
+  
+  // Reset local state when event ID changes
   useEffect(() => {
-    // Only update if reactions actually changed (by value, not reference)
-    const reactionsKey = event.reactions ? JSON.stringify(event.reactions) : null;
-    if (reactionsKey !== lastReactionsRef.current && event.reactions) {
-      lastReactionsRef.current = reactionsKey;
-      // Use reactions directly as they come from the API (dynamic emoji keys)
-      setReactions(event.reactions as Record<string, number>);
-    } else if (!event.reactions) {
-      lastReactionsRef.current = null;
-      setReactions({});
+    if (currentEventIdRef.current !== event.id) {
+      currentEventIdRef.current = event.id;
+      setLocalReactions(null);
+      setLocalUserReaction(undefined);
     }
+  }, [event.id]);
 
-    if (event.user_reaction !== lastUserReactionRef.current) {
-      lastUserReactionRef.current = event.user_reaction || null;
-      setUserReaction(event.user_reaction || null);
-    }
-  }, [event.reactions, event.user_reaction]);
+  // Use local state if available (optimistic update), otherwise use props
+  const reactions = localReactions !== null ? localReactions : (event.reactions as Record<string, number> || {});
+  const userReaction = localUserReaction !== undefined ? localUserReaction : (event.user_reaction || null);
 
   // Fetch reactions on mount if not provided
   // Use module-level cache to persist across component remounts
@@ -87,9 +82,9 @@ export function EventCard({
         .then((data) => {
           // Mark as fetched in cache
           eventReactionsFetchCache.set(event.id, 'fetched');
-          // Use reactions directly as they come from the API (dynamic emoji keys)
-          setReactions(data.reactions || {});
-          setUserReaction(data.user_reaction || null);
+          // Update local state with fetched data
+          setLocalReactions(data.reactions || {});
+          setLocalUserReaction(data.user_reaction || null);
         })
         .catch((error) => {
           console.error("Failed to fetch event reactions:", error);
@@ -103,55 +98,48 @@ export function EventCard({
   }, [event.id]);
 
   const handleReactionToggle = async (reactionType: string) => {
-    const previousReactions = { ...reactions };
+    const previousReactions = reactions;
     const previousUserReaction = userReaction;
 
-    // Optimistic update
+    // Optimistic update - use local state
     if (userReaction === reactionType) {
       // Remove reaction
-      setUserReaction(null);
-      setReactions((prev) => {
-        const newReactions = { ...prev };
-        const currentCount = newReactions[reactionType] || 0;
-        if (currentCount <= 1) {
-          delete newReactions[reactionType];
-        } else {
-          newReactions[reactionType] = currentCount - 1;
-        }
-        return newReactions;
-      });
+      const newReactions = { ...reactions };
+      const currentCount = newReactions[reactionType] || 0;
+      if (currentCount <= 1) {
+        delete newReactions[reactionType];
+      } else {
+        newReactions[reactionType] = currentCount - 1;
+      }
+      setLocalReactions(newReactions);
+      setLocalUserReaction(null);
     } else {
       // Add or change reaction
+      const newReactions = { ...reactions };
       if (userReaction) {
         // Remove old reaction count
-        setReactions((prev) => {
-          const newReactions = { ...prev };
-          const oldCount = newReactions[userReaction] || 0;
-          if (oldCount <= 1) {
-            delete newReactions[userReaction];
-          } else {
-            newReactions[userReaction] = oldCount - 1;
-          }
-          return newReactions;
-        });
+        const oldCount = newReactions[userReaction] || 0;
+        if (oldCount <= 1) {
+          delete newReactions[userReaction];
+        } else {
+          newReactions[userReaction] = oldCount - 1;
+        }
       }
-      setUserReaction(reactionType);
-      setReactions((prev) => ({
-        ...prev,
-        [reactionType]: (prev[reactionType] || 0) + 1,
-      }));
+      newReactions[reactionType] = (newReactions[reactionType] || 0) + 1;
+      setLocalReactions(newReactions);
+      setLocalUserReaction(reactionType);
     }
 
     try {
       const result = await toggleEventReaction(event.id, reactionType);
       // Refresh from server to get accurate state
       const updatedData = await getEventReactions(event.id);
-      setReactions(updatedData.reactions || {});
-      setUserReaction(updatedData.user_reaction || null);
+      setLocalReactions(updatedData.reactions || {});
+      setLocalUserReaction(updatedData.user_reaction || null);
     } catch (error) {
-      // Rollback on error
-      setReactions(previousReactions);
-      setUserReaction(previousUserReaction);
+      // Rollback on error - clear local state to use props again
+      setLocalReactions(null);
+      setLocalUserReaction(undefined);
       toast.error(t("events.card.reactionUpdateError"));
       console.error("Failed to toggle event reaction:", error);
     }
@@ -207,12 +195,14 @@ export function EventCard({
 
       {/* Emoji Reactions */}
       <div className="mt-4" onClick={(e) => e.stopPropagation()}>
-        <EmojiReactions
-          activityId={event.id}
-          reactions={reactions}
-          userReaction={userReaction}
-          onReactionToggle={handleReactionToggle}
-        />
+        <ErrorBoundary>
+          <EmojiReactions
+            activityId={event.id}
+            reactions={reactions}
+            userReaction={userReaction}
+            onReactionToggle={handleReactionToggle}
+          />
+        </ErrorBoundary>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
@@ -225,7 +215,7 @@ export function EventCard({
               onShowOnMap?.(event);
             }}
           >
-            Toon op kaart
+            {t("map.showOnMap")}
           </button>
         ) : null}
         {event.url ? (

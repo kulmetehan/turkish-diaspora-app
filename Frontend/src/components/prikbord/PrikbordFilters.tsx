@@ -10,6 +10,7 @@ import type { Platform, SharedLinkFilters } from "@/types/prikbord";
 import { PLATFORM_LABELS } from "@/types/prikbord";
 import { getAvailablePlatforms } from "@/lib/api/prikbord";
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface PrikbordFiltersProps {
     filters: SharedLinkFilters;
@@ -20,6 +21,7 @@ export function PrikbordFilters({
     filters,
     onFiltersChange,
 }: PrikbordFiltersProps) {
+    const { t } = useTranslation();
     const [availablePlatforms, setAvailablePlatforms] = useState<Platform[]>([]);
     const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(true);
 
@@ -57,12 +59,12 @@ export function PrikbordFilters({
                 onValueChange={handlePostTypeChange}
             >
                 <SelectTrigger className="w-[90px] h-8 text-xs">
-                    <SelectValue placeholder="Type" />
+                    <SelectValue placeholder={t("prikbord.filters.type")} />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="all" className="text-xs">Alles</SelectItem>
-                    <SelectItem value="link" className="text-xs">Links</SelectItem>
-                    <SelectItem value="media" className="text-xs">Media</SelectItem>
+                    <SelectItem value="all" className="text-xs">{t("prikbord.filters.all")}</SelectItem>
+                    <SelectItem value="link" className="text-xs">{t("prikbord.filters.links")}</SelectItem>
+                    <SelectItem value="media" className="text-xs">{t("prikbord.filters.media")}</SelectItem>
                 </SelectContent>
             </Select>
             <Select
@@ -71,10 +73,10 @@ export function PrikbordFilters({
                 disabled={isLoadingPlatforms}
             >
                 <SelectTrigger className="w-[100px] h-8 text-xs">
-                    <SelectValue placeholder="Platform" />
+                    <SelectValue placeholder={t("prikbord.filters.platform")} />
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="all" className="text-xs">Alles</SelectItem>
+                    <SelectItem value="all" className="text-xs">{t("prikbord.filters.all")}</SelectItem>
                     {availablePlatforms.map((platform) => (
                         <SelectItem key={platform} value={platform} className="text-xs">
                             {PLATFORM_LABELS[platform] || platform}

@@ -85,7 +85,7 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
 
   const handleClick = () => {
     if (item.activity_type === "bulletin_post") {
-      navigate(`/feed?tab=bulletin&post=${item.payload?.bulletin_post_id || ''}`);
+      navigate("/feed", { state: { filter: "timeline" } });
     } else if (item.location_id) {
       navigate(`/locations/${item.location_id}`);
     }

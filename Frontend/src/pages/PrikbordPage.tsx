@@ -8,20 +8,23 @@ import type { SharedLink } from "@/types/prikbord";
 import { PageShell } from "@/components/layout/PageShell";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function PrikbordPage() {
+  const { t } = useTranslation();
   const seo = useSeo();
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleLinkClick = (link: SharedLink) => {
-    // Open link in new tab
-    window.open(link.url, "_blank", "noopener,noreferrer");
+    // Open link in new tab (only for link posts, not media/text)
+    if (link.post_type === "link") {
+      window.open(link.url, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleShareSuccess = () => {
-    // Refresh feed
-    setRefreshKey((prev) => prev + 1);
+    // Feed will update optimistically via PrikbordFeed
+    // No need to refresh manually
   };
 
   return (
@@ -44,12 +47,11 @@ export default function PrikbordPage() {
             className="gap-2"
           >
             <Icon name="Plus" className="h-4 w-4" />
-            Deel link
+            {t("prikbord.share.shareLink")}
           </Button>
         </div>
 
         <PrikbordFeed
-          key={refreshKey}
           onLinkClick={handleLinkClick}
         />
 

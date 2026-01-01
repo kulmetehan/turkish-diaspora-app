@@ -118,6 +118,7 @@ export type TranslationKeys = {
     display: {
       title: string;
       description: string;
+      language: string;
       theme: string;
     };
     legal: {
@@ -175,7 +176,7 @@ export type TranslationKeys = {
     };
     filters: {
       all: string;
-      prikbord: string;
+      timeline: string;
       polls: string;
       checkIns: string;
       notes: string;
@@ -209,6 +210,30 @@ export type TranslationKeys = {
       loadingMore: string;
       loadMore: string;
       loginToSeeActivity: string;
+    };
+    dashboard: {
+      latestNews: string;
+      viewAllNews: string;
+      nearby: string;
+      viewOnMap: string;
+      events: string;
+      viewAllEvents: string;
+      activity: string;
+      trendingNetherlands: string;
+      trendingTurkey: string;
+      viewAllTrends: string;
+      noTrendsAvailable: string;
+      notAvailable: string;
+      newsLoading: string;
+      noNewsAvailable: string;
+      noEventsAvailable: string;
+      activityItems: {
+        checkInsToday: string;
+        reactionsThisWeek: string;
+        notesThisWeek: string;
+        pollsThisWeek: string;
+        favoritesThisWeek: string;
+      };
     };
   };
   filters: {
@@ -283,6 +308,14 @@ export type TranslationKeys = {
       noSearchResults: string;
       noLocationsInCity: string;
     };
+    detail: {
+      backToMap: string;
+      backToList: string;
+      removedFromFavorites: string;
+      addedToFavorites: string;
+      alreadyFavorite: string;
+      favoriteError: string;
+    };
   };
   map: {
     toggle: {
@@ -296,6 +329,8 @@ export type TranslationKeys = {
       showCheckIns: string;
     };
     locationList: string;
+    showOnMap: string;
+    locationListAria: string;
   };
   news: {
     heading: string;
@@ -399,6 +434,127 @@ export type TranslationKeys = {
       updated: string;
       added: string;
     };
+  };
+  timeline: {
+    filters: {
+      all: string;
+      polls: string;
+      checkIns: string;
+      notes: string;
+    };
+  };
+  prikbord: {
+    filters: {
+      type: string;
+      all: string;
+      links: string;
+      media: string;
+      platform: string;
+    };
+    share: {
+      shareLink: string;
+      title: string;
+      description: string;
+      tabs: {
+        link: string;
+        media: string;
+      };
+      urlLabel: string;
+      editPreview: string;
+      editPreviewBad: string;
+      manualPreview: string;
+      titleLabel: string;
+      descriptionLabel: string;
+      imageUrlLabel: string;
+      mediaLabel: string;
+      dragDrop: string;
+      mediaSize: string;
+      previewCount: string;
+      submit: string;
+      submitting: string;
+      uploading: string;
+      errors: {
+        urlRequired: string;
+        invalidUrl: string;
+        titleOrDescriptionRequired: string;
+        mediaRequired: string;
+      };
+      success: {
+        linkShared: string;
+        mediaShared: string;
+      };
+    };
+  };
+  polls: {
+    vote: string;
+    saving: string;
+    totalVotes: string;
+    totalVotesPlural: string;
+    loadingResults: string;
+    sponsored: string;
+    endsAt: string;
+    deleteAsAdmin: string;
+    confirmDelete: string;
+  };
+  report: {
+    button: string;
+    buttonAria: string;
+    title: string;
+    reporting: string;
+    description: string;
+    reason: string;
+    selectReason: string;
+    details: string;
+    detailsPlaceholder: string;
+    characterCount: string;
+    submit: string;
+    submitting: string;
+    reasons: {
+      noTurkishAffinity: string;
+      permanentlyClosed: string;
+      fakeSpam: string;
+      other: string;
+      spam: string;
+      inappropriateContent: string;
+      harassment: string;
+      falseInformation: string;
+      inappropriate: string;
+      impersonation: string;
+      inappropriateBehavior: string;
+    };
+    types: {
+      location: string;
+      note: string;
+      reaction: string;
+      user: string;
+      checkIn: string;
+      prikbordPost: string;
+      poll: string;
+    };
+    errors: {
+      reasonRequired: string;
+      alreadyReported: string;
+      submitFailed: string;
+    };
+    success: string;
+  };
+  categories: {
+    restaurant: string;
+    bakery: string;
+    supermarket: string;
+    barber: string;
+    mosque: string;
+    travelAgency: string;
+    butcher: string;
+    fastFood: string;
+    cafe: string;
+    automotive: string;
+    insurance: string;
+    tailor: string;
+    eventsVenue: string;
+    communityCentre: string;
+    clinic: string;
+    locationCount: string;
   };
 };
 

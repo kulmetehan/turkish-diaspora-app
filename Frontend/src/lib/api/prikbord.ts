@@ -94,3 +94,17 @@ export async function getAvailablePlatforms(): Promise<string[]> {
   return response.platforms;
 }
 
+export interface UrlPreviewData {
+  title: string | null;
+  description: string | null;
+  image_url: string | null;
+  domain: string;
+}
+
+export async function previewUrl(url: string): Promise<UrlPreviewData> {
+  return apiFetch("/api/v1/prikbord/preview-url", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+}
+

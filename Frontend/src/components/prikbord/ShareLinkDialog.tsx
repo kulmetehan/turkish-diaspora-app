@@ -17,6 +17,7 @@ import { uploadMedia, createMediaPreview, type MediaUploadResult } from "@/lib/m
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface ShareLinkDialogProps {
     open: boolean;
@@ -29,6 +30,7 @@ export function ShareLinkDialog({
     onOpenChange,
     onSuccess,
 }: ShareLinkDialogProps) {
+    const { t } = useTranslation();
     const [postType, setPostType] = useState<"link" | "media">("link");
     const [url, setUrl] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -106,7 +108,7 @@ export function ShareLinkDialog({
     const handleSubmit = async () => {
         if (postType === "link") {
             if (!url.trim()) {
-                toast.error("Voer een URL in");
+                toast.error(t("prikbord.share.errors.urlRequired"));
                 return;
             }
 
@@ -114,13 +116,13 @@ export function ShareLinkDialog({
             try {
                 new URL(url.startsWith("http") ? url : `https://${url}`);
             } catch {
-                toast.error("Ongeldige URL");
+                toast.error(t("prikbord.share.errors.invalidUrl"));
                 return;
             }
 
             // If manual edit mode, validate that at least title or description is provided
             if (manualEdit && !manualTitle.trim() && !manualDescription.trim()) {
-                toast.error("Voer minstens een titel of beschrijving in");
+                toast.error(t("prikbord.share.errors.titleOrDescriptionRequired"));
                 return;
             }
 
@@ -135,11 +137,11 @@ export function ShareLinkDialog({
                         image_url: manualImageUrl.trim() || undefined,
                     }),
                 });
-                toast.success("Link gedeeld!");
+                toast.success(t("prikbord.share.success.linkShared"));
                 onOpenChange(false);
                 onSuccess?.();
             } catch (err: any) {
-                toast.error("Kon link niet delen", {
+                toast.error(t("prikbord.share.errors.urlRequired"), {
                     description: err.message || "Er is een fout opgetreden",
                 });
             } finally {
@@ -148,7 +150,7 @@ export function ShareLinkDialog({
         } else {
             // Media post
             if (mediaFiles.length === 0) {
-                toast.error("Selecteer minimaal één afbeelding of video");
+                toast.error(t("prikbord.share.errors.mediaRequired"));
                 return;
             }
 
@@ -168,11 +170,11 @@ export function ShareLinkDialog({
                     media_urls: mediaUrls,
                 });
 
-                toast.success("Media gedeeld!");
+                toast.success(t("prikbord.share.success.mediaShared"));
                 onOpenChange(false);
                 onSuccess?.();
             } catch (err: any) {
-                toast.error("Kon media niet delen", {
+                toast.error(t("prikbord.share.errors.mediaRequired"), {
                     description: err.message || "Er is een fout opgetreden",
                 });
             } finally {
@@ -186,21 +188,21 @@ export function ShareLinkDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Deel op Prikbord</DialogTitle>
+                    <DialogTitle>{t("prikbord.share.title")}</DialogTitle>
                     <DialogDescription>
-                        Deel een link of upload afbeeldingen en video's
+                        {t("prikbord.share.description")}
                     </DialogDescription>
                 </DialogHeader>
 
                 <Tabs value={postType} onValueChange={(v) => setPostType(v as "link" | "media")} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="link">Link</TabsTrigger>
-                        <TabsTrigger value="media">Media</TabsTrigger>
+                        <TabsTrigger value="link">{t("prikbord.share.tabs.link")}</TabsTrigger>
+                        <TabsTrigger value="media">{t("prikbord.share.tabs.media")}</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="link" className="space-y-4 mt-4">
                     <div className="space-y-2">
-                        <Label htmlFor="url">URL</Label>
+                        <Label htmlFor="url">{t("prikbord.share.urlLabel")}</Label>
                         <Input
                             id="url"
                             type="url"
@@ -214,7 +216,7 @@ export function ShareLinkDialog({
                     {url.trim() && !manualEdit && !preview && (
                         <div className="rounded-lg border border-border p-3 space-y-2">
                             <p className="text-sm text-muted-foreground">
-                                Je kunt de preview automatisch laten genereren of handmatig bewerken.
+                                {t("prikbord.share.editPreview")}
                             </p>
                             <Button
                                 type="button"
@@ -224,7 +226,7 @@ export function ShareLinkDialog({
                                 className="w-full mt-2"
                             >
                                 <Icon name="Edit" className="h-4 w-4 mr-2" />
-                                Preview handmatig bewerken
+                                {t("prikbord.share.editPreview")}
                             </Button>
                         </div>
                     )}
@@ -254,7 +256,7 @@ export function ShareLinkDialog({
                                 className="w-full mt-2"
                             >
                                 <Icon name="Edit" className="h-4 w-4 mr-2" />
-                                Preview niet goed? Bewerk handmatig
+                                {t("prikbord.share.editPreviewBad")}
                             </Button>
                         </div>
                     )}
@@ -262,7 +264,7 @@ export function ShareLinkDialog({
                     {manualEdit && (
                         <div className="rounded-lg border border-border p-3 space-y-3">
                             <div className="flex items-center justify-between">
-                                <Label className="text-sm font-medium">Handmatige preview</Label>
+                                <Label className="text-sm font-medium">{t("prikbord.share.manualPreview")}</Label>
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -274,27 +276,27 @@ export function ShareLinkDialog({
                             </div>
                             <div className="space-y-2">
                                 <div>
-                                    <Label htmlFor="manual-title">Titel</Label>
+                                    <Label htmlFor="manual-title">{t("prikbord.share.titleLabel")}</Label>
                                     <Input
                                         id="manual-title"
                                         value={manualTitle}
                                         onChange={(e) => setManualTitle(e.target.value)}
-                                        placeholder="Voer een titel in"
+                                        placeholder={t("prikbord.share.titleLabel")}
                                         disabled={isSubmitting}
                                     />
                                 </div>
                                 <div>
-                                    <Label htmlFor="manual-description">Beschrijving</Label>
+                                    <Label htmlFor="manual-description">{t("prikbord.share.descriptionLabel")}</Label>
                                     <Input
                                         id="manual-description"
                                         value={manualDescription}
                                         onChange={(e) => setManualDescription(e.target.value)}
-                                        placeholder="Voer een beschrijving in"
+                                        placeholder={t("prikbord.share.descriptionLabel")}
                                         disabled={isSubmitting}
                                     />
                                 </div>
                                 <div>
-                                    <Label htmlFor="manual-image">Afbeelding URL (optioneel)</Label>
+                                    <Label htmlFor="manual-image">{t("prikbord.share.imageUrlLabel")}</Label>
                                     <Input
                                         id="manual-image"
                                         type="url"
@@ -311,7 +313,7 @@ export function ShareLinkDialog({
 
                     <TabsContent value="media" className="space-y-4 mt-4">
                         <div className="space-y-2">
-                            <Label>Afbeeldingen of video's</Label>
+                            <Label>{t("prikbord.share.mediaLabel")}</Label>
                             <div
                                 className={cn(
                                     "border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors",
@@ -333,17 +335,17 @@ export function ShareLinkDialog({
                                 />
                                 <Icon name="Upload" className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
                                 <p className="text-sm text-muted-foreground mb-1">
-                                    Sleep bestanden hierheen of klik om te selecteren
+                                    {t("prikbord.share.dragDrop")}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    Afbeeldingen (max 5MB) of video's (max 50MB)
+                                    {t("prikbord.share.mediaSize")}
                                 </p>
                             </div>
                         </div>
 
                         {mediaPreviews.length > 0 && (
                             <div className="space-y-2">
-                                <Label>Preview ({mediaPreviews.length})</Label>
+                                <Label>{t("prikbord.share.previewCount").replace("{count}", mediaPreviews.length.toString())}</Label>
                                 <div className="grid grid-cols-2 gap-2">
                                     {mediaPreviews.map((preview, index) => {
                                         const file = mediaFiles[index];
@@ -386,7 +388,7 @@ export function ShareLinkDialog({
                         onClick={() => onOpenChange(false)}
                         disabled={isSubmitting}
                     >
-                        Annuleren
+                        {t("common.buttons.cancel")}
                     </Button>
                     <Button
                         onClick={handleSubmit}
@@ -399,12 +401,12 @@ export function ShareLinkDialog({
                         {isSubmitting || isUploading ? (
                             <>
                                 <Icon name="Loader2" className="h-4 w-4 mr-2 animate-spin" />
-                                {isUploading ? "Uploaden..." : "Delen..."}
+                                {isUploading ? t("prikbord.share.uploading") : t("prikbord.share.submitting")}
                             </>
                         ) : (
                             <>
                                 <Icon name="Share2" className="h-4 w-4 mr-2" />
-                                Delen
+                                {t("prikbord.share.submit")}
                             </>
                         )}
                     </Button>

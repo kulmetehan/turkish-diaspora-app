@@ -16,3 +16,4 @@ COMMENT ON COLUMN public.shared_links.media_urls IS 'Array of media URLs (images
 COMMENT ON COLUMN public.shared_links.post_type IS 'Type of post: link (shared link) or media (uploaded media)';
 
 
+

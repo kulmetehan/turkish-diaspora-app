@@ -13,6 +13,7 @@ import type { ReactionType } from "@/lib/api";
 import { useNavigate } from "react-router-dom";
 import { ReportButton } from "@/components/report/ReportButton";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useUserAuth } from "@/hooks/useUserAuth";
 import { deleteAdminSharedLink } from "@/lib/apiAdmin";
 import { ImageModal } from "@/components/feed/ImageModal";
 
@@ -83,12 +84,19 @@ export function SharedLinkCard({
 }: SharedLinkCardProps) {
   const navigate = useNavigate();
   const { isAdmin } = useAdminAuth();
+  const { user } = useUserAuth();
   const [isBookmarked, setIsBookmarked] = useState(link.is_bookmarked);
   const [isTogglingBookmark, setIsTogglingBookmark] = useState(false);
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
   const timeLabel = useMemo(() => formatActivityTime(link.created_at), [link.created_at]);
+  
+  // Check if current user is the owner of this post
+  const isOwner = useMemo(() => {
+    if (!user?.id) return false;
+    return link.creator.type === "user" && link.creator.id === user.id;
+  }, [user?.id, link.creator]);
 
   const handleBookmark = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -148,8 +156,13 @@ export function SharedLinkCard({
     try {
       await deleteAdminSharedLink(link.id);
       toast.success("Link verwijderd");
-      // Refresh page or call callback if provided
-      window.location.reload();
+      // Use callback if provided, otherwise fallback to reload
+      if (onDelete) {
+        onDelete();
+      } else {
+        // Fallback: only reload if no callback provided
+        window.location.reload();
+      }
     } catch (err: any) {
       toast.error("Kon link niet verwijderen", {
         description: err.message || "Er is een fout opgetreden",
@@ -231,7 +244,7 @@ export function SharedLinkCard({
           )}
         </div>
 
-        {(showDelete || isAdmin) && (
+        {(showDelete || isAdmin || isOwner) && (
           <Button
             variant="ghost"
             size="sm"
@@ -252,21 +265,33 @@ export function SharedLinkCard({
 
       {/* Content Text */}
       <div className="px-4 pb-3">
-        {displayTitle && (
-          <h3
-            className={cn(
-              "text-lg font-semibold mb-1 line-clamp-2",
-              link.post_type !== "media" && "cursor-pointer hover:text-primary transition-colors"
+        {link.post_type === "text" || link.post_type === "media" ? (
+          // Text/Media posts: show only description as plain text (Facebook-style)
+          link.description && (
+            <p className="text-base text-foreground whitespace-pre-wrap leading-relaxed">
+              {link.description}
+            </p>
+          )
+        ) : (
+          // Link posts: show title and description as before
+          <>
+            {displayTitle && (
+              <h3
+                className={cn(
+                  "text-lg font-semibold mb-1 line-clamp-2",
+                  "cursor-pointer hover:text-primary transition-colors"
+                )}
+                onClick={handleOpenLink}
+              >
+                {displayTitle}
+              </h3>
             )}
-            onClick={link.post_type !== "media" ? handleOpenLink : undefined}
-          >
-            {displayTitle}
-          </h3>
-        )}
-        {link.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-            {link.description}
-          </p>
+            {link.description && (
+              <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                {link.description}
+              </p>
+            )}
+          </>
         )}
         {link.city && (
           <div className="flex items-center gap-2 flex-wrap">

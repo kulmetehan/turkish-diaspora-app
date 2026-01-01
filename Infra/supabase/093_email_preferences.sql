@@ -29,3 +29,4 @@ COMMENT ON TABLE public.email_preferences IS 'Email preferences and unsubscribe 
 COMMENT ON COLUMN public.email_preferences.unsubscribed_at IS 'Timestamp when user unsubscribed. NULL = not unsubscribed';
 
 
+

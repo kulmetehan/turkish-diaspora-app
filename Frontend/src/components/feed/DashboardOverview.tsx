@@ -2,6 +2,7 @@
 import type { EventItem } from "@/api/events";
 import { fetchNews, type NewsItem } from "@/api/news";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useTranslation } from "@/hooks/useTranslation";
 import {
   fetchCuratedEvents,
   fetchCuratedNews,
@@ -10,9 +11,10 @@ import {
   type ActivityItem,
   type CategoryStat,
 } from "@/lib/api";
-import { humanizeCategoryLabel } from "@/lib/categories";
+import { getCategoryLabel } from "@/lib/categories";
 import { getCategoryIcon } from "@/lib/map/marker-icons";
 import { cn } from "@/lib/ui/cn";
+import { navigationActions, useMapNavigation } from "@/state/navigation";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardCard } from "./DashboardCard";
@@ -20,38 +22,6 @@ import type { ActivityFilter } from "./FeedFilterTabs";
 
 interface DashboardOverviewProps {
   className?: string;
-}
-
-/**
- * Official category labels as used on the map (from categories.yml).
- * These are the canonical Dutch labels with proper capitalization.
- */
-const OFFICIAL_CATEGORY_LABELS: Record<string, string> = {
-  restaurant: "Restaurant",
-  bakery: "Bakkerij",
-  supermarket: "Supermarkt",
-  barber: "Kapper",
-  mosque: "Moskee",
-  travel_agency: "Reisbureau",
-  butcher: "Slagerij",
-  fast_food: "Fastfood",
-  cafe: "Café",
-  automotive: "Automotive",
-  insurance: "Verzekering",
-  tailor: "Kleermaker",
-  events_venue: "Trouwzaal",
-  community_centre: "Vereniging",
-  clinic: "Medische Praktijk",
-};
-
-/**
- * Get the official category label for a category key.
- * Falls back to humanized version if not found in official mapping.
- */
-function getOfficialCategoryLabel(categoryKey: string | null | undefined): string {
-  if (!categoryKey) return "—";
-  const normalized = categoryKey.toLowerCase().trim();
-  return OFFICIAL_CATEGORY_LABELS[normalized] || humanizeCategoryLabel(categoryKey);
 }
 
 interface NewsCardData {
@@ -87,6 +57,8 @@ interface ActivityCardData {
 
 export function DashboardOverview({ className }: DashboardOverviewProps) {
   const navigate = useNavigate();
+  const { t, lang } = useTranslation();
+  const mapNavigation = useMapNavigation();
 
   const [newsData, setNewsData] = useState<NewsCardData>({
     items: [],
@@ -145,7 +117,7 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
           while (items.length < 3) {
             items.push({
               id: -items.length - 1, // Negative ID for placeholders
-              title: "Nieuws item wordt geladen...",
+              title: t("feed.dashboard.newsLoading"),
               snippet: null,
               source: "Komşu",
               published_at: new Date().toISOString(),
@@ -448,10 +420,10 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
     <div className={cn("grid grid-cols-2 gap-3", className)}>
       {/* News Card */}
       <DashboardCard
-        title="Laatste nieuws"
+        title={t("feed.dashboard.latestNews")}
         icon="Newspaper"
         footerLink="/news"
-        footerText="Bekijk alle nieuws"
+        footerText={t("feed.dashboard.viewAllNews")}
       >
         {newsData.loading ? (
           <div className="space-y-2">
@@ -460,16 +432,26 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             <Skeleton className="h-4 w-5/6" />
           </div>
         ) : newsData.error ? (
-          <p className="text-xs font-gilroy font-normal">Niet beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.notAvailable")}</p>
         ) : newsData.items.length === 0 ? (
-          <p className="text-xs font-gilroy font-normal">Geen nieuws beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.noNewsAvailable")}</p>
         ) : (
           <div className="flex flex-col justify-center space-y-0 min-h-[80px]">
             {newsData.items.slice(0, 3).map((item, index) => (
               <div
                 key={item.id}
+                onClick={() => {
+                  // Navigate to news page with article ID in hash
+                  navigate("/news");
+                  // Use setTimeout to ensure navigation happens first
+                  setTimeout(() => {
+                    const params = new URLSearchParams();
+                    params.set("article", item.id.toString());
+                    window.location.hash = `#/news?${params.toString()}`;
+                  }, 0);
+                }}
                 className={cn(
-                  "space-y-0.5 py-1.5",
+                  "space-y-0.5 py-1.5 cursor-pointer transition-colors hover:bg-muted/50 rounded px-1 -mx-1",
                   index < newsData.items.length - 1 && "border-b border-border/40"
                 )}
               >
@@ -487,10 +469,10 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Locations Card */}
       <DashboardCard
-        title="In de buurt"
+        title={t("feed.dashboard.nearby")}
         icon="Map"
         footerLink="/map"
-        footerText="Bekijk op kaart"
+        footerText={t("feed.dashboard.viewOnMap")}
       >
         {locationsData.loading ? (
           <div className="space-y-2">
@@ -498,34 +480,58 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             <Skeleton className="h-4 w-3/4" />
           </div>
         ) : locationsData.error ? (
-          <p className="text-xs font-gilroy font-normal">Laden...</p>
+          <p className="text-xs font-gilroy font-normal">{t("common.loading")}</p>
         ) : locationsData.categories && locationsData.categories.length > 0 ? (
           <div className="flex flex-col justify-center space-y-0 min-h-[80px]">
-            {locationsData.categories.slice(0, 3).map((cat, index) => {
-              const Icon = getCategoryIcon(cat.category);
-              const officialLabel = getOfficialCategoryLabel(cat.category);
-              return (
-                <div
-                  key={cat.category}
-                  className={cn(
-                    "flex items-center gap-2 py-1.5",
-                    index < Math.min(locationsData.categories.length, 3) - 1 && "border-b border-border/40"
-                  )}
-                >
-                  <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
-                    <Icon size={12} strokeWidth={2} />
+            {(() => {
+              // Ensure we always show 3 categories
+              const categoriesToShow: CategoryStat[] = [...locationsData.categories];
+              while (categoriesToShow.length < 3) {
+                // Add placeholder "Other" category if we have less than 3
+                categoriesToShow.push({
+                  category: "other",
+                  count: 0,
+                  label: "Other",
+                });
+              }
+              return categoriesToShow.slice(0, 3).map((cat, index) => {
+                const Icon = getCategoryIcon(cat.category);
+                const categoryLabel = getCategoryLabel(cat.category, lang);
+                const handleCategoryClick = () => {
+                  navigationActions.setMap({
+                    filters: {
+                      ...mapNavigation.filters,
+                      category: cat.category === "other" ? "all" : cat.category,
+                    },
+                  });
+                  navigate("/map");
+                };
+                return (
+                  <div
+                    key={`${cat.category}-${index}`}
+                    onClick={handleCategoryClick}
+                    className={cn(
+                      "flex items-center gap-2 py-1.5 cursor-pointer transition-colors hover:bg-muted/50 rounded px-1 -mx-1",
+                      index < 2 && "border-b border-border/40"
+                    )}
+                  >
+                    <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
+                      <Icon size={12} strokeWidth={2} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-gilroy font-medium leading-tight truncate">
+                        {categoryLabel}
+                      </p>
+                      {cat.count > 0 && (
+                        <p className="text-[10px] font-gilroy font-normal text-muted-foreground/70">
+                          {t("categories.locationCount").replace("{count}", cat.count.toLocaleString("nl-NL"))}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] font-gilroy font-medium leading-tight truncate">
-                      {officialLabel}
-                    </p>
-                    <p className="text-[10px] font-gilroy font-normal text-muted-foreground/70">
-                      {cat.count.toLocaleString("nl-NL")} locaties
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              });
+            })()}
           </div>
         ) : locationsData.formattedText ? (
           <div className="space-y-1">
@@ -546,10 +552,10 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Events Card */}
       <DashboardCard
-        title="Events"
+        title={t("feed.dashboard.events")}
         icon="CalendarCheck"
         footerLink="/events"
-        footerText="Bekijk alle events"
+        footerText={t("feed.dashboard.viewAllEvents")}
       >
         {eventsData.loading ? (
           <div className="space-y-2">
@@ -558,16 +564,20 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             <Skeleton className="h-4 w-5/6" />
           </div>
         ) : eventsData.error ? (
-          <p className="text-xs font-gilroy font-normal">Niet beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.notAvailable")}</p>
         ) : eventsData.items.length === 0 ? (
-          <p className="text-xs font-gilroy font-normal">Geen events beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.noEventsAvailable")}</p>
         ) : (
           <div className="flex flex-col justify-center space-y-0 min-h-[80px]">
             {eventsData.items.slice(0, 3).map((event, index) => (
               <div
                 key={event.id}
+                onClick={() => {
+                  navigationActions.setEvents({ selectedId: event.id, detailId: event.id });
+                  navigate("/events");
+                }}
                 className={cn(
-                  "space-y-0.5 py-1.5",
+                  "space-y-0.5 py-1.5 cursor-pointer transition-colors hover:bg-muted/50 rounded px-1 -mx-1",
                   index < eventsData.items.length - 1 && "border-b border-border/40"
                 )}
               >
@@ -588,7 +598,7 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Activity Summary Card */}
       <DashboardCard
-        title="Activiteit"
+        title={t("feed.dashboard.activity")}
         icon="Sparkles"
       >
         {activityData.loading ? (
@@ -597,38 +607,38 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             <Skeleton className="h-4 w-3/4" />
           </div>
         ) : activityData.error ? (
-          <p className="text-xs font-gilroy font-normal">Niet beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.notAvailable")}</p>
         ) : (
           <div className="space-y-1">
             <button
               onClick={() => navigateToFeedFilter("check_in")}
               className="w-full text-left text-xs font-gilroy font-medium text-primary transition-colors hover:text-primary/80"
             >
-              {activityData.checkInsToday} check-ins vandaag
+              {activityData.checkInsToday} {t("feed.dashboard.activityItems.checkInsToday")}
             </button>
             <button
               onClick={() => navigateToFeedFilter("reaction")}
               className="w-full text-left text-xs font-gilroy font-medium text-primary transition-colors hover:text-primary/80"
             >
-              {activityData.reactionsThisWeek} reacties deze week
+              {activityData.reactionsThisWeek} {t("feed.dashboard.activityItems.reactionsThisWeek")}
             </button>
             <button
               onClick={() => navigateToFeedFilter("note")}
               className="w-full text-left text-xs font-gilroy font-medium text-primary transition-colors hover:text-primary/80"
             >
-              {activityData.notesThisWeek} notities deze week
+              {activityData.notesThisWeek} {t("feed.dashboard.activityItems.notesThisWeek")}
             </button>
             <button
               onClick={() => navigateToFeedFilter("poll_response")}
               className="w-full text-left text-xs font-gilroy font-medium text-primary transition-colors hover:text-primary/80"
             >
-              {activityData.pollsThisWeek} polls deze week
+              {activityData.pollsThisWeek} {t("feed.dashboard.activityItems.pollsThisWeek")}
             </button>
             <button
               onClick={() => navigateToFeedFilter("favorite")}
               className="w-full text-left text-xs font-gilroy font-medium text-primary transition-colors hover:text-primary/80"
             >
-              {activityData.favoritesThisWeek} favorieten deze week
+              {activityData.favoritesThisWeek} {t("feed.dashboard.activityItems.favoritesThisWeek")}
             </button>
           </div>
         )}
@@ -636,10 +646,10 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Trending Netherlands Card */}
       <DashboardCard
-        title="Top 10 Trending Nederland"
+        title={t("feed.dashboard.trendingNetherlands")}
         icon="TrendingUp"
         footerLink="#/news?feed=trending&trend_country=nl"
-        footerText="Bekijk alle trends"
+        footerText={t("feed.dashboard.viewAllTrends")}
       >
         {trendsNl.loading ? (
           <div className="space-y-2">
@@ -648,16 +658,26 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             <Skeleton className="h-4 w-5/6" />
           </div>
         ) : trendsNl.error ? (
-          <p className="text-xs font-gilroy font-normal">Niet beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.notAvailable")}</p>
         ) : trendsNl.items.length === 0 ? (
-          <p className="text-xs font-gilroy font-normal">Geen trends beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.noTrendsAvailable")}</p>
         ) : (
           <div className="flex flex-col justify-center space-y-0 min-h-[80px]">
             {trendsNl.items.slice(0, 10).map((item, index) => (
               <div
                 key={item.id}
+                onClick={() => {
+                  navigate("/news");
+                  setTimeout(() => {
+                    const params = new URLSearchParams();
+                    params.set("feed", "trending");
+                    params.set("trend_country", "nl");
+                    params.set("article", item.id.toString());
+                    window.location.hash = `#/news?${params.toString()}`;
+                  }, 0);
+                }}
                 className={cn(
-                  "flex items-center gap-2 py-1.5",
+                  "flex items-center gap-2 py-1.5 cursor-pointer transition-colors hover:bg-muted/50 rounded px-1 -mx-1",
                   index < trendsNl.items.length - 1 && "border-b border-border/40"
                 )}
               >
@@ -675,10 +695,10 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
 
       {/* Trending Turkey Card */}
       <DashboardCard
-        title="Top 10 Trending Turkije"
+        title={t("feed.dashboard.trendingTurkey")}
         icon="TrendingUp"
         footerLink="#/news?feed=trending&trend_country=tr"
-        footerText="Bekijk alle trends"
+        footerText={t("feed.dashboard.viewAllTrends")}
       >
         {trendsTr.loading ? (
           <div className="space-y-2">
@@ -687,16 +707,26 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
             <Skeleton className="h-4 w-5/6" />
           </div>
         ) : trendsTr.error ? (
-          <p className="text-xs font-gilroy font-normal">Niet beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.notAvailable")}</p>
         ) : trendsTr.items.length === 0 ? (
-          <p className="text-xs font-gilroy font-normal">Geen trends beschikbaar</p>
+          <p className="text-xs font-gilroy font-normal">{t("feed.dashboard.noTrendsAvailable")}</p>
         ) : (
           <div className="flex flex-col justify-center space-y-0 min-h-[80px]">
             {trendsTr.items.slice(0, 10).map((item, index) => (
               <div
                 key={item.id}
+                onClick={() => {
+                  navigate("/news");
+                  setTimeout(() => {
+                    const params = new URLSearchParams();
+                    params.set("feed", "trending");
+                    params.set("trend_country", "tr");
+                    params.set("article", item.id.toString());
+                    window.location.hash = `#/news?${params.toString()}`;
+                  }, 0);
+                }}
                 className={cn(
-                  "flex items-center gap-2 py-1.5",
+                  "flex items-center gap-2 py-1.5 cursor-pointer transition-colors hover:bg-muted/50 rounded px-1 -mx-1",
                   index < trendsTr.items.length - 1 && "border-b border-border/40"
                 )}
               >

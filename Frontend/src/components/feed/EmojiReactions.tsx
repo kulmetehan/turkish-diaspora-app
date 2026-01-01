@@ -2,7 +2,7 @@
 import { EmojiPicker } from "@/components/ui/EmojiPicker";
 import { type ReactionType } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export interface EmojiReactionsProps {
   activityId: number;
@@ -34,11 +34,13 @@ export function EmojiReactions({
   };
 
   // Convert reactions to array of entries, filter out zero counts, sort by count desc
-  const reactionEntries = reactions
-    ? Object.entries(reactions)
+  // Memoize to prevent unnecessary re-renders when reactions object reference changes
+  const reactionEntries = useMemo(() => {
+    if (!reactions) return [];
+    return Object.entries(reactions)
       .filter(([_, count]) => count > 0)
-      .sort(([_, a], [__, b]) => b - a)
-    : [];
+      .sort(([_, a], [__, b]) => b - a);
+  }, [reactions]);
 
   return (
     <div className={cn("flex items-center gap-2 flex-wrap", className)}>
@@ -48,7 +50,7 @@ export function EmojiReactions({
 
         return (
           <button
-            key={emoji}
+            key={`${activityId}-${emoji}`}
             type="button"
             onClick={(e) => handleReactionClick(e, emoji)}
             disabled={isLoading}

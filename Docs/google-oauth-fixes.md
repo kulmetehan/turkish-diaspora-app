@@ -147,3 +147,4 @@ Na het implementeren van bovenstaande fixes:
 - Refresh de pagina (hard refresh: Cmd+Shift+R / Ctrl+Shift+R)
 
 
+

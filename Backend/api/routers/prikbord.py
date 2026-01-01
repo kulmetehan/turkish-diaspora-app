@@ -23,9 +23,9 @@ router = APIRouter(prefix="/prikbord", tags=["prikbord"])
 
 # Request/Response models
 class SharedLinkCreate(BaseModel):
-    url: Optional[str] = None  # Made optional for media posts
+    url: Optional[str] = None  # Made optional for media and text posts
     media_urls: List[str] = Field(default_factory=list)
-    post_type: str = Field("link", pattern="^(link|media)$")
+    post_type: str = Field("link", pattern="^(link|media|text)$")
     linked_location_id: Optional[int] = None
     city: Optional[str] = None
     neighborhood: Optional[str] = None
@@ -106,6 +106,51 @@ async def check_rate_limit(user_id: Optional[UUID], client_id: Optional[str], re
             raise HTTPException(status_code=429, detail="Maximum 20 links per dag bereikt (anonieme gebruikers)")
 
 
+class PreviewUrlRequest(BaseModel):
+    url: str = Field(..., description="URL to preview")
+
+
+class PreviewUrlResponse(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    domain: str
+
+
+@router.post("/preview-url", response_model=PreviewUrlResponse)
+async def preview_url(
+    request: PreviewUrlRequest,
+):
+    """Preview URL metadata without creating a link."""
+    try:
+        preview_service = get_link_preview_service()
+        preview = await preview_service.generate_preview(request.url)
+        
+        # Extract domain from URL
+        from urllib.parse import urlparse
+        parsed = urlparse(preview.url)
+        domain = parsed.netloc.replace("www.", "")
+        
+        return PreviewUrlResponse(
+            title=preview.title,
+            description=preview.description,
+            image_url=preview.image_url,
+            domain=domain,
+        )
+    except Exception as e:
+        logger.error("url_preview_failed", url=request.url, error=str(e))
+        # Return basic domain info even if preview fails
+        from urllib.parse import urlparse
+        parsed = urlparse(request.url)
+        domain = parsed.netloc.replace("www.", "")
+        return PreviewUrlResponse(
+            title=None,
+            description=None,
+            image_url=None,
+            domain=domain,
+        )
+
+
 @router.post("/links", response_model=SharedLinkResponse)
 async def create_link(
     link: SharedLinkCreate,
@@ -130,7 +175,7 @@ async def create_link(
     user_id = current_user.user_id if link.creator_type == "user" else None
     business_id = link.business_id if link.creator_type == "business" else None
     
-    # Handle media posts differently
+    # Handle different post types
     if post_type == "media":
         # Validate media post
         if not media_urls:
@@ -145,6 +190,20 @@ async def create_link(
         video_url = None
         preview_method = "media_upload"
         preview_cache_expires_at = datetime.utcnow() + timedelta(days=7)
+    elif post_type == "text":
+        # Handle text-only posts
+        if not (link.title or link.description):
+            raise HTTPException(status_code=400, detail="Text posts vereisen title of description")
+        
+        # Use placeholder URL for text posts
+        normalized_url = f"text://post/{datetime.utcnow().timestamp()}"
+        platform = Platform.OTHER
+        title = link.title or None
+        description = link.description or None
+        image_url = None
+        video_url = None
+        preview_method = None
+        preview_cache_expires_at = None
     else:
         # Handle link posts
         if not link.url:

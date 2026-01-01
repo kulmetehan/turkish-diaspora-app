@@ -638,7 +638,7 @@ export default function MapTab() {
                 ref={listScrollContainerRef}
                 className="flex h-full w-full flex-col gap-3 flex-1 overflow-y-auto px-4 pb-24 text-foreground focus:outline-none relative z-10"
                 role="region"
-                aria-label="Locatielijst"
+                aria-label={t("map.locationListAria")}
                 data-view="list"
             >
                 {renderFilters("list-desktop")}
@@ -688,7 +688,7 @@ export default function MapTab() {
                 ref={listScrollContainerRef}
                 className="flex h-full w-full flex-col gap-3 flex-1 overflow-y-auto px-4 pb-24 text-foreground focus:outline-none relative z-10"
                 role="region"
-                aria-label="Locatielijst"
+                aria-label={t("map.locationListAria")}
                 data-view="list"
             >
                 {renderFilters("list-mobile")}

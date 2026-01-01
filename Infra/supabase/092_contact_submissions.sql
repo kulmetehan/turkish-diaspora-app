@@ -25,3 +25,4 @@ COMMENT ON TABLE public.contact_submissions IS 'Contact form submissions from us
 COMMENT ON COLUMN public.contact_submissions.status IS 'Status: new, read, replied, archived';
 
 
+

@@ -1,29 +1,27 @@
-// Frontend/src/components/feed/FeedFilterTabs.tsx
-import type { ActivityItem } from "@/lib/api";
+// Frontend/src/components/timeline/TimelineSubFilters.tsx
 import { cn } from "@/lib/ui/cn";
 import { useTranslation } from "@/hooks/useTranslation";
 
-export type ActivityFilter = "all" | "one_cikanlar" | "timeline" | ActivityItem["activity_type"];
+export type TimelineSubFilter = "all" | "polls" | "check_ins" | "notes";
 
-export interface FeedFilterTabsProps {
-  activeFilter: ActivityFilter;
-  onFilterChange: (filter: ActivityFilter) => void;
+export interface TimelineSubFiltersProps {
+  activeFilter: TimelineSubFilter;
+  onFilterChange: (filter: TimelineSubFilter) => void;
   className?: string;
 }
 
-// Filter configuration: translation key -> activity_type value
-const FILTERS: Array<{ labelKey: string; value: ActivityFilter }> = [
-  { labelKey: "feed.filters.all", value: "all" },
-  { labelKey: "feed.filters.timeline", value: "timeline" },
-  { labelKey: "feed.filters.oneCikanlar", value: "one_cikanlar" },
-  // { labelKey: "feed.filters.favorite", value: "favorite" }, // Temporarily hidden - will be re-enabled later
+const SUB_FILTERS: Array<{ labelKey: string; value: TimelineSubFilter }> = [
+  { labelKey: "timeline.filters.all", value: "all" },
+  { labelKey: "timeline.filters.polls", value: "polls" },
+  { labelKey: "timeline.filters.checkIns", value: "check_ins" },
+  { labelKey: "timeline.filters.notes", value: "notes" },
 ];
 
-export function FeedFilterTabs({
+export function TimelineSubFilters({
   activeFilter,
   onFilterChange,
   className,
-}: FeedFilterTabsProps) {
+}: TimelineSubFiltersProps) {
   const { t } = useTranslation();
   
   return (
@@ -37,7 +35,7 @@ export function FeedFilterTabs({
         msOverflowStyle: "none", // IE/Edge
       }}
     >
-      {FILTERS.map((filter) => {
+      {SUB_FILTERS.map((filter) => {
         const isActive = activeFilter === filter.value;
         const label = t(filter.labelKey);
         return (
@@ -62,14 +60,4 @@ export function FeedFilterTabs({
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
 
