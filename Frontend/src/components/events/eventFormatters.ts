@@ -1,11 +1,12 @@
 import type { EventItem } from "@/api/events";
+import { getCurrentLanguage } from "@/i18n";
 
 function isValidDate(date: Date) {
   return Number.isFinite(date.getTime());
 }
 
-function humanizeKey(value?: string | null): string {
-  if (!value) return "Onbekend";
+function humanizeKey(value?: string | null, t?: (key: string) => string): string {
+  if (!value) return t ? t("events.formatters.unknown") : "Onbekend";
   return value
     .split(/[_-]/g)
     .filter(Boolean)
@@ -29,13 +30,18 @@ function humanizeKey(value?: string | null): string {
 export function formatEventDateRange(
   startIso?: string | null,
   endIso?: string | null,
+  t?: (key: string) => string,
 ): string {
-  if (!startIso) return "Datum onbekend";
+  const lang = getCurrentLanguage();
+  const locale = lang === "tr" ? "tr-TR" : "nl-NL";
+  const unknownDateText = t ? t("events.formatters.dateUnknown") : "Datum onbekend";
+  
+  if (!startIso) return unknownDateText;
   const start = new Date(startIso);
   const end = endIso ? new Date(endIso) : null;
-  if (!isValidDate(start)) return "Datum onbekend";
+  if (!isValidDate(start)) return unknownDateText;
 
-  const dateFormatter = new Intl.DateTimeFormat(undefined, {
+  const dateFormatter = new Intl.DateTimeFormat(locale, {
     weekday: "short",
     day: "numeric",
     month: "short",

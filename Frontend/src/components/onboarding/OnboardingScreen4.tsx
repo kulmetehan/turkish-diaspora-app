@@ -1,6 +1,7 @@
 // Onboarding Screen 4: Geslacht Selector
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useEffect, useState } from "react";
 import { MascotteAvatar } from "./MascotteAvatar";
 
@@ -9,6 +10,7 @@ export interface OnboardingScreen4Props {
 }
 
 export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
+  const { t } = useTranslation();
   const [selectedGender, setSelectedGender] = useState<string | null>(null);
 
   // Auto-advance after selection
@@ -31,13 +33,13 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
       <div className="flex flex-col items-center justify-center px-6 pt-12 pb-8">
         <MascotteAvatar size="lg" className="mb-4" />
         <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
-          Zodat ik je op maat kan bedienen.
+          {t("onboarding.gender.title")}
         </h2>
       </div>
 
       {/* Gender buttons */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 space-y-4">
-        <p className="text-sm text-muted-foreground mb-4">Geslacht</p>
+        <p className="text-sm text-muted-foreground mb-4">{t("onboarding.gender.label")}</p>
         <Button
           onClick={() => handleSelect("male")}
           size="lg"
@@ -48,7 +50,7 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
           )}
           type="button"
         >
-          Man
+          {t("onboarding.gender.male")}
         </Button>
         <Button
           onClick={() => handleSelect("female")}
@@ -60,7 +62,7 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
           )}
           type="button"
         >
-          Vrouw
+          {t("onboarding.gender.female")}
         </Button>
         <Button
           onClick={() => handleSelect("prefer_not_to_say")}
@@ -72,7 +74,7 @@ export function OnboardingScreen4({ onNext }: OnboardingScreen4Props) {
           )}
           type="button"
         >
-          Zeg ik liever niet
+          {t("onboarding.gender.preferNotToSay")}
         </Button>
       </div>
     </div>

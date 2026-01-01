@@ -1,6 +1,7 @@
 // Frontend/src/components/feed/FeedFilterTabs.tsx
 import type { ActivityItem } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export type ActivityFilter = "all" | "one_cikanlar" | "prikbord" | ActivityItem["activity_type"];
 
@@ -10,15 +11,15 @@ export interface FeedFilterTabsProps {
   className?: string;
 }
 
-// Filter configuration: display label -> activity_type value
-const FILTERS: Array<{ label: string; value: ActivityFilter }> = [
-  { label: "Alles", value: "all" },
-  { label: "Prikbord", value: "prikbord" },
-  { label: "Polls", value: "poll_response" },
-  { label: "Check-ins", value: "check_in" },
-  { label: "Notities", value: "note" },
-  { label: "Öne Çıkanlar", value: "one_cikanlar" },
-  // { label: "Favorieten", value: "favorite" }, // Temporarily hidden - will be re-enabled later
+// Filter configuration: translation key -> activity_type value
+const FILTERS: Array<{ labelKey: string; value: ActivityFilter }> = [
+  { labelKey: "feed.filters.all", value: "all" },
+  { labelKey: "feed.filters.prikbord", value: "prikbord" },
+  { labelKey: "feed.filters.polls", value: "poll_response" },
+  { labelKey: "feed.filters.checkIns", value: "check_in" },
+  { labelKey: "feed.filters.notes", value: "note" },
+  { labelKey: "feed.filters.oneCikanlar", value: "one_cikanlar" },
+  // { labelKey: "feed.filters.favorite", value: "favorite" }, // Temporarily hidden - will be re-enabled later
 ];
 
 export function FeedFilterTabs({
@@ -26,6 +27,8 @@ export function FeedFilterTabs({
   onFilterChange,
   className,
 }: FeedFilterTabsProps) {
+  const { t } = useTranslation();
+  
   return (
     <div
       className={cn(
@@ -39,6 +42,7 @@ export function FeedFilterTabs({
     >
       {FILTERS.map((filter) => {
         const isActive = activeFilter === filter.value;
+        const label = t(filter.labelKey);
         return (
           <button
             key={filter.value}
@@ -52,9 +56,9 @@ export function FeedFilterTabs({
                 : "bg-gray-100 text-black hover:bg-gray-200"
             )}
             aria-pressed={isActive}
-            aria-label={`Filter by ${filter.label}`}
+            aria-label={`Filter by ${label}`}
           >
-            {filter.label}
+            {label}
           </button>
         );
       })}

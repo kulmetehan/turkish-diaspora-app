@@ -15,3 +15,4 @@ CREATE INDEX IF NOT EXISTS idx_shared_links_post_type ON public.shared_links(pos
 COMMENT ON COLUMN public.shared_links.media_urls IS 'Array of media URLs (images/videos) for media posts';
 COMMENT ON COLUMN public.shared_links.post_type IS 'Type of post: link (shared link) or media (uploaded media)';
 
+

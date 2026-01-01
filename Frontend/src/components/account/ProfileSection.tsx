@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/ui/cn";
 import { toast } from "sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 import { 
   getCurrentUser, 
   checkUsernameAvailable, 
@@ -20,6 +21,7 @@ interface ProfileSectionProps {
 }
 
 export function ProfileSection({ className }: ProfileSectionProps) {
+  const { t } = useTranslation();
   const { userId } = useUserAuth();
   const [profile, setProfile] = useState<{ name: string | null; avatar_url: string | null } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,12 +95,12 @@ export function ProfileSection({ className }: ProfileSectionProps) {
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Alleen afbeeldingen zijn toegestaan");
+      toast.error(t("toast.upload.imageOnly"));
       return;
     }
 
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Afbeelding mag maximaal 2MB zijn");
+      toast.error(t("toast.upload.maxSize"));
       return;
     }
 
@@ -108,7 +110,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
       setAvatarPreview(preview);
     } catch (error) {
       console.error("Failed to create preview:", error);
-      toast.error("Kon preview niet maken");
+      toast.error(t("toast.upload.previewFailed"));
     }
   };
 
@@ -125,10 +127,10 @@ export function ProfileSection({ className }: ProfileSectionProps) {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-      toast.success("Profielfoto bijgewerkt!");
+      toast.success(t("toast.profile.avatarUpdated"));
     } catch (error) {
       console.error("Failed to upload avatar:", error);
-      toast.error(error instanceof Error ? error.message : "Upload mislukt");
+      toast.error(error instanceof Error ? error.message : t("toast.upload.error"));
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -138,17 +140,17 @@ export function ProfileSection({ className }: ProfileSectionProps) {
     const trimmed = username.trim();
     
     if (trimmed.length < 2) {
-      toast.error("Gebruikersnaam moet minimaal 2 karakters zijn");
+      toast.error(t("toast.username.minLength"));
       return;
     }
 
     if (trimmed.length > 50) {
-      toast.error("Gebruikersnaam mag maximaal 50 karakters zijn");
+      toast.error(t("toast.username.maxLength"));
       return;
     }
 
     if (usernameAvailable === false) {
-      toast.error("Gebruikersnaam is al in gebruik");
+      toast.error(t("toast.username.taken"));
       return;
     }
 
@@ -164,10 +166,10 @@ export function ProfileSection({ className }: ProfileSectionProps) {
       setIsEditingUsername(false);
       // Reload username change status after successful change
       await loadUsernameChangeStatus();
-      toast.success("Gebruikersnaam bijgewerkt!");
+      toast.success(t("toast.profile.usernameUpdated"));
     } catch (error) {
       console.error("Failed to update username:", error);
-      const errorMessage = error instanceof Error ? error.message : "Kon gebruikersnaam niet bijwerken";
+      const errorMessage = error instanceof Error ? error.message : t("toast.profile.usernameUpdateFailed");
       toast.error(errorMessage);
     } finally {
       setIsSaving(false);
@@ -183,7 +185,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
   if (isLoading) {
     return (
       <div className={cn("rounded-xl bg-surface-muted/50 p-6", className)}>
-        <p className="text-sm text-muted-foreground">Laden...</p>
+        <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
       </div>
     );
   }
@@ -193,10 +195,10 @@ export function ProfileSection({ className }: ProfileSectionProps) {
       <div className="space-y-6">
         <div className="space-y-1">
           <h2 className="text-lg font-gilroy font-medium text-foreground">
-            Profiel
+            {t("account.profile.title")}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Beheer je gebruikersnaam en profielfoto
+            {t("account.profile.description")}
           </p>
         </div>
 
@@ -236,7 +238,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                 >
                   <span className="flex items-center gap-2">
                     <Camera className="h-4 w-4" />
-                    {avatarFile ? "Nieuwe foto geselecteerd" : "Wijzig profielfoto"}
+                    {avatarFile ? t("account.profile.newPhotoSelected") : t("account.profile.changePhoto")}
                   </span>
                 </Button>
               </label>
@@ -250,7 +252,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                   onClick={handleSaveAvatar}
                   disabled={isUploadingAvatar}
                 >
-                  {isUploadingAvatar ? "Uploaden..." : "Opslaan"}
+                  {isUploadingAvatar ? t("account.profile.uploading") : t("account.profile.save")}
                 </Button>
                 <Button
                   type="button"
@@ -264,7 +266,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                     }
                   }}
                 >
-                  Annuleren
+                  {t("account.profile.cancel")}
                 </Button>
               </div>
             )}
@@ -275,10 +277,10 @@ export function ProfileSection({ className }: ProfileSectionProps) {
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <label htmlFor="username" className="text-sm font-medium text-foreground">
-              Gebruikersnaam:
+              {t("account.profile.username")}
             </label>
             <span className="text-sm text-foreground">
-              {profile?.name || "Geen gebruikersnaam"}
+              {profile?.name || t("account.profile.noUsername")}
             </span>
           </div>
           
@@ -289,7 +291,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="bijv. mehmet123"
+                placeholder={t("onboarding.username.placeholder")}
                 minLength={2}
                 maxLength={50}
                 disabled={isSaving || isCheckingUsername || (usernameChangeStatus && !usernameChangeStatus.can_change)}
@@ -300,16 +302,16 @@ export function ProfileSection({ className }: ProfileSectionProps) {
               />
               <div className="h-5">
                 {isCheckingUsername && (
-                  <p className="text-xs text-muted-foreground">Controleren...</p>
+                  <p className="text-xs text-muted-foreground">{t("onboarding.username.checking")}</p>
                 )}
                 {!isCheckingUsername && username.trim().length >= 2 && usernameAvailable === true && (
-                  <p className="text-xs text-green-600">✓ Beschikbaar</p>
+                  <p className="text-xs text-green-600">{t("onboarding.username.available")}</p>
                 )}
                 {!isCheckingUsername && username.trim().length >= 2 && usernameAvailable === false && (
-                  <p className="text-xs text-destructive">✗ Al in gebruik</p>
+                  <p className="text-xs text-destructive">{t("onboarding.username.taken")}</p>
                 )}
                 {!isCheckingUsername && username.trim().length > 0 && username.trim().length < 2 && (
-                  <p className="text-xs text-muted-foreground">Minimaal 2 karakters</p>
+                  <p className="text-xs text-muted-foreground">{t("onboarding.username.minChars")}</p>
                 )}
               </div>
               <div className="flex gap-2">
@@ -319,7 +321,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                   onClick={handleSaveUsername}
                   disabled={!username.trim() || usernameAvailable === false || isSaving || isCheckingUsername || (usernameChangeStatus && !usernameChangeStatus.can_change)}
                 >
-                  {isSaving ? "Opslaan..." : "Opslaan"}
+                  {isSaving ? t("account.profile.saving") : t("account.profile.save")}
                 </Button>
                 <Button
                   type="button"
@@ -328,7 +330,7 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                   onClick={handleCancelEdit}
                   disabled={isSaving}
                 >
-                  Annuleren
+                  {t("account.profile.cancel")}
                 </Button>
               </div>
             </div>
@@ -344,11 +346,13 @@ export function ProfileSection({ className }: ProfileSectionProps) {
                 disabled={usernameChangeStatus && !usernameChangeStatus.can_change}
                 className="p-0 h-auto text-sm text-primary hover:text-primary/80 hover:underline"
               >
-                Wijzigen
+                {t("account.profile.edit")}
               </Button>
               {usernameChangeStatus && !usernameChangeStatus.can_change && (
                 <p className="text-xs text-muted-foreground">
-                  Volgende wijziging mogelijk over {usernameChangeStatus.days_remaining} dag{usernameChangeStatus.days_remaining !== 1 ? "en" : ""}
+                  {usernameChangeStatus.days_remaining === 1 
+                    ? t("account.profile.daysRemaining").replace("{count}", "1")
+                    : t("account.profile.daysRemainingPlural").replace("{count}", usernameChangeStatus.days_remaining.toString())}
                 </p>
               )}
             </>

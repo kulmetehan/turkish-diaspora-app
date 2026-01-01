@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MascotteAvatar } from "./MascotteAvatar";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { checkUsernameAvailable, updateProfile } from "@/lib/api";
@@ -16,6 +17,7 @@ export interface OnboardingScreen6Props {
 }
 
 export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
+  const { t } = useTranslation();
   const { userId } = useUserAuth();
   const [username, setUsername] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -56,13 +58,13 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      toast.error("Alleen afbeeldingen zijn toegestaan");
+      toast.error(t("toast.upload.imageOnly"));
       return;
     }
 
     // Validate file size (2MB)
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Afbeelding mag maximaal 2MB zijn");
+      toast.error(t("toast.upload.maxSize"));
       return;
     }
 
@@ -77,7 +79,7 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
       setAvatarPreview(preview);
     } catch (error) {
       console.error("Failed to create preview:", error);
-      toast.error("Kon preview niet maken");
+      toast.error(t("toast.upload.previewFailed"));
     }
   };
 
@@ -94,22 +96,22 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
 
     // Validate username
     if (trimmedUsername.length < 2) {
-      toast.error("Gebruikersnaam moet minimaal 2 karakters zijn");
+      toast.error(t("toast.username.minLength"));
       return;
     }
 
     if (trimmedUsername.length > 50) {
-      toast.error("Gebruikersnaam mag maximaal 50 karakters zijn");
+      toast.error(t("toast.username.maxLength"));
       return;
     }
 
     if (usernameAvailable === false) {
-      toast.error("Gebruikersnaam is al in gebruik");
+      toast.error(t("toast.username.taken"));
       return;
     }
 
     if (isCheckingUsername) {
-      toast.error("Wacht even, gebruikersnaam wordt gecontroleerd...");
+      toast.error(t("toast.username.checking"));
       return;
     }
 
@@ -125,7 +127,7 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
           avatarUrl = await uploadAvatar(avatarFile, userId);
         } catch (error) {
           console.error("Avatar upload failed:", error);
-          toast.error(error instanceof Error ? error.message : "Avatar upload mislukt");
+          toast.error(error instanceof Error ? error.message : t("toast.upload.error"));
           setIsUploading(false);
           setIsSubmitting(false);
           return;
@@ -143,14 +145,14 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
         avatar_url: avatarUrl,
       });
 
-      toast.success("Profiel bijgewerkt!");
+      toast.success(t("toast.profile.updated"));
       onComplete();
     } catch (error) {
       console.error("Failed to update profile:", error);
       toast.error(
         error instanceof Error
           ? error.message
-          : "Kon profiel niet bijwerken. Probeer het opnieuw."
+          : t("toast.profile.updateFailed")
       );
     } finally {
       setIsSubmitting(false);
@@ -169,10 +171,10 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
 
       {/* Title */}
       <h1 className="text-2xl font-gilroy font-bold text-foreground mb-2 text-center">
-        Kies je gebruikersnaam
+        {t("onboarding.username.title")}
       </h1>
       <p className="text-sm text-muted-foreground mb-6 text-center max-w-md">
-        Kies een unieke gebruikersnaam en upload een profielfoto (optioneel)
+        {t("onboarding.username.subtitle")}
       </p>
 
       <div className="w-full max-w-md space-y-6">
@@ -190,7 +192,7 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
                   type="button"
                   onClick={handleRemoveAvatar}
                   className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90 transition-colors"
-                  aria-label="Verwijder avatar"
+                  aria-label={t("onboarding.username.removeAvatar")}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -219,26 +221,26 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
               disabled={isUploading}
             >
               <span>
-                {avatarFile ? "Wijzig foto" : "Upload foto"}
+                {avatarFile ? t("onboarding.username.changePhoto") : t("onboarding.username.uploadPhoto")}
               </span>
             </Button>
           </label>
           {isUploading && (
-            <p className="text-xs text-muted-foreground">Uploaden...</p>
+            <p className="text-xs text-muted-foreground">{t("onboarding.username.uploading")}</p>
           )}
         </div>
 
         {/* Username Input */}
         <div className="space-y-2">
           <label htmlFor="username" className="text-sm font-medium text-foreground">
-            Gebruikersnaam *
+            {t("onboarding.username.label")} *
           </label>
           <Input
             id="username"
             type="text"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder="bijv. mehmet123"
+            placeholder={t("onboarding.username.placeholder")}
             minLength={2}
             maxLength={50}
             disabled={isSubmitting || isUploading}
@@ -249,16 +251,16 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
           />
           <div className="h-5">
             {isCheckingUsername && (
-              <p className="text-xs text-muted-foreground">Controleren...</p>
+              <p className="text-xs text-muted-foreground">{t("onboarding.username.checking")}</p>
             )}
             {!isCheckingUsername && username.trim().length >= 2 && usernameAvailable === true && (
-              <p className="text-xs text-green-600">✓ Beschikbaar</p>
+              <p className="text-xs text-green-600">{t("onboarding.username.available")}</p>
             )}
             {!isCheckingUsername && username.trim().length >= 2 && usernameAvailable === false && (
-              <p className="text-xs text-destructive">✗ Al in gebruik</p>
+              <p className="text-xs text-destructive">{t("onboarding.username.taken")}</p>
             )}
             {!isCheckingUsername && username.trim().length > 0 && username.trim().length < 2 && (
-              <p className="text-xs text-muted-foreground">Minimaal 2 karakters</p>
+              <p className="text-xs text-muted-foreground">{t("onboarding.username.minChars")}</p>
             )}
           </div>
         </div>
@@ -270,9 +272,9 @@ export function OnboardingScreen6({ onComplete }: OnboardingScreen6Props) {
           variant="default"
           className="w-full font-gilroy"
           disabled={!canSubmit}
-          aria-label="Voltooien"
+          aria-label={t("onboarding.username.complete")}
         >
-          {isSubmitting ? "Bezig..." : "Voltooien"}
+          {isSubmitting ? t("onboarding.username.submitting") : t("onboarding.username.complete")}
         </Button>
       </div>
     </div>

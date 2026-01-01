@@ -5,6 +5,7 @@ import memleketBg from "@/assets/memleket-bg.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useEffect, useRef, useState } from "react";
 
 export interface OnboardingScreen3Props {
@@ -12,6 +13,7 @@ export interface OnboardingScreen3Props {
 }
 
 export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
+  const { t } = useTranslation();
   const [selectedCities, setSelectedCities] = useState<NewsCity[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NewsCity[]>([]);
@@ -120,11 +122,10 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
             className="h-32 w-32 object-contain mb-4"
           />
           <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
-            En je roots?
+            {t("onboarding.memleket.title")}
           </h2>
-          <p className="text-sm font-gilroy font-normal text-muted-foreground text-center">
-            Iedereen heeft er één.<br />
-            Of meer.
+          <p className="text-sm font-gilroy font-normal text-muted-foreground text-center whitespace-pre-line">
+            {t("onboarding.memleket.subtitle")}
           </p>
         </div>
 
@@ -136,7 +137,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
             variant="default"
             className="w-full font-gilroy"
           >
-            Meerdere
+            {t("onboarding.memleket.multiple")}
           </Button>
           <Button
             onClick={handleSkip}
@@ -144,7 +145,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
             variant="outline"
             className="w-full font-gilroy"
           >
-            Sla over
+            {t("onboarding.memleket.skip")}
           </Button>
         </div>
       </div>
@@ -161,10 +162,10 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
           className="h-32 w-32 object-contain mb-4"
         />
         <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
-          En je roots?
+          {t("onboarding.memleket.title")}
         </h2>
         <p className="text-sm font-gilroy font-normal text-muted-foreground text-center">
-          Hemşerim Memleket Nire?
+          {t("onboarding.memleket.subtitleMultiple")}
         </p>
       </div>
 
@@ -173,7 +174,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
         <Input
           ref={inputRef}
           type="text"
-          placeholder="Zoek stad of ilçe... in Turkije"
+          placeholder={t("onboarding.memleket.placeholder")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full text-base"
@@ -186,7 +187,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
         <div className="space-y-2">
           {isSearching ? (
             <div className="py-8 text-center text-muted-foreground">
-              Zoeken...
+              {t("onboarding.memleket.searching")}
             </div>
           ) : searchResults.length > 0 ? (
             searchResults.map((city) => {
@@ -213,18 +214,18 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
                     </div>
                   )}
                   {isSelected && (
-                    <div className="mt-1 text-sm text-primary">✓ Geselecteerd</div>
+                    <div className="mt-1 text-sm text-primary">✓ {t("onboarding.memleket.selected")}</div>
                   )}
                 </button>
               );
             })
           ) : searchQuery.trim().length >= 2 ? (
             <div className="py-8 text-center text-muted-foreground">
-              Geen steden gevonden
+              {t("onboarding.memleket.noResults")}
             </div>
           ) : (
             <div className="py-8 text-center text-muted-foreground">
-              Typ minimaal 2 letters om te zoeken
+              {t("onboarding.memleket.minChars")}
             </div>
           )}
         </div>
@@ -245,7 +246,7 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
         {selectedCities.length > 0 && (
           <div className="mb-4 text-center" style={{ pointerEvents: 'auto' }}>
             <p className="text-sm font-medium text-foreground">
-              {selectedCities.length} stad{selectedCities.length > 1 ? 'en' : ''} geselecteerd
+              {selectedCities.length} {selectedCities.length === 1 ? t("onboarding.memleket.selectedCount") : t("onboarding.memleket.selectedCountPlural")}
             </p>
           </div>
         )}
@@ -256,9 +257,9 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
               size="lg"
               variant="default"
               className="w-full"
-              aria-label="Ga verder"
+              aria-label={t("onboarding.memleket.continue")}
             >
-              Ga verder
+              {t("onboarding.memleket.continue")}
             </Button>
           )}
           <Button
@@ -266,9 +267,9 @@ export function OnboardingScreen3({ onNext }: OnboardingScreen3Props) {
             size="lg"
             variant="link"
             className="w-full"
-            aria-label="Sla over"
+            aria-label={t("onboarding.memleket.skip")}
           >
-            Sla over
+            {t("onboarding.memleket.skip")}
           </Button>
         </div>
       </div>

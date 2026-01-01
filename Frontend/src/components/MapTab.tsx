@@ -28,8 +28,10 @@ import CheckInsToggleButton from "@/components/CheckInsToggleButton";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function MapTab() {
+    const { t } = useTranslation();
     // Global locations state (viewport-independent, fetched on mount)
     const [globalLocations, setGlobalLocations] = useState<LocationMarker[]>([]);
     const [globalLocationsLoading, setGlobalLocationsLoading] = useState(true);
@@ -745,7 +747,7 @@ export default function MapTab() {
                 tabIndex={-1}
                 className="sr-only"
             >
-                Kaartweergave
+                {t("map.toggle.mapView")}
             </h2>
             <MapView
                 locations={filtered}

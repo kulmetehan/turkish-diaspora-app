@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
@@ -27,12 +28,12 @@ const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
 
 // Helper function to get activity message (reused from ActivityCard logic)
-function getActivityMessage(item: ActivityItem): string {
+function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record<string, string>) => string): string {
   const locationName = item.location_name || "een locatie";
 
   switch (item.activity_type) {
     case "check_in":
-      return `heeft ingecheckt bij ${locationName}`;
+      return t("feed.card.activity.checkIn").replace("{location}", locationName);
     case "reaction":
       const reactionType = (item.payload?.reaction_type as string) || "🔥";
       const reactionEmoji: Record<string, string> = {
@@ -44,17 +45,19 @@ function getActivityMessage(item: ActivityItem): string {
         flag: "🚩",
       };
       const emoji = reactionEmoji[reactionType] || reactionType;
-      return `reageerde met ${emoji} op ${locationName}`;
+      return t("feed.card.activity.reaction")
+        .replace("{emoji}", emoji)
+        .replace("{location}", locationName);
     case "note":
-      return `schreef een notitie over ${locationName}`;
+      return t("feed.card.activity.note").replace("{location}", locationName);
     case "poll_response":
-      return `heeft gestemd op een poll`;
+      return t("feed.card.activity.pollResponse");
     case "favorite":
-      return `heeft ${locationName} toegevoegd aan favorieten`;
+      return t("feed.card.activity.favorite").replace("{location}", locationName);
     case "event":
-      return `heeft een event geplaatst: ${locationName}`;
+      return t("feed.card.activity.event").replace("{location}", locationName);
     default:
-      return `heeft activiteit op ${locationName}`;
+      return t("feed.card.activity.default").replace("{location}", locationName);
   }
 }
 
@@ -63,6 +66,7 @@ function transformActivityItem(
   item: ActivityItem,
   onReactionToggle: (id: number, reactionType: ReactionType) => void,
   onBookmark: (id: number) => void,
+  t: (key: string, params?: Record<string, string>) => string,
   onImageClick?: (imageUrl: string) => void,
   onLocationClick?: (locationId: number) => void,
   onPollClick?: (pollId: number) => void,
@@ -88,7 +92,7 @@ function transformActivityItem(
     locationName: item.location_name || null,
     locationId: item.location_id || null,
     timestamp: item.created_at,
-    contentText: getActivityMessage(item),
+    contentText: getActivityMessage(item, t),
     noteContent,
     pollId,
     mediaUrl: item.media_url || undefined,
@@ -112,6 +116,7 @@ function transformActivityItem(
 }
 
 export default function FeedPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { showMascotteFeedback } = useMascotteFeedback();
@@ -356,7 +361,7 @@ export default function FeedPage() {
         })
       );
     } catch (error) {
-      toast.error("Kon reactie niet toevoegen");
+      toast.error(t("feed.toast.reactionError"));
       // Optionally reload the feed item to get accurate state
       // This could be done by refreshing just this item from the API
     }
@@ -373,7 +378,7 @@ export default function FeedPage() {
         )
       );
     } catch (error) {
-      toast.error("Kon bookmark niet toevoegen");
+      toast.error(t("feed.toast.bookmarkAddError"));
       // Reload to get correct state
       loadInitialData();
     }
@@ -414,7 +419,7 @@ export default function FeedPage() {
   // Transform feed items to FeedCard props
   const feedCardProps = useMemo(() => {
     let transformed = feedItems.map((item) =>
-      transformActivityItem(item, handleReactionToggle, handleBookmark, handleImageClick, handleLocationClick, handlePollClick, handleUserClick)
+      transformActivityItem(item, handleReactionToggle, handleBookmark, t, handleImageClick, handleLocationClick, handlePollClick, handleUserClick)
     );
 
     // Apply favorite filter if activeFilter is "favorite"

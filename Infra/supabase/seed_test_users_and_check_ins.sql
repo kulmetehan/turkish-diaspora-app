@@ -96,3 +96,4 @@ HAVING COUNT(DISTINCT ci.user_id) > 0
 ORDER BY user_count DESC, latest_check_in DESC
 LIMIT 20;
 
+

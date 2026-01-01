@@ -32,6 +32,7 @@ import { toast } from "sonner";
 import { roleDisplayName } from "@/lib/roleDisplay";
 import { labelDisplayName } from "@/lib/labelDisplay";
 import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type Props = {
     location: LocationMarker;
@@ -41,6 +42,7 @@ type Props = {
 // No longer using fixed reaction types - reactions are now custom emoji strings
 
 export default function LocationDetail({ location, onBackToList }: Props) {
+    const { t } = useTranslation();
     const locationId = parseInt(location.id);
     const { showMascotteFeedback } = useMascotteFeedback();
 
@@ -368,7 +370,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                         {typeof location.confidence_score === "number" && (
                             <div className="flex items-center gap-2 text-sm text-foreground/70">
                                 <Icon name="Target" className="h-4 w-4" />
-                                <span>AI Confidence: {(location.confidence_score * 100).toFixed(0)}%</span>
+                                <span>{t("location.aiConfidence")}: {(location.confidence_score * 100).toFixed(0)}%</span>
                             </div>
                         )}
 
@@ -384,7 +386,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
 
                 {initialLoading ? (
                     <Card className="p-4">
-                        <div className="text-center text-sm text-foreground/70">Laden...</div>
+                        <div className="text-center text-sm text-foreground/70">{t("common.loading")}</div>
                     </Card>
                 ) : (
                     <>
@@ -543,7 +545,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                                 <h3 className="font-medium text-sm">Notities</h3>
                                 <Button onClick={handleAddNote} size="sm" variant="outline" className="text-foreground">
                                     <Icon name="Plus" className="h-4 w-4 mr-2" />
-                                    Notitie toevoegen
+                                    {t("location.addNote")}
                                 </Button>
                             </div>
 
@@ -592,7 +594,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                                                         variant="ghost"
                                                         className="h-6 px-2 text-xs text-foreground"
                                                     >
-                                                        Bewerken
+                                                        {t("common.buttons.edit")}
                                                     </Button>
                                                     <Button
                                                         onClick={() => handleDeleteNote(note.id)}
@@ -601,7 +603,7 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                                                         className="h-6 px-2 text-xs text-destructive"
                                                         disabled={noteDeleting === note.id}
                                                     >
-                                                        {noteDeleting === note.id ? "Verwijderen..." : "Verwijderen"}
+                                                        {noteDeleting === note.id ? t("location.deleting") : t("common.buttons.delete")}
                                                     </Button>
                                                 </div>
                                             </div>

@@ -1,20 +1,21 @@
 // Frontend/src/components/events/EventMonthFilterBar.tsx
 
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
-const MONTHS = [
-  { key: 1, label: "Jan" },
-  { key: 2, label: "Feb" },
-  { key: 3, label: "Mrt" },
-  { key: 4, label: "Apr" },
-  { key: 5, label: "Mei" },
-  { key: 6, label: "Jun" },
-  { key: 7, label: "Jul" },
-  { key: 8, label: "Aug" },
-  { key: 9, label: "Sep" },
-  { key: 10, label: "Okt" },
-  { key: 11, label: "Nov" },
-  { key: 12, label: "Dec" },
+const MONTH_KEYS = [
+  { key: 1, translationKey: "events.months.jan" },
+  { key: 2, translationKey: "events.months.feb" },
+  { key: 3, translationKey: "events.months.mar" },
+  { key: 4, translationKey: "events.months.apr" },
+  { key: 5, translationKey: "events.months.may" },
+  { key: 6, translationKey: "events.months.jun" },
+  { key: 7, translationKey: "events.months.jul" },
+  { key: 8, translationKey: "events.months.aug" },
+  { key: 9, translationKey: "events.months.sep" },
+  { key: 10, translationKey: "events.months.oct" },
+  { key: 11, translationKey: "events.months.nov" },
+  { key: 12, translationKey: "events.months.dec" },
 ] as const;
 
 export interface EventMonthFilterBarProps {
@@ -28,6 +29,7 @@ export function EventMonthFilterBar({
   onMonthSelect,
   className,
 }: EventMonthFilterBarProps) {
+  const { t } = useTranslation();
   const handleMonthClick = (month: number) => {
     if (selectedMonth === month) {
       // Deselect if clicking the same month
@@ -51,7 +53,7 @@ export function EventMonthFilterBar({
           msOverflowStyle: "none", // IE/Edge
         }}
       >
-        {MONTHS.map((month) => {
+        {MONTH_KEYS.map((month) => {
           const active = selectedMonth === month.key;
           return (
             <button
@@ -68,7 +70,7 @@ export function EventMonthFilterBar({
                   : "bg-gray-100/80 text-black/70 hover:bg-gray-200/80 hover:text-black"
               )}
             >
-              {month.label}
+              {t(month.translationKey)}
             </button>
           );
         })}

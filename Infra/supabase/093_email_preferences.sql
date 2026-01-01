@@ -28,3 +28,4 @@ CREATE INDEX IF NOT EXISTS idx_email_preferences_unsubscribed ON public.email_pr
 COMMENT ON TABLE public.email_preferences IS 'Email preferences and unsubscribe status for users and outreach emails';
 COMMENT ON COLUMN public.email_preferences.unsubscribed_at IS 'Timestamp when user unsubscribed. NULL = not unsubscribed';
 
+

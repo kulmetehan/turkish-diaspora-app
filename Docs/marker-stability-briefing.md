@@ -245,3 +245,4 @@ map.on("click", L_POINT, (e) => {
 6. Test marker stability during zoom/pan
 7. Verify all functionality (clicks, popups, multiple users)
 
+

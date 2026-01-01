@@ -8,14 +8,15 @@ import {
 } from "@/lib/routing/newsCategories";
 import type { NewsFeedKey } from "@/lib/routing/newsFeed";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
-const CATEGORY_LABELS: Record<NewsCategoryKey, string> = {
-  turks_nieuws: "Turks Nieuws",
-  general: "Algemeen",
-  sport: "Sport",
-  economie: "Economie",
-  cultuur: "Cultuur",
-  magazin: "Magazin",
+const CATEGORY_LABEL_KEYS: Record<NewsCategoryKey, string> = {
+  turks_nieuws: "news.categories.turks_nieuws",
+  general: "news.categories.general",
+  sport: "news.categories.sport",
+  economie: "news.categories.economie",
+  cultuur: "news.categories.cultuur",
+  magazin: "news.categories.magazin",
 };
 
 export interface NewsCategoryFilterBarProps {
@@ -33,6 +34,7 @@ export function NewsCategoryFilterBar({
   onClear,
   className,
 }: NewsCategoryFilterBarProps) {
+  const { t } = useTranslation();
   const normalizedSelection = useMemo(() => {
     const seen = new Set<NewsCategoryKey>();
     const result: NewsCategoryKey[] = [];
@@ -97,7 +99,7 @@ export function NewsCategoryFilterBar({
                   : "bg-gray-100/80 text-black/70 hover:bg-gray-200/80 hover:text-black"
               )}
             >
-              {CATEGORY_LABELS[category]}
+              {t(CATEGORY_LABEL_KEYS[category])}
             </button>
           );
         })}

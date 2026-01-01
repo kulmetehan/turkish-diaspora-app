@@ -4,6 +4,7 @@
 import { Icon } from "@/components/Icon";
 import type { ViewMode } from "@/lib/routing/viewMode";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type MapListToggleProps = {
   viewMode: ViewMode;
@@ -11,6 +12,7 @@ type MapListToggleProps = {
 };
 
 export function MapListToggle({ viewMode, onViewModeChange }: MapListToggleProps) {
+  const { t } = useTranslation();
   return (
     <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 shadow-card">
       <button
@@ -28,10 +30,10 @@ export function MapListToggle({ viewMode, onViewModeChange }: MapListToggleProps
             : "bg-transparent text-gray-900 hover:bg-primary hover:text-primary-foreground"
         )}
         aria-pressed={viewMode === "map"}
-        aria-label="Kaartweergave"
+        aria-label={t("map.toggle.mapView")}
       >
         <Icon name="Map" className="h-4 w-4" aria-hidden />
-        <span>Kaart</span>
+        <span>{t("map.toggle.map")}</span>
       </button>
       <button
         type="button"
@@ -48,10 +50,10 @@ export function MapListToggle({ viewMode, onViewModeChange }: MapListToggleProps
             : "bg-transparent text-gray-900 hover:bg-primary hover:text-primary-foreground"
         )}
         aria-pressed={viewMode === "list"}
-        aria-label="Lijstweergave"
+        aria-label={t("map.toggle.listView")}
       >
         <Icon name="List" className="h-4 w-4" aria-hidden />
-        <span>Lijst</span>
+        <span>{t("map.toggle.list")}</span>
       </button>
     </div>
   );

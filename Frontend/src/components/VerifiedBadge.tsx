@@ -1,6 +1,7 @@
 // Frontend/src/components/VerifiedBadge.tsx
 import { Icon } from "@/components/Icon";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 interface VerifiedBadgeProps {
   className?: string;
@@ -14,6 +15,7 @@ const sizeMap = {
 };
 
 export function VerifiedBadge({ className, size = "md" }: VerifiedBadgeProps) {
+  const { t } = useTranslation();
   const iconSize = sizeMap[size];
   
   return (
@@ -24,8 +26,8 @@ export function VerifiedBadge({ className, size = "md" }: VerifiedBadgeProps) {
         "text-blue-500 flex-shrink-0",
         className
       )}
-      aria-label="Geverifieerd door bedrijfseigenaar"
-      title="Geverifieerd door bedrijfseigenaar"
+      aria-label={t("location.verifiedByOwner")}
+      title={t("location.verifiedByOwner")}
       decorative={false}
     />
   );

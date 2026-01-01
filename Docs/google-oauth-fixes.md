@@ -146,3 +146,4 @@ Na het implementeren van bovenstaande fixes:
 - Controleer browser console voor import errors
 - Refresh de pagina (hard refresh: Cmd+Shift+R / Ctrl+Shift+R)
 
+

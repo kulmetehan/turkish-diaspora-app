@@ -3,10 +3,10 @@ import { useMemo } from "react";
 
 import {
   EVENT_CATEGORIES,
-  EVENT_CATEGORY_LABELS,
   type EventCategoryKey,
 } from "@/lib/routing/eventCategories";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface EventCategoryFilterBarProps {
   selected: EventCategoryKey[];
@@ -21,6 +21,7 @@ export function EventCategoryFilterBar({
   onClear,
   className,
 }: EventCategoryFilterBarProps) {
+  const { t } = useTranslation();
   const normalizedSelection = useMemo(() => {
     const seen = new Set<EventCategoryKey>();
     const result: EventCategoryKey[] = [];
@@ -69,7 +70,7 @@ export function EventCategoryFilterBar({
                   : "bg-gray-100/80 text-black/70 hover:bg-gray-200/80 hover:text-black"
               )}
             >
-              {EVENT_CATEGORY_LABELS[category]}
+              {t(`events.categories.${category}`)}
             </button>
           );
         })}

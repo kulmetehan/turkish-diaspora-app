@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/ui/cn";
 import { FeedCard, type FeedCardProps } from "./FeedCard";
 import { LoginPrompt } from "@/components/auth/LoginPrompt";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface FeedListProps {
   items: FeedCardProps[];
@@ -23,11 +24,13 @@ export function FeedList({
   isLoadingMore = false,
   hasMore = false,
   onLoadMore,
-  emptyMessage = "Er is nog geen activiteit. Begin met check-ins, reacties of notities!",
+  emptyMessage,
   className,
   showLoginPrompt = false,
   loginMessage,
 }: FeedListProps) {
+  const { t } = useTranslation();
+  const defaultEmptyMessage = emptyMessage || t("feed.list.emptyMessage");
   if (isLoading) {
     return (
       <div className={cn("space-y-4", className)}>
@@ -52,7 +55,7 @@ export function FeedList({
     if (showLoginPrompt) {
       return (
         <div className={cn("", className)}>
-          <LoginPrompt message={loginMessage || "Log in om je activiteit te zien"} />
+          <LoginPrompt message={loginMessage || t("feed.list.loginToSeeActivity")} />
         </div>
       );
     }
@@ -63,7 +66,7 @@ export function FeedList({
         "rounded-xl border border-border/50 bg-card p-6 text-center text-muted-foreground shadow-soft",
         className
       )}>
-        <p>{emptyMessage}</p>
+        <p>{defaultEmptyMessage}</p>
       </div>
     );
   }
@@ -76,7 +79,7 @@ export function FeedList({
       {hasMore && (
         <div className="flex justify-center pt-2">
           {isLoadingMore ? (
-            <p className="text-sm text-muted-foreground">Meer activiteit laden…</p>
+            <p className="text-sm text-muted-foreground">{t("feed.list.loadingMore")}</p>
           ) : (
             onLoadMore && (
               <Button
@@ -85,7 +88,7 @@ export function FeedList({
                 onClick={onLoadMore}
                 className="border-border text-foreground hover:bg-muted"
               >
-                Meer laden
+                {t("feed.list.loadMore")}
               </Button>
             )
           )}

@@ -2,6 +2,7 @@
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { getCurrentUser } from "@/lib/api";
@@ -23,6 +24,7 @@ export function AccountLoginSection({
   onLogout,
   className,
 }: AccountLoginSectionProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<{ name: string | null; avatar_url: string | null } | null>(null);
 
@@ -52,9 +54,9 @@ export function AccountLoginSection({
       <div className={cn("rounded-xl bg-surface-muted/50 p-4", className)}>
         <div className="flex flex-col gap-4">
           <div className="space-y-1">
-            <h2 className="text-lg font-gilroy font-medium text-foreground">Niet ingelogd</h2>
+            <h2 className="text-lg font-gilroy font-medium text-foreground">{t("account.login.notLoggedIn")}</h2>
             <p className="text-sm text-muted-foreground">
-              Log in of maak een account aan om je activiteit bij te houden
+              {t("account.login.description")}
             </p>
           </div>
           <div className="flex flex-col gap-2">
@@ -71,7 +73,7 @@ export function AccountLoginSection({
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-surface-muted/50 px-2 text-muted-foreground">
-                  Of
+                  {t("account.login.or")}
                 </span>
               </div>
             </div>
@@ -83,7 +85,7 @@ export function AccountLoginSection({
               className="inline-flex items-center gap-2"
             >
               <Icon name="LogIn" className="h-4 w-4" aria-hidden />
-              <span>Email / Wachtwoord</span>
+              <span>{t("account.login.emailPassword")}</span>
             </Button>
           </div>
         </div>
@@ -111,7 +113,7 @@ export function AccountLoginSection({
               {profile?.name || email || "Account"}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {email || "Gebruiker"}
+              {email || t("account.login.user")}
             </p>
           </div>
         </div>
@@ -123,7 +125,7 @@ export function AccountLoginSection({
           className="inline-flex items-center gap-2"
         >
           <Icon name="LogOut" className="h-4 w-4" aria-hidden />
-          <span>Uitloggen</span>
+          <span>{t("account.login.logout")}</span>
         </Button>
       </div>
     </div>

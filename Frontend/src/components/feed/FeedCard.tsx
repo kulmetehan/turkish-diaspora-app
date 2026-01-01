@@ -15,6 +15,7 @@ import { deleteAdminCheckIn, deleteAdminNote } from "@/lib/apiAdmin";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/Icon";
 import { toast } from "sonner";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export interface FeedCardProps {
   id: number;
@@ -49,7 +50,7 @@ export interface FeedCardProps {
   className?: string;
 }
 
-function formatActivityTime(value: string): string {
+function formatActivityTime(value: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
@@ -62,23 +63,23 @@ function formatActivityTime(value: string): string {
   const diffDays = Math.floor(diffHours / 24);
 
   if (diffMinutes < 1) {
-    return "zojuist";
+    return t("feed.card.time.justNow");
   } else if (diffMinutes < 60) {
-    return `${diffMinutes} min geleden`;
+    return t("feed.card.time.minutesAgo", { count: diffMinutes });
   } else if (diffHours < 24) {
-    return `${diffHours} uur geleden`;
+    return t("feed.card.time.hoursAgo", { count: diffHours });
   } else {
     // >= 24 uur: exacte datum
     const year = date.getFullYear();
     const currentYear = now.getFullYear();
     try {
-      return new Intl.DateTimeFormat("nl-NL", {
+      return new Intl.DateTimeFormat(locale, {
         day: "numeric",
         month: "short",
         year: year !== currentYear ? "numeric" : undefined,
       }).format(date);
     } catch {
-      return date.toLocaleDateString("nl-NL");
+      return date.toLocaleDateString(locale);
     }
   }
 }
@@ -126,7 +127,9 @@ export function FeedCard({
 }: FeedCardProps) {
   const navigate = useNavigate();
   const { isAdmin } = useAdminAuth();
-  const timeLabel = useMemo(() => formatActivityTime(timestamp), [timestamp]);
+  const { t, lang } = useTranslation();
+  const locale = lang === "tr" ? "tr-TR" : "nl-NL";
+  const timeLabel = useMemo(() => formatActivityTime(timestamp, t, locale), [timestamp, t, locale]);
   const hasMedia = Boolean(mediaUrl);
   const isEvent = type === "event";
 
@@ -220,7 +223,7 @@ export function FeedCard({
               onClick={handleUserClick}
               className="text-sm font-gilroy font-medium text-foreground hover:text-primary hover:underline transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 rounded"
             >
-              {user.name || "Anonieme gebruiker"}
+              {user.name || t("feed.card.anonymousUser")}
             </button>
             {user.primary_role && (
               <>
@@ -251,7 +254,7 @@ export function FeedCard({
           </div>
           {isPromoted && (
             <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
-              Promoted
+              {t("feed.card.promoted")}
             </span>
           )}
         </div>
@@ -263,7 +266,7 @@ export function FeedCard({
             size="sm"
             onClick={handleAdminDelete}
             className="text-destructive hover:text-destructive shrink-0"
-            aria-label="Verwijder als admin"
+            aria-label={t("feed.card.deleteAsAdmin")}
           >
             <Icon name="Trash2" className="h-4 w-4" />
           </Button>

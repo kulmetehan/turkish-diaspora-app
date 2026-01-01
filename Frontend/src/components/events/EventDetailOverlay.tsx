@@ -13,7 +13,8 @@ import { getEventReactions, toggleEventReaction, type ReactionStats, type Reacti
 import { cn } from "@/lib/ui/cn";
 
 import { formatCityLabel, formatEventDateRange } from "./eventFormatters";
-import { EVENT_CATEGORY_LABELS, type EventCategoryKey } from "@/lib/routing/eventCategories";
+import { type EventCategoryKey } from "@/lib/routing/eventCategories";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type EventDetailOverlayProps = {
   event: EventItem | null;
@@ -26,13 +27,14 @@ const DESCRIPTION_THRESHOLD = 160;
 
 
 export function EventDetailOverlay({ event, onBackToList }: EventDetailOverlayProps) {
+  const { t } = useTranslation();
   if (!event) return null;
 
   const eventId = event.id;
 
   const dateLabel = useMemo(() => {
-    return formatEventDateRange(event.start_time_utc, event.end_time_utc);
-  }, [event]);
+    return formatEventDateRange(event.start_time_utc, event.end_time_utc, t);
+  }, [event, t]);
 
   const description = event?.description?.trim() ?? "";
   const summary = event?.summary_ai?.trim() ?? "";

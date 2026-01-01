@@ -5,6 +5,7 @@ import woonplaatsBg from "@/assets/woonplaats-bg.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/ui/cn";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useEffect, useRef, useState } from "react";
 
 export interface OnboardingScreen2Props {
@@ -13,6 +14,7 @@ export interface OnboardingScreen2Props {
 }
 
 export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props) {
+  const { t } = useTranslation();
   const [selectedCity, setSelectedCity] = useState<NewsCity | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<NewsCity[]>([]);
@@ -104,11 +106,10 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
           className="h-32 w-32 object-contain mb-4"
         />
         <h2 className="mb-2 text-2xl font-gilroy font-bold text-foreground text-center">
-          Waar woon jij ongeveer?
+          {t("onboarding.homeCity.title")}
         </h2>
-        <p className="text-sm font-gilroy font-normal text-muted-foreground text-center">
-          Dit gebruiken we alleen om je<br />
-          lokale content te tonen.
+        <p className="text-sm font-gilroy font-normal text-muted-foreground text-center whitespace-pre-line">
+          {t("onboarding.homeCity.subtitle")}
         </p>
       </div>
 
@@ -117,7 +118,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
         <Input
           ref={inputRef}
           type="text"
-          placeholder="Typ een stad in Nederland..."
+          placeholder={t("onboarding.homeCity.placeholder")}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-full text-base"
@@ -135,7 +136,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
         <div className="space-y-2">
           {isSearching ? (
             <div className="py-8 text-center text-muted-foreground">
-              Zoeken...
+              {t("onboarding.homeCity.searching")}
             </div>
           ) : searchResults.length > 0 ? (
             searchResults.map((city) => (
@@ -159,11 +160,11 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
             ))
           ) : searchQuery.trim().length >= 2 ? (
             <div className="py-8 text-center text-muted-foreground">
-              Geen steden gevonden
+              {t("onboarding.homeCity.noResults")}
             </div>
           ) : (
             <div className="py-8 text-center text-muted-foreground">
-              Typ minimaal 2 letters om te zoeken
+              {t("onboarding.homeCity.minChars")}
             </div>
           )}
         </div>
@@ -184,7 +185,7 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
         {selectedCity && (
           <div className="mb-4 text-center" style={{ pointerEvents: 'auto' }}>
             <p className="text-sm font-medium text-foreground">
-              Geselecteerd: {selectedCity.name}
+              {t("onboarding.homeCity.selected")} {selectedCity.name}
             </p>
             {selectedCity.province && (
               <p className="text-xs text-muted-foreground">{selectedCity.province}</p>
@@ -204,9 +205,9 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
               variant="outline"
               className="flex-1"
               style={{ position: 'relative', zIndex: 11, pointerEvents: 'auto', cursor: 'pointer' }}
-              aria-label="Vorige"
+              aria-label={t("onboarding.homeCity.previous")}
             >
-              Vorige
+              {t("onboarding.homeCity.previous")}
             </Button>
           )}
           <Button
@@ -216,9 +217,9 @@ export function OnboardingScreen2({ onNext, onPrevious }: OnboardingScreen2Props
             className={onPrevious ? "flex-1" : "w-full"}
             disabled={!selectedCity}
             style={{ position: 'relative', zIndex: 11, pointerEvents: 'auto' }}
-            aria-label="Ga verder"
+            aria-label={t("onboarding.homeCity.continue")}
           >
-            Ga verder
+            {t("onboarding.homeCity.continue")}
           </Button>
         </div>
       </div>

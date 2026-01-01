@@ -15,8 +15,10 @@ import { getRecaptchaToken } from "@/lib/recaptcha";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
 import { GoogleLoginButton } from "@/components/auth/GoogleLoginButton";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export default function UserAuthPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,7 +57,7 @@ export default function UserAuthPage() {
               });
 
               if (response.ok) {
-                toast.success("Welkom terug!", { description: "Je activiteit is gemigreerd." });
+                toast.success(t("auth.toast.welcomeBack"), { description: t("auth.toast.activityMigrated") });
               }
             } catch (migrationError) {
               console.warn("Failed to migrate client_id:", migrationError);
@@ -75,8 +77,8 @@ export default function UserAuthPage() {
               if (mergeResponse.ok) {
                 const mergeResult = await mergeResponse.json();
                 if (mergeResult.merged) {
-                  toast.success("Account gekoppeld", { 
-                    description: "Je Google account is gekoppeld aan je bestaande account." 
+                  toast.success(t("auth.toast.accountLinked"), { 
+                    description: t("auth.toast.accountLinkedDescription")
                   });
                 }
               }
@@ -85,7 +87,7 @@ export default function UserAuthPage() {
               // Don't fail login if merge check fails
             }
 
-            toast.success("Ingelogd met Google!");
+            toast.success(t("auth.toast.loggedInGoogle"));
             
             // Get return URL from sessionStorage (stored before OAuth redirect)
             sessionStorage.removeItem("oauth_return_url"); // Clean up
@@ -116,8 +118,8 @@ export default function UserAuthPage() {
               }
             }
           } catch (err) {
-            toast.error("OAuth login mislukt", {
-              description: err instanceof Error ? err.message : "Onbekende fout",
+            toast.error(t("auth.toast.oauthFailed"), {
+              description: err instanceof Error ? err.message : t("auth.toast.unknownError"),
             });
           } finally {
             setOauthLoading(false);
@@ -142,7 +144,7 @@ export default function UserAuthPage() {
       });
 
       if (error) {
-        toast.error("Inloggen mislukt", { description: error.message });
+        toast.error(t("auth.toast.loginFailed"), { description: error.message });
         return;
       }
 
@@ -161,14 +163,14 @@ export default function UserAuthPage() {
           });
 
           if (response.ok) {
-            toast.success("Welkom terug!", { description: "Je activiteit is gemigreerd." });
+            toast.success(t("auth.toast.welcomeBack"), { description: t("auth.toast.activityMigrated") });
           }
         } catch (migrationError) {
           console.warn("Failed to migrate client_id:", migrationError);
           // Don't fail login if migration fails
         }
 
-        toast.success("Ingelogd!");
+        toast.success(t("auth.toast.loggedIn"));
         
         // Check for return URL from location state
         const returnUrl = (location.state as any)?.from?.hash;
@@ -180,8 +182,8 @@ export default function UserAuthPage() {
         }
       }
     } catch (err) {
-      toast.error("Inloggen mislukt", {
-        description: err instanceof Error ? err.message : "Onbekende fout",
+      toast.error(t("auth.toast.loginFailed"), {
+        description: err instanceof Error ? err.message : t("auth.toast.unknownError"),
       });
     } finally {
       setLoading(false);
@@ -251,7 +253,7 @@ export default function UserAuthPage() {
       });
 
       if (error) {
-        toast.error("Registreren mislukt", { description: error.message });
+        toast.error(t("auth.toast.signupFailed"), { description: error.message });
         return;
       }
 
@@ -270,7 +272,7 @@ export default function UserAuthPage() {
             });
 
             if (response.ok) {
-              toast.success("Account aangemaakt!", { description: "Je activiteit is gemigreerd." });
+              toast.success(t("auth.toast.accountCreated"), { description: t("auth.toast.activityMigrated") });
             }
           } catch (migrationError) {
             console.warn("Failed to migrate client_id:", migrationError);
@@ -311,8 +313,8 @@ export default function UserAuthPage() {
 
         }
 
-        toast.success("Welkom bij Turkspot!", {
-          description: "Je account is aangemaakt. Je kunt nu inloggen.",
+        toast.success(t("auth.toast.welcomeTurkspot"), {
+          description: t("auth.toast.accountCreatedDescription"),
         });
         
         // Switch to login tab if email confirmation is required
@@ -351,8 +353,8 @@ export default function UserAuthPage() {
         }
       }
     } catch (err) {
-      toast.error("Registreren mislukt", {
-        description: err instanceof Error ? err.message : "Onbekende fout",
+      toast.error(t("auth.toast.signupFailed"), {
+        description: err instanceof Error ? err.message : t("auth.toast.unknownError"),
       });
     } finally {
       setLoading(false);
@@ -365,16 +367,16 @@ export default function UserAuthPage() {
     <>
       <SeoHead {...seo} />
       <AppViewportShell variant="content">
-        <PageShell
-          title="Inloggen / Registreren"
-        subtitle="Maak een account aan of log in om je activiteit te behouden"
+      <PageShell
+        title={t("auth.page.title")}
+        subtitle={t("auth.page.subtitle")}
         maxWidth="md"
       >
         <Card className="w-full max-w-md mx-auto">
           <CardHeader>
-            <CardTitle>Turkspot Account</CardTitle>
+            <CardTitle>{t("auth.page.accountTitle")}</CardTitle>
             <CardDescription>
-              Log in of maak een account aan om je activiteit bij te houden
+              {t("auth.page.accountDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -402,7 +404,7 @@ export default function UserAuthPage() {
                 onClick={() => setShowEmailPassword(true)}
                 className="w-full text-muted-foreground"
               >
-                Of gebruik email / wachtwoord
+                {t("auth.page.orEmailPassword")}
               </Button>
             )}
 
@@ -416,7 +418,7 @@ export default function UserAuthPage() {
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
                     <span className="bg-background px-2 text-muted-foreground">
-                      Of gebruik email / wachtwoord
+                      {t("auth.page.orEmailPassword")}
                     </span>
                   </div>
                 </div>
@@ -424,14 +426,14 @@ export default function UserAuthPage() {
                 {/* Email/Password Forms - SECONDARY */}
                 <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "login" | "signup")}>
                   <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="login">Inloggen</TabsTrigger>
-                    <TabsTrigger value="signup">Registreren</TabsTrigger>
+                    <TabsTrigger value="login">{t("auth.page.login")}</TabsTrigger>
+                    <TabsTrigger value="signup">{t("auth.page.signup")}</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="login">
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="login-email">Email</Label>
+                        <Label htmlFor="login-email">{t("auth.page.email")}</Label>
                         <Input
                           id="login-email"
                           type="email"
@@ -442,7 +444,7 @@ export default function UserAuthPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="login-password">Wachtwoord</Label>
+                        <Label htmlFor="login-password">{t("auth.page.password")}</Label>
                         <Input
                           id="login-password"
                           type="password"
@@ -453,7 +455,7 @@ export default function UserAuthPage() {
                         />
                       </div>
                       <Button type="submit" disabled={loading || oauthLoading} className="w-full">
-                        {loading ? "Inloggen..." : "Inloggen"}
+                        {loading ? t("auth.page.loginButtonLoading") : t("auth.page.loginButton")}
                       </Button>
                     </form>
                   </TabsContent>
@@ -461,7 +463,7 @@ export default function UserAuthPage() {
                   <TabsContent value="signup">
                     <form onSubmit={handleSignup} className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="signup-email">Email</Label>
+                        <Label htmlFor="signup-email">{t("auth.page.email")}</Label>
                         <Input
                           id="signup-email"
                           type="email"
@@ -472,7 +474,7 @@ export default function UserAuthPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="signup-password">Wachtwoord</Label>
+                        <Label htmlFor="signup-password">{t("auth.page.password")}</Label>
                         <Input
                           id="signup-password"
                           type="password"
@@ -484,18 +486,18 @@ export default function UserAuthPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="signup-display-name">Weergavenaam (optioneel)</Label>
+                        <Label htmlFor="signup-display-name">{t("auth.page.displayName")}</Label>
                         <Input
                           id="signup-display-name"
                           type="text"
                           autoComplete="name"
                           value={displayName}
                           onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder="Je naam"
+                          placeholder={t("auth.page.displayNamePlaceholder")}
                         />
                       </div>
                       <Button type="submit" disabled={loading || oauthLoading} className="w-full">
-                        {loading ? "Account aanmaken..." : "Account aanmaken"}
+                        {loading ? t("auth.page.signupButtonLoading") : t("auth.page.signupButton")}
                       </Button>
                     </form>
                   </TabsContent>
@@ -505,13 +507,13 @@ export default function UserAuthPage() {
           </CardContent>
           <CardFooter>
             <p className="text-xs text-muted-foreground text-center w-full">
-              Door je aan te melden ga je akkoord met onze{" "}
+              {t("auth.page.terms")}{" "}
               <a href="#/terms" className="underline">
-                gebruiksvoorwaarden
+                {t("auth.page.termsLink")}
               </a>{" "}
-              en{" "}
+              {t("auth.page.and")}{" "}
               <a href="#/privacy" className="underline">
-                privacybeleid
+                {t("auth.page.privacyLink")}
               </a>
               .
             </p>

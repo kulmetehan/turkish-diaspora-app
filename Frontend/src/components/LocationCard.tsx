@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { LocationMarker } from "@/api/fetchLocations";
 import { EmojiReactions } from "@/components/feed/EmojiReactions";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { ReactionType } from "@/lib/api";
 import { getLocationReactions, toggleLocationReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
@@ -20,39 +21,40 @@ type Props = {
   onSelect?: (id: string) => void;
 };
 
-function getStatusBadge(loc: LocationMarker): { text: string; className: string } {
+function getStatusBadge(loc: LocationMarker, t: (key: string) => string): { text: string; className: string } {
   const s = (loc.state ?? "").toUpperCase();
   if (s.includes("VERIFIED")) {
     return {
-      text: "Geverifieerd",
+      text: t("common.status.verified"),
       className:
         "inline-flex items-center rounded-full border border-emerald-400/50 bg-emerald-500/15 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-emerald-100",
     };
   }
   if (s.includes("CANDIDATE")) {
     return {
-      text: "Kandidaat",
+      text: t("common.status.candidate"),
       className:
         "inline-flex items-center rounded-full border border-amber-400/50 bg-amber-500/15 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-amber-50",
     };
   }
   if (s.includes("REJECT")) {
     return {
-      text: "Afgewezen",
+      text: t("common.status.rejected"),
       className:
         "inline-flex items-center rounded-full border border-rose-500/50 bg-rose-500/15 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-rose-100",
     };
   }
 
   return {
-    text: "Onbekend",
+    text: t("common.status.unknown"),
     className:
       "inline-flex items-center rounded-full border border-white/20 bg-white/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wide text-brand-white/70",
   };
 }
 
 const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect }) => {
-  const { text: statusText, className: badgeClass } = getStatusBadge(location);
+  const { t } = useTranslation();
+  const { text: statusText, className: badgeClass } = getStatusBadge(location, t);
 
   // Reactions state
   const [reactions, setReactions] = useState<Record<string, number>>({});
@@ -183,7 +185,7 @@ const LocationCard: React.FC<Props> = ({ location, isSelected = false, onSelect 
 
       <div className="mt-2 grid gap-1">
         <div className="grid grid-cols-[110px_1fr] gap-2">
-          <span className="text-xs text-muted-foreground">Categorie</span>
+          <span className="text-xs text-muted-foreground">{t("location.category")}</span>
           <span className="text-sm">{location.category_label ?? location.category ?? "—"}</span>
         </div>
       </div>

@@ -9,6 +9,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useState } from "react";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type Props = {
     open: boolean;
@@ -28,6 +29,7 @@ export default function NoteDialog({
     initialContent = "",
     locationName,
 }: Props) {
+    const { t } = useTranslation();
     const [content, setContent] = useState(initialContent);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -128,7 +130,7 @@ export default function NoteDialog({
             >
                 <DialogHeader>
                     <DialogTitle className="font-gilroy">
-                        {initialContent ? "Notitie bewerken" : "Notitie toevoegen"}
+                        {initialContent ? t("location.editNote") : t("location.addNote")}
                         {locationName && ` - ${locationName}`}
                     </DialogTitle>
                 </DialogHeader>

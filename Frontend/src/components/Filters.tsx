@@ -5,6 +5,7 @@ import { CategoryChips } from "@/components/search/CategoryChips";
 import { FloatingSearchBar } from "@/components/search/FloatingSearchBar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { surfaceTabsList, surfaceTabsTrigger } from "@/components/ui/tabStyles";
+import { useTranslation } from "@/hooks/useTranslation";
 import { humanizeCategoryLabel } from "@/lib/categories";
 import type { ViewMode } from "@/lib/routing/viewMode";
 import { cn } from "@/lib/ui/cn";
@@ -57,6 +58,7 @@ export default function Filters({
   onViewModeChange,
   onChange,
 }: Props) {
+  const { t } = useTranslation();
   const searchInputId = idPrefix ? `search-input-${idPrefix}` : "search-input";
   const categories = useMemo(() => {
     // Prefer categoryOptions from App.tsx (loaded from API)
@@ -95,14 +97,14 @@ export default function Filters({
               className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2 text-sm")}
             >
               <Icon name="Map" className="h-4 w-4" />
-              Kaart
+              {t("filters.map")}
             </TabsTrigger>
             <TabsTrigger
               value="list"
               className={cn(surfaceTabsTrigger, "flex items-center justify-center gap-2 text-sm")}
             >
               <Icon name="List" className="h-4 w-4" />
-              Lijst
+              {t("filters.list")}
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -114,8 +116,8 @@ export default function Filters({
         onValueChange={(next) => onChange({ search: next })}
         onClear={() => onChange({ search: "" })}
         suggestions={suggestions}
-        placeholder="Zoek op naam of categorie…"
-        ariaLabel="Zoek op naam of categorie"
+        placeholder={t("filters.searchPlaceholder")}
+        ariaLabel={t("filters.searchAriaLabel")}
       />
 
       {viewMode !== "map" ? (

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, type KeyboardEvent } from "react";
 
 import { Icon, type IconProps } from "@/components/Icon";
+import { useTranslation } from "@/hooks/useTranslation";
 import { humanizeCategoryLabel } from "@/lib/categories";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,7 @@ function resolveIconName(key: string): IconProps["name"] {
 }
 
 export function CategoryChips({ categories, activeCategory, onSelect }: CategoryChipsProps) {
+  const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const normalizedCategories = useMemo(() => {
@@ -59,8 +61,8 @@ export function CategoryChips({ categories, activeCategory, onSelect }: Category
   }, [categories]);
 
   const options = useMemo(
-    () => [{ key: "all", label: "Alle" }, ...normalizedCategories],
-    [normalizedCategories],
+    () => [{ key: "all", label: t("filters.allCategories") }, ...normalizedCategories],
+    [normalizedCategories, t],
   );
 
   const handleArrowNavigation = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
@@ -96,7 +98,7 @@ export function CategoryChips({ categories, activeCategory, onSelect }: Category
       <div
         ref={containerRef}
         role="listbox"
-        aria-label="Filter op categorie"
+        aria-label={t("filters.categoryAriaLabel")}
         className={cn(
           "pointer-events-auto -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1",
           "whitespace-nowrap [scrollbar-width:thin] scrollbar-thumb-border/60 scrollbar-track-transparent",
