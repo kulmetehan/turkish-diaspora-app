@@ -8,6 +8,9 @@ import { EmojiReactions } from "@/components/feed/EmojiReactions";
 import { getNewsReactions, toggleNewsReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { useTranslation } from "@/hooks/useTranslation";
+import newsEmojiCommentImage from "@/assets/newsemojicomment.png";
+import spotifyLogo from "@/assets/spotify.png";
+import turkbotmusicImage from "@/assets/turkbotmusic.png";
 
 // Module-level cache to persist across component remounts
 // Use Map to track both "fetched" and "in-flight" states
@@ -19,6 +22,7 @@ type NewsCardProps = {
   className?: string;
   isBookmarked?: boolean;
   onToggleBookmark?: () => void;
+  index?: number; // Position number for display
 };
 
 function formatPublishedDate(value: string): string {
@@ -43,9 +47,11 @@ export function NewsCard({
   className,
   isBookmarked = false,
   onToggleBookmark,
+  index,
 }: NewsCardProps) {
   const { t } = useTranslation();
   const visibleTags = useMemo(() => item.tags.slice(0, 3), [item.tags]);
+  const isMusicTrack = useMemo(() => !item.source && item.image_url && item.url?.includes("spotify.com"), [item.source, item.image_url, item.url]);
   const publishedLabel = useMemo(
     () => formatPublishedDate(item.published_at),
     [item.published_at],
@@ -105,8 +111,14 @@ export function NewsCard({
           setUserReaction(data.user_reaction || null);
         })
         .catch((error) => {
-          console.error("Failed to fetch news reactions:", error);
-          newsReactionsFetchCache.delete(item.id); // Allow retry on error
+          // Silently handle 404 errors (item may not have reactions yet)
+          // Only log other errors
+          const is404 = error?.message?.includes('404') || error?.status === 404;
+          if (!is404) {
+            console.error("Failed to fetch news reactions:", error);
+          }
+          // Mark as fetched even on 404 to prevent retries
+          newsReactionsFetchCache.set(item.id, 'fetched');
         })
         .finally(() => {
           setIsLoadingReactions(false);
@@ -210,6 +222,22 @@ export function NewsCard({
         className,
       )}
     >
+      {/* Position number - top left */}
+      {index !== undefined && (
+        <div className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-gilroy font-semibold text-primary">
+          {index + 1}
+        </div>
+      )}
+      
+      {/* Spotify logo for music tracks - positioned top right */}
+      {isMusicTrack && (
+        <img
+          src={spotifyLogo}
+          alt="Spotify"
+          className="absolute right-2 top-2 h-12 w-12 object-contain pointer-events-none z-10"
+        />
+      )}
+      
       {onToggleBookmark ? (
         <button
           type="button"
@@ -220,6 +248,7 @@ export function NewsCard({
           className={cn(
             "absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-card/90 text-muted-foreground",
             "transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-card",
+            isMusicTrack && "right-16" // Move bookmark button left when Spotify logo is present
           )}
         >
           {isBookmarked ? (
@@ -229,63 +258,102 @@ export function NewsCard({
           )}
         </button>
       ) : null}
-      <div className="flex flex-col gap-2 sm:flex-row sm:gap-3 pr-8">
-        {/* Image */}
-        {item.image_url ? (
-          <div className="flex-shrink-0 overflow-hidden rounded-xl border border-border/70 bg-muted sm:h-20 sm:w-24 w-full h-32">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={item.image_url}
-              alt=""
-              loading="lazy"
-              className="h-full w-full object-cover"
-            />
-          </div>
-        ) : null}
+      {isMusicTrack ? (
+        <div className={cn("flex flex-col gap-2", "pr-16", index !== undefined && "pl-10")}>
+          {/* Image and Title row */}
+          <div className="flex gap-3 items-start">
+            {/* Image - smaller thumbnail for music tracks */}
+            {item.image_url ? (
+              <div className="flex-shrink-0 overflow-hidden rounded-xl border border-border/70 bg-muted h-16 w-16">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={item.image_url}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            ) : null}
 
-        {/* Content */}
-        <div className="flex flex-1 flex-col gap-2">
-          {/* Title */}
-          <div>
-            <h3 className="text-sm font-gilroy font-medium leading-tight text-foreground">
-              {item.title}
-            </h3>
-            {item.tags?.includes("promoted") && (
-              <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
-                {t("news.promoted")}
-              </span>
-            )}
-          </div>
-
-          {/* Snippet */}
-          {item.snippet ? (
-            <p className="text-sm font-gilroy font-normal text-foreground/90 leading-relaxed line-clamp-2">
-              {item.snippet}
-            </p>
-          ) : null}
-
-          {/* Meta: Source and Date */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-gilroy font-normal text-muted-foreground">{item.source}</span>
-            <span className="text-xs font-gilroy font-normal text-muted-foreground">·</span>
-            <span className="text-xs font-gilroy font-normal text-muted-foreground">{publishedLabel}</span>
-          </div>
-
-          {/* Tags */}
-          {visibleTags.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5">
-              {visibleTags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center rounded-full border border-border/70 bg-surface-muted px-2 py-0.5 text-xs font-gilroy font-medium capitalize text-foreground"
-                >
-                  {tag}
+            {/* Title and Artist */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-gilroy font-medium leading-tight text-foreground">
+                {item.title}
+              </h3>
+              {item.snippet ? (
+                <p className="text-xs font-gilroy font-normal text-muted-foreground mt-0.5">
+                  {item.snippet}
+                </p>
+              ) : null}
+              {item.tags?.includes("promoted") && (
+                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
+                  {t("news.promoted")}
                 </span>
-              ))}
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className={cn("flex flex-col gap-2 sm:flex-row sm:gap-3", "pr-8", index !== undefined && "pl-10")}>
+          {/* Image */}
+          {item.image_url ? (
+            <div className="flex-shrink-0 overflow-hidden rounded-xl border border-border/70 bg-muted sm:h-20 sm:w-24 w-full h-32">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={item.image_url}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover"
+              />
             </div>
           ) : null}
+
+          {/* Content */}
+          <div className="flex flex-1 flex-col gap-2">
+            {/* Title */}
+            <div>
+              <h3 className="text-sm font-gilroy font-medium leading-tight text-foreground">
+                {item.title}
+              </h3>
+              {item.tags?.includes("promoted") && (
+                <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-gilroy font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
+                  {t("news.promoted")}
+                </span>
+              )}
+            </div>
+
+            {/* Snippet */}
+            {item.snippet ? (
+              <p className="text-sm font-gilroy font-normal text-foreground/90 leading-relaxed line-clamp-2">
+                {item.snippet}
+              </p>
+            ) : null}
+
+            {/* Meta: Source and Date */}
+            {item.source && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-gilroy font-normal text-muted-foreground">{item.source}</span>
+                <span className="text-xs font-gilroy font-normal text-muted-foreground">·</span>
+                <span className="text-xs font-gilroy font-normal text-muted-foreground">{publishedLabel}</span>
+              </div>
+            )}
+
+            {/* Tags */}
+            {visibleTags.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {visibleTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center rounded-full border border-border/70 bg-surface-muted px-2 py-0.5 text-xs font-gilroy font-medium capitalize text-foreground"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Emoji Reactions */}
       <div className="mt-3 pt-2 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
@@ -296,6 +364,24 @@ export function NewsCard({
           onReactionToggle={handleReactionToggle}
         />
       </div>
+      
+      {/* Bot image pointing to emoji reactions - Hide for music tracks */}
+      {!isMusicTrack && (
+        <img
+          src={newsEmojiCommentImage}
+          alt=""
+          className="absolute right-3 bottom-3 h-16 w-auto pointer-events-none z-10"
+        />
+      )}
+      
+      {/* Turkbot music image for music tracks - positioned bottom right */}
+      {isMusicTrack && (
+        <img
+          src={turkbotmusicImage}
+          alt=""
+          className="absolute right-3 bottom-3 h-16 w-auto pointer-events-none z-10"
+        />
+      )}
     </div>
   );
 }

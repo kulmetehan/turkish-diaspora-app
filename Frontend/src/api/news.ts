@@ -33,6 +33,7 @@ export interface FetchNewsParams {
   citiesNl?: string[];
   citiesTr?: string[];
   trendCountry?: "nl" | "tr";
+  musicCountry?: "nl" | "tr";
   signal?: AbortSignal;
 }
 
@@ -44,6 +45,7 @@ export async function fetchNews({
   citiesNl,
   citiesTr,
   trendCountry,
+  musicCountry,
   signal,
 }: FetchNewsParams = {}): Promise<NewsListResponse> {
   const params = new URLSearchParams();
@@ -73,6 +75,9 @@ export async function fetchNews({
   }
   if (trendCountry) {
     params.set("trend_country", trendCountry);
+  }
+  if (musicCountry) {
+    params.set("music_country", musicCountry);
   }
 
   const query = params.toString();

@@ -182,6 +182,7 @@ export const tr: TranslationKeys = {
             checkIns: "Check-in'ler",
             notes: "Notlar",
             oneCikanlar: "Öne Çıkanlar",
+            music: "Müzik",
         },
         toast: {
             reactionError: "Tepki eklenemedi",
@@ -342,6 +343,7 @@ export const tr: TranslationKeys = {
             local: "Yaşadığın Yer",
             origin: "Memleket",
             trending: "Trend",
+            music: "Müzik",
             bookmarks: "Kaydedilenler",
         },
         categories: {

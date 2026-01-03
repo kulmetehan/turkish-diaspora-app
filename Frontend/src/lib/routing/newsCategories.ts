@@ -34,15 +34,24 @@ function getHashSearch(): URLSearchParams {
 
 function buildHash(params: URLSearchParams): string {
   if (typeof window === "undefined") {
-    return "#/";
+    return "#/news";
   }
-  const base = window.location.hash.split("?")[0] || "#/";
+  // Always use #/news as the base for news categories
+  // This ensures categories are written to the correct hash path
+  const base = "#/news";
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 }
 
 function updateHashParams(mutator: (params: URLSearchParams) => void) {
   if (typeof window === "undefined") return;
+  // Only update hash if we're on the news page
+  const currentHash = window.location.hash ?? "";
+  const hashPath = currentHash.split("?")[0];
+  if (hashPath !== "#/news" && hashPath !== "#/" && !currentHash.startsWith("#/news")) {
+    // Not on news page, don't write to hash
+    return;
+  }
   const params = getHashSearch();
   mutator(params);
   const nextHash = buildHash(params);
@@ -73,6 +82,15 @@ function normalizeCategoryValues(values: string[]): NewsCategoryKey[] {
 }
 
 export function readNewsCategoriesFromHash(): NewsCategoryKey[] {
+  // Only read from hash if we're on the news page
+  if (typeof window !== "undefined") {
+    const currentHash = window.location.hash ?? "";
+    const hashPath = currentHash.split("?")[0];
+    if (hashPath !== "#/news" && hashPath !== "#/" && !currentHash.startsWith("#/news")) {
+      // Not on news page, return empty array
+      return [];
+    }
+  }
   const params = getHashSearch();
   const values = params.getAll(CATEGORIES_KEY);
   return normalizeCategoryValues(values);

@@ -17,8 +17,6 @@ import { useNewsCityPreferences, type CityLabelMap } from "@/hooks/useNewsCityPr
 import { NEWS_FEED_STALE_MS, useNewsFeed } from "@/hooks/useNewsFeed";
 import { useNewsSearch } from "@/hooks/useNewsSearch";
 import { getOnboardingStatus } from "@/lib/api";
-import { SeoHead } from "@/lib/seo/SeoHead";
-import { useSeo } from "@/lib/seo/useSeo";
 import {
   clearNewsCategoriesFromHash,
   readNewsCategoriesFromHash,
@@ -26,15 +24,17 @@ import {
   type NewsCategoryKey,
 } from "@/lib/routing/newsCategories";
 import {
+  clearNewsArticleIdFromHash,
+  readNewsArticleIdFromHash,
   readNewsFeedFromHash,
   readNewsSearchQueryFromHash,
-  readNewsArticleIdFromHash,
   subscribeToNewsFeedHashChange,
   writeNewsFeedToHash,
   writeNewsSearchQueryToHash,
-  clearNewsArticleIdFromHash,
   type NewsFeedKey,
 } from "@/lib/routing/newsFeed";
+import { SeoHead } from "@/lib/seo/SeoHead";
+import { useSeo } from "@/lib/seo/useSeo";
 import { navigationActions, useNewsNavigation } from "@/state/navigation";
 
 function categoriesAreEqual(a: NewsCategoryKey[], b: NewsCategoryKey[]) {
@@ -311,89 +311,89 @@ export default function NewsPage() {
       <SeoHead {...seo} />
       <AppViewportShell variant="content">
         <div className="flex flex-col h-full relative">
-        {/* Red gradient overlay */}
-        <div
-          className="absolute inset-x-0 top-0 pointer-events-none z-0"
-          style={{
-            height: '25%',
-            background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
-          }}
-        />
-        <AppHeader
-          onNotificationClick={handleNotificationClick}
-          showSearch={showSearch}
-          onSearchToggle={handleSearchToggle}
-        />
-        <NewsHeaderSearch
-          isOpen={showSearch}
-          value={searchQuery}
-          onChange={setSearchQuery}
-          onClear={() => setSearchQuery("")}
-          onClose={handleSearchClose}
-          loading={searchQuery.trim().length >= 2}
-        />
-        <div
-          ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto px-4 pb-24 relative z-10"
-        >
-          <NewsIntroHeading />
-          {/* City selector for local/origin feeds - positioned under intro, above tabs */}
-          {(feed === "local" || feed === "origin") ? (
-            <NewsCitySelector
-              cities={feed === "local" ? cityPreferences.nl : cityPreferences.tr}
-              cityLabels={cityLabels}
-              onEdit={openCityModal}
-              className="mt-2"
-            />
-          ) : null}
-          {/* Country selector for trending feed - positioned under intro, above tabs */}
-          {feed === "trending" ? (
-            <NewsCountrySelector
-              value={trendCountry}
-              onChange={setTrendCountry}
-              className="mt-2"
-            />
-          ) : null}
-          <NewsFeedTabs value={feed} onChange={handleFeedChange} className="mt-2" />
-          {/* Subtle separator between main tabs and category filters */}
-          {feed === "bookmarks" ? (
-            <BookmarksSection
-              bookmarks={bookmarks}
-              isBookmarked={isBookmarked}
-              toggleBookmark={toggleBookmark}
-            />
-          ) : (
-            <StandardNewsSection
-              feed={feed}
-              categories={categories}
-              onCategoriesChange={handleCategoriesChange}
-              onClearCategories={handleClearCategories}
-              searchQuery={searchQuery}
-              onSearchQueryChange={setSearchQuery}
-              onSearchClear={() => setSearchQuery("")}
-              isBookmarked={isBookmarked}
-              toggleBookmark={toggleBookmark}
-              cityPreferences={cityPreferences}
-              cityLabels={cityLabels}
-              onEditCities={openCityModal}
-              trendCountry={trendCountry}
-              onTrendCountryChange={setTrendCountry}
-              scrollContainerRef={scrollContainerRef}
-            />
-          )}
+          {/* Red gradient overlay */}
+          <div
+            className="absolute inset-x-0 top-0 pointer-events-none z-0"
+            style={{
+              height: '25%',
+              background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+            }}
+          />
+          <AppHeader
+            onNotificationClick={handleNotificationClick}
+            showSearch={showSearch}
+            onSearchToggle={handleSearchToggle}
+          />
+          <NewsHeaderSearch
+            isOpen={showSearch}
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onClear={() => setSearchQuery("")}
+            onClose={handleSearchClose}
+            loading={searchQuery.trim().length >= 2}
+          />
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 overflow-y-auto px-4 pb-24 relative z-10"
+          >
+            <NewsIntroHeading />
+            {/* City selector for local/origin feeds - positioned under intro, above tabs */}
+            {(feed === "local" || feed === "origin") ? (
+              <NewsCitySelector
+                cities={feed === "local" ? cityPreferences.nl : cityPreferences.tr}
+                cityLabels={cityLabels}
+                onEdit={openCityModal}
+                className="mt-2"
+              />
+            ) : null}
+            {/* Country selector for trending feed - positioned under intro, above tabs */}
+            {feed === "trending" ? (
+              <NewsCountrySelector
+                value={trendCountry}
+                onChange={setTrendCountry}
+                className="mt-2"
+              />
+            ) : null}
+            <NewsFeedTabs value={feed} onChange={handleFeedChange} className="mt-2" />
+            {/* Subtle separator between main tabs and category filters */}
+            {feed === "bookmarks" ? (
+              <BookmarksSection
+                bookmarks={bookmarks}
+                isBookmarked={isBookmarked}
+                toggleBookmark={toggleBookmark}
+              />
+            ) : (
+              <StandardNewsSection
+                feed={feed}
+                categories={categories}
+                onCategoriesChange={handleCategoriesChange}
+                onClearCategories={handleClearCategories}
+                searchQuery={searchQuery}
+                onSearchQueryChange={setSearchQuery}
+                onSearchClear={() => setSearchQuery("")}
+                isBookmarked={isBookmarked}
+                toggleBookmark={toggleBookmark}
+                cityPreferences={cityPreferences}
+                cityLabels={cityLabels}
+                onEditCities={openCityModal}
+                trendCountry={trendCountry}
+                onTrendCountryChange={setTrendCountry}
+                scrollContainerRef={scrollContainerRef}
+              />
+            )}
+          </div>
+          <FooterTabs />
         </div>
-        <FooterTabs />
-      </div>
-      <NewsCityModal
-        isOpen={isCityModalOpen}
-        options={cityOptions}
-        preferences={cityPreferences}
-        cityLabels={cityLabels}
-        onRememberCities={rememberCityLabels}
-        onSave={saveCityPreferences}
-        onClose={closeCityModal}
-      />
-    </AppViewportShell>
+        <NewsCityModal
+          isOpen={isCityModalOpen}
+          options={cityOptions}
+          preferences={cityPreferences}
+          cityLabels={cityLabels}
+          onRememberCities={rememberCityLabels}
+          onSave={saveCityPreferences}
+          onClose={closeCityModal}
+        />
+      </AppViewportShell>
     </>
   );
 }
@@ -491,7 +491,7 @@ function StandardNewsSection({
 
   // Scroll to article when article ID is in hash
   const articleIdRef = useRef<number | null>(null);
-  
+
   // Read article ID from hash on mount and when hash changes
   useEffect(() => {
     const articleId = readNewsArticleIdFromHash();
@@ -525,7 +525,7 @@ function StandardNewsSection({
         const elementRect = articleElement.getBoundingClientRect();
         const scrollTop = scrollContainerRef.current.scrollTop;
         const elementTop = elementRect.top - containerRect.top + scrollTop;
-        
+
         scrollContainerRef.current.scrollTo({
           top: elementTop - 20, // 20px offset from top
           behavior: "smooth",

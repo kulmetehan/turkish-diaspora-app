@@ -26,3 +26,5 @@ COMMENT ON INDEX idx_promoted_locations_feed_active IS 'Optimizes promoted locat
 COMMENT ON INDEX idx_activity_reactions_activity_user IS 'Optimizes user reaction lookups for authenticated users';
 COMMENT ON INDEX idx_activity_reactions_activity_client IS 'Optimizes user reaction lookups for anonymous clients';
 
+
+

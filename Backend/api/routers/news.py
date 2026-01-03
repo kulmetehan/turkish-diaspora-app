@@ -28,7 +28,12 @@ from services.news_service import (
     search_news as search_news_service,
 )
 from services.news_trending_x import fetch_trending_topics, TrendingResult
+from services.news_trending_spotify import fetch_spotify_tracks, SpotifyResult
 from services.news_google_service import fetch_google_news_for_city
+from app.core.logging import get_logger
+import json
+
+logger = get_logger()
 
 router = APIRouter(
     prefix="/news",
@@ -36,7 +41,7 @@ router = APIRouter(
 )
 
 _ALLOWED_FEEDS = ", ".join(
-    [feed.value for feed in FeedType] + ["trending"]
+    [feed.value for feed in FeedType] + ["trending", "music"]
 )
 
 
@@ -46,7 +51,7 @@ _ALLOWED_FEEDS = ", ".join(
 async def get_news(
     feed: str = Query(
         ...,
-        description="Feed to query: diaspora, nl, tr, local, origin, geo, or trending.",
+        description="Feed to query: diaspora, nl, tr, local, origin, geo, trending, or music.",
     ),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -57,6 +62,11 @@ async def get_news(
         "nl",
         alias="trend_country",
         description="Country context for the trending feed.",
+    ),
+    music_country: Literal["nl", "tr"] = Query(
+        "nl",
+        alias="music_country",
+        description="Country context for the music feed.",
     ),
 ) -> NewsListResponse:
     normalized = feed.strip().lower()
@@ -75,6 +85,19 @@ async def get_news(
             limit=limit,
             offset=offset,
             trend_country=trend_country,
+        )
+        return NewsListResponse(items=items, total=total, limit=limit, offset=offset, meta=meta)
+
+    if normalized == "music":
+        if category_values:
+            raise HTTPException(
+                status_code=400,
+                detail="Category filters are not supported for the music feed.",
+            )
+        items, total, meta = await _resolve_music_payload(
+            limit=limit,
+            offset=offset,
+            music_country=music_country,
         )
         return NewsListResponse(items=items, total=total, limit=limit, offset=offset, meta=meta)
 
@@ -260,6 +283,50 @@ def _topic_to_news_item(topic) -> NewsItem:
     )
 
 
+async def _resolve_music_payload(
+    *,
+    limit: int,
+    offset: int,
+    music_country: Literal["nl", "tr"],
+) -> tuple[List[NewsItem], int, Optional[Dict[str, Any]]]:
+    """
+    Resolve music payload from Spotify scraper.
+    Returns items, total count, and optional metadata (e.g., unavailable_reason).
+    """
+    result: SpotifyResult = await fetch_spotify_tracks(limit=limit + offset, country=music_country)
+    
+    if result.tracks:
+        sliced = result.tracks[offset:offset + limit]
+        items = [_track_to_news_item(track) for track in sliced]
+        meta = None
+        if result.unavailable_reason:
+            meta = {"unavailable_reason": result.unavailable_reason}
+        return items, len(result.tracks), meta
+    
+    # No tracks available
+    meta = None
+    if result.unavailable_reason:
+        meta = {"unavailable_reason": result.unavailable_reason}
+    return [], 0, meta
+
+
+def _track_to_news_item(track) -> NewsItem:
+    published_at = track.published_at or datetime.now(timezone.utc)
+    # Title is just the track name, artist is in snippet
+    title = track.title
+    derived_id = abs(hash((track.title, track.artist, published_at.timestamp()))) % (2**31 - 1)
+    return NewsItem(
+        id=derived_id,
+        title=title,
+        snippet=track.artist,  # Artist name in snippet
+        source="",  # Empty source to hide it in UI
+        published_at=published_at,
+        url=track.url,
+        image_url=track.image_url,  # Use track thumbnail image
+        tags=[],  # Empty tags to hide them in UI
+    )
+
+
 def _city_to_payload(city: NewsCity) -> NewsCityRecord:
     metadata = dict(city.metadata) if city.metadata else None
     return NewsCityRecord(
@@ -307,11 +374,96 @@ async def toggle_news_reaction(
     
     user_id = None  # TODO: Extract from auth session
     
-    # Check if news exists (only for DB-based news, not trending/promoted)
+    # Check if news exists in raw_ingested_news
+    # Music tracks and trending topics use derived IDs and are not in raw_ingested_news
+    # For these, we need to create a dummy record to satisfy the foreign key constraint
     check_sql = "SELECT id FROM raw_ingested_news WHERE id = $1"
     check_rows = await fetch(check_sql, news_id)
+    
     if not check_rows:
-        raise HTTPException(status_code=404, detail="News item not found")
+        # This is likely a derived ID (music/trending), create a dummy record
+        # Use a minimal record that satisfies the foreign key constraint
+        # The unique constraint is on (source_key, ingest_hash), so we use a unique hash per news_id
+        try:
+            # Create a unique ingest_hash based on news_id to avoid conflicts
+            unique_hash = f"derived_{news_id}"
+            
+            # First, check if a record with this hash already exists
+            existing_sql = "SELECT id FROM raw_ingested_news WHERE source_key = 'derived' AND ingest_hash = $1"
+            existing_rows = await fetch(existing_sql, unique_hash)
+            
+            if existing_rows:
+                # Update existing record to use the correct ID
+                await execute(
+                    """
+                    UPDATE raw_ingested_news 
+                    SET id = $1 
+                    WHERE source_key = 'derived' AND ingest_hash = $2 AND id != $1
+                    """,
+                    news_id,
+                    unique_hash
+                )
+            else:
+                # Insert new record with explicit ID
+                # We need to temporarily set the sequence to allow explicit ID insertion
+                # First, get the current max ID to restore sequence later
+                max_id_result = await fetch("SELECT COALESCE(MAX(id), 0) as max_id FROM raw_ingested_news")
+                max_id = max_id_result[0]['max_id'] if max_id_result and max_id_result[0] else 0
+                
+                # Temporarily set sequence to news_id - 1, then insert
+                # This allows us to insert with explicit ID
+                await execute(
+                    """
+                    SELECT setval(
+                        pg_get_serial_sequence('raw_ingested_news', 'id'),
+                        GREATEST($1 - 1, $2),
+                        false
+                    )
+                    """,
+                    news_id,
+                    max_id
+                )
+                
+                # Create raw_entry JSON for the dummy record
+                raw_entry_data = {
+                    "source": "derived",
+                    "news_id": news_id,
+                    "type": "music_track_reaction_placeholder"
+                }
+                raw_entry_json = json.dumps(raw_entry_data, ensure_ascii=False)
+                
+                # Now insert with explicit ID (including required raw_entry field)
+                await execute(
+                    """
+                    INSERT INTO raw_ingested_news (
+                        id, source_key, source_name, source_url,
+                        category, language, region,
+                        title, link, published_at, ingest_hash, raw_entry
+                    ) VALUES (
+                        $1, 'derived', 'Derived Content', '',
+                        'general', 'nl', 'nl',
+                        'Derived Content', '', NOW(), $2, $3
+                    )
+                    """,
+                    news_id,
+                    unique_hash,
+                    raw_entry_json
+                )
+                
+                # Reset sequence to max(id) to avoid conflicts
+                await execute(
+                    """
+                    SELECT setval(
+                        pg_get_serial_sequence('raw_ingested_news', 'id'),
+                        GREATEST($1, COALESCE((SELECT MAX(id) FROM raw_ingested_news), 1)),
+                        true
+                    )
+                    """,
+                    news_id
+                )
+        except Exception as e:
+            # If insert fails, log but continue - the reaction insert will fail with a clearer error
+            logger.warning("news_reaction_dummy_record_failed", news_id=news_id, error=str(e))
     
     # Check if already reacted with this type
     if user_id:
@@ -382,11 +534,8 @@ async def get_news_reactions(
     """Get reaction counts and user reaction for a news item."""
     require_feature("check_ins_enabled")
     
-    # Check if news exists
-    check_sql = "SELECT id FROM raw_ingested_news WHERE id = $1"
-    check_rows = await fetch(check_sql, news_id)
-    if not check_rows:
-        raise HTTPException(status_code=404, detail="News item not found")
+    # Note: Music tracks and trending topics use derived IDs and are not in raw_ingested_news
+    # So we don't check if the news exists - we just return reactions (empty if none exist)
     
     user_id = None  # TODO: Extract from auth session
     

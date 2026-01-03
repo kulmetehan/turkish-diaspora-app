@@ -2223,7 +2223,9 @@ export async function getMyRecognition(): Promise<RecognitionResponse> {
 export interface LeaderboardUser {
   user_id: string;
   name: string | null;
+  avatar_url: string | null;
   role: string | null;
+  primary_role: string | null;
   context: string | null;
 }
 

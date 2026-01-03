@@ -182,6 +182,7 @@ export const nl: TranslationKeys = {
       checkIns: "Check-ins",
       notes: "Notities",
       oneCikanlar: "Öne Çıkanlar",
+      music: "Muziek",
     },
     toast: {
       reactionError: "Kon reactie niet toevoegen",
@@ -343,6 +344,7 @@ export const nl: TranslationKeys = {
       local: "Woonplaats",
       origin: "Memleket",
       trending: "Trending",
+      music: "Muziek",
       bookmarks: "Opgeslagen",
     },
     categories: {
