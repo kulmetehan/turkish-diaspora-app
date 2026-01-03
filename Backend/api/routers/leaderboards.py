@@ -5,9 +5,8 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Literal
 from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
-from uuid import UUID
 
-from services.db_service import fetch, fetchrow
+from services.db_service import fetch
 
 router = APIRouter(prefix="/leaderboards", tags=["leaderboards"])
 
@@ -104,7 +103,7 @@ async def get_one_cikanlar(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     
-    # Query leaderboard entries for the period
+    # Query leaderboard entries for the period with user roles joined
     sql = """
         SELECT 
             le.id,
@@ -112,9 +111,12 @@ async def get_one_cikanlar(
             le.category,
             le.rank,
             le.context_data,
-            up.display_name
+            up.display_name,
+            ur.primary_role,
+            ur.secondary_role
         FROM leaderboard_entries le
         LEFT JOIN user_profiles up ON le.user_id = up.id
+        LEFT JOIN user_roles ur ON le.user_id = ur.user_id
         WHERE le.period_start <= $1
         AND le.period_end >= $2
         AND ($3::text IS NULL OR le.city_key = $3)
@@ -133,20 +135,14 @@ async def get_one_cikanlar(
         if category not in cards_dict:
             cards_dict[category] = []
         
-        # Get user role if available
-        user_id_uuid = UUID(str(row.get("user_id")))
-        role_sql = """
-            SELECT primary_role, secondary_role
-            FROM user_roles
-            WHERE user_id = $1
-        """
-        role_row = await fetchrow(role_sql, user_id_uuid)
+        # Get user role from joined data
         role = None
-        if role_row:
-            role = role_row.get("primary_role")
-            secondary = role_row.get("secondary_role")
-            if secondary:
-                role = f"{role} · {secondary}"
+        primary_role = row.get("primary_role")
+        secondary_role = row.get("secondary_role")
+        if primary_role:
+            role = primary_role
+            if secondary_role:
+                role = f"{role} · {secondary_role}"
         
         # Extract context from context_data JSONB
         context_data = row.get("context_data") or {}

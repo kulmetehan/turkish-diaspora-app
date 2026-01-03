@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { URLPreview } from "./URLPreview";
 import { useTranslation } from "@/hooks/useTranslation";
+import postBot from "@/assets/post.png";
 
 interface PrikbordComposerProps {
   onSuccess?: (newPost?: SharedLink) => void;
@@ -210,16 +211,26 @@ export function PrikbordComposer({ onSuccess, className }: PrikbordComposerProps
   return (
     <div className={cn("rounded-xl border border-border/50 bg-card p-4 shadow-soft", className)}>
       <div className="space-y-3">
-        {/* Textarea */}
-        <Textarea
-          placeholder="Wat wil je delen?"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onFocus={() => setIsExpanded(true)}
-          rows={isExpanded ? 4 : 2}
-          className="resize-none font-gilroy"
-          disabled={isSubmitting}
-        />
+        {/* Textarea with mascot image */}
+        <div className="relative">
+          <Textarea
+            placeholder="Wat wil je delen?"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onFocus={() => setIsExpanded(true)}
+            rows={isExpanded ? 4 : 2}
+            className="resize-none font-gilroy pr-24"
+            disabled={isSubmitting}
+          />
+          {/* Mascot image - positioned on the right side, matching textarea height */}
+          <div className="absolute right-2 top-2 bottom-2 pointer-events-none flex items-center justify-end">
+            <img
+              src={postBot}
+              alt=""
+              className="h-full max-h-full object-contain"
+            />
+          </div>
+        </div>
 
         {/* URL Preview */}
         {isLoadingPreview && (

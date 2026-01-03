@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import type { Poll, PollStats } from "@/lib/api";
+import stemmenBg from "@/assets/stemmen.png";
 
 export interface PollCardProps {
   poll: Poll;
@@ -28,8 +29,21 @@ export function PollCard({
   const hasResults = hasResponded ?? poll.user_has_responded;
 
   return (
-    <Card className={cn("p-4", className)}>
-      <div className="space-y-3">
+    <Card className={cn("relative p-4 overflow-hidden", className)}>
+      {/* Background Image Overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `url(${stemmenBg})`,
+          backgroundSize: "contain",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          opacity: 0.05,
+        }}
+      />
+
+      {/* Content Layer - positioned above background */}
+      <div className="relative z-10 space-y-3">
         <div>
           <h3 className="font-gilroy font-semibold text-lg text-foreground">{poll.title}</h3>
           <p className="text-sm text-muted-foreground mt-1">{poll.question}</p>

@@ -13,7 +13,7 @@ import { getEventReactions, toggleEventReaction, type ReactionStats, type Reacti
 import { cn } from "@/lib/ui/cn";
 
 import { formatCityLabel, formatEventDateRange } from "./eventFormatters";
-import { type EventCategoryKey } from "@/lib/routing/eventCategories";
+import { type EventCategoryKey, EVENT_CATEGORY_LABELS } from "@/lib/routing/eventCategories";
 import { useTranslation } from "@/hooks/useTranslation";
 
 type EventDetailOverlayProps = {

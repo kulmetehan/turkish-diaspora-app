@@ -1,22 +1,38 @@
 // Frontend/src/components/feed/FeedCard.tsx
+import automotiveIcon from "@/assets/automotive1.png";
+import bakkerijIcon from "@/assets/bakkerij1.png";
+import cafeIcon from "@/assets/cafe1.png";
+import fastfoodIcon from "@/assets/fastfood1.png";
+import kapperIcon from "@/assets/kapper1.png";
+import kleermakerIcon from "@/assets/kleermaker1.png";
+import medischIcon from "@/assets/medisch1.png";
+import moskeeIcon from "@/assets/moskee1.png";
+import reisbureauIcon from "@/assets/reisbureau1.png";
+import restaurantIcon from "@/assets/restaurant1.png";
+import shoppingIcon from "@/assets/shopping1.png";
+import slagerIcon from "@/assets/slager1.png";
+import stemmenIcon from "@/assets/stemmen.png";
+import supermarktIcon from "@/assets/supermarkt1.png";
+import trouwzaalIcon from "@/assets/trouwzaal1.png";
+import verenigingIcon from "@/assets/vereniging1.png";
+import { Icon } from "@/components/Icon";
+import { ReportButton } from "@/components/report/ReportButton";
+import { Button } from "@/components/ui/button";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { ActivityItem, ReactionType } from "@/lib/api";
-import { cn } from "@/lib/ui/cn";
-import { roleDisplayName } from "@/lib/roleDisplay";
+import { deleteAdminCheckIn, deleteAdminNote } from "@/lib/apiAdmin";
 import { labelDisplayName } from "@/lib/labelDisplay";
+import { roleDisplayName } from "@/lib/roleDisplay";
+import { cn } from "@/lib/ui/cn";
 import { Bookmark } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { EmojiReactions } from "./EmojiReactions";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { EventBadge } from "./EventBadge";
 import { PollPreview } from "./PollPreview";
-import { ReportButton } from "@/components/report/ReportButton";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
-import { deleteAdminCheckIn, deleteAdminNote } from "@/lib/apiAdmin";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/Icon";
-import { toast } from "sonner";
-import { useTranslation } from "@/hooks/useTranslation";
 
 export interface FeedCardProps {
   id: number;
@@ -29,6 +45,7 @@ export interface FeedCardProps {
   };
   locationName: string | null;
   locationId?: number | null;
+  categoryKey?: string | null;
   timestamp: string;
   contentText: string;
   noteContent?: string | null;
@@ -51,26 +68,43 @@ export interface FeedCardProps {
   className?: string;
 }
 
-function formatActivityTime(value: string, t: (key: string, params?: Record<string, string | number>) => string, locale: string): string {
+function formatActivityTime(value: string, t: (key: string) => string, locale: string): string {
+  if (!value) {
+    console.warn("formatActivityTime: Empty value provided");
+    return "onbekend";
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value;
+    console.warn("formatActivityTime: Invalid date value", value);
+    return "onbekend";
   }
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffMinutes = Math.floor(diffMs / 60000);
+
+  // Handle negative differences (future dates)
+  if (diffMs < 0) {
+    return t("feed.card.time.justNow");
+  }
+
+  const diffSeconds = Math.floor(diffMs / 1000);
+  const diffMinutes = Math.floor(diffSeconds / 60);
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMinutes < 1) {
+  if (diffSeconds < 60) {
     return t("feed.card.time.justNow");
   } else if (diffMinutes < 60) {
-    return t("feed.card.time.minutesAgo", { count: diffMinutes });
+    // Replace {count} placeholder manually
+    return t("feed.card.time.minutesAgo").replace("{count}", diffMinutes.toString());
   } else if (diffHours < 24) {
-    return t("feed.card.time.hoursAgo", { count: diffHours });
+    // Replace {count} placeholder manually
+    return t("feed.card.time.hoursAgo").replace("{count}", diffHours.toString());
+  } else if (diffDays < 7) {
+    return `${diffDays} dag${diffDays > 1 ? "en" : ""} geleden`;
   } else {
-    // >= 24 uur: exacte datum
+    // >= 7 dagen: exacte datum
     const year = date.getFullYear();
     const currentYear = now.getFullYear();
     try {
@@ -79,7 +113,8 @@ function formatActivityTime(value: string, t: (key: string, params?: Record<stri
         month: "short",
         year: year !== currentYear ? "numeric" : undefined,
       }).format(date);
-    } catch {
+    } catch (error) {
+      console.warn("formatActivityTime: Intl.DateTimeFormat failed", error);
       return date.toLocaleDateString(locale);
     }
   }
@@ -100,11 +135,37 @@ function getInitials(name: string | null | undefined): string {
   return trimmed.substring(0, 2).toUpperCase();
 }
 
+function getCheckInCategoryImage(categoryKey: string | null | undefined): string | null {
+  if (!categoryKey) return null;
+
+  const categoryImages: Record<string, string> = {
+    bakery: bakkerijIcon,
+    restaurant: restaurantIcon,
+    supermarket: supermarktIcon,
+    barber: kapperIcon,
+    barbershop: kapperIcon, // Support both "barber" and "barbershop" category keys
+    mosque: moskeeIcon,
+    travel_agency: reisbureauIcon,
+    butcher: slagerIcon,
+    fast_food: fastfoodIcon,
+    cafe: cafeIcon,
+    automotive: automotiveIcon,
+    tailor: kleermakerIcon,
+    events_venue: trouwzaalIcon,
+    community_centre: verenigingIcon,
+    clinic: medischIcon,
+    shop: shoppingIcon,
+  };
+
+  return categoryImages[categoryKey] || null;
+}
+
 export function FeedCard({
   id,
   user,
   locationName,
   locationId,
+  categoryKey,
   timestamp,
   contentText,
   noteContent,
@@ -207,7 +268,7 @@ export function FeedCard({
               onClick={handleUserClick}
             />
           ) : (
-            <div 
+            <div
               className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-gilroy font-semibold text-sm cursor-pointer"
               onClick={handleUserClick}
             >
@@ -317,10 +378,35 @@ export function FeedCard({
                 </div>
               )}
             </div>
-          ) : type === "poll_response" && pollId ? (
+          ) : type === "poll_response" ? (
             <div className="space-y-1">
-              <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
-              <PollPreview pollId={pollId} />
+              <div className="flex items-center gap-2">
+                <img
+                  src={stemmenIcon}
+                  alt=""
+                  className="w-10 h-10 flex-shrink-0 object-contain"
+                  aria-hidden="true"
+                />
+                <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
+              </div>
+              {pollId && <PollPreview pollId={pollId} />}
+            </div>
+          ) : type === "check_in" ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const categoryImage = categoryKey ? getCheckInCategoryImage(categoryKey) : null;
+                  return categoryImage ? (
+                    <img
+                      src={categoryImage}
+                      alt=""
+                      className="w-10 h-10 flex-shrink-0 object-contain"
+                      aria-hidden="true"
+                    />
+                  ) : null;
+                })()}
+                <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
+              </div>
             </div>
           ) : (
             <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
@@ -369,7 +455,7 @@ export function FeedCard({
             // Determine report type based on activity type
             let reportType: "check_in" | "note" | "poll" | null = null;
             let reportTargetId = id;
-            
+
             if (type === "check_in") {
               reportType = "check_in";
             } else if (type === "note") {
@@ -378,7 +464,7 @@ export function FeedCard({
               reportType = "poll";
               reportTargetId = pollId;
             }
-            
+
             if (reportType) {
               return (
                 <ReportButton
@@ -392,7 +478,7 @@ export function FeedCard({
             }
             return null;
           })()}
-          
+
           <button
             type="button"
             onClick={handleBookmark}

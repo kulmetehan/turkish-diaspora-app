@@ -197,6 +197,7 @@ export const nl: TranslationKeys = {
         note: "schreef een notitie over {location}",
         pollResponse: "heeft gestemd op een poll",
         favorite: "heeft {location} toegevoegd aan favorieten",
+        bulletinPost: "heeft een advertentie geplaatst: {title}",
         event: "heeft een event geplaatst: {location}",
         default: "heeft activiteit op {location}",
       },

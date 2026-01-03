@@ -29,6 +29,7 @@ class ActivityItem(BaseModel):
     activity_type: str  # 'check_in', 'reaction', 'note', 'poll_response', 'favorite', 'bulletin_post', 'event'
     location_id: Optional[int]
     location_name: Optional[str]
+    category_key: Optional[str] = None  # Category of the location (for check-ins)
     payload: dict  # Activity-specific details
     created_at: datetime
     is_promoted: bool = False
@@ -110,25 +111,39 @@ def _normalize_user_name(user_name: Optional[str], user_id: Optional[str]) -> Op
 async def get_own_activity(
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
-    activity_type: Optional[str] = Query(None, description="Filter by activity type (check_in, reaction, note, poll_response, favorite)"),
+    activity_type: Optional[str] = Query(None, description="Filter by activity type (check_in, reaction, note, poll_response, favorite, bulletin_post, event)"),
     client_id: Optional[str] = Depends(get_client_id),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
-    """Get activity feed - shows all activity (including bots) with user's like/bookmark status."""
+    """Get activity feed - shows activity from authenticated users only (no anonymous users).
+    
+    Only returns activities with known activity types: check_in, reaction, note, poll_response, 
+    favorite, bulletin_post, event. Includes user's like/bookmark status."""
     require_feature("check_ins_enabled")  # Or create separate flag
     
     user_id = user.user_id if user else None
     
-    # Build WHERE clause - show ALL activity (not filtered by user_id/client_id)
-    # This allows bots and other users' activity to appear in the feed
+    # Build WHERE clause - filter out anonymous users and unknown activity types
+    # Only show activities from authenticated users (actor_type = 'user' AND actor_id IS NOT NULL)
     conditions = []
     params = []
     param_num = 1
     
+    # Filter out anonymous users - only show activities from authenticated users
+    conditions.append("ast.actor_type = 'user'")
+    conditions.append("ast.actor_id IS NOT NULL")
+    
+    # Filter out unknown activity types - only show known types
+    valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post", "event"]
+    # Build array parameter for activity_type filter
+    type_placeholders = ", ".join([f"${i}" for i in range(param_num, param_num + len(valid_types))])
+    conditions.append(f"ast.activity_type = ANY(ARRAY[{type_placeholders}])")
+    params.extend(valid_types)
+    param_num += len(valid_types)
+    
     # Optional activity_type filter
     if activity_type:
         # Validate activity_type
-        valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post", "event"]
         if activity_type not in valid_types:
             raise HTTPException(
                 status_code=400,
@@ -138,8 +153,8 @@ async def get_own_activity(
         params.append(activity_type)
         param_num += 1
     
-    # If no conditions, show all activity
-    where_clause = " AND ".join(conditions) if conditions else "1=1"
+    # Build WHERE clause
+    where_clause = " AND ".join(conditions)
     
     # Build LIKE join condition for current user/client
     # This still tracks whether the current user has liked/bookmarked/reacted
@@ -149,23 +164,24 @@ async def get_own_activity(
         # Check by user_id if authenticated
         like_join_condition += f"(al.user_id = '{user_id}')"
         bookmark_join_condition += f"(ab.user_id = '{user_id}')"
-        user_reaction_condition = f"ar2.user_id = '{user_id}'"
+        user_reaction_condition = f"user_reaction_join.user_id = '{user_id}'"
     elif client_id:
         # Fallback to client_id if not authenticated
         like_join_condition += f"(al.client_id = '{client_id}')"
         bookmark_join_condition += f"(ab.client_id = '{client_id}')"
-        user_reaction_condition = f"ar2.client_id = '{client_id}'"
+        user_reaction_condition = f"user_reaction_join.client_id = '{client_id}'"
     else:
         # No user or client_id - no likes/bookmarks/reactions
         like_join_condition += "al.client_id IS NULL"
         bookmark_join_condition += "ab.client_id IS NULL"
-        user_reaction_condition = "ar2.client_id IS NULL"
+        user_reaction_condition = "user_reaction_join.client_id IS NULL"
     
     sql = f"""
         SELECT 
             ast.id,
             ast.activity_type,
             ast.location_id,
+            ast.category_key,
             l.name as location_name,
             ast.payload,
             ast.created_at,
@@ -187,23 +203,13 @@ async def get_own_activity(
                 ELSE false 
             END as is_promoted,
             COALESCE(
-                (
-                    SELECT json_object_agg(reaction_type, count)
-                    FROM (
-                        SELECT reaction_type, COUNT(*)::int as count
-                        FROM activity_reactions
-                        WHERE activity_id = ast.id
-                        GROUP BY reaction_type
-                    ) reaction_counts
-                ),
+                json_object_agg(
+                    DISTINCT reaction_counts.reaction_type, 
+                    reaction_counts.count
+                ) FILTER (WHERE reaction_counts.reaction_type IS NOT NULL),
                 '{{}}'::json
             ) as reactions,
-            (
-                SELECT reaction_type
-                FROM activity_reactions ar2
-                WHERE ar2.activity_id = ast.id AND ({user_reaction_condition})
-                LIMIT 1
-            ) as user_reaction
+            MAX(user_reaction_join.reaction_type) as user_reaction
         FROM activity_stream ast
         LEFT JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
@@ -216,12 +222,27 @@ async def get_own_activity(
         ) like_counts ON like_counts.activity_id = ast.id
         LEFT JOIN activity_likes al ON {like_join_condition}
         LEFT JOIN activity_bookmarks ab ON {bookmark_join_condition}
+        LEFT JOIN (
+            SELECT activity_id, reaction_type, COUNT(*)::int as count
+            FROM activity_reactions
+            GROUP BY activity_id, reaction_type
+        ) reaction_counts ON reaction_counts.activity_id = ast.id
+        LEFT JOIN activity_reactions user_reaction_join ON 
+            user_reaction_join.activity_id = ast.id 
+            AND ({user_reaction_condition})
         WHERE {where_clause}
+        GROUP BY 
+            ast.id, ast.activity_type, ast.location_id, ast.category_key, l.name, ast.payload, 
+            ast.created_at, ast.media_url, up.id, up.display_name, 
+            up.avatar_url, ur.primary_role, ur.secondary_role,
+            like_counts.like_count, al.id, ab.id, pl.id, pl.status, 
+            pl.promotion_type, pl.starts_at, pl.ends_at
         ORDER BY is_promoted DESC, ast.created_at DESC
         LIMIT ${param_num} OFFSET ${param_num + 1}
     """
     
     params.extend([limit, offset])
+    # Note: param_num is already correct here because it was incremented after activity_type filter
     
     rows = await fetch(sql, *params)
     
@@ -236,6 +257,7 @@ async def get_own_activity(
                 activity_type=row["activity_type"],
                 location_id=row.get("location_id"),
                 location_name=row.get("location_name"),
+                category_key=row.get("category_key"),
                 payload=_parse_payload(row.get("payload")),
                 created_at=row["created_at"],
                 is_promoted=row.get("is_promoted", False),
@@ -349,17 +371,18 @@ async def get_nearby_activity(
     if client_id:
         like_join_condition += f"(al.client_id = '{client_id}')"
         bookmark_join_condition += f"(ab.client_id = '{client_id}')"
-        user_reaction_condition = f"ar2.client_id = '{client_id}'"
+        user_reaction_condition = f"user_reaction_join.client_id = '{client_id}'"
     else:
         like_join_condition += "al.client_id IS NULL"
         bookmark_join_condition += "ab.client_id IS NULL"
-        user_reaction_condition = "ar2.client_id IS NULL"
+        user_reaction_condition = "user_reaction_join.client_id IS NULL"
     
     sql = f"""
         SELECT 
             ast.id,
             ast.activity_type,
             ast.location_id,
+            ast.category_key,
             l.name as location_name,
             ast.payload,
             ast.created_at,
@@ -381,23 +404,13 @@ async def get_nearby_activity(
                 ELSE false 
             END as is_promoted,
             COALESCE(
-                (
-                    SELECT json_object_agg(reaction_type, count)
-                    FROM (
-                        SELECT reaction_type, COUNT(*)::int as count
-                        FROM activity_reactions
-                        WHERE activity_id = ast.id
-                        GROUP BY reaction_type
-                    ) reaction_counts
-                ),
+                json_object_agg(
+                    DISTINCT reaction_counts.reaction_type, 
+                    reaction_counts.count
+                ) FILTER (WHERE reaction_counts.reaction_type IS NOT NULL),
                 '{{}}'::json
             ) as reactions,
-            (
-                SELECT reaction_type
-                FROM activity_reactions ar2
-                WHERE ar2.activity_id = ast.id AND ({user_reaction_condition})
-                LIMIT 1
-            ) as user_reaction
+            MAX(user_reaction_join.reaction_type) as user_reaction
         FROM activity_stream ast
         INNER JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
@@ -410,7 +423,21 @@ async def get_nearby_activity(
         ) like_counts ON like_counts.activity_id = ast.id
         LEFT JOIN activity_likes al ON {like_join_condition}
         LEFT JOIN activity_bookmarks ab ON {bookmark_join_condition}
+        LEFT JOIN (
+            SELECT activity_id, reaction_type, COUNT(*)::int as count
+            FROM activity_reactions
+            GROUP BY activity_id, reaction_type
+        ) reaction_counts ON reaction_counts.activity_id = ast.id
+        LEFT JOIN activity_reactions user_reaction_join ON 
+            user_reaction_join.activity_id = ast.id 
+            AND ({user_reaction_condition})
         WHERE {where_clause}
+        GROUP BY 
+            ast.id, ast.activity_type, ast.location_id, ast.category_key, l.name, ast.payload, 
+            ast.created_at, ast.media_url, up.id, up.display_name, 
+            up.avatar_url, ur.primary_role, ur.secondary_role,
+            like_counts.like_count, al.id, ab.id, pl.id, pl.status, 
+            pl.promotion_type, pl.starts_at, pl.ends_at
         ORDER BY is_promoted DESC, ast.created_at DESC
         LIMIT ${param_num}
     """
@@ -429,6 +456,7 @@ async def get_nearby_activity(
                 activity_type=row["activity_type"],
                 location_id=row.get("location_id"),
                 location_name=row.get("location_name"),
+                category_key=row.get("category_key"),
                 payload=_parse_payload(row.get("payload")),
                 created_at=row["created_at"],
                 is_promoted=row.get("is_promoted", False),
@@ -468,17 +496,18 @@ async def get_location_activity(
     if client_id:
         like_join_condition += f"(al.client_id = '{client_id}')"
         bookmark_join_condition += f"(ab.client_id = '{client_id}')"
-        user_reaction_condition = f"ar2.client_id = '{client_id}'"
+        user_reaction_condition = f"user_reaction_join.client_id = '{client_id}'"
     else:
         like_join_condition += "al.client_id IS NULL"
         bookmark_join_condition += "ab.client_id IS NULL"
-        user_reaction_condition = "ar2.client_id IS NULL"
+        user_reaction_condition = "user_reaction_join.client_id IS NULL"
     
     sql = f"""
         SELECT 
             ast.id,
             ast.activity_type,
             ast.location_id,
+            ast.category_key,
             l.name as location_name,
             ast.payload,
             ast.created_at,
@@ -500,23 +529,13 @@ async def get_location_activity(
                 ELSE false 
             END as is_promoted,
             COALESCE(
-                (
-                    SELECT json_object_agg(reaction_type, count)
-                    FROM (
-                        SELECT reaction_type, COUNT(*)::int as count
-                        FROM activity_reactions
-                        WHERE activity_id = ast.id
-                        GROUP BY reaction_type
-                    ) reaction_counts
-                ),
+                json_object_agg(
+                    DISTINCT reaction_counts.reaction_type, 
+                    reaction_counts.count
+                ) FILTER (WHERE reaction_counts.reaction_type IS NOT NULL),
                 '{{}}'::json
             ) as reactions,
-            (
-                SELECT reaction_type
-                FROM activity_reactions ar2
-                WHERE ar2.activity_id = ast.id AND ({user_reaction_condition})
-                LIMIT 1
-            ) as user_reaction
+            MAX(user_reaction_join.reaction_type) as user_reaction
         FROM activity_stream ast
         LEFT JOIN locations l ON ast.location_id = l.id
         LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
@@ -529,7 +548,21 @@ async def get_location_activity(
         ) like_counts ON like_counts.activity_id = ast.id
         LEFT JOIN activity_likes al ON {like_join_condition}
         LEFT JOIN activity_bookmarks ab ON {bookmark_join_condition}
+        LEFT JOIN (
+            SELECT activity_id, reaction_type, COUNT(*)::int as count
+            FROM activity_reactions
+            GROUP BY activity_id, reaction_type
+        ) reaction_counts ON reaction_counts.activity_id = ast.id
+        LEFT JOIN activity_reactions user_reaction_join ON 
+            user_reaction_join.activity_id = ast.id 
+            AND ({user_reaction_condition})
         WHERE ast.location_id = $1
+        GROUP BY 
+            ast.id, ast.activity_type, ast.location_id, ast.category_key, l.name, ast.payload, 
+            ast.created_at, ast.media_url, up.id, up.display_name, 
+            up.avatar_url, ur.primary_role, ur.secondary_role,
+            like_counts.like_count, al.id, ab.id, pl.id, pl.status, 
+            pl.promotion_type, pl.starts_at, pl.ends_at
         ORDER BY is_promoted DESC, ast.created_at DESC
         LIMIT $2 OFFSET $3
     """
@@ -547,6 +580,7 @@ async def get_location_activity(
                 activity_type=row["activity_type"],
                 location_id=row.get("location_id"),
                 location_name=row.get("location_name"),
+                category_key=row.get("category_key"),
                 payload=_parse_payload(row.get("payload")),
                 created_at=row["created_at"],
                 is_promoted=row.get("is_promoted", False),

@@ -1,6 +1,12 @@
 // Frontend/src/components/feed/DashboardOverview.tsx
 import type { EventItem } from "@/api/events";
 import { fetchNews, type NewsItem } from "@/api/news";
+import activiteitBg from "@/assets/activiteit.png";
+import eventsBot from "@/assets/eventsbot.png";
+import kesfetBg from "@/assets/kesfet-bg.png";
+import nederlandBg from "@/assets/nederland.png";
+import turkijeBg from "@/assets/turkije.png";
+import yasaBg from "@/assets/yasa-bg.png";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTranslation } from "@/hooks/useTranslation";
 import {
@@ -424,6 +430,8 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
         icon="Newspaper"
         footerLink="/news"
         footerText={t("feed.dashboard.viewAllNews")}
+        backgroundImage={yasaBg}
+        backgroundOpacity={0.05}
       >
         {newsData.loading ? (
           <div className="space-y-2">
@@ -473,6 +481,8 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
         icon="Map"
         footerLink="/map"
         footerText={t("feed.dashboard.viewOnMap")}
+        backgroundImage={kesfetBg}
+        backgroundOpacity={0.05}
       >
         {locationsData.loading ? (
           <div className="space-y-2">
@@ -504,7 +514,10 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
                       category: cat.category === "other" ? "all" : cat.category,
                     },
                   });
-                  navigate("/map");
+                  // Use setTimeout to ensure state is set before navigation
+                  setTimeout(() => {
+                    navigate("/map");
+                  }, 0);
                 };
                 return (
                   <div
@@ -556,6 +569,8 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
         icon="CalendarCheck"
         footerLink="/events"
         footerText={t("feed.dashboard.viewAllEvents")}
+        backgroundImage={eventsBot}
+        backgroundOpacity={0.05}
       >
         {eventsData.loading ? (
           <div className="space-y-2">
@@ -600,6 +615,8 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
       <DashboardCard
         title={t("feed.dashboard.activity")}
         icon="Sparkles"
+        backgroundImage={activiteitBg}
+        backgroundOpacity={0.05}
       >
         {activityData.loading ? (
           <div className="space-y-2">
@@ -650,6 +667,8 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
         icon="TrendingUp"
         footerLink="#/news?feed=trending&trend_country=nl"
         footerText={t("feed.dashboard.viewAllTrends")}
+        backgroundImage={turkijeBg}
+        backgroundOpacity={0.1}
       >
         {trendsNl.loading ? (
           <div className="space-y-2">
@@ -699,6 +718,8 @@ export function DashboardOverview({ className }: DashboardOverviewProps) {
         icon="TrendingUp"
         footerLink="#/news?feed=trending&trend_country=tr"
         footerText={t("feed.dashboard.viewAllTrends")}
+        backgroundImage={nederlandBg}
+        backgroundOpacity={0.1}
       >
         {trendsTr.loading ? (
           <div className="space-y-2">

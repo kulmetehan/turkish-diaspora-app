@@ -90,6 +90,7 @@ function transformActivityItem(
     },
     locationName: item.location_name || null,
     locationId: item.location_id || null,
+    categoryKey: item.category_key || null,
     timestamp: item.created_at,
     contentText: getActivityMessage(item, t),
     noteContent,
