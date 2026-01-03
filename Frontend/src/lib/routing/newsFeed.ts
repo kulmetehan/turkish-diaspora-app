@@ -9,6 +9,7 @@ export type NewsFeedKey =
   | "origin"
   | "geo"
   | "trending"
+  | "music"
   | "bookmarks";
 
 export const NEWS_FEEDS: Array<{ key: NewsFeedKey; labelKey: string }> = [
@@ -17,6 +18,7 @@ export const NEWS_FEEDS: Array<{ key: NewsFeedKey; labelKey: string }> = [
   { key: "local", labelKey: "news.feeds.local" },
   { key: "origin", labelKey: "news.feeds.origin" },
   { key: "trending", labelKey: "news.feeds.trending" },
+  // Note: "music" feed is only available in FeedPage, not NewsPage
   { key: "bookmarks", labelKey: "news.feeds.bookmarks" },
 ];
 

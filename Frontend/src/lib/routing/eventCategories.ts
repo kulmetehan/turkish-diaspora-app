@@ -25,15 +25,24 @@ function getHashSearch(): URLSearchParams {
 
 function buildHash(params: URLSearchParams): string {
   if (typeof window === "undefined") {
-    return "#/";
+    return "#/events";
   }
-  const base = window.location.hash.split("?")[0] || "#/";
+  // Always use #/events as the base for event categories
+  // This ensures categories are written to the correct hash path
+  const base = "#/events";
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 }
 
 function updateHashParams(mutator: (params: URLSearchParams) => void) {
   if (typeof window === "undefined") return;
+  // Only update hash if we're on the events page
+  const currentHash = window.location.hash ?? "";
+  const hashPath = currentHash.split("?")[0];
+  if (hashPath !== "#/events" && hashPath !== "#/" && !currentHash.startsWith("#/events")) {
+    // Not on events page, don't write to hash
+    return;
+  }
   const params = getHashSearch();
   mutator(params);
   const nextHash = buildHash(params);
@@ -64,6 +73,15 @@ function normalizeCategoryValues(values: string[]): EventCategoryKey[] {
 }
 
 export function readEventCategoriesFromHash(): EventCategoryKey[] {
+  // Only read from hash if we're on the events page
+  if (typeof window !== "undefined") {
+    const currentHash = window.location.hash ?? "";
+    const hashPath = currentHash.split("?")[0];
+    if (hashPath !== "#/events" && hashPath !== "#/" && !currentHash.startsWith("#/events")) {
+      // Not on events page, return empty array
+      return [];
+    }
+  }
   const params = getHashSearch();
   const values = params.getAll(CATEGORIES_KEY);
   return normalizeCategoryValues(values);

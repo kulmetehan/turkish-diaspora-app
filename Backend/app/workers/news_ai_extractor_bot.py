@@ -237,10 +237,12 @@ async def _process_page(
     extracted_articles: List[ExtractedNewsItem] = []
     for idx, chunk in enumerate(chunks):
         try:
+            # Pass scrape timestamp to extraction service
             payload, _meta = extraction_service.extract_news_from_html(
                 html=chunk,
                 source_key=source.key,
                 page_url=page.page_url,
+                scrape_timestamp=page.fetched_at,
             )
         except Exception as exc:
             await update_news_page_processing_state(
@@ -256,7 +258,41 @@ async def _process_page(
                 error=str(exc),
             )
             return
-        extracted_articles.extend(payload.articles)
+        
+        # Validate and fix dates for each extracted article
+        validated_articles = []
+        for article in payload.articles:
+            original_date = article.published_at
+            corrected_date = NewsExtractionService.validate_and_fix_published_at(
+                article=article,
+                scrape_timestamp=page.fetched_at,
+                max_future_days=7,
+            )
+            
+            # If date was corrected, log it and create a new article with corrected date
+            if corrected_date != original_date:
+                logger.info(
+                    "news_ai_extractor_date_corrected",
+                    page_id=page.id,
+                    url=article.url,
+                    original_date=original_date.isoformat(),
+                    corrected_date=corrected_date.isoformat(),
+                    scrape_timestamp=page.fetched_at.isoformat(),
+                )
+                # Create a new article with corrected date
+                corrected_article = ExtractedNewsItem(
+                    title=article.title,
+                    snippet=article.snippet,
+                    published_at=corrected_date,
+                    url=article.url,
+                    image_url=article.image_url,
+                    source=article.source,
+                )
+                validated_articles.append(corrected_article)
+            else:
+                validated_articles.append(article)
+        
+        extracted_articles.extend(validated_articles)
 
     deduped = _dedupe_articles(extracted_articles)
     counters["articles_extracted_total"] += len(deduped)

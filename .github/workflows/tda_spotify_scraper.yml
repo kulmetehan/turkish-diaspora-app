@@ -1,0 +1,58 @@
+name: TDA Spotify Scraper
+
+# Scrapes Spotify Viral 50 playlists daily
+# Runs once per day at 02:00 UTC to keep tracks up-to-date
+on:
+  schedule:
+    - cron: "0 2 * * *"  # Daily at 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "tda-spotify-scraper"
+  cancel-in-progress: false
+
+jobs:
+  spotify-scraper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.11.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-py3.11.9-${{ hashFiles('Backend/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-py3.11.9-
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Run Spotify Scraper Worker
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+          PYTHONPATH: .
+        run: |
+          python -m app.workers.news_spotify_scraper_worker --once
+

@@ -1,4 +1,5 @@
 // Frontend/src/pages/FeedPage.tsx
+import { FavoriteTabs, type FavoriteFilter } from "@/components/favorites/FavoriteTabs";
 import { AppHeader } from "@/components/feed/AppHeader";
 import { DashboardOverview } from "@/components/feed/DashboardOverview";
 import type { FeedCardProps } from "@/components/feed/FeedCard";
@@ -6,22 +7,22 @@ import { FeedFilterTabs, type ActivityFilter } from "@/components/feed/FeedFilte
 import { FeedList } from "@/components/feed/FeedList";
 import { GreetingBlock } from "@/components/feed/GreetingBlock";
 import { ImageModal } from "@/components/feed/ImageModal";
-import { TimelineFeed } from "@/components/timeline/TimelineFeed";
+import { MusicFeed } from "@/components/feed/MusicFeed";
+import { WeekFeedbackCard } from "@/components/feed/WeekFeedbackCard";
 import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
-import { getActivityFeed, getActivityReactions, getCurrentUser, getOneCikanlar, getWeekFeedback, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type ReactionType } from "@/lib/api";
-import { WeekFeedbackCard } from "@/components/feed/WeekFeedbackCard";
-import { PeriodTabs, type PeriodFilter } from "@/components/onecikanlar/PeriodTabs";
 import { LeaderboardCards } from "@/components/onecikanlar/LeaderboardCards";
-import { FavoriteTabs, type FavoriteFilter } from "@/components/favorites/FavoriteTabs";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { PeriodTabs, type PeriodFilter } from "@/components/onecikanlar/PeriodTabs";
+import { TimelineFeed } from "@/components/timeline/TimelineFeed";
 import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useUserAuth } from "@/hooks/useUserAuth";
+import { getActivityFeed, getActivityReactions, getCurrentUser, getOneCikanlar, getWeekFeedback, toggleActivityBookmark, toggleActivityReaction, type ActivityItem, type ReactionType } from "@/lib/api";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
@@ -133,7 +134,7 @@ export default function FeedPage() {
     const query = hash.slice(queryIndex + 1);
     const params = new URLSearchParams(query);
     const filter = params.get("filter");
-    if (filter && ["all", "one_cikanlar", "check_in", "note", "poll_response", "favorite", "timeline", "prikbord"].includes(filter)) {
+    if (filter && ["all", "one_cikanlar", "check_in", "note", "poll_response", "favorite", "timeline", "prikbord", "music"].includes(filter)) {
       // Support both old "prikbord" and new "timeline" for backwards compatibility
       return (filter === "prikbord" ? "timeline" : filter) as ActivityFilter;
     }
@@ -158,14 +159,14 @@ export default function FeedPage() {
     week_start: string;
   } | null>(null);
   const [weekFeedbackDismissed, setWeekFeedbackDismissed] = useState(false);
-  
+
   // Öne Çıkanlar state
   const [period, setPeriod] = useState<PeriodFilter>("week");
   const [cityKey, setCityKey] = useState<string | null>(null);
   const [leaderboardData, setLeaderboardData] = useState<Awaited<ReturnType<typeof getOneCikanlar>> | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState<boolean>(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
-  
+
   // Favorieten state
   const [favoriteFilter, setFavoriteFilter] = useState<FavoriteFilter>("mijn");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -191,7 +192,7 @@ export default function FeedPage() {
         // Check localStorage to see if user has already seen feedback this week
         const storageKey = `week_feedback_${feedback.week_start}`;
         const hasSeen = localStorage.getItem(storageKey) === "true";
-        
+
         if (feedback.should_show && !hasSeen) {
           setWeekFeedback(feedback);
         } else {
@@ -288,8 +289,8 @@ export default function FeedPage() {
 
   // Reload when filter changes
   useEffect(() => {
-    // Only load activity feed if not showing Öne Çıkanlar, Timeline, or Prikbord and user is authenticated
-    if (activeFilter !== "one_cikanlar" && activeFilter !== "timeline" && activeFilter !== "prikbord" && isAuthenticated) {
+    // Only load activity feed if not showing Öne Çıkanlar, Timeline, Prikbord, or Music and user is authenticated
+    if (activeFilter !== "one_cikanlar" && activeFilter !== "timeline" && activeFilter !== "prikbord" && activeFilter !== "music" && isAuthenticated) {
       setFeedItems([]);
       setOffset(0);
       setHasMore(true);
@@ -452,75 +453,45 @@ export default function FeedPage() {
       <SeoHead {...seo} />
       <AppViewportShell variant="content">
         <div className="flex flex-col h-full relative">
-        {/* Red gradient overlay */}
-        <div
-          className="absolute inset-x-0 top-0 pointer-events-none z-0"
-          style={{
-            height: '25%',
-            background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
-          }}
-        />
-        <AppHeader onNotificationClick={handleNotificationClick} />
-        <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
-          <GreetingBlock userName={userName} />
-          <FeedFilterTabs activeFilter={activeFilter} onFilterChange={setActiveFilter} />
-          {activeFilter === "one_cikanlar" && (
-            <PeriodTabs 
-              activePeriod={period} 
-              onPeriodChange={handlePeriodChange} 
-              className="mt-2" 
-            />
-          )}
-          {activeFilter === "favorite" && (
-            <FavoriteTabs 
-              activeFilter={favoriteFilter} 
-              onFilterChange={setFavoriteFilter} 
-              className="mt-2" 
-            />
-          )}
-          {weekFeedback && !weekFeedbackDismissed && activeFilter !== "one_cikanlar" && (
-            <WeekFeedbackCard
-              message={weekFeedback.message}
-              onDismiss={() => {
-                // Save to localStorage that user has seen feedback this week
-                const storageKey = `week_feedback_${weekFeedback.week_start}`;
-                localStorage.setItem(storageKey, "true");
-                setWeekFeedbackDismissed(true);
-              }}
-              className="mt-2"
-            />
-          )}
-          {activeFilter === "one_cikanlar" && !isAuthenticated ? (
-            <FeedList
-              items={[]}
-              isLoading={false}
-              isLoadingMore={false}
-              hasMore={false}
-              emptyMessage=""
-              className="mt-2"
-              showLoginPrompt={true}
-              loginMessage="Log in om Öne Çıkanlar te zien"
-            />
-          ) : activeFilter === "one_cikanlar" ? (
-            <>
-              {leaderboardLoading && (
-                <div className="mt-4 text-center py-8 text-muted-foreground">Laden...</div>
-              )}
-              {leaderboardError && (
-                <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
-                  <p className="text-foreground">{leaderboardError}</p>
-                </div>
-              )}
-              {!leaderboardLoading && !leaderboardError && leaderboardData && (
-                <LeaderboardCards
-                  cards={leaderboardData.cards}
-                  onUserClick={handleUserClick}
-                  className="mt-2"
-                />
-              )}
-            </>
-          ) : activeFilter === "favorite" ? (
-            !isAuthenticated ? (
+          {/* Red gradient overlay */}
+          <div
+            className="absolute inset-x-0 top-0 pointer-events-none z-0"
+            style={{
+              height: '25%',
+              background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+            }}
+          />
+          <AppHeader onNotificationClick={handleNotificationClick} />
+          <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
+            <GreetingBlock userName={userName} />
+            <FeedFilterTabs activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+            {activeFilter === "one_cikanlar" && (
+              <PeriodTabs
+                activePeriod={period}
+                onPeriodChange={handlePeriodChange}
+                className="mt-2"
+              />
+            )}
+            {activeFilter === "favorite" && (
+              <FavoriteTabs
+                activeFilter={favoriteFilter}
+                onFilterChange={setFavoriteFilter}
+                className="mt-2"
+              />
+            )}
+            {weekFeedback && !weekFeedbackDismissed && activeFilter !== "one_cikanlar" && (
+              <WeekFeedbackCard
+                message={weekFeedback.message}
+                onDismiss={() => {
+                  // Save to localStorage that user has seen feedback this week
+                  const storageKey = `week_feedback_${weekFeedback.week_start}`;
+                  localStorage.setItem(storageKey, "true");
+                  setWeekFeedbackDismissed(true);
+                }}
+                className="mt-2"
+              />
+            )}
+            {activeFilter === "one_cikanlar" && !isAuthenticated ? (
               <FeedList
                 items={[]}
                 isLoading={false}
@@ -529,7 +500,74 @@ export default function FeedPage() {
                 emptyMessage=""
                 className="mt-2"
                 showLoginPrompt={true}
-                loginMessage="Log in om favorieten te zien"
+                loginMessage="Log in om Öne Çıkanlar te zien"
+              />
+            ) : activeFilter === "one_cikanlar" ? (
+              <>
+                {leaderboardLoading && (
+                  <div className="mt-4 text-center py-8 text-muted-foreground">Laden...</div>
+                )}
+                {leaderboardError && (
+                  <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
+                    <p className="text-foreground">{leaderboardError}</p>
+                  </div>
+                )}
+                {!leaderboardLoading && !leaderboardError && leaderboardData && (
+                  <LeaderboardCards
+                    cards={leaderboardData.cards}
+                    onUserClick={handleUserClick}
+                    className="mt-2"
+                  />
+                )}
+              </>
+            ) : activeFilter === "favorite" ? (
+              !isAuthenticated ? (
+                <FeedList
+                  items={[]}
+                  isLoading={false}
+                  isLoadingMore={false}
+                  hasMore={false}
+                  emptyMessage=""
+                  className="mt-2"
+                  showLoginPrompt={true}
+                  loginMessage="Log in om favorieten te zien"
+                />
+              ) : error ? (
+                <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
+                  <p className="text-foreground">{error}</p>
+                </div>
+              ) : (
+                <FeedList
+                  items={feedCardProps}
+                  isLoading={isLoading}
+                  isLoadingMore={isLoadingMore}
+                  hasMore={hasMore}
+                  onLoadMore={handleLoadMore}
+                  emptyMessage={
+                    favoriteFilter === "mijn"
+                      ? "Je hebt nog geen favorieten toegevoegd. Voeg locaties toe aan je favorieten!"
+                      : "Er zijn nog geen favorieten van anderen."
+                  }
+                  className="mt-2"
+                  showLoginPrompt={false}
+                />
+              )
+            ) : activeFilter === "all" ? (
+              <DashboardOverview className="mt-2" />
+            ) : activeFilter === "timeline" || activeFilter === "prikbord" ? (
+              <TimelineFeed className="mt-2" />
+            ) : activeFilter === "music" ? (
+              <MusicFeed className="mt-2" />
+            ) : !isAuthenticated ? (
+              <FeedList
+                items={[]}
+                isLoading={false}
+                isLoadingMore={false}
+                hasMore={false}
+                emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
+                className="mt-2"
+                showLoginPrompt={true}
+                loginMessage="Log in om je activiteit te zien"
               />
             ) : error ? (
               <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
@@ -542,55 +580,20 @@ export default function FeedPage() {
                 isLoadingMore={isLoadingMore}
                 hasMore={hasMore}
                 onLoadMore={handleLoadMore}
-                emptyMessage={
-                  favoriteFilter === "mijn"
-                    ? "Je hebt nog geen favorieten toegevoegd. Voeg locaties toe aan je favorieten!"
-                    : "Er zijn nog geen favorieten van anderen."
-                }
+                emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
                 className="mt-2"
                 showLoginPrompt={false}
               />
-            )
-          ) : activeFilter === "all" ? (
-            <DashboardOverview className="mt-2" />
-          ) : activeFilter === "timeline" || activeFilter === "prikbord" ? (
-            <TimelineFeed className="mt-2" />
-          ) : !isAuthenticated ? (
-            <FeedList
-              items={[]}
-              isLoading={false}
-              isLoadingMore={false}
-              hasMore={false}
-              emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
-              className="mt-2"
-              showLoginPrompt={true}
-              loginMessage="Log in om je activiteit te zien"
-            />
-          ) : error ? (
-            <div className="mt-4 rounded-xl border border-border/80 bg-card p-5 text-center shadow-soft">
-              <p className="text-foreground">{error}</p>
-            </div>
-          ) : (
-            <FeedList
-              items={feedCardProps}
-              isLoading={isLoading}
-              isLoadingMore={isLoadingMore}
-              hasMore={hasMore}
-              onLoadMore={handleLoadMore}
-              emptyMessage="Er is nog geen activiteit. Begin met check-ins, reacties of notities!"
-              className="mt-2"
-              showLoginPrompt={false}
-            />
-          )}
+            )}
+          </div>
+          <FooterTabs />
         </div>
-        <FooterTabs />
-      </div>
-      <ImageModal
-        imageUrl={imageModalUrl}
-        open={imageModalOpen}
-        onOpenChange={setImageModalOpen}
-      />
-    </AppViewportShell>
+        <ImageModal
+          imageUrl={imageModalUrl}
+          open={imageModalOpen}
+          onOpenChange={setImageModalOpen}
+        />
+      </AppViewportShell>
     </>
   );
 }

@@ -26,8 +26,9 @@ function createCacheKey(
   categoriesKey: string,
   citiesKey: string,
   trendCountryKey: string,
+  musicCountryKey: string,
 ) {
-  return `${feed}:${trendCountryKey}:${pageSize}:${categoriesKey}:${citiesKey}`;
+  return `${feed}:${trendCountryKey}:${musicCountryKey}:${pageSize}:${categoriesKey}:${citiesKey}`;
 }
 
 export interface UseNewsFeedOptions {
@@ -37,6 +38,7 @@ export interface UseNewsFeedOptions {
   citiesNl?: string[];
   citiesTr?: string[];
   trendCountry?: "nl" | "tr";
+  musicCountry?: "nl" | "tr";
 }
 
 export interface UseNewsFeedResult {
@@ -61,6 +63,7 @@ export function useNewsFeed({
   citiesNl,
   citiesTr,
   trendCountry = "nl",
+  musicCountry = "tr",
 }: UseNewsFeedOptions = {}): UseNewsFeedResult {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -89,7 +92,8 @@ export function useNewsFeed({
     return `${nl.sort().join(",")}|${tr.sort().join(",")}`;
   }, [citiesNl, citiesTr]);
   const trendCountryKey = feed === "trending" ? trendCountry : "";
-  const cacheKey = createCacheKey(feed, pageSize, categoriesKey, citiesKey, trendCountryKey);
+  const musicCountryKey = feed === "music" ? musicCountry : "";
+  const cacheKey = createCacheKey(feed, pageSize, categoriesKey, citiesKey, trendCountryKey, musicCountryKey);
 
   const hasMore = useMemo(() => {
     if (total === null) return false;
@@ -175,6 +179,7 @@ export function useNewsFeed({
           citiesNl: citiesNl && citiesNl.length ? citiesNl : undefined,
           citiesTr: citiesTr && citiesTr.length ? citiesTr : undefined,
           trendCountry: feed === "trending" ? trendCountry : undefined,
+          musicCountry: feed === "music" ? musicCountry : undefined,
           signal: controller.signal,
         });
 
@@ -235,7 +240,7 @@ export function useNewsFeed({
         }
       }
     },
-    [cacheKey, feed, normalizedCategories, pageSize, citiesNl, citiesTr, trendCountry],
+    [cacheKey, feed, normalizedCategories, pageSize, citiesNl, citiesTr, trendCountry, musicCountry],
   );
 
   useEffect(() => {

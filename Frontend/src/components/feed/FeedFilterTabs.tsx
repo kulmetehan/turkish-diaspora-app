@@ -3,7 +3,7 @@ import type { ActivityItem } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
 import { useTranslation } from "@/hooks/useTranslation";
 
-export type ActivityFilter = "all" | "one_cikanlar" | "timeline" | ActivityItem["activity_type"];
+export type ActivityFilter = "all" | "one_cikanlar" | "timeline" | "music" | ActivityItem["activity_type"];
 
 export interface FeedFilterTabsProps {
   activeFilter: ActivityFilter;
@@ -16,6 +16,7 @@ const FILTERS: Array<{ labelKey: string; value: ActivityFilter }> = [
   { labelKey: "feed.filters.all", value: "all" },
   { labelKey: "feed.filters.timeline", value: "timeline" },
   { labelKey: "feed.filters.oneCikanlar", value: "one_cikanlar" },
+  { labelKey: "feed.filters.music", value: "music" },
   // { labelKey: "feed.filters.favorite", value: "favorite" }, // Temporarily hidden - will be re-enabled later
 ];
 

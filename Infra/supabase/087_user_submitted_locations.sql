@@ -42,3 +42,5 @@ COMMENT ON COLUMN public.user_submitted_locations.status IS 'Submission status: 
 
 
 
+
+

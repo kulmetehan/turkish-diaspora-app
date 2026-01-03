@@ -15,7 +15,9 @@ class LeaderboardUser(BaseModel):
     """User entry in a leaderboard card."""
     user_id: str
     name: Optional[str] = None
+    avatar_url: Optional[str] = None
     role: Optional[str] = None
+    primary_role: Optional[str] = None  # Primary role for image display
     context: Optional[str] = None  # Additional context (e.g., "Söz over Restaurant X")
 
 
@@ -76,6 +78,22 @@ def _get_category_title(category: str) -> str:
     return titles.get(category, category)
 
 
+def _normalize_user_name(user_name: Optional[str], user_id: Optional[str]) -> Optional[str]:
+    """
+    Normalize user_name: if it equals user_id (UUID), treat it as None.
+    This fixes cases where display_name was incorrectly set to user_id.
+    Returns None if no valid name is available.
+    """
+    if not user_name or not user_id:
+        return None
+    
+    # If display_name equals user_id, treat it as if no username was set
+    if user_name.strip() == str(user_id):
+        return None
+    
+    return user_name.strip() if user_name.strip() else None
+
+
 @router.get("/öne-çıkanlar", response_model=OneCikanlarResponse)
 async def get_one_cikanlar(
     period: Literal["today", "week", "month"] = Query(
@@ -112,6 +130,7 @@ async def get_one_cikanlar(
             le.rank,
             le.context_data,
             up.display_name,
+            up.avatar_url,
             ur.primary_role,
             ur.secondary_role
         FROM leaderboard_entries le
@@ -134,6 +153,16 @@ async def get_one_cikanlar(
         category = row.get("category")
         if category not in cards_dict:
             cards_dict[category] = []
+        
+        user_id = row.get("user_id")
+        display_name = row.get("display_name")
+        
+        # Normalize display_name (filter out UUIDs and empty names)
+        normalized_name = _normalize_user_name(display_name, user_id)
+        
+        # Skip users without a valid display name (they shouldn't appear in leaderboards)
+        if not normalized_name:
+            continue
         
         # Get user role from joined data
         role = None
@@ -158,9 +187,11 @@ async def get_one_cikanlar(
         
         cards_dict[category].append(
             LeaderboardUser(
-                user_id=str(row.get("user_id")),
-                name=row.get("display_name"),
+                user_id=str(user_id),
+                name=normalized_name,
+                avatar_url=row.get("avatar_url"),
                 role=role,
+                primary_role=primary_role,
                 context=context,
             )
         )

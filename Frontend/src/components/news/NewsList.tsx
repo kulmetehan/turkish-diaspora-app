@@ -114,10 +114,11 @@ export function NewsList({
 
   return (
     <div className={cn("space-y-4", className)}>
-      {items.map((item) => (
+      {items.map((item, index) => (
         <NewsCard
           key={item.id}
           item={item}
+          index={index}
           isBookmarked={isBookmarked?.(item.id)}
           onToggleBookmark={toggleBookmark ? () => toggleBookmark(item) : undefined}
         />

@@ -23,7 +23,7 @@ export function NewsCountrySelector({
         msOverflowStyle: "none", // IE/Edge
       }}
     >
-      {(["nl", "tr"] as const).map((country) => {
+      {(["tr", "nl"] as const).map((country) => {
         const isActive = value === country;
         return (
           <button
