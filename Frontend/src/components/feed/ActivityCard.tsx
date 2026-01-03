@@ -12,13 +12,25 @@ interface ActivityCardProps {
 }
 
 function formatActivityTime(value: string): string {
+  if (!value) {
+    console.warn("formatActivityTime: Empty value provided");
+    return "onbekend";
+  }
+
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return value;
+    console.warn("formatActivityTime: Invalid date value", value);
+    return "onbekend";
   }
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
+  
+  // Handle negative differences (future dates)
+  if (diffMs < 0) {
+    return "zojuist";
+  }
+
   const diffSeconds = Math.floor(diffMs / 1000);
   const diffMinutes = Math.floor(diffSeconds / 60);
   const diffHours = Math.floor(diffMinutes / 60);
@@ -39,13 +51,14 @@ function formatActivityTime(value: string): string {
         month: "short",
         year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
       }).format(date);
-    } catch {
+    } catch (error) {
+      console.warn("formatActivityTime: Intl.DateTimeFormat failed", error);
       return date.toLocaleDateString("nl-NL");
     }
   }
 }
 
-function getActivityMessage(item: ActivityItem): string {
+function getActivityMessage(item: ActivityItem): string | null {
   const locationName = item.location_name || "een locatie";
 
   switch (item.activity_type) {
@@ -73,8 +86,12 @@ function getActivityMessage(item: ActivityItem): string {
     case "bulletin_post":
       const title = (item.payload?.title as string) || "";
       return `heeft een advertentie geplaatst: "${title}"`;
+    case "event":
+      return `heeft een evenement gedeeld`;
     default:
-      return `heeft activiteit op ${locationName}`;
+      // Return null for unknown activity types - will be filtered out
+      console.warn("getActivityMessage: Unknown activity type", item.activity_type);
+      return null;
   }
 }
 
@@ -83,16 +100,18 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
   const timeLabel = useMemo(() => formatActivityTime(item.created_at), [item.created_at]);
   const activityMessage = useMemo(() => getActivityMessage(item), [item]);
 
+  // Don't render if no user or no valid message
+  if (!item.user || !activityMessage) {
+    return null;
+  }
+
   const handleClick = () => {
-    if (item.activity_type === "bulletin_post") {
-      navigate("/feed", { state: { filter: "timeline" } });
-    } else if (item.location_id) {
-      navigate(`/locations/${item.location_id}`);
-    }
+    // All activity items should navigate to timeline tab
+    navigate("/feed", { state: { filter: "timeline" } });
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (event) => {
-    if ((event.key === "Enter" || event.key === " ") && (item.location_id || item.activity_type === "bulletin_post")) {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       handleClick();
     }
@@ -107,18 +126,16 @@ export function ActivityCard({ item, className }: ActivityCardProps) {
 
   return (
     <div
-      role={item.location_id || item.activity_type === "bulletin_post" ? "button" : undefined}
-      tabIndex={item.location_id || item.activity_type === "bulletin_post" ? 0 : undefined}
+      role="button"
+      tabIndex={0}
       aria-label={item.activity_type === "bulletin_post"
         ? `Ga naar advertentie: ${item.payload?.title || ''}`
-        : (item.location_id ? `Ga naar locatie: ${item.location_name}` : undefined)}
-      onClick={item.location_id || item.activity_type === "bulletin_post" ? handleClick : undefined}
-      onKeyDown={item.location_id || item.activity_type === "bulletin_post" ? handleKeyDown : undefined}
+        : `Ga naar timeline voor activiteit`}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       className={cn(
         "flex items-start gap-3 rounded-xl border border-border/80 bg-card p-4 shadow-soft transition-all",
-        item.location_id
-          ? "cursor-pointer hover:border-border hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2"
-          : "",
+        "cursor-pointer hover:border-border hover:shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
         className,
       )}
     >

@@ -1006,6 +1006,7 @@ export interface ActivityItem {
   activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite" | "bulletin_post" | "event";
   location_id: number | null;
   location_name: string | null;
+  category_key?: string | null;
   payload: Record<string, any>;
   created_at: string;
   media_url?: string | null;

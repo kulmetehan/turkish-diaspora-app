@@ -18,3 +18,5 @@ COMMENT ON COLUMN public.shared_links.post_type IS 'Type of post: link (shared l
 -- Note: Text posts will use platform='other' (already exists in platform enum)
 -- No need to add 'text' to platform enum as 'other' is appropriate for text posts
 
+
+

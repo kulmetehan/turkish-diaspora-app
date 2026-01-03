@@ -378,6 +378,7 @@ export default function NewsPage() {
               onEditCities={openCityModal}
               trendCountry={trendCountry}
               onTrendCountryChange={setTrendCountry}
+              scrollContainerRef={scrollContainerRef}
             />
           )}
         </div>

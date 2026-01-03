@@ -149,9 +149,11 @@ export function ActivityFeed({ className, activityType }: ActivityFeedProps) {
 
   return (
     <div className={cn("space-y-3", className)}>
-      {items.map((item) => (
-        <ActivityCard key={item.id} item={item} />
-      ))}
+      {items
+        .filter(item => item.user !== null && item.user !== undefined)
+        .map((item) => (
+          <ActivityCard key={item.id} item={item} />
+        ))}
       {hasMore && (
         <div className="flex justify-center pt-2">
           {isLoadingMore ? (

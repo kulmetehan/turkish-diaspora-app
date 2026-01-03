@@ -29,7 +29,7 @@ type TimelineItem =
   | { type: "poll"; data: Poll; timestamp: string };
 
 // Helper function to get activity message
-function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record<string, string>) => string): string {
+function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record<string, string>) => string): string | null {
   const locationName = item.location_name || "een locatie";
 
   switch (item.activity_type) {
@@ -51,8 +51,19 @@ function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record
         .replace("{location}", locationName);
     case "note":
       return t("feed.card.activity.note").replace("{location}", locationName);
+    case "poll_response":
+      return t("feed.card.activity.pollResponse");
+    case "favorite":
+      return t("feed.card.activity.favorite").replace("{location}", locationName);
+    case "bulletin_post":
+      const title = (item.payload?.title as string) || "";
+      return t("feed.card.activity.bulletinPost").replace("{title}", title);
+    case "event":
+      return t("feed.card.activity.event").replace("{location}", locationName);
     default:
-      return t("feed.card.activity.default").replace("{location}", locationName);
+      // Return null for unknown activity types - will be filtered out
+      console.warn("getActivityMessage: Unknown activity type", item.activity_type);
+      return null;
   }
 }
 
@@ -65,7 +76,13 @@ function transformActivityItem(
   onImageClick?: (imageUrl: string) => void,
   onLocationClick?: (locationId: number) => void,
   onUserClick?: (userId: string) => void
-): FeedCardProps {
+): FeedCardProps | null {
+  // Don't transform items without user or with null message
+  const activityMessage = getActivityMessage(item, t);
+  if (!item.user || !activityMessage) {
+    return null;
+  }
+
   const noteContent = item.activity_type === "note"
     ? (item.payload?.note_preview as string) || (item.payload?.content as string) || null
     : null;
@@ -81,8 +98,9 @@ function transformActivityItem(
     },
     locationName: item.location_name || null,
     locationId: item.location_id || null,
+    categoryKey: item.category_key || null,
     timestamp: item.created_at,
-    contentText: getActivityMessage(item, t),
+    contentText: activityMessage,
     noteContent,
     pollId: null,
     mediaUrl: item.media_url || undefined,
@@ -286,17 +304,19 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
       });
     }
     
-    // Add activities (filtered by sub-filter)
-    activities.forEach(activity => {
-      if (subFilter === "all") {
-        // Show all activities when filter is "all"
-        items.push({ type: "activity", data: activity, timestamp: activity.created_at });
-      } else if (subFilter === "check_ins" && activity.activity_type === "check_in") {
-        items.push({ type: "activity", data: activity, timestamp: activity.created_at });
-      } else if (subFilter === "notes" && activity.activity_type === "note") {
-        items.push({ type: "activity", data: activity, timestamp: activity.created_at });
-      }
-    });
+    // Add activities (filtered by sub-filter and user presence)
+    activities
+      .filter(activity => activity.user !== null && activity.user !== undefined)
+      .forEach(activity => {
+        if (subFilter === "all") {
+          // Show all activities when filter is "all"
+          items.push({ type: "activity", data: activity, timestamp: activity.created_at });
+        } else if (subFilter === "check_ins" && activity.activity_type === "check_in") {
+          items.push({ type: "activity", data: activity, timestamp: activity.created_at });
+        } else if (subFilter === "notes" && activity.activity_type === "note") {
+          items.push({ type: "activity", data: activity, timestamp: activity.created_at });
+        }
+      });
     
     // Add polls (if sub-filter allows)
     if (subFilter === "all" || subFilter === "polls") {
@@ -556,6 +576,10 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
                   handleLocationClick,
                   handleUserClick
                 );
+                // Skip items that couldn't be transformed (no user or invalid activity type)
+                if (!feedCardProps) {
+                  return null;
+                }
                 return <FeedCard key={`activity-${item.data.id}`} {...feedCardProps} />;
               } else if (item.type === "poll") {
                 const hasResponded = item.data.user_has_responded || respondedPolls.has(item.data.id);
