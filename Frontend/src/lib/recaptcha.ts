@@ -97,6 +97,40 @@ export function loadRecaptchaScript(): Promise<void> {
       return;
     }
     
+    // Temporarily suppress reCAPTCHA console errors
+    const suppressStart = Date.now();
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+    
+    const suppressRecaptchaErrors = (args: any[], originalFn: typeof console.error) => {
+      const elapsed = Date.now() - suppressStart;
+      // Only suppress for first 3 seconds after script load starts
+      if (elapsed < 3000) {
+        const message = args[0]?.toString() || '';
+        if (
+          message.includes('parentNode') ||
+          message.includes('recaptcha') ||
+          message.includes('private-token') ||
+          message.includes('Unrecognized feature') ||
+          message.includes('Cannot read properties')
+        ) {
+          return; // Suppress these errors
+        }
+      }
+      originalFn(...args);
+    };
+    
+    console.error = (...args: any[]) => suppressRecaptchaErrors(args, originalConsoleError);
+    console.warn = (...args: any[]) => suppressRecaptchaErrors(args, originalConsoleWarn);
+    
+    // Restore console functions after script loads
+    const restoreConsole = () => {
+      setTimeout(() => {
+        console.error = originalConsoleError;
+        console.warn = originalConsoleWarn;
+      }, 3000);
+    };
+    
     // Create and load script
     const script = document.createElement('script');
     script.src = `https://www.google.com/recaptcha/enterprise.js?render=${siteKey}`;
@@ -104,6 +138,8 @@ export function loadRecaptchaScript(): Promise<void> {
     script.defer = true;
     
     script.onload = () => {
+      restoreConsole();
+      
       // Wait for grecaptcha to be available
       const checkInterval = setInterval(() => {
         if (window.grecaptcha?.enterprise) {
@@ -122,10 +158,30 @@ export function loadRecaptchaScript(): Promise<void> {
     };
     
     script.onerror = () => {
+      restoreConsole();
       reject(new Error('Failed to load reCAPTCHA Enterprise script'));
     };
     
-    document.head.appendChild(script);
+    // Ensure head exists before appending
+    if (document.head) {
+      document.head.appendChild(script);
+    } else {
+      // Wait for head to be available
+      const waitForHead = setInterval(() => {
+        if (document.head) {
+          clearInterval(waitForHead);
+          document.head.appendChild(script);
+        }
+      }, 100);
+      
+      setTimeout(() => {
+        clearInterval(waitForHead);
+        restoreConsole();
+        if (!document.head) {
+          reject(new Error('Document head not available'));
+        }
+      }, 5000);
+    }
   });
 }
 

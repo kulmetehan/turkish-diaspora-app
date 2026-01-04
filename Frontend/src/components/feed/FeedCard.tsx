@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { ActivityItem, ReactionType } from "@/lib/api";
-import { deleteAdminCheckIn, deleteAdminNote } from "@/lib/apiAdmin";
+import { deleteAdminCheckIn, deleteAdminNote, deleteAdminPoll } from "@/lib/apiAdmin";
 import { labelDisplayName } from "@/lib/labelDisplay";
 import { roleDisplayName } from "@/lib/roleDisplay";
 import { cn } from "@/lib/ui/cn";
@@ -50,6 +50,7 @@ export interface FeedCardProps {
   contentText: string;
   noteContent?: string | null;
   pollId?: number | null;
+  checkInId?: number | null;
   mediaUrl?: string | null;
   likeCount: number;
   isLiked: boolean;
@@ -216,10 +217,10 @@ export function FeedCard({
 
   const handleUserClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (user.id && onUserClick) {
+    if (!user.id) return;
+    
+    if (onUserClick) {
       onUserClick(user.id);
-    } else if (user.id) {
-      navigate("/account");
     }
   };
 
@@ -231,11 +232,16 @@ export function FeedCard({
 
     try {
       if (type === "check_in") {
-        await deleteAdminCheckIn(id);
+        // Use checkInId from payload if available, otherwise fall back to activity_stream.id
+        const checkInIdToDelete = checkInId || id;
+        await deleteAdminCheckIn(checkInIdToDelete);
         toast.success("Check-in verwijderd");
       } else if (type === "note") {
         await deleteAdminNote(id);
         toast.success("Notitie verwijderd");
+      } else if (type === "poll" && pollId) {
+        await deleteAdminPoll(pollId);
+        toast.success("Poll verwijderd");
       }
       // Refresh page or call callback if provided
       window.location.reload();
@@ -322,7 +328,7 @@ export function FeedCard({
         </div>
 
         {/* Admin Delete Button */}
-        {isAdmin && (type === "check_in" || type === "note") && (
+        {isAdmin && (type === "check_in" || type === "note" || (type === "poll" && pollId)) && (
           <Button
             variant="ghost"
             size="sm"
@@ -389,7 +395,12 @@ export function FeedCard({
                 />
                 <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
               </div>
-              {pollId && <PollPreview pollId={pollId} />}
+              {pollId && <PollPreview pollId={pollId} hasResponded={true} />}
+            </div>
+          ) : type === "poll" ? (
+            <div className="space-y-1">
+              <p className="text-sm font-gilroy font-normal text-foreground">{contentText}</p>
+              {pollId && <PollPreview pollId={pollId} hasResponded={false} />}
             </div>
           ) : type === "check_in" ? (
             <div className="space-y-1">

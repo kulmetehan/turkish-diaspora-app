@@ -3,6 +3,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/ui/cn";
 import type { Poll, PollStats } from "@/lib/api";
+import { deletePoll } from "@/lib/api";
+import { useUserAuth } from "@/hooks/useUserAuth";
+import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import stemmenBg from "@/assets/stemmen.png";
 
 export interface PollCardProps {
@@ -13,6 +17,7 @@ export interface PollCardProps {
   hasResponded?: boolean;
   onOptionSelect?: (pollId: number, optionId: number) => void;
   onSubmitVote?: (pollId: number) => void;
+  onDelete?: () => void;
   className?: string;
 }
 
@@ -24,9 +29,31 @@ export function PollCard({
   hasResponded,
   onOptionSelect,
   onSubmitVote,
+  onDelete,
   className,
 }: PollCardProps) {
+  const { userId, isAuthenticated } = useUserAuth();
   const hasResults = hasResponded ?? poll.user_has_responded;
+  const isOwner = isAuthenticated && poll.created_by && userId && poll.created_by === userId;
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Weet je zeker dat je deze poll wilt verwijderen?")) {
+      return;
+    }
+
+    try {
+      await deletePoll(poll.id);
+      toast.success("Poll verwijderd");
+      onDelete?.();
+      // Refresh page to update feed
+      window.location.reload();
+    } catch (err: any) {
+      toast.error("Kon poll niet verwijderen", {
+        description: err.message || "Er is een fout opgetreden",
+      });
+    }
+  };
 
   return (
     <Card className={cn("relative p-4 overflow-hidden", className)}>
@@ -44,9 +71,21 @@ export function PollCard({
 
       {/* Content Layer - positioned above background */}
       <div className="relative z-10 space-y-3">
-        <div>
-          <h3 className="font-gilroy font-semibold text-lg text-foreground">{poll.title}</h3>
-          <p className="text-sm text-muted-foreground mt-1">{poll.question}</p>
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <h3 className="font-gilroy font-semibold text-lg text-foreground">{poll.title}</h3>
+            <p className="text-sm text-muted-foreground mt-1">{poll.question}</p>
+          </div>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleDelete}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {hasResults ? (

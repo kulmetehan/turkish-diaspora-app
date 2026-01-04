@@ -26,7 +26,7 @@ class ActivityUser(BaseModel):
 
 class ActivityItem(BaseModel):
     id: int
-    activity_type: str  # 'check_in', 'reaction', 'note', 'poll_response', 'favorite', 'bulletin_post', 'event'
+    activity_type: str  # 'check_in', 'reaction', 'note', 'poll_response', 'favorite', 'bulletin_post', 'event', 'poll'
     location_id: Optional[int]
     location_name: Optional[str]
     category_key: Optional[str] = None  # Category of the location (for check-ins)
@@ -111,14 +111,15 @@ def _normalize_user_name(user_name: Optional[str], user_id: Optional[str]) -> Op
 async def get_own_activity(
     limit: int = Query(50, le=100),
     offset: int = Query(0, ge=0),
-    activity_type: Optional[str] = Query(None, description="Filter by activity type (check_in, reaction, note, poll_response, favorite, bulletin_post, event)"),
+    activity_type: Optional[str] = Query(None, description="Filter by activity type (check_in, reaction, note, poll_response, favorite, bulletin_post, event, poll)"),
     client_id: Optional[str] = Depends(get_client_id),
     user: Optional[User] = Depends(get_current_user_optional),
 ):
     """Get activity feed - shows activity from authenticated users only (no anonymous users).
     
     Only returns activities with known activity types: check_in, reaction, note, poll_response, 
-    favorite, bulletin_post, event. Includes user's like/bookmark status."""
+    favorite, bulletin_post, event, poll. Excludes poll_response from general feed (but includes 
+    when activity_type filter is used for profile pages). Includes user's like/bookmark status."""
     require_feature("check_ins_enabled")  # Or create separate flag
     
     user_id = user.user_id if user else None
@@ -134,12 +135,17 @@ async def get_own_activity(
     conditions.append("ast.actor_id IS NOT NULL")
     
     # Filter out unknown activity types - only show known types
-    valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post", "event"]
+    valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post", "event", "poll"]
     # Build array parameter for activity_type filter
     type_placeholders = ", ".join([f"${i}" for i in range(param_num, param_num + len(valid_types))])
     conditions.append(f"ast.activity_type = ANY(ARRAY[{type_placeholders}])")
     params.extend(valid_types)
     param_num += len(valid_types)
+    
+    # Exclude poll_response from general feed (but keep it for profile pages when activity_type filter is used)
+    # Only exclude if no specific activity_type filter is set (general timeline)
+    if not activity_type:
+        conditions.append("ast.activity_type != 'poll_response'")
     
     # Optional activity_type filter
     if activity_type:

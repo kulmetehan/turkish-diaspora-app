@@ -153,6 +153,7 @@ export async function apiFetch<T>(
             // These are typically optional endpoints that may return 401 for unauthenticated users
             const optionalAuthEndpoints = [
               "/api/v1/users/me", // All /me endpoints are optional or may return 401 for unauthenticated users
+              "/api/v1/polls", // Poll creation requires auth but shouldn't log out user on 401
             ];
             const isOptionalEndpoint = optionalAuthEndpoints.some(endpoint => path.startsWith(endpoint));
             
@@ -974,6 +975,41 @@ export async function getLocationById(locationId: number): Promise<LocationMarke
 }
 
 /**
+ * Create a new poll (user-created).
+ */
+export interface PollOptionCreate {
+  option_text: string;
+  display_order: number;
+}
+
+export interface PollCreateRequest {
+  title: string;
+  question: string;
+  poll_type?: "single_choice" | "multi_choice";
+  options: PollOptionCreate[];
+  targeting_city_key?: string | null;
+}
+
+export async function createPoll(poll: PollCreateRequest): Promise<Poll> {
+  return authFetch<Poll>("/api/v1/polls", {
+    method: "POST",
+    body: JSON.stringify(poll),
+  });
+}
+
+/**
+ * Submit a poll response.
+ */
+/**
+ * Delete a poll (user can only delete their own polls).
+ */
+export async function deletePoll(pollId: number): Promise<{ ok: boolean; poll_id: number }> {
+  return authFetch<{ ok: boolean; poll_id: number }>(`/api/v1/polls/${pollId}`, {
+    method: "DELETE",
+  });
+}
+
+/**
  * Submit a poll response.
  */
 export async function submitPollResponse(pollId: number, optionId: number): Promise<{ ok: boolean; response_id: number }> {
@@ -997,13 +1033,116 @@ export async function getPollStats(pollId: number): Promise<PollStats> {
 }
 
 // ============================================================================
+// User Profile Types & Functions
+// ============================================================================
+
+export interface SocialAccount {
+  id: number;
+  platform: string;
+  username: string;
+  url: string;
+  display_order: number;
+}
+
+export interface UserStats {
+  check_ins_count: number;
+  notes_count: number;
+  favorites_count: number;
+  reactions_count: number;
+  polls_responded: number;
+}
+
+export interface UserProfileDetail {
+  user_id: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  city_key: string | null;
+  primary_role: string | null;
+  secondary_role: string | null;
+  created_at: string | null;
+  last_seen_at: string | null;
+  stats: UserStats;
+  social_accounts: SocialAccount[];
+}
+
+export interface SocialAccountCreate {
+  platform: string;
+  username: string;
+  url: string;
+  display_order?: number;
+}
+
+/**
+ * Get detailed user profile for overlay display.
+ */
+export async function getUserProfileDetail(userId: string): Promise<UserProfileDetail> {
+  return apiFetch<UserProfileDetail>(`/api/v1/users/${userId}/profile-detail`);
+}
+
+/**
+ * Get activity feed for a specific user.
+ */
+export async function getUserActivity(
+  userId: string,
+  options?: { limit?: number; offset?: number; activity_type?: string }
+): Promise<ActivityItem[]> {
+  const params = new URLSearchParams();
+  if (options?.limit) params.set('limit', options.limit.toString());
+  if (options?.offset) params.set('offset', options.offset.toString());
+  if (options?.activity_type) params.set('activity_type', options.activity_type);
+  
+  return apiFetch<ActivityItem[]>(`/api/v1/users/${userId}/activity?${params}`);
+}
+
+/**
+ * Get current user's social accounts.
+ */
+export async function getMySocialAccounts(): Promise<SocialAccount[]> {
+  return authFetch<SocialAccount[]>('/api/v1/users/me/social-accounts');
+}
+
+/**
+ * Create a new social account.
+ */
+export async function createSocialAccount(account: SocialAccountCreate): Promise<SocialAccount> {
+  return authFetch<SocialAccount>('/api/v1/users/me/social-accounts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(account),
+  });
+}
+
+/**
+ * Update a social account.
+ */
+export async function updateSocialAccount(
+  accountId: number,
+  update: Partial<SocialAccountCreate>
+): Promise<SocialAccount> {
+  return authFetch<SocialAccount>(`/api/v1/users/me/social-accounts/${accountId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update),
+  });
+}
+
+/**
+ * Delete a social account.
+ */
+export async function deleteSocialAccount(accountId: number): Promise<{ ok: boolean }> {
+  return authFetch<{ ok: boolean }>(`/api/v1/users/me/social-accounts/${accountId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================================
 // Activity Feed API
 // ============================================================================
 
 export interface ActivityItem {
   is_promoted?: boolean;
   id: number;
-  activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite" | "bulletin_post" | "event";
+  activity_type: "check_in" | "reaction" | "note" | "poll_response" | "favorite" | "bulletin_post" | "event" | "poll";
   location_id: number | null;
   location_name: string | null;
   category_key?: string | null;
@@ -2232,6 +2371,7 @@ export interface LeaderboardUser {
 export interface LeaderboardCard {
   category: string;
   title: string;
+  description: string | null;
   users: LeaderboardUser[];
 }
 

@@ -17,7 +17,9 @@ from app.core.logging import get_logger
 
 logger = get_logger().bind(module="news_trending_spotify")
 
-_DEFAULT_CACHE_TTL_SECONDS = int(os.getenv("SPOTIFY_CACHE_TTL_SECONDS", "180"))
+# Increase cache TTL to 30 minutes (1800 seconds) to ensure tracks persist longer
+# This helps when worker and API run in separate processes
+_DEFAULT_CACHE_TTL_SECONDS = int(os.getenv("SPOTIFY_CACHE_TTL_SECONDS", "1800"))
 _cache: dict[str, dict[str, object]] = {}
 
 
@@ -52,10 +54,10 @@ async def fetch_spotify_tracks(limit: int = 20, country: str = "nl") -> SpotifyR
     bucket = _cache.setdefault(country_key, {"expires_at": 0.0, "result": None})
     now = time.time()
     
-    # Check cache (3 minutes TTL)
+    # Check cache (30 minutes TTL by default)
     if bucket.get("result") and now < float(bucket.get("expires_at", 0)):
         cached_result: SpotifyResult = bucket["result"]
-        logger.debug("spotify_cache_hit", country=country_key, tracks_count=len(cached_result.tracks))
+        logger.info("spotify_cache_hit", country=country_key, tracks_count=len(cached_result.tracks), cache_age_seconds=int(now - bucket.get("cached_at", now)))
         return SpotifyResult(
             tracks=cached_result.tracks[:limit],
             unavailable_reason=cached_result.unavailable_reason,
@@ -82,12 +84,15 @@ async def fetch_spotify_tracks(limit: int = 20, country: str = "nl") -> SpotifyR
     
     # Cache the result
     bucket["result"] = result
+    bucket["cached_at"] = now  # Track when we cached this
     if result.unavailable_reason:
         # Cache unavailable results for shorter time (30 seconds)
         bucket["expires_at"] = now + 30
+        logger.warning("spotify_cached_unavailable", country=country_key, reason=result.unavailable_reason)
     else:
-        # Cache successful results for 3 minutes
+        # Cache successful results for 30 minutes (configurable via env var)
         bucket["expires_at"] = now + _DEFAULT_CACHE_TTL_SECONDS
+        logger.info("spotify_cached_success", country=country_key, tracks_count=len(result.tracks), ttl_seconds=_DEFAULT_CACHE_TTL_SECONDS)
 
     return SpotifyResult(
         tracks=result.tracks[:limit],

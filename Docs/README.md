@@ -85,10 +85,18 @@ Curated entry points into the Turkish Diaspora App documentation set. Each secti
 ## Meta & Tracking
 
 - [`Docs/docs_inventory.md`](./docs_inventory.md) — full inventory with statuses.
-- [`Docs/NEXT_STEPS.md`](./NEXT_STEPS.md) — actionable next steps and implementation guide for continuing development.
 - [`Docs/roadmap/index.md`](./roadmap/index.md) — roadmap artifacts index and relationships.
-- [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) — overall project status and timeline.
+- [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) — overall project status and timeline (authoritative source).
 - [`Docs/docs_gap_analysis.md`](./docs_gap_analysis.md) — open gaps and planned updates per doc.
 - [`PROJECT_CONTEXT.md`](../PROJECT_CONTEXT.md) — historical context and architecture narrative.
+
+## Archived Documentation
+
+Outdated or completed documentation has been moved to [`Docs/ARCHIVE/`](./ARCHIVE/) for historical reference:
+- **Completed epics** → `ARCHIVE/epics/`
+- **Legacy document files** → `ARCHIVE/legacy/`
+- **Outdated implementation plans** → `ARCHIVE/implementation-plans/`
+
+See [`Docs/ARCHIVE/README.md`](./ARCHIVE/README.md) for archive policy and structure.
 
 Use this index as the entry point for PR reviews and onboarding; update it whenever documentation moves or new guides are added.

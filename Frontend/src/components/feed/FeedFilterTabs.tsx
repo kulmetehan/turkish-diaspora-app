@@ -15,8 +15,8 @@ export interface FeedFilterTabsProps {
 const FILTERS: Array<{ labelKey: string; value: ActivityFilter }> = [
   { labelKey: "feed.filters.all", value: "all" },
   { labelKey: "feed.filters.timeline", value: "timeline" },
-  { labelKey: "feed.filters.oneCikanlar", value: "one_cikanlar" },
   { labelKey: "feed.filters.music", value: "music" },
+  { labelKey: "feed.filters.oneCikanlar", value: "one_cikanlar" },
   // { labelKey: "feed.filters.favorite", value: "favorite" }, // Temporarily hidden - will be re-enabled later
 ];
 

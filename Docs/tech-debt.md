@@ -132,6 +132,55 @@ if str(BACKEND_DIR) not in sys.path:
 
 ---
 
+## TODO Comments Inventory
+
+This section tracks TODO comments found throughout the codebase. These are categorized for prioritization.
+
+### Backend TODOs (22 found)
+
+#### High Priority (Technical Debt)
+- `Backend/app/workers/activity_stream_ingest_worker.py:521`: Truncate activity_stream and rebuild from all canonical tables
+
+#### Medium Priority (Feature Enhancements)
+- `Backend/api/routers/news.py:375,540`: Extract user_id from auth session
+- `Backend/api/routers/check_ins.py:47-48,214`: Verify location exists, check duplicate, geospatial query improvements
+- `Backend/api/routers/brevo_webhooks.py:76`: Implement signature verification using BREVO_WEBHOOK_SECRET
+- `Backend/api/routers/ses_webhooks.py:52`: Implement full SNS signature verification
+- `Backend/services/email_template_service.py:35`: Implement hosted images (URL) instead for better deliverability
+- `Backend/api/routers/contact.py:90`: Move admin_email to config
+- `Backend/api/routers/reports.py:200,291`: Enhance AdminUser type, improve reaction_id mapping
+
+#### Low Priority (Future Work)
+- `Backend/services/claim_approval_service.py:231,432,685`: Get language from user preferences
+- `Backend/api/routers/claims.py:396`: Get language from user preferences
+- `Backend/services/location_submission_approval_service.py:224,381`: Get language from user preferences
+- `Backend/api/routers/location_submissions.py:203`: Get language from user preferences
+- `Backend/scripts/outreach_campaign_manager.py:153`: Track removals if needed
+- `Backend/services/contact_discovery_service.py:8,109`: Try social media (not implemented)
+
+### Frontend TODOs (8 found)
+
+#### Medium Priority (Feature Enhancements)
+- `Frontend/src/pages/FeedPage.tsx:455`: Implement notification navigation
+- `Frontend/src/pages/NewsPage.tsx:296`: Implement notification navigation
+- `Frontend/src/pages/EventsPage.tsx:177`: Implement notification navigation
+- `Frontend/src/pages/AccountPage.tsx:173`: Implement notification navigation
+- `Frontend/src/api/events.ts:22`: Backend to expose coordinates so markers can render (ES-0.8)
+- `Frontend/src/components/markerLayerUtils.ts:114`: Future enhancements for hover/click interactions (tda-clusters-animations)
+- `Frontend/src/config/knownCities.ts:10`: Extend with additional coverage cities as discovery expands
+- `Frontend/src/components/auth/RequireAdmin.tsx:13`: Optionally check userEmail client-side against allowlist for UX only
+
+### TODO Management Guidelines
+
+- **High Priority**: Address before next major release
+- **Medium Priority**: Plan for next sprint or minor release
+- **Low Priority**: Nice-to-have improvements, can be deferred
+
+When addressing TODOs:
+1. Create an issue or task to track the work
+2. Remove the TODO comment when implemented
+3. Update this document if the TODO category changes
+
 ## Notes
 
 - All fixes maintain backward compatibility with Python 3.11.9 (CI) and Python 3.13 (local dev).

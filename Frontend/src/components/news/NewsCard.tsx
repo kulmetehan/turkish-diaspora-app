@@ -222,8 +222,8 @@ export function NewsCard({
         className,
       )}
     >
-      {/* Position number - top left */}
-      {index !== undefined && (
+      {/* Position number - top left (only for music tracks) */}
+      {index !== undefined && isMusicTrack && (
         <div className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-gilroy font-semibold text-primary">
           {index + 1}
         </div>

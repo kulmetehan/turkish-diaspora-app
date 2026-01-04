@@ -14,31 +14,108 @@ router = APIRouter(prefix="/admin/activity", tags=["admin-activity"])
 
 @router.delete("/check-ins/{check_in_id}")
 async def delete_check_in_admin(
-    check_in_id: int = Path(..., description="Check-in ID"),
+    check_in_id: int = Path(..., description="Check-in ID or Activity Stream ID"),
     admin: AdminUser = Depends(verify_admin_user),
 ):
     """
     Delete a check-in (admin only).
     Hard delete - removes the check-in record completely.
+    
+    Accepts either:
+    - check_in_id: Direct ID from check_ins table (preferred, from payload)
+    - activity_stream_id: ID from activity_stream table (fallback for old entries)
     """
-    # Check if check-in exists
+    # First, try to find check-in directly by ID
     check_sql = "SELECT id FROM check_ins WHERE id = $1"
     check_row = await fetchrow(check_sql, check_in_id)
     
-    if not check_row:
+    actual_check_in_id = None
+    
+    if check_row:
+        # Found directly - this is a check_in_id
+        actual_check_in_id = check_in_id
+    else:
+        # Not found as check_in_id - try as activity_stream_id
+        # Find check-in via activity_stream entry (for old entries without check_in_id in payload)
+        activity_sql = """
+            SELECT 
+                (payload->>'check_in_id')::int as check_in_id_from_payload,
+                location_id,
+                actor_id,
+                created_at
+            FROM activity_stream
+            WHERE id = $1 AND activity_type = 'check_in'
+        """
+        activity_row = await fetchrow(activity_sql, check_in_id)
+        
+        if activity_row:
+            # Try payload first (for new entries)
+            payload_check_in_id = activity_row.get("check_in_id_from_payload")
+            if payload_check_in_id:
+                actual_check_in_id = payload_check_in_id
+            else:
+                # Fallback: find check-in by location_id, actor_id, and created_at (for old entries)
+                fallback_sql = """
+                    SELECT id FROM check_ins
+                    WHERE location_id = $1
+                      AND (user_id = $2 OR (user_id IS NULL AND $2 IS NULL))
+                      AND ABS(EXTRACT(EPOCH FROM (created_at - $3))) < 5
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """
+                fallback_row = await fetchrow(
+                    fallback_sql,
+                    activity_row["location_id"],
+                    activity_row["actor_id"],
+                    activity_row["created_at"],
+                )
+                if fallback_row:
+                    actual_check_in_id = fallback_row["id"]
+    
+    if not actual_check_in_id:
         raise HTTPException(status_code=404, detail="Check-in not found")
+    
+    # Get check-in details before deletion for activity stream cleanup
+    check_in_details_sql = """
+        SELECT location_id, user_id, created_at
+        FROM check_ins
+        WHERE id = $1
+    """
+    check_in_details = await fetchrow(check_in_details_sql, actual_check_in_id)
+    
+    if not check_in_details:
+        raise HTTPException(status_code=404, detail="Check-in not found")
+    
+    location_id = check_in_details["location_id"]
+    user_id = check_in_details["user_id"]
+    created_at = check_in_details["created_at"]
+    
+    # Delete activity stream entries for this check-in BEFORE deleting the check-in
+    delete_activity_sql = """
+        DELETE FROM activity_stream
+        WHERE activity_type = 'check_in'
+          AND (
+            (payload->>'check_in_id')::int = $1
+            OR (
+              location_id = $2
+              AND actor_id = $3
+              AND ABS(EXTRACT(EPOCH FROM (created_at - $4))) < 5
+            )
+          )
+    """
+    await execute(delete_activity_sql, actual_check_in_id, location_id, user_id, created_at)
     
     # Delete check-in
     delete_sql = "DELETE FROM check_ins WHERE id = $1"
-    await execute(delete_sql, check_in_id)
+    await execute(delete_sql, actual_check_in_id)
     
     logger.info(
         "admin_check_in_deleted",
-        check_in_id=check_in_id,
+        check_in_id=actual_check_in_id,
         admin_email=admin.email,
     )
     
-    return {"ok": True, "check_in_id": check_in_id}
+    return {"ok": True, "check_in_id": actual_check_in_id}
 
 
 @router.delete("/notes/{note_id}")

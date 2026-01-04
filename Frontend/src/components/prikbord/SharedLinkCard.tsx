@@ -1,21 +1,21 @@
 // Frontend/src/components/prikbord/SharedLinkCard.tsx
-import { useState, useMemo } from "react";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/Icon";
-import { cn } from "@/lib/ui/cn";
-import type { SharedLink } from "@/types/prikbord";
-import { bookmarkSharedLink } from "@/lib/api/prikbord";
-import { toast } from "sonner";
-import { Bookmark } from "lucide-react";
-import { roleDisplayName } from "@/lib/roleDisplay";
 import { EmojiReactions } from "@/components/feed/EmojiReactions";
-import type { ReactionType } from "@/lib/api";
-import { useNavigate } from "react-router-dom";
+import { ImageModal } from "@/components/feed/ImageModal";
+import { Icon } from "@/components/Icon";
 import { ReportButton } from "@/components/report/ReportButton";
+import { Button } from "@/components/ui/button";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useUserAuth } from "@/hooks/useUserAuth";
+import type { ReactionType } from "@/lib/api";
+import { bookmarkSharedLink } from "@/lib/api/prikbord";
 import { deleteAdminSharedLink } from "@/lib/apiAdmin";
-import { ImageModal } from "@/components/feed/ImageModal";
+import { roleDisplayName } from "@/lib/roleDisplay";
+import { cn } from "@/lib/ui/cn";
+import type { SharedLink } from "@/types/prikbord";
+import { Bookmark } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 interface SharedLinkCardProps {
   link: SharedLink;
@@ -84,24 +84,24 @@ export function SharedLinkCard({
 }: SharedLinkCardProps) {
   const navigate = useNavigate();
   const { isAdmin } = useAdminAuth();
-  const { user } = useUserAuth();
+  const { userId } = useUserAuth();
   const [isBookmarked, setIsBookmarked] = useState(link.is_bookmarked);
   const [isTogglingBookmark, setIsTogglingBookmark] = useState(false);
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
 
   const timeLabel = useMemo(() => formatActivityTime(link.created_at), [link.created_at]);
-  
+
   // Check if current user is the owner of this post
   const isOwner = useMemo(() => {
-    if (!user?.id) return false;
-    return link.creator.type === "user" && link.creator.id === user.id;
-  }, [user?.id, link.creator]);
+    if (!userId) return false;
+    return link.creator.type === "user" && link.creator.id === userId;
+  }, [userId, link.creator]);
 
   const handleBookmark = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isTogglingBookmark) return;
-    
+
     setIsTogglingBookmark(true);
     try {
       const result = await bookmarkSharedLink(link.id);
@@ -138,14 +138,14 @@ export function SharedLinkCard({
     return link.title || link.url;
   }, [link.post_type, link.title, link.url]);
 
-  const handleUserClick = (e: React.MouseEvent) => {
+  const handleUserClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (link.creator.id && onUserClick) {
+    if (!link.creator.id) return;
+
+    if (onUserClick) {
       onUserClick(link.creator.id);
-    } else if (link.creator.id) {
-      navigate("/account");
     }
-  };
+  }, [link.creator.id, onUserClick]);
 
   const handleAdminDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -178,6 +178,7 @@ export function SharedLinkCard({
 
   return (
     <div
+      data-shared-link-card="true"
       className={cn(
         "rounded-xl bg-card overflow-hidden",
         "border border-border/50 shadow-soft",
@@ -185,7 +186,6 @@ export function SharedLinkCard({
         "hover:border-border/30 hover:shadow-[0_2px_6px_rgba(15,23,42,0.02),0_1px_2px_rgba(15,23,42,0.01)]",
         className
       )}
-      onClick={onDetailClick}
     >
       {/* Header: Avatar + Name + Meta */}
       <div className="flex items-start gap-3 p-4">
@@ -199,7 +199,7 @@ export function SharedLinkCard({
               onClick={handleUserClick}
             />
           ) : (
-            <div 
+            <div
               className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-gilroy font-semibold text-sm cursor-pointer"
               onClick={handleUserClick}
             >
@@ -304,9 +304,9 @@ export function SharedLinkCard({
       {link.post_type === "media" && link.media_urls && link.media_urls.length > 0 && (
         <div className={cn(
           "px-4 pb-4",
-          link.media_urls.length === 1 ? "grid grid-cols-1" : 
-          link.media_urls.length === 2 ? "grid grid-cols-2 gap-2" :
-          "grid grid-cols-2 gap-2"
+          link.media_urls.length === 1 ? "grid grid-cols-1" :
+            link.media_urls.length === 2 ? "grid grid-cols-2 gap-2" :
+              "grid grid-cols-2 gap-2"
         )}>
           {link.media_urls.slice(0, 4).map((mediaUrl, index) => {
             const isVideo = mediaUrl.match(/\.(mp4|webm|mov)$/i);
@@ -396,7 +396,7 @@ export function SharedLinkCard({
             size="sm"
             variant="ghost"
           />
-          
+
           <button
             type="button"
             onClick={handleBookmark}

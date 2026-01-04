@@ -7,7 +7,7 @@ Checks badge conditions and awards badges to users.
 
 from __future__ import annotations
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Set
 from datetime import datetime, timezone
 
 from services.db_service import fetch, execute
@@ -143,27 +143,48 @@ async def _check_activity_badges(user_id: str) -> List[str]:
 
 async def _check_explorer_badges(user_id: str) -> List[str]:
     """Check and award explorer badges (10 unique locations per city)."""
+    from services.cities_config_service import get_city_key_from_coords
+    
     awarded = []
     
-    # Get unique locations per city from check-ins
+    # Get unique locations with coordinates from check-ins
+    # Note: city_key is derived from coordinates, not stored in locations table
     sql = """
-        SELECT 
-            l.city_key,
-            COUNT(DISTINCT ci.location_id) as unique_locations
+        SELECT DISTINCT
+            ci.location_id,
+            l.lat,
+            l.lng
         FROM check_ins ci
         JOIN locations l ON ci.location_id = l.id
         WHERE ci.user_id = $1::uuid
-          AND l.city_key IS NOT NULL
-        GROUP BY l.city_key
-        HAVING COUNT(DISTINCT ci.location_id) >= 10
+          AND l.lat IS NOT NULL
+          AND l.lng IS NOT NULL
     """
     
     rows = await fetch(sql, user_id)
     
+    # Group by city_key (derived from coordinates)
+    city_location_counts: Dict[str, Set[int]] = {}
+    
     for row in rows:
-        city_key = row.get("city_key")
-        if city_key:
-            # Check if badge already awarded
+        lat = float(row.get("lat")) if row.get("lat") is not None else None
+        lng = float(row.get("lng")) if row.get("lng") is not None else None
+        
+        if lat is None or lng is None:
+            continue
+            
+        city_key = get_city_key_from_coords(lat, lng)
+        if not city_key:
+            continue
+            
+        location_id = row.get("location_id")
+        if city_key not in city_location_counts:
+            city_location_counts[city_key] = set()
+        city_location_counts[city_key].add(location_id)
+    
+    # Award badges for cities with 10+ unique locations
+    for city_key, location_ids in city_location_counts.items():
+        if len(location_ids) >= 10:
             if await _award_badge(user_id, "explorer_city", city_key):
                 awarded.append(f"explorer_city:{city_key}")
     

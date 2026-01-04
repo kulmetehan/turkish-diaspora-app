@@ -1,5 +1,9 @@
 # Implementation Plan - Remaining 5 Tasks
 
+> **⚠️ ARCHIVED**: This document is outdated. All tasks mentioned here have been completed.  
+> **Please refer to [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) for current project status.**  
+> This file is kept in archive for historical reference only.
+
 ## Overview
 This document outlines the implementation plan for the 5 remaining tasks from the roadmap backlog.
 

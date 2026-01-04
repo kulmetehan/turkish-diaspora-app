@@ -87,6 +87,8 @@ async def process_check_ins(limit: int) -> int:
         """
         
         try:
+            # Include check_in_id in payload for admin deletion support
+            payload = json.dumps({"check_in_id": row['id']})
             await execute(
                 insert_sql,
                 actor_type,
@@ -96,7 +98,7 @@ async def process_check_ins(limit: int) -> int:
                 row['location_id'],
                 city_key,
                 category_key,
-                json.dumps({}),  # Empty payload for check-ins
+                payload,
                 row['created_at'],
             )
             

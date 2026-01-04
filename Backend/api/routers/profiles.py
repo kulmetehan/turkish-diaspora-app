@@ -1,7 +1,7 @@
 # Backend/api/routers/profiles.py
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Body
 from starlette.requests import Request
 from typing import Optional, List, Literal
 from pydantic import BaseModel
@@ -155,6 +155,563 @@ async def get_user_profile(
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),
     )
+
+
+class SocialAccount(BaseModel):
+    id: int
+    platform: str
+    username: str
+    url: str
+    display_order: int = 0
+
+
+class UserStats(BaseModel):
+    check_ins_count: int = 0
+    notes_count: int = 0
+    favorites_count: int = 0
+    reactions_count: int = 0
+    polls_responded: int = 0
+
+
+class UserProfileDetailResponse(BaseModel):
+    user_id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    city_key: Optional[str] = None
+    primary_role: Optional[str] = None
+    secondary_role: Optional[str] = None
+    created_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    stats: UserStats
+    social_accounts: List[SocialAccount] = []
+
+
+class SocialAccountCreate(BaseModel):
+    platform: str
+    username: str
+    url: str
+    display_order: int = 0
+
+
+class SocialAccountUpdate(BaseModel):
+    username: Optional[str] = None
+    url: Optional[str] = None
+    display_order: Optional[int] = None
+
+
+@router.get("/{user_id}/profile-detail", response_model=UserProfileDetailResponse)
+async def get_user_profile_detail(
+    user_id: str = Path(..., description="User ID (UUID)"),
+):
+    """Get detailed user profile for overlay display."""
+    require_feature("check_ins_enabled")
+    
+    # Fetch profile with roles
+    profile_sql = """
+        SELECT 
+            up.id as user_id,
+            up.display_name,
+            up.avatar_url,
+            up.city_key,
+            up.created_at,
+            ur.primary_role,
+            ur.secondary_role
+        FROM user_profiles up
+        LEFT JOIN user_roles ur ON ur.user_id = up.id
+        WHERE up.id = $1::uuid
+    """
+    profile_rows = await fetch(profile_sql, user_id)
+    if not profile_rows:
+        raise HTTPException(status_code=404, detail="User profile not found")
+    
+    profile_row = profile_rows[0]
+    
+    # Calculate last_seen_at from activity_stream
+    last_seen_sql = """
+        SELECT MAX(created_at) as last_seen_at
+        FROM activity_stream
+        WHERE actor_id = $1::uuid AND actor_type = 'user'
+    """
+    last_seen_rows = await fetch(last_seen_sql, user_id)
+    last_seen_at = last_seen_rows[0].get("last_seen_at") if last_seen_rows else None
+    
+    # Calculate stats
+    stats_sql = """
+        SELECT 
+            (SELECT COUNT(*) FROM check_ins WHERE user_id = $1::uuid) as check_ins_count,
+            (SELECT COUNT(*) FROM location_notes WHERE user_id = $1::uuid) as notes_count,
+            (SELECT COUNT(*) FROM favorites WHERE user_id = $1::uuid) as favorites_count,
+            (SELECT COUNT(*) FROM location_reactions WHERE user_id = $1::uuid) as reactions_count,
+            (SELECT COUNT(DISTINCT poll_id) FROM poll_responses WHERE user_id = $1::uuid) as polls_responded
+    """
+    stats_rows = await fetch(stats_sql, user_id)
+    stats_row = stats_rows[0] if stats_rows else {}
+    
+    # Fetch social accounts
+    social_sql = """
+        SELECT id, platform, username, url, display_order
+        FROM user_social_accounts
+        WHERE user_id = $1::uuid
+        ORDER BY display_order ASC, created_at ASC
+    """
+    social_rows = await fetch(social_sql, user_id)
+    
+    return UserProfileDetailResponse(
+        user_id=str(profile_row["user_id"]),
+        display_name=profile_row.get("display_name"),
+        avatar_url=profile_row.get("avatar_url"),
+        city_key=profile_row.get("city_key"),
+        primary_role=profile_row.get("primary_role"),
+        secondary_role=profile_row.get("secondary_role"),
+        created_at=profile_row.get("created_at"),
+        last_seen_at=last_seen_at,
+        stats=UserStats(
+            check_ins_count=stats_row.get("check_ins_count", 0) or 0,
+            notes_count=stats_row.get("notes_count", 0) or 0,
+            favorites_count=stats_row.get("favorites_count", 0) or 0,
+            reactions_count=stats_row.get("reactions_count", 0) or 0,
+            polls_responded=stats_row.get("polls_responded", 0) or 0,
+        ),
+        social_accounts=[
+            SocialAccount(
+                id=row["id"],
+                platform=row["platform"],
+                username=row["username"],
+                url=row["url"],
+                display_order=row.get("display_order", 0) or 0,
+            )
+            for row in social_rows
+        ],
+    )
+
+
+@router.get("/{user_id}/activity")
+async def get_user_activity(
+    user_id: str = Path(..., description="User ID"),
+    limit: int = Query(20, le=50),
+    offset: int = Query(0, ge=0),
+    activity_type: Optional[str] = Query(None),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+):
+    """Get activity feed for a specific user."""
+    # #region agent log
+    import json
+    import os
+    log_path = "/Users/metehankul/Desktop/TurkishProject/Turkish Diaspora App/.cursor/debug.log"
+    try:
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "A",
+                "location": "profiles.py:289",
+                "message": "get_user_activity entry",
+                "data": {"user_id": user_id, "limit": limit, "offset": offset, "activity_type": activity_type, "has_current_user": current_user is not None},
+                "timestamp": int(__import__("time").time() * 1000)
+            }) + "\n")
+    except: pass
+    # #endregion
+    
+    require_feature("check_ins_enabled")
+    
+    # Import ActivityItem and helper functions from activity router
+    # #region agent log
+    try:
+        from api.routers.activity import ActivityItem, ActivityUser, _parse_payload, _parse_reactions, _calculate_labels, _normalize_user_name
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "sessionId": "debug-session",
+                "runId": "post-fix",
+                "hypothesisId": "C",
+                "location": "profiles.py:300",
+                "message": "Imports successful",
+                "data": {},
+                "timestamp": int(__import__("time").time() * 1000)
+            }) + "\n")
+    except Exception as import_err:
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "sessionId": "debug-session",
+                "runId": "post-fix",
+                "hypothesisId": "C",
+                "location": "profiles.py:300",
+                "message": "Import failed",
+                "data": {"error": str(import_err)},
+                "timestamp": int(__import__("time").time() * 1000)
+            }) + "\n")
+        raise
+    # #endregion
+    
+    # Build WHERE clause - filter by user_id
+    conditions = []
+    params = []
+    param_num = 1
+    
+    # Filter by user_id
+    conditions.append(f"ast.actor_id = ${param_num}::uuid")
+    conditions.append("ast.actor_type = 'user'")
+    params.append(user_id)
+    param_num += 1
+    
+    # Filter out unknown activity types
+    valid_types = ["check_in", "reaction", "note", "poll_response", "favorite", "bulletin_post", "event", "poll"]
+    type_placeholders = ", ".join([f"${i}" for i in range(param_num, param_num + len(valid_types))])
+    conditions.append(f"ast.activity_type = ANY(ARRAY[{type_placeholders}])")
+    params.extend(valid_types)
+    param_num += len(valid_types)
+    
+    # Optional activity_type filter
+    if activity_type:
+        if activity_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid activity_type. Must be one of: {', '.join(valid_types)}"
+            )
+        conditions.append(f"ast.activity_type = ${param_num}")
+        params.append(activity_type)
+        param_num += 1
+    
+    # Build WHERE clause
+    where_clause = " AND ".join(conditions)
+    
+    # #region agent log
+    try:
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "A",
+                "location": "profiles.py:332",
+                "message": "WHERE clause built",
+                "data": {"where_clause": where_clause, "param_count": len(params), "param_num": param_num},
+                "timestamp": int(__import__("time").time() * 1000)
+            }) + "\n")
+    except: pass
+    # #endregion
+    
+    # Build LIKE join condition for current user/client
+    current_user_id = current_user.user_id if current_user else None
+    
+    like_join_condition = "al.activity_id = ast.id AND "
+    bookmark_join_condition = "ab.activity_id = ast.id AND "
+    if current_user_id:
+        like_join_condition += f"(al.user_id = '{current_user_id}'::uuid)"
+        bookmark_join_condition += f"(ab.user_id = '{current_user_id}'::uuid)"
+        user_reaction_condition = f"user_reaction_join.user_id = '{current_user_id}'::uuid"
+    else:
+        like_join_condition += "al.user_id IS NULL"
+        bookmark_join_condition += "ab.user_id IS NULL"
+        user_reaction_condition = "user_reaction_join.user_id IS NULL"
+    
+    sql = f"""
+        SELECT 
+            ast.id,
+            ast.activity_type,
+            ast.location_id,
+            ast.category_key,
+            l.name as location_name,
+            ast.payload,
+            ast.created_at,
+            ast.media_url,
+            up.id as user_id,
+            up.display_name as user_name,
+            up.avatar_url as user_avatar_url,
+            ur.primary_role as user_primary_role,
+            ur.secondary_role as user_secondary_role,
+            COALESCE(like_counts.like_count, 0) as like_count,
+            CASE WHEN al.id IS NOT NULL THEN true ELSE false END as is_liked,
+            CASE WHEN ab.id IS NOT NULL THEN true ELSE false END as is_bookmarked,
+            CASE 
+                WHEN pl.id IS NOT NULL AND pl.status = 'active' 
+                    AND pl.promotion_type IN ('feed', 'both')
+                    AND pl.starts_at <= now()
+                    AND pl.ends_at > now()
+                THEN true 
+                ELSE false 
+            END as is_promoted,
+            COALESCE(
+                json_object_agg(
+                    DISTINCT reaction_counts.reaction_type, 
+                    reaction_counts.count
+                ) FILTER (WHERE reaction_counts.reaction_type IS NOT NULL),
+                '{{}}'::json
+            ) as reactions,
+            MAX(user_reaction_join.reaction_type) as user_reaction
+        FROM activity_stream ast
+        LEFT JOIN locations l ON ast.location_id = l.id
+        LEFT JOIN promoted_locations pl ON pl.location_id = ast.location_id
+        LEFT JOIN user_profiles up ON ast.actor_id = up.id AND ast.actor_type = 'user'
+        LEFT JOIN user_roles ur ON up.id = ur.user_id
+        LEFT JOIN (
+            SELECT activity_id, COUNT(*) as like_count
+            FROM activity_likes
+            GROUP BY activity_id
+        ) like_counts ON like_counts.activity_id = ast.id
+        LEFT JOIN activity_likes al ON {like_join_condition}
+        LEFT JOIN activity_bookmarks ab ON {bookmark_join_condition}
+        LEFT JOIN (
+            SELECT activity_id, reaction_type, COUNT(*)::int as count
+            FROM activity_reactions
+            GROUP BY activity_id, reaction_type
+        ) reaction_counts ON reaction_counts.activity_id = ast.id
+        LEFT JOIN activity_reactions user_reaction_join ON 
+            user_reaction_join.activity_id = ast.id 
+            AND ({user_reaction_condition})
+        WHERE {where_clause}
+        GROUP BY 
+            ast.id, ast.activity_type, ast.location_id, ast.category_key, l.name, ast.payload, 
+            ast.created_at, ast.media_url, up.id, up.display_name, 
+            up.avatar_url, ur.primary_role, ur.secondary_role,
+            like_counts.like_count, al.id, ab.id, pl.id, pl.status, 
+            pl.promotion_type, pl.starts_at, pl.ends_at
+        ORDER BY is_promoted DESC, ast.created_at DESC
+        LIMIT ${param_num} OFFSET ${param_num + 1}
+    """
+    
+    params.extend([limit, offset])
+    
+    # #region agent log
+    try:
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "A",
+                "location": "profiles.py:413",
+                "message": "Before fetch call",
+                "data": {"sql_preview": sql[:200], "param_count": len(params), "param_num": param_num, "limit": limit, "offset": offset},
+                "timestamp": int(__import__("time").time() * 1000)
+            }) + "\n")
+    except: pass
+    # #endregion
+    
+    try:
+        rows = await fetch(sql, *params)
+        # #region agent log
+        try:
+            with open(log_path, "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "A",
+                    "location": "profiles.py:416",
+                    "message": "Fetch successful",
+                    "data": {"row_count": len(rows) if rows else 0},
+                    "timestamp": int(__import__("time").time() * 1000)
+                }) + "\n")
+        except: pass
+        # #endregion
+    except Exception as e:
+        # #region agent log
+        try:
+            with open(log_path, "a") as f:
+                f.write(json.dumps({
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "A",
+                    "location": "profiles.py:418",
+                    "message": "Fetch exception",
+                    "data": {"error": str(e), "error_type": type(e).__name__, "sql_preview": sql[:500], "param_count": len(params), "param_num": param_num},
+                    "timestamp": int(__import__("time").time() * 1000)
+                }) + "\n")
+        except: pass
+        # #endregion
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error fetching user activity: {e}")
+        logger.error(f"SQL: {sql}")
+        logger.error(f"Params: {params}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch user activity: {str(e)}")
+    
+    result = []
+    for row in rows:
+        parsed_reactions = _parse_reactions(row.get("reactions"))
+        labels = _calculate_labels(row["activity_type"], parsed_reactions)
+        
+        result.append(
+            ActivityItem(
+                id=row["id"],
+                activity_type=row["activity_type"],
+                location_id=row.get("location_id"),
+                location_name=row.get("location_name"),
+                category_key=row.get("category_key"),
+                payload=_parse_payload(row.get("payload")),
+                created_at=row["created_at"],
+                is_promoted=row.get("is_promoted", False),
+                media_url=row.get("media_url"),
+                user=ActivityUser(
+                    id=str(row["user_id"]),
+                    name=_normalize_user_name(row.get("user_name"), str(row["user_id"]) if row.get("user_id") else None),
+                    avatar_url=row.get("user_avatar_url"),
+                    primary_role=row.get("user_primary_role"),
+                    secondary_role=row.get("user_secondary_role"),
+                ) if row.get("user_id") else None,
+                like_count=row.get("like_count", 0) or 0,
+                is_liked=row.get("is_liked", False) or False,
+                is_bookmarked=row.get("is_bookmarked", False) or False,
+                reactions=parsed_reactions,
+                user_reaction=row.get("user_reaction"),
+                labels=labels if labels else None,
+            )
+        )
+    
+    return result
+
+
+@router.get("/me/social-accounts", response_model=List[SocialAccount])
+async def get_my_social_accounts(
+    user: User = Depends(get_current_user),
+):
+    """Get current user's social accounts."""
+    require_feature("check_ins_enabled")
+    
+    sql = """
+        SELECT id, platform, username, url, display_order
+        FROM user_social_accounts
+        WHERE user_id = $1::uuid
+        ORDER BY display_order ASC, created_at ASC
+    """
+    rows = await fetch(sql, user.user_id)
+    return [
+        SocialAccount(
+            id=row["id"],
+            platform=row["platform"],
+            username=row["username"],
+            url=row["url"],
+            display_order=row.get("display_order", 0) or 0,
+        )
+        for row in rows
+    ]
+
+
+@router.post("/me/social-accounts", response_model=SocialAccount)
+async def create_social_account(
+    account: SocialAccountCreate,
+    user: User = Depends(get_current_user),
+):
+    """Create a new social account."""
+    require_feature("check_ins_enabled")
+    
+    # Validate platform
+    valid_platforms = ['facebook', 'instagram', 'snapchat', 'youtube', 'whatsapp', 'tiktok']
+    if account.platform not in valid_platforms:
+        raise HTTPException(status_code=400, detail=f"Invalid platform. Must be one of: {', '.join(valid_platforms)}")
+    
+    # Validate URL format (basic check)
+    if not account.url.startswith(('http://', 'https://')):
+        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+    
+    # Check if platform already exists for user
+    check_sql = """
+        SELECT id FROM user_social_accounts
+        WHERE user_id = $1::uuid AND platform = $2
+    """
+    existing = await fetch(check_sql, user.user_id, account.platform)
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Social account for {account.platform} already exists")
+    
+    # Insert
+    insert_sql = """
+        INSERT INTO user_social_accounts (user_id, platform, username, url, display_order)
+        VALUES ($1::uuid, $2, $3, $4, $5)
+        RETURNING id, platform, username, url, display_order
+    """
+    rows = await fetch(insert_sql, user.user_id, account.platform, account.username, account.url, account.display_order)
+    row = rows[0]
+    
+    return SocialAccount(
+        id=row["id"],
+        platform=row["platform"],
+        username=row["username"],
+        url=row["url"],
+        display_order=row.get("display_order", 0) or 0,
+    )
+
+
+@router.put("/me/social-accounts/{account_id}", response_model=SocialAccount)
+async def update_social_account(
+    account_id: int = Path(..., description="Social account ID"),
+    update: SocialAccountUpdate = Body(...),
+    user: User = Depends(get_current_user),
+):
+    """Update a social account."""
+    require_feature("check_ins_enabled")
+    
+    # Verify ownership
+    check_sql = """
+        SELECT id FROM user_social_accounts
+        WHERE id = $1 AND user_id = $2::uuid
+    """
+    existing = await fetch(check_sql, account_id, user.user_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Social account not found")
+    
+    # Build update query
+    updates = []
+    params = []
+    param_num = 1
+    
+    if update.username is not None:
+        updates.append(f"username = ${param_num}")
+        params.append(update.username)
+        param_num += 1
+    
+    if update.url is not None:
+        if not update.url.startswith(('http://', 'https://')):
+            raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+        updates.append(f"url = ${param_num}")
+        params.append(update.url)
+        param_num += 1
+    
+    if update.display_order is not None:
+        updates.append(f"display_order = ${param_num}")
+        params.append(update.display_order)
+        param_num += 1
+    
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    updates.append("updated_at = now()")
+    params.append(account_id)
+    params.append(user.user_id)
+    
+    update_sql = f"""
+        UPDATE user_social_accounts
+        SET {', '.join(updates)}
+        WHERE id = ${param_num} AND user_id = ${param_num + 1}::uuid
+        RETURNING id, platform, username, url, display_order
+    """
+    rows = await fetch(update_sql, *params)
+    row = rows[0]
+    
+    return SocialAccount(
+        id=row["id"],
+        platform=row["platform"],
+        username=row["username"],
+        url=row["url"],
+        display_order=row.get("display_order", 0) or 0,
+    )
+
+
+@router.delete("/me/social-accounts/{account_id}")
+async def delete_social_account(
+    account_id: int = Path(..., description="Social account ID"),
+    user: User = Depends(get_current_user),
+):
+    """Delete a social account."""
+    require_feature("check_ins_enabled")
+    
+    # Verify ownership and delete
+    delete_sql = """
+        DELETE FROM user_social_accounts
+        WHERE id = $1 AND user_id = $2::uuid
+        RETURNING id
+    """
+    rows = await fetch(delete_sql, account_id, user.user_id)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Social account not found")
+    
+    return {"ok": True}
 
 
 @router.get("/me/check-username")

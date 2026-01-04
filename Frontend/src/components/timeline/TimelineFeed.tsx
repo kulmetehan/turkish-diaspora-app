@@ -15,6 +15,7 @@ import { listPolls, getPollStats, submitPollResponse, type Poll, type PollStats 
 import { toggleSharedLinkReaction, deleteSharedLink, type SharedLink } from "@/lib/api/prikbord";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useNavigate } from "react-router-dom";
+import { UserProfileOverlay } from "@/components/profile/UserProfileOverlay";
 
 interface TimelineFeedProps {
   className?: string;
@@ -75,11 +76,19 @@ function transformActivityItem(
   t: (key: string, params?: Record<string, string>) => string,
   onImageClick?: (imageUrl: string) => void,
   onLocationClick?: (locationId: number) => void,
+  onPollClick?: (pollId: number) => void,
   onUserClick?: (userId: string) => void
 ): FeedCardProps | null {
   // Don't transform items without user or with null message
   const activityMessage = getActivityMessage(item, t);
   if (!item.user || !activityMessage) {
+    return null;
+  }
+
+  // Don't transform items without user.id if onUserClick is provided
+  // (we need user.id to handle clicks)
+  if (!item.user.id && onUserClick) {
+    console.warn("TimelineFeed: transformActivityItem: item.user exists but item.user.id is missing, skipping transformation");
     return null;
   }
 
@@ -116,7 +125,7 @@ function transformActivityItem(
     onBookmark: () => onBookmark(item.id),
     onImageClick,
     onLocationClick,
-    onPollClick: undefined,
+    onPollClick,
     onUserClick: item.user?.id && onUserClick ? () => onUserClick(item.user!.id!) : undefined,
   };
 }
@@ -125,6 +134,9 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [subFilter, setSubFilter] = useState<TimelineSubFilter>("all");
+  
+  // Profile overlay state
+  const [profileOverlayUserId, setProfileOverlayUserId] = useState<string | null>(null);
   
   // Data state
   const [prikbordLinks, setPrikbordLinks] = useState<SharedLink[]>([]);
@@ -378,6 +390,11 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
     }
   }, [t]);
 
+  // Handle user click
+  const handleUserClick = useCallback((userId: string) => {
+    setProfileOverlayUserId(userId);
+  }, []);
+
   // Handle reaction toggle for prikbord links
   const handlePrikbordReactionToggle = useCallback(async (linkId: number, reactionType: ReactionType) => {
     try {
@@ -502,11 +519,6 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
     navigate(`/locations/${locationId}`);
   }, [navigate]);
 
-  // Handle user click
-  const handleUserClick = useCallback((userId: string) => {
-    navigate("/account");
-  }, [navigate]);
-
   if (isLoading) {
     return (
       <div className={cn("space-y-4", className)}>
@@ -564,6 +576,7 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
                     onDelete={() => handlePrikbordDelete(item.data.id)}
                     reactions={item.data.reactions || null}
                     userReaction={(item.data.user_reaction as ReactionType) || null}
+                    onUserClick={handleUserClick}
                   />
                 );
               } else if (item.type === "activity") {
@@ -574,6 +587,7 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
                   t,
                   handleImageClick,
                   handleLocationClick,
+                  undefined, // onPollClick
                   handleUserClick
                 );
                 // Skip items that couldn't be transformed (no user or invalid activity type)
@@ -593,6 +607,10 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
                     hasResponded={hasResponded}
                     onOptionSelect={handlePollOptionSelect}
                     onSubmitVote={handlePollSubmitVote}
+                    onDelete={() => {
+                      // Reload polls and activity after deletion
+                      loadInitialData();
+                    }}
                   />
                 );
               }
@@ -611,6 +629,19 @@ export function TimelineFeed({ className }: TimelineFeedProps) {
             </Button>
           )}
         </>
+      )}
+      {profileOverlayUserId && (
+        <UserProfileOverlay
+          userId={profileOverlayUserId}
+          open={true}
+          onClose={() => setProfileOverlayUserId(null)}
+          onUserClick={(clickedUserId) => {
+            // If clicking on a different user, close current overlay and open new one
+            if (clickedUserId !== profileOverlayUserId) {
+              setProfileOverlayUserId(clickedUserId);
+            }
+          }}
+        />
       )}
     </div>
   );

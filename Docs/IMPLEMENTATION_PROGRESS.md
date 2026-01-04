@@ -1,5 +1,11 @@
 # Implementation Progress Summary
 
+> **⚠️ DEPRECATED**: This document is outdated and no longer maintained.  
+> **Please refer to [`PROJECT_PROGRESS.md`](../PROJECT_PROGRESS.md) for the authoritative project status.**  
+> This file is kept for historical reference only.
+
+---
+
 ## ✅ Volledig Voltooid (30 Stories)
 
 ### EPIC-0.5: Platform Foundation (5/5 - 100%)

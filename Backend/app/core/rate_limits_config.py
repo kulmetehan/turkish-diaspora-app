@@ -16,6 +16,7 @@ RATE_LIMITS: Dict[str, Tuple[int, int]] = {
     "reaction": (30, 60),  # 30 reactions per 60 seconds
     "note": (5, 300),  # 5 notes per 300 seconds (5 minutes)
     "poll_response": (10, 60),  # 10 poll responses per 60 seconds
+    "poll": (1, 86400),  # 1 poll per 24 hours (86400 seconds)
     "account_creation": (3, 3600),  # 3 account creations per hour (future use)
 }
 
