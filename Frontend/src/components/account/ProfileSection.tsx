@@ -15,6 +15,7 @@ import {
 import { uploadAvatar, createAvatarPreview } from "@/lib/avatarUpload";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { X, User, Camera } from "lucide-react";
+import { SocialAccountsSection } from "./SocialAccountsSection";
 
 interface ProfileSectionProps {
   className?: string;
@@ -358,6 +359,9 @@ export function ProfileSection({ className }: ProfileSectionProps) {
             </>
           )}
         </div>
+
+        {/* Social Accounts Section */}
+        <SocialAccountsSection />
       </div>
     </div>
   );

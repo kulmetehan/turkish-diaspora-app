@@ -8,16 +8,19 @@ import { toast } from "sonner";
 interface PollPreviewProps {
   pollId: number;
   className?: string;
+  // Indicates that this poll is shown in the context of a poll_response activity
+  // When true, the poll should always show results mode since the user has already responded
+  hasResponded?: boolean;
 }
 
-export function PollPreview({ pollId, className }: PollPreviewProps) {
+export function PollPreview({ pollId, className, hasResponded: propHasResponded }: PollPreviewProps) {
   const [poll, setPoll] = useState<Poll | null>(null);
   const [stats, setStats] = useState<PollStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasResponded, setHasResponded] = useState(false);
+  const [hasResponded, setHasResponded] = useState(propHasResponded ?? false);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,10 +33,11 @@ export function PollPreview({ pollId, className }: PollPreviewProps) {
         
         if (!cancelled) {
           setPoll(pollData);
-          setHasResponded(pollData.user_has_responded);
+          // Use propHasResponded if provided, otherwise use API response
+          setHasResponded(propHasResponded ?? pollData.user_has_responded);
           
-          // Always load stats if user has responded
-          if (pollData.user_has_responded) {
+          // Always load stats if user has responded (either from prop or API)
+          if (propHasResponded ?? pollData.user_has_responded) {
             try {
               const statsData = await getPollStats(pollId);
               if (!cancelled) {
@@ -63,17 +67,17 @@ export function PollPreview({ pollId, className }: PollPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [pollId]);
+  }, [pollId, propHasResponded]);
 
   const handleOptionSelect = (optionId: number) => {
-    if (hasResponded || isSubmitting) {
+    if (propHasResponded || hasResponded || isSubmitting) {
       return;
     }
     setSelectedOption(optionId);
   };
 
   const handleSubmitVote = async () => {
-    if (!poll || !selectedOption || hasResponded || isSubmitting) {
+    if (!poll || !selectedOption || propHasResponded || hasResponded || isSubmitting) {
       return;
     }
 
@@ -149,8 +153,8 @@ export function PollPreview({ pollId, className }: PollPreviewProps) {
     );
   }
 
-  // Always show results when user has responded
-  const hasResults = hasResponded;
+  // Always show results when user has responded (from prop or state)
+  const hasResults = propHasResponded ?? hasResponded;
 
   return (
     <div className={cn("space-y-2 mt-2", className)}>
@@ -211,7 +215,7 @@ export function PollPreview({ pollId, className }: PollPreviewProps) {
               key={option.id}
               type="button"
               onClick={() => handleOptionSelect(option.id)}
-              disabled={hasResponded || isSubmitting}
+              disabled={propHasResponded || hasResponded || isSubmitting}
               className={cn(
                 "w-full text-left p-2 rounded-lg border text-xs transition-colors",
                 "hover:border-primary hover:bg-primary/5",
@@ -227,7 +231,7 @@ export function PollPreview({ pollId, className }: PollPreviewProps) {
           ))}
           <Button
             onClick={handleSubmitVote}
-            disabled={!selectedOption || hasResponded || isSubmitting}
+            disabled={!selectedOption || propHasResponded || hasResponded || isSubmitting}
             size="sm"
             className="w-full text-xs"
           >

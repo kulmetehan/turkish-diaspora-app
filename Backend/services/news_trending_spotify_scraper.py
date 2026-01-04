@@ -41,7 +41,9 @@ from services.base_scraper_service import BaseScraperService
 
 logger = get_logger().bind(module="news_trending_spotify_scraper")
 
-_DEFAULT_CACHE_TTL_SECONDS = 180  # 3 minutes cache
+# Increase cache TTL to 30 minutes to match the service layer cache
+# This ensures tracks persist longer when worker and API run in separate processes
+_DEFAULT_CACHE_TTL_SECONDS = 1800  # 30 minutes cache
 _cache: dict[str, dict[str, object]] = {}
 
 # Spotify Viral 50 playlist IDs

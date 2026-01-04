@@ -1,6 +1,7 @@
 # Turkish Diaspora App
 
-An AI-assisted location discovery and verification platform for Turkish communities in the Netherlands. The system continuously discovers new venues, classifies their relevance, verifies quality, and publishes curated data to an interactive map.
+> **Status**: 🚀 Alpha Release Ready  
+> An AI-assisted location discovery and verification platform for Turkish communities in the Netherlands. The system continuously discovers new venues, classifies their relevance, verifies quality, and publishes curated data to an interactive map.
 
 ## Architecture at a glance
 
@@ -11,10 +12,13 @@ An AI-assisted location discovery and verification platform for Turkish communit
 
 ## Core capabilities
 
-- OSM-based grid discovery with adaptive rate limiting and endpoint rotation.
-- AI classification + verification pipeline promoting `CANDIDATE → VERIFIED` records with full audit trails.
-- Metrics snapshot (`/api/v1/admin/metrics/snapshot`) feeding the admin dashboard and alerting.
-- Hash-routed frontend with public map, admin login, metrics dashboard, bottom-sheet UX, and UI kit playground.
+- **Discovery & Verification**: OSM-based grid discovery with adaptive rate limiting, AI classification, and automated verification pipeline (`CANDIDATE → VERIFIED`) with full audit trails.
+- **Interactive Map**: Mapbox-based public map with location markers, search, filters, and bottom-sheet UX.
+- **Engagement Layer**: Referral program, social sharing, weekly digest emails, push notifications (Web Push API).
+- **Community Features**: User groups, moderation tools, reporting system, community guidelines.
+- **Monetization**: Business accounts, location claiming, verified badges, premium subscriptions (Stripe), business analytics dashboard, promoted content, Google Business sync.
+- **Admin Dashboard**: Metrics snapshot, location management, user administration, protected by Supabase Auth.
+- **Automation**: GitHub Actions workflows for discovery, verification, monitoring, alerts, and scheduled tasks.
 
 ## Getting started
 
@@ -54,11 +58,18 @@ See [`Docs/README.md`](./Docs/README.md) for a curated index grouped by topic:
 - **Frontend** builds through `frontend_deploy.yml` and is hosted on GitHub Pages (hash router for static hosting compatibility).
 - **Automation workflows** (`tda_discovery.yml`, `tda_verification.yml`, `tda_monitor.yml`, `tda_alert.yml`, `tda_cleanup.yml`) execute discovery, verification, monitoring, and housekeeping tasks on schedules or manual triggers.
 
-## Contributing & support
+## Contributing
 
-1. Open issues or questions in the repository before large changes.
-2. Keep documentation in sync — update `Docs/env-config.md` and `Docs/README.md` when adding new services or env keys.
-3. Run linting/tests relevant to touched areas; workers should be exercised with `--dry-run` flags locally.
-4. For operational incidents, follow the escalation and troubleshooting guidance in the runbook.
+We welcome contributions! Please see [`CONTRIBUTING.md`](./CONTRIBUTING.md) for development setup, code style guidelines, and the PR process.
+
+**Quick guidelines:**
+- Open issues or questions in the repository before large changes
+- Keep documentation in sync — update `Docs/env-config.md` and `Docs/README.md` when adding new services or env keys
+- Run linting/tests relevant to touched areas; workers should be exercised with `--dry-run` flags locally
+- For operational incidents, follow the escalation and troubleshooting guidance in the runbook
 
 Questions? Reach out to the TDA core maintainers (`owners` in each doc front matter) or raise a discussion in the repo.
+
+## License
+
+See [`LICENSE`](./LICENSE) for license information.

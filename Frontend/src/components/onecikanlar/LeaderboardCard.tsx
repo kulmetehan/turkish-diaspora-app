@@ -1,9 +1,27 @@
 // Frontend/src/components/onecikanlar/LeaderboardCard.tsx
+import hsImage from "@/assets/hs.png";
+import mgImage from "@/assets/mg.png";
+import dnImage from "@/assets/dn.png";
+import sgImage from "@/assets/sg.png";
 import mekaninsahibiIcon from "@/assets/mekaninsahibi.png";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleDisplayName } from "@/lib/roleDisplay";
 import type { LeaderboardCard as LeaderboardCardType } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+
+/**
+ * Get category image for a given category key.
+ * Returns the image path or null if no image is available.
+ */
+function getCategoryImage(category: string): string | null {
+  const categoryImages: Record<string, string> = {
+    soz_hafta: hsImage,
+    mahalle_gururu: mgImage,
+    diaspora_nabzı: dnImage,
+    sessiz_guç: sgImage,
+  };
+  return categoryImages[category] || null;
+}
 
 /**
  * Get role image for a given role key.
@@ -43,12 +61,28 @@ export function LeaderboardCard({
   onUserClick,
   className,
 }: LeaderboardCardProps) {
+  const categoryImage = getCategoryImage(card.category);
+  
   return (
-    <Card className={cn("mb-4", className)}>
+    <Card className={cn("mb-4 relative", className)}>
+      {/* Category image - positioned top right */}
+      {categoryImage && (
+        <img
+          src={categoryImage}
+          alt=""
+          className="absolute right-3 top-3 h-12 w-12 object-contain pointer-events-none z-10 scale-110"
+          aria-hidden="true"
+        />
+      )}
       <CardHeader>
         <CardTitle className="text-lg font-gilroy font-semibold">
           {card.title}
         </CardTitle>
+        {card.description && (
+          <CardDescription className="text-xs mt-1">
+            {card.description}
+          </CardDescription>
+        )}
       </CardHeader>
       <CardContent>
         {card.users.length === 0 ? (
@@ -122,8 +156,8 @@ export function LeaderboardCard({
 
                   {/* Context (if available) - shown on the right */}
                   {user.context && (
-                    <div className="flex-shrink-0 text-xs text-muted-foreground truncate max-w-[120px]">
-                      {user.context}
+                    <div className="flex-shrink-0 text-xs text-muted-foreground truncate max-w-[140px] px-2 py-1 rounded-md bg-muted/30">
+                      <span className="font-medium">{user.context}</span>
                     </div>
                   )}
                 </div>

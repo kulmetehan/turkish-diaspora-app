@@ -10,7 +10,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { URLPreview } from "./URLPreview";
 import { useTranslation } from "@/hooks/useTranslation";
+import { useUserAuth } from "@/hooks/useUserAuth";
 import postBot from "@/assets/post.png";
+import { CreatePollDialog } from "@/components/polls/CreatePollDialog";
 
 interface PrikbordComposerProps {
   onSuccess?: (newPost?: SharedLink) => void;
@@ -21,6 +23,7 @@ const URL_REGEX = /(https?:\/\/[^\s]+)/g;
 
 export function PrikbordComposer({ onSuccess, className }: PrikbordComposerProps) {
   const { t } = useTranslation();
+  const { isAuthenticated } = useUserAuth();
   const [text, setText] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,6 +34,7 @@ export function PrikbordComposer({ onSuccess, className }: PrikbordComposerProps
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPosting, setIsPosting] = useState(false);
+  const [createPollOpen, setCreatePollOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewTimeoutRef = useRef<number | null>(null);
 
@@ -325,6 +329,18 @@ export function PrikbordComposer({ onSuccess, className }: PrikbordComposerProps
               className="hidden"
               disabled={isSubmitting}
             />
+            {/* Poll creation button - only show when authenticated */}
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={() => setCreatePollOpen(true)}
+                disabled={isSubmitting}
+                className="flex items-center justify-center h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                aria-label="Poll plaatsen"
+              >
+                <Icon name="MessageSquare" className="h-5 w-5" />
+              </button>
+            )}
           </div>
 
           <Button
@@ -347,6 +363,17 @@ export function PrikbordComposer({ onSuccess, className }: PrikbordComposerProps
           </Button>
         </div>
       </div>
+      {/* Create Poll Dialog */}
+      {isAuthenticated && (
+        <CreatePollDialog
+          open={createPollOpen}
+          onOpenChange={setCreatePollOpen}
+          onSuccess={() => {
+            // Reload feed to show new poll
+            onSuccess?.();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 # Backend/api/routers/leaderboards.py
 from __future__ import annotations
 
+import json
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Literal
 from pydantic import BaseModel
@@ -25,6 +26,7 @@ class LeaderboardCard(BaseModel):
     """A leaderboard card with category and users."""
     category: str
     title: str
+    description: Optional[str] = None  # Description explaining what this category means
     users: List[LeaderboardUser]
 
 
@@ -78,6 +80,17 @@ def _get_category_title(category: str) -> str:
     return titles.get(category, category)
 
 
+def _get_category_description(category: str) -> Optional[str]:
+    """Get description explaining what this leaderboard category means."""
+    descriptions = {
+        "soz_hafta": "De beste Söz van deze week",
+        "mahalle_gururu": "Lokaal actief in de buurt",
+        "sessiz_guç": "Veel gelezen, weinig gepost",
+        "diaspora_nabzı": "Actief bijdragen aan polls",
+    }
+    return descriptions.get(category)
+
+
 def _normalize_user_name(user_name: Optional[str], user_id: Optional[str]) -> Optional[str]:
     """
     Normalize user_name: if it equals user_id (UUID), treat it as None.
@@ -122,6 +135,8 @@ async def get_one_cikanlar(
         raise HTTPException(status_code=400, detail=str(e))
     
     # Query leaderboard entries for the period with user roles joined
+    # Optimized: filter by rank early and use efficient index
+    # Include JOINs for context data (locations, notes, polls)
     sql = """
         SELECT 
             le.id,
@@ -132,29 +147,50 @@ async def get_one_cikanlar(
             up.display_name,
             up.avatar_url,
             ur.primary_role,
-            ur.secondary_role
+            ur.secondary_role,
+            -- Context data from JOINs
+            l.name as location_name,
+            ln.content as note_content,
+            p.question as poll_question
         FROM leaderboard_entries le
         LEFT JOIN user_profiles up ON le.user_id = up.id
         LEFT JOIN user_roles ur ON le.user_id = ur.user_id
-        WHERE le.period_start <= $1
+        LEFT JOIN locations l ON le.context_data IS NOT NULL 
+            AND le.context_data ? 'location_id' 
+            AND (le.context_data->>'location_id')::int = l.id
+            AND l.state = 'VERIFIED'
+        LEFT JOIN location_notes ln ON le.context_data IS NOT NULL 
+            AND le.context_data ? 'note_id' 
+            AND (le.context_data->>'note_id')::int = ln.id
+        LEFT JOIN polls p ON le.context_data IS NOT NULL 
+            AND le.context_data ? 'poll_id' 
+            AND (le.context_data->>'poll_id')::int = p.id
+        WHERE le.rank IS NOT NULL
+        AND le.rank <= 5
+        AND le.period_start <= $1
         AND le.period_end >= $2
         AND ($3::text IS NULL OR le.city_key = $3)
-        AND le.rank IS NOT NULL
-        AND le.rank <= 5
         ORDER BY le.category, le.rank ASC
     """
     
     rows = await fetch(sql, period_end, period_start, city_key)
     
-    # Group entries by category
+    # Group entries by category and deduplicate by user_id (keep best rank per user)
     cards_dict: dict[str, List[LeaderboardUser]] = {}
+    seen_users_per_category: dict[str, set] = {}  # Track seen user_ids per category
     
     for row in rows:
         category = row.get("category")
         if category not in cards_dict:
             cards_dict[category] = []
+            seen_users_per_category[category] = set()
         
-        user_id = row.get("user_id")
+        user_id = str(row.get("user_id"))
+        
+        # Skip if we've already seen this user in this category (deduplicate)
+        if user_id in seen_users_per_category[category]:
+            continue
+        
         display_name = row.get("display_name")
         
         # Normalize display_name (filter out UUIDs and empty names)
@@ -163,6 +199,9 @@ async def get_one_cikanlar(
         # Skip users without a valid display name (they shouldn't appear in leaderboards)
         if not normalized_name:
             continue
+        
+        # Mark this user as seen in this category
+        seen_users_per_category[category].add(user_id)
         
         # Get user role from joined data
         role = None
@@ -174,16 +213,48 @@ async def get_one_cikanlar(
                 role = f"{role} · {secondary_role}"
         
         # Extract context from context_data JSONB
+        # Use joined data (location_name, note_content, poll_question) when available
+        # Fallback to IDs if joined data is not available
         context_data = row.get("context_data") or {}
+        
+        # Handle case where context_data might be a string (asyncpg sometimes returns JSONB as string)
+        if isinstance(context_data, str):
+            try:
+                context_data = json.loads(context_data)
+            except Exception:
+                context_data = {}
+        
         context = None
         if isinstance(context_data, dict):
             # Build context string from available data
+            # Prefer joined data over context_data IDs
+            location_name = row.get("location_name")
+            note_content = row.get("note_content")
+            poll_question = row.get("poll_question")
+            
             if context_data.get("location_id"):
-                context = f"Location {context_data.get('location_id')}"
-            elif context_data.get("poll_id"):
-                context = f"Poll {context_data.get('poll_id')}"
+                if location_name:
+                    context = location_name
+                else:
+                    context = f"Locatie {context_data.get('location_id')}"
             elif context_data.get("note_id"):
-                context = f"Söz {context_data.get('note_id')}"
+                if note_content:
+                    # Truncate note content to first 50 chars
+                    if len(note_content) > 50:
+                        context = note_content[:50] + "..."
+                    else:
+                        context = note_content
+                else:
+                    context = f"Söz {context_data.get('note_id')}"
+            elif context_data.get("poll_id"):
+                if poll_question:
+                    # Truncate poll question to first 50 chars
+                    if len(poll_question) > 50:
+                        context = poll_question[:50] + "..."
+                    else:
+                        context = poll_question
+                else:
+                    context = f"Poll {context_data.get('poll_id')}"
         
         cards_dict[category].append(
             LeaderboardUser(
@@ -198,13 +269,31 @@ async def get_one_cikanlar(
     
     # Build response cards
     cards: List[LeaderboardCard] = []
-    for category, users in cards_dict.items():
-        if users:  # Only include cards with users
+    
+    # Define category order: sessiz_guç should always be last
+    category_order = ["soz_hafta", "mahalle_gururu", "diaspora_nabzı", "sessiz_guç"]
+    
+    # Build cards in the specified order
+    for category in category_order:
+        if category in cards_dict and cards_dict[category]:
             cards.append(
                 LeaderboardCard(
                     category=category,
                     title=_get_category_title(category),
-                    users=users[:5],  # Max 5 users per card
+                    description=_get_category_description(category),
+                    users=cards_dict[category][:5],  # Max 5 users per card
+                )
+            )
+    
+    # Add any remaining categories that weren't in the order list (shouldn't happen, but safety)
+    for category, users in cards_dict.items():
+        if category not in category_order and users:
+            cards.append(
+                LeaderboardCard(
+                    category=category,
+                    title=_get_category_title(category),
+                    description=_get_category_description(category),
+                    users=users[:5],
                 )
             )
     

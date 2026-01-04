@@ -12,7 +12,7 @@ from datetime import datetime
 
 from app.core.client_id import require_client_id, get_client_id, get_last_user_id
 from app.core.feature_flags import require_feature
-from app.deps.auth import get_current_user_optional, User
+from app.deps.auth import get_current_user, get_current_user_optional, User
 from app.deps.rate_limiting import require_rate_limit_factory
 from services.db_service import fetch, execute
 from services.xp_service import award_xp
@@ -37,6 +37,7 @@ class PollResponse(BaseModel):
     starts_at: datetime
     ends_at: Optional[datetime]
     user_has_responded: bool = False
+    created_by: Optional[str] = None  # User ID (UUID) who created the poll
 
 
 class PollStats(BaseModel):
@@ -49,6 +50,134 @@ class PollStats(BaseModel):
 class PollResponseCreate(BaseModel):
     option_id: int  # For single_choice
     # option_ids: List[int]  # For multi_choice (future)
+
+
+class PollOptionCreate(BaseModel):
+    option_text: str
+    display_order: int
+
+
+class PollCreate(BaseModel):
+    title: str
+    question: str
+    poll_type: str = "single_choice"  # 'single_choice', 'multi_choice'
+    options: List[PollOptionCreate]  # min 2, max 5
+    targeting_city_key: Optional[str] = None
+
+
+@router.post("", response_model=PollResponse)
+async def create_poll(
+    request: Request,
+    poll: PollCreate,
+    client_id: str = Depends(require_client_id),
+    # _rate_limit: None = Depends(require_rate_limit_factory("poll", limit=1, window_seconds=86400)),  # Temporarily disabled for testing
+    user: User = Depends(get_current_user),  # Require authentication
+):
+    """Create a new poll (user-created)."""
+    require_feature("polls_enabled")
+    
+    user_id = user.user_id
+    
+    # Validate options
+    if len(poll.options) < 2:
+        raise HTTPException(status_code=400, detail="Poll must have at least 2 options")
+    if len(poll.options) > 5:
+        raise HTTPException(status_code=400, detail="Poll can have at most 5 options")
+    
+    if poll.poll_type not in ("single_choice", "multi_choice"):
+        raise HTTPException(
+            status_code=400,
+            detail="poll_type must be 'single_choice' or 'multi_choice'"
+        )
+    
+    # Validate option texts
+    for opt in poll.options:
+        if not opt.option_text or not opt.option_text.strip():
+            raise HTTPException(status_code=400, detail="All options must have text")
+    
+    # Default starts_at to now
+    starts_at = datetime.now()
+    
+    try:
+        # Insert poll with status 'active' and created_by set to user_id
+        poll_sql = """
+            INSERT INTO polls (title, question, poll_type, is_sponsored, starts_at, ends_at, targeting_city_key, created_by, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', now())
+            RETURNING id, title, question, poll_type, is_sponsored, starts_at, ends_at, targeting_city_key, created_at
+        """
+        poll_rows = await fetch(
+            poll_sql,
+            poll.title,
+            poll.question,
+            poll.poll_type,
+            False,  # User-created polls are not sponsored
+            starts_at,
+            None,  # No end date for user polls
+            poll.targeting_city_key,
+            user_id,
+        )
+        
+        if not poll_rows:
+            raise HTTPException(status_code=500, detail="Failed to create poll")
+        
+        poll_id = poll_rows[0]["id"]
+        
+        # Insert options
+        options = []
+        for opt in poll.options:
+            opt_sql = """
+                INSERT INTO poll_options (poll_id, option_text, display_order, created_at)
+                VALUES ($1, $2, $3, now())
+                RETURNING id, option_text, display_order
+            """
+            opt_rows = await fetch(opt_sql, poll_id, opt.option_text.strip(), opt.display_order)
+            if opt_rows:
+                options.append(PollOption(**opt_rows[0]))
+        
+        # Create activity stream entry for poll creation
+        payload = json.dumps({"poll_id": poll_id})
+        activity_sql = """
+            INSERT INTO activity_stream 
+            (actor_type, actor_id, client_id, activity_type, location_id, city_key, category_key, payload, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+        """
+        await execute(
+            activity_sql,
+            'user',
+            user_id,
+            client_id,
+            'poll',
+            None,  # No location_id for polls
+            poll.targeting_city_key,  # Use targeting_city_key if provided
+            None,  # No category_key for polls
+            payload,
+        )
+        
+        # Award XP for creating poll
+        await award_xp(user_id=user_id, client_id=client_id, source="poll", source_id=poll_id)
+        # Update activity summary (fire-and-forget async task)
+        asyncio.create_task(update_user_activity_summary(user_id=user_id))
+        
+        created_by_value = poll_rows[0].get("created_by") or user_id
+        created_by_str = str(created_by_value) if created_by_value else None
+        
+        return PollResponse(
+            id=poll_id,
+            title=poll_rows[0]["title"],
+            question=poll_rows[0]["question"],
+            poll_type=poll_rows[0]["poll_type"],
+            options=options,
+            is_sponsored=False,
+            starts_at=poll_rows[0]["starts_at"],
+            ends_at=poll_rows[0].get("ends_at"),
+            user_has_responded=False,
+            created_by=created_by_str,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create poll: {str(e)}")
 
 
 @router.get("", response_model=List[PollResponse])
@@ -67,7 +196,7 @@ async def list_polls(
     
     sql = """
         SELECT p.id, p.title, p.question, p.poll_type, p.is_sponsored, 
-               p.starts_at, p.ends_at
+               p.starts_at, p.ends_at, p.created_by
         FROM polls p
         WHERE p.status = 'active'
           AND (p.targeting_city_key IS NULL OR p.targeting_city_key = $1)
@@ -159,6 +288,10 @@ async def list_polls(
                 response_rows = await fetch(response_check, *params)
                 has_responded = len(response_rows) > 0
         
+        created_by_value = row.get("created_by")
+        # Convert UUID to string if present
+        created_by_str = str(created_by_value) if created_by_value else None
+        
         polls.append(PollResponse(
             id=row["id"],
             title=row["title"],
@@ -169,6 +302,7 @@ async def list_polls(
             starts_at=row["starts_at"],
             ends_at=row.get("ends_at"),
             user_has_responded=has_responded,
+            created_by=created_by_str,
         ))
     
     return polls
@@ -186,7 +320,7 @@ async def get_poll(
     user_id = user.user_id if user else None
     
     sql = """
-        SELECT id, title, question, poll_type, is_sponsored, starts_at, ends_at
+        SELECT id, title, question, poll_type, is_sponsored, starts_at, ends_at, created_by
         FROM polls
         WHERE id = $1 AND status = 'active'
     """
@@ -253,6 +387,9 @@ async def get_poll(
             response_rows = await fetch(response_check, *params)
             has_responded = len(response_rows) > 0
     
+    created_by_value = row.get("created_by")
+    created_by_str = str(created_by_value) if created_by_value else None
+    
     return PollResponse(
         id=row["id"],
         title=row["title"],
@@ -263,6 +400,7 @@ async def get_poll(
         starts_at=row["starts_at"],
         ends_at=row.get("ends_at"),
         user_has_responded=has_responded,
+        created_by=created_by_str,
     )
 
 
@@ -376,6 +514,49 @@ async def create_poll_response(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create poll response: {str(e)}")
+
+
+@router.delete("/{poll_id}")
+async def delete_poll(
+    poll_id: int = Path(..., description="Poll ID"),
+    user: User = Depends(get_current_user),
+):
+    """Delete own poll."""
+    require_feature("polls_enabled")
+    
+    user_id = user.user_id
+    
+    # Check if poll exists and verify ownership
+    check_sql = """
+        SELECT id, created_by FROM polls
+        WHERE id = $1
+    """
+    rows = await fetch(check_sql, poll_id)
+    
+    if not rows:
+        raise HTTPException(status_code=404, detail="Poll not found")
+    
+    poll_creator = rows[0].get("created_by")
+    
+    # Verify ownership - convert both to strings for comparison
+    poll_creator_str = str(poll_creator) if poll_creator else None
+    user_id_str = str(user_id) if user_id else None
+    
+    if poll_creator_str != user_id_str:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this poll")
+    
+    # Delete poll (cascade will delete options, responses, and activity stream entries)
+    delete_sql = "DELETE FROM polls WHERE id = $1"
+    await execute(delete_sql, poll_id)
+    
+    # Also delete activity stream entries for this poll
+    delete_activity_sql = """
+        DELETE FROM activity_stream 
+        WHERE activity_type = 'poll' AND payload->>'poll_id' = $1
+    """
+    await execute(delete_activity_sql, str(poll_id))
+    
+    return {"ok": True, "poll_id": poll_id}
 
 
 @router.get("/{poll_id}/stats", response_model=PollStats)

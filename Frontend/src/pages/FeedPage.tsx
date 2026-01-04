@@ -13,6 +13,7 @@ import { FooterTabs } from "@/components/FooterTabs";
 import { AppViewportShell } from "@/components/layout";
 import { LeaderboardCards } from "@/components/onecikanlar/LeaderboardCards";
 import { PeriodTabs, type PeriodFilter } from "@/components/onecikanlar/PeriodTabs";
+import { UserProfileOverlay } from "@/components/profile/UserProfileOverlay";
 import { TimelineFeed } from "@/components/timeline/TimelineFeed";
 import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -28,7 +29,7 @@ const INITIAL_LIMIT = 20;
 const LOAD_MORE_LIMIT = 20;
 
 // Helper function to get activity message (reused from ActivityCard logic)
-function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record<string, string>) => string): string {
+export function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record<string, string>) => string): string {
   const locationName = item.location_name || "een locatie";
 
   switch (item.activity_type) {
@@ -52,6 +53,8 @@ function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record
       return t("feed.card.activity.note").replace("{location}", locationName);
     case "poll_response":
       return t("feed.card.activity.pollResponse");
+    case "poll":
+      return t("feed.card.activity.poll") || "heeft een poll geplaatst";
     case "favorite":
       return t("feed.card.activity.favorite").replace("{location}", locationName);
     case "event":
@@ -62,7 +65,7 @@ function getActivityMessage(item: ActivityItem, t: (key: string, params?: Record
 }
 
 // Transform ActivityItem to FeedCardProps
-function transformActivityItem(
+export function transformActivityItem(
   item: ActivityItem,
   onReactionToggle: (id: number, reactionType: ReactionType) => void,
   onBookmark: (id: number) => void,
@@ -76,8 +79,12 @@ function transformActivityItem(
     ? (item.payload?.note_preview as string) || (item.payload?.content as string) || null
     : null;
 
-  const pollId = item.activity_type === "poll_response"
+  const pollId = (item.activity_type === "poll_response" || item.activity_type === "poll")
     ? (item.payload?.poll_id as number) || null
+    : null;
+
+  const checkInId = item.activity_type === "check_in"
+    ? (item.payload?.check_in_id as number) || null
     : null;
 
   const transformed = {
@@ -96,6 +103,7 @@ function transformActivityItem(
     contentText: getActivityMessage(item, t),
     noteContent,
     pollId,
+    checkInId,
     mediaUrl: item.media_url || undefined,
     likeCount: item.like_count,
     isLiked: item.is_liked,
@@ -121,7 +129,7 @@ export default function FeedPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showMascotteFeedback } = useMascotteFeedback();
-  const { isAuthenticated } = useUserAuth();
+  const { isAuthenticated, userId } = useUserAuth();
   const seo = useSeo();
 
   // State management
@@ -170,20 +178,22 @@ export default function FeedPage() {
   // Favorieten state
   const [favoriteFilter, setFavoriteFilter] = useState<FavoriteFilter>("mijn");
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [profileOverlayUserId, setProfileOverlayUserId] = useState<string | null>(null);
 
   const hasProcessedNavigationStateRef = useRef(false);
 
   // Fetch user profile and week feedback on mount
   useEffect(() => {
+    // Set currentUserId from useUserAuth hook
+    setCurrentUserId(userId || null);
+
     getCurrentUser()
       .then((user) => {
         setUserName(user?.name || null);
-        setCurrentUserId(user?.id || null);
       })
       .catch((error) => {
         console.error("Failed to load user profile:", error);
         setUserName(null);
-        setCurrentUserId(null);
       });
 
     // Fetch week feedback
@@ -203,7 +213,7 @@ export default function FeedPage() {
         console.error("Failed to load week feedback:", error);
         // Silently fail - week feedback is optional
       });
-  }, []);
+  }, [userId]);
 
   // Load initial feed data
   const loadInitialData = useCallback(async () => {
@@ -217,9 +227,9 @@ export default function FeedPage() {
     setIsLoading(true);
     setError(null);
     try {
-      // Don't pass "one_cikanlar", "all", "timeline", or "prikbord" as activityType
+      // Don't pass "one_cikanlar", "all", "timeline", or "music" as activityType
       // These have their own components
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "timeline" || activeFilter === "prikbord"
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "timeline" || activeFilter === "music"
         ? undefined
         : activeFilter;
       const data = await getActivityFeed(INITIAL_LIMIT, 0, activityType);
@@ -241,9 +251,9 @@ export default function FeedPage() {
 
     setIsLoadingMore(true);
     try {
-      // Don't pass "one_cikanlar", "all", "timeline", or "prikbord" as activityType
+      // Don't pass "one_cikanlar", "all", "timeline", or "music" as activityType
       // These have their own components
-      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "timeline" || activeFilter === "prikbord"
+      const activityType = activeFilter === "all" || activeFilter === "one_cikanlar" || activeFilter === "timeline" || activeFilter === "music"
         ? undefined
         : activeFilter;
       const data = await getActivityFeed(LOAD_MORE_LIMIT, offset, activityType);
@@ -289,8 +299,8 @@ export default function FeedPage() {
 
   // Reload when filter changes
   useEffect(() => {
-    // Only load activity feed if not showing Öne Çıkanlar, Timeline, Prikbord, or Music and user is authenticated
-    if (activeFilter !== "one_cikanlar" && activeFilter !== "timeline" && activeFilter !== "prikbord" && activeFilter !== "music" && isAuthenticated) {
+    // Only load activity feed if not showing Öne Çıkanlar, Timeline, or Music and user is authenticated
+    if (activeFilter !== "one_cikanlar" && activeFilter !== "timeline" && activeFilter !== "music" && isAuthenticated) {
       setFeedItems([]);
       setOffset(0);
       setHasMore(true);
@@ -414,9 +424,8 @@ export default function FeedPage() {
 
   // Handle user click
   const handleUserClick = useCallback((userId: string) => {
-    // Navigate to account page (or future user profile page)
-    navigate("/account");
-  }, [navigate]);
+    setProfileOverlayUserId(userId);
+  }, []);
 
   // Transform feed items to FeedCard props
   const feedCardProps = useMemo(() => {
@@ -554,7 +563,7 @@ export default function FeedPage() {
               )
             ) : activeFilter === "all" ? (
               <DashboardOverview className="mt-2" />
-            ) : activeFilter === "timeline" || activeFilter === "prikbord" ? (
+            ) : activeFilter === "timeline" ? (
               <TimelineFeed className="mt-2" />
             ) : activeFilter === "music" ? (
               <MusicFeed className="mt-2" />
@@ -593,6 +602,19 @@ export default function FeedPage() {
           open={imageModalOpen}
           onOpenChange={setImageModalOpen}
         />
+        {profileOverlayUserId && (
+          <UserProfileOverlay
+            userId={profileOverlayUserId}
+            open={true}
+            onClose={() => setProfileOverlayUserId(null)}
+            onUserClick={(clickedUserId) => {
+              // If clicking on a different user, close current overlay and open new one
+              if (clickedUserId !== profileOverlayUserId) {
+                setProfileOverlayUserId(clickedUserId);
+              }
+            }}
+          />
+        )}
       </AppViewportShell>
     </>
   );

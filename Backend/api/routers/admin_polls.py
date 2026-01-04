@@ -280,7 +280,7 @@ async def delete_poll(
     poll_id: int = Path(..., description="Poll ID"),
     admin: AdminUser = Depends(verify_admin_user),
 ):
-    """Delete a poll."""
+    """Delete a poll (admin)."""
     
     # Check if poll exists
     check_sql = "SELECT id FROM polls WHERE id = $1"
@@ -288,6 +288,14 @@ async def delete_poll(
     
     if not check_rows:
         raise HTTPException(status_code=404, detail="Poll not found")
+    
+    # Delete activity stream entries for this poll first
+    delete_activity_sql = """
+        DELETE FROM activity_stream 
+        WHERE activity_type IN ('poll', 'poll_response') 
+        AND (payload->>'poll_id')::text = $1::text
+    """
+    await execute(delete_activity_sql, str(poll_id))
     
     # Delete poll (cascade will delete options and responses)
     delete_sql = "DELETE FROM polls WHERE id = $1"

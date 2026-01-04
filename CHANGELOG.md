@@ -2,7 +2,62 @@
 
 All notable changes to the Turkish Diaspora App project.
 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
 ## [Unreleased]
+
+## [0.1.0-alpha] - 2025-01-XX
+
+### Alpha Release
+
+This marks the alpha release of the Turkish Diaspora App, ready for initial user testing and feedback.
+
+### Added
+
+#### Engagement Layer (EPIC-1.5)
+- Referral program with XP bonuses and tracking
+- Social sharing via Web Share API with clipboard fallback
+- Weekly digest email automation via GitHub Actions
+- Push notifications infrastructure (Web Push API with service worker)
+
+#### Community Layer (EPIC-2.5)
+- User groups: create, join, activity feeds, membership management
+- Moderation tools for content and user management
+- Reporting system for locations, notes, reactions, and users
+- Community guidelines UI and backend integration
+
+#### Monetization Layer (EPIC-3)
+- Business accounts API with CRUD operations
+- Location claiming flow with verification
+- Verified badge system for claimed locations
+- Premium subscriptions with Stripe integration and feature gating
+- Promoted locations: one-time payment for trending and feed promotion
+- Promoted news posts: one-time payment for top-of-feed placement
+- Business analytics dashboard with views, engagement, and trending metrics
+- Google Business Profile sync with OAuth integration
+
+#### Documentation & Infrastructure
+- Complete documentation refactor and consolidation
+- Environment template standardization (`.env.template`)
+- Archive structure for completed epics and legacy documentation
+- CONTRIBUTING.md with development guidelines
+- LICENSE file (MIT)
+
+### Changed
+
+- Documentation structure: organized archive for completed features
+- README.md updated with alpha status and comprehensive feature list
+- TypeScript type fixes: resolved all linter errors in FeedPage and SharedLinkCard components
+- Code quality improvements: fixed type mismatches and improved type safety
+
+### Fixed
+
+- TypeScript linter errors in `Frontend/src/pages/FeedPage.tsx` (7 errors)
+- TypeScript linter error in `Frontend/src/components/prikbord/SharedLinkCard.tsx` (1 error)
+- Type safety issues with CurrentUser and UserAuth interfaces
+
+## [Unreleased] (Previous)
 
 ### Added
 - **Part A: Admin ↔ Frontend Count Parity + Transparency**
