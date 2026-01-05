@@ -24,3 +24,5 @@ COMMENT ON TYPE location_state IS 'Location state enum. CANDIDATE_MANUAL is for 
 
 
 
+
+
