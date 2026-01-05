@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 from pathlib import Path
 import sys
 from typing import Dict, Any
+from datetime import datetime, timezone, timedelta
 
 # Path setup
 THIS_FILE = Path(__file__).resolve()
@@ -24,7 +26,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.core.logging import configure_logging, get_logger
 from app.core.request_id import with_run_id
-from services.db_service import init_db_pool
+from services.db_service import init_db_pool, execute
 from services.news_trending_spotify_scraper import fetch_spotify_tracks_scraper
 from services.worker_runs_service import (
     start_worker_run,
@@ -42,7 +44,7 @@ async def scrape_and_cache_spotify_tracks(
     limit: int = 20,
 ) -> Dict[str, Any]:
     """
-    Scrape Spotify tracks for specified countries and cache them.
+    Scrape Spotify tracks for specified countries and cache them in database.
     
     Args:
         countries: List of country codes (e.g., ["nl", "tr"]). Defaults to ["nl"]
@@ -53,6 +55,8 @@ async def scrape_and_cache_spotify_tracks(
     """
     if countries is None:
         countries = ["nl"]  # Default to Netherlands
+    
+    await init_db_pool()
     
     stats = {
         "countries_processed": 0,
@@ -77,6 +81,66 @@ async def scrape_and_cache_spotify_tracks(
             
             if tracks_count > 0:
                 stats["countries_with_tracks"] += 1
+                
+                # Store tracks in database
+                try:
+                    # Convert tracks to JSON-serializable format
+                    tracks_data = []
+                    for track in result.tracks:
+                        tracks_data.append({
+                            "title": track.title,
+                            "url": track.url,
+                            "artist": track.artist,
+                            "published_at": track.published_at.isoformat() if track.published_at else None,
+                            "image_url": track.image_url,
+                        })
+                    
+                    # Store in feed_curated_content with content_type='music'
+                    # Use country in metadata to distinguish between nl/tr
+                    expires_at = datetime.now(timezone.utc) + timedelta(hours=24)  # 24 hour cache
+                    metadata = {
+                        "country": country,
+                        "tracks_count": tracks_count,
+                        "cached_at": datetime.now(timezone.utc).isoformat(),
+                        "unavailable_reason": result.unavailable_reason,
+                    }
+                    
+                    # Delete old entries for this country first
+                    await execute(
+                        """
+                        DELETE FROM feed_curated_content
+                        WHERE content_type = 'music'
+                          AND metadata->>'country' = $1
+                        """,
+                        country,
+                    )
+                    
+                    # Insert new tracks
+                    await execute(
+                        """
+                        INSERT INTO feed_curated_content (content_type, ranked_items, metadata, expires_at)
+                        VALUES ($1, $2::jsonb, $3::jsonb, $4)
+                        """,
+                        "music",
+                        json.dumps(tracks_data, ensure_ascii=False),
+                        json.dumps(metadata, ensure_ascii=False),
+                        expires_at,
+                    )
+                    
+                    logger.info(
+                        "spotify_tracks_stored_in_db",
+                        country=country,
+                        tracks_count=tracks_count,
+                    )
+                except Exception as db_exc:
+                    logger.error(
+                        "spotify_tracks_db_store_error",
+                        country=country,
+                        error=str(db_exc),
+                        error_type=type(db_exc).__name__,
+                    )
+                    # Continue even if DB store fails
+                
                 logger.info(
                     "spotify_tracks_scraped",
                     country=country,

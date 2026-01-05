@@ -22,3 +22,5 @@ CREATE INDEX IF NOT EXISTS idx_user_social_accounts_platform ON public.user_soci
 
 COMMENT ON TABLE public.user_social_accounts IS 'User social media account links for profile display';
 
+
+

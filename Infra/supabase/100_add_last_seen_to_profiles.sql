@@ -9,3 +9,5 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_last_seen ON public.user_profiles(l
 
 COMMENT ON COLUMN public.user_profiles.last_seen_at IS 'Last seen timestamp calculated from activity_stream (privacy-friendly, not auto-updated)';
 
+
+

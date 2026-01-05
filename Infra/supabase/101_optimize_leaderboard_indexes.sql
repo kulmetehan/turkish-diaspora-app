@@ -23,3 +23,5 @@ CREATE INDEX IF NOT EXISTS idx_user_roles_user_id
 COMMENT ON INDEX idx_leaderboard_entries_rank_period IS 'Optimized index for leaderboard queries filtering by rank first, then period range';
 COMMENT ON INDEX idx_leaderboard_entries_city_rank_period IS 'Optimized index for city-specific leaderboard queries with rank filtering';
 
+
+
