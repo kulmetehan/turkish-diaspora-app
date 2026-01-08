@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta, timezone
 
 from services.db_service import fetch
+from app.models.turkish_city_plates import get_primary_license_plate
 
 router = APIRouter(prefix="/leaderboards", tags=["leaderboards"])
 
@@ -19,6 +20,8 @@ class LeaderboardUser(BaseModel):
     avatar_url: Optional[str] = None
     role: Optional[str] = None
     primary_role: Optional[str] = None  # Primary role for image display
+    memleket: Optional[List[str]] = None
+    license_plate: Optional[str] = None
     context: Optional[str] = None  # Additional context (e.g., "Söz over Restaurant X")
 
 
@@ -146,6 +149,7 @@ async def get_one_cikanlar(
             le.context_data,
             up.display_name,
             up.avatar_url,
+            up.memleket,
             ur.primary_role,
             ur.secondary_role,
             -- Context data from JOINs
@@ -212,6 +216,10 @@ async def get_one_cikanlar(
             if secondary_role:
                 role = f"{role} · {secondary_role}"
         
+        # Calculate license plate from memleket
+        user_memleket = row.get("memleket")
+        license_plate = get_primary_license_plate(user_memleket) if user_memleket else None
+        
         # Extract context from context_data JSONB
         # Use joined data (location_name, note_content, poll_question) when available
         # Fallback to IDs if joined data is not available
@@ -263,6 +271,8 @@ async def get_one_cikanlar(
                 avatar_url=row.get("avatar_url"),
                 role=role,
                 primary_role=primary_role,
+                memleket=user_memleket,
+                license_plate=license_plate,
                 context=context,
             )
         )

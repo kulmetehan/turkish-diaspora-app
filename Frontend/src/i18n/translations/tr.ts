@@ -135,6 +135,7 @@ export const tr: TranslationKeys = {
     navigation: {
         feed: "AKIŞ",
         news: "HABERLER",
+        chat: "SOHBET",
         map: "HARİTA",
         events: "Etkinlikler",
     },

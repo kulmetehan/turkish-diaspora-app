@@ -275,7 +275,7 @@ export default function AddLocationDialog({
             <Checkbox
               id="add-location-is-owner"
               checked={form.is_owner}
-              onCheckedChange={(checked) => setForm((prev) => ({ ...prev, is_owner: checked === true }))}
+              onChange={(e) => setForm((prev) => ({ ...prev, is_owner: e.target.checked }))}
             />
             <Label htmlFor="add-location-is-owner" className="cursor-pointer">
               Ik ben de eigenaar van deze locatie

@@ -27,6 +27,7 @@ class PushPreferencesResponse(BaseModel):
     poll_notifications: bool
     trending_notifications: bool
     activity_notifications: bool
+    chat_notifications: bool
 
 
 class PushPreferencesUpdate(BaseModel):
@@ -34,6 +35,7 @@ class PushPreferencesUpdate(BaseModel):
     poll_notifications: Optional[bool] = None
     trending_notifications: Optional[bool] = None
     activity_notifications: Optional[bool] = None
+    chat_notifications: Optional[bool] = None
 
 
 @router.post("/register")
@@ -135,7 +137,7 @@ async def get_push_preferences(
     Get push notification preferences for the current user.
     """
     sql = """
-        SELECT enabled, poll_notifications, trending_notifications, activity_notifications
+        SELECT enabled, poll_notifications, trending_notifications, activity_notifications, chat_notifications
         FROM push_notification_preferences
         WHERE user_id = $1::uuid
     """
@@ -149,6 +151,7 @@ async def get_push_preferences(
             poll_notifications=True,
             trending_notifications=False,
             activity_notifications=False,
+            chat_notifications=True,
         )
     
     row = rows[0]
@@ -157,6 +160,7 @@ async def get_push_preferences(
         poll_notifications=row.get("poll_notifications", True),
         trending_notifications=row.get("trending_notifications", False),
         activity_notifications=row.get("activity_notifications", False),
+        chat_notifications=row.get("chat_notifications", True),
     )
 
 
@@ -196,6 +200,11 @@ async def update_push_preferences(
         values.append(preferences.activity_notifications)
         param_num += 1
     
+    if preferences.chat_notifications is not None:
+        updates.append(f"chat_notifications = ${param_num}")
+        values.append(preferences.chat_notifications)
+        param_num += 1
+    
     if not updates:
         # No changes, return current preferences
         return await get_push_preferences(user)
@@ -209,7 +218,7 @@ async def update_push_preferences(
             UPDATE push_notification_preferences
             SET {updates_str}, updated_at = now()
             WHERE user_id = ${param_num}
-            RETURNING enabled, poll_notifications, trending_notifications, activity_notifications
+            RETURNING enabled, poll_notifications, trending_notifications, activity_notifications, chat_notifications
         """
         result = await fetch(update_sql, *values)
         
@@ -222,6 +231,7 @@ async def update_push_preferences(
             poll_notifications=row.get("poll_notifications", True),
             trending_notifications=row.get("trending_notifications", False),
             activity_notifications=row.get("activity_notifications", False),
+            chat_notifications=row.get("chat_notifications", True),
         )
     else:
         # Insert new preferences
@@ -229,13 +239,14 @@ async def update_push_preferences(
         poll_notifications = preferences.poll_notifications if preferences.poll_notifications is not None else True
         trending_notifications = preferences.trending_notifications if preferences.trending_notifications is not None else False
         activity_notifications = preferences.activity_notifications if preferences.activity_notifications is not None else False
+        chat_notifications = preferences.chat_notifications if preferences.chat_notifications is not None else True
         
         insert_sql = """
             INSERT INTO push_notification_preferences (
-                user_id, enabled, poll_notifications, trending_notifications, activity_notifications, updated_at
+                user_id, enabled, poll_notifications, trending_notifications, activity_notifications, chat_notifications, updated_at
             )
-            VALUES ($1::uuid, $2, $3, $4, $5, now())
-            RETURNING enabled, poll_notifications, trending_notifications, activity_notifications
+            VALUES ($1::uuid, $2, $3, $4, $5, $6, now())
+            RETURNING enabled, poll_notifications, trending_notifications, activity_notifications, chat_notifications
         """
         result = await fetch(
             insert_sql,
@@ -244,6 +255,7 @@ async def update_push_preferences(
             poll_notifications,
             trending_notifications,
             activity_notifications,
+            chat_notifications,
         )
         
         if not result:
@@ -255,6 +267,7 @@ async def update_push_preferences(
             poll_notifications=row.get("poll_notifications", True),
             trending_notifications=row.get("trending_notifications", False),
             activity_notifications=row.get("activity_notifications", False),
+            chat_notifications=row.get("chat_notifications", True),
         )
 
 

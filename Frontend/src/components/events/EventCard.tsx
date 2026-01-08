@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { Badge } from "@/components/ui/badge";
 import { getEventReactions, toggleEventReaction } from "@/lib/api";
 import { cn } from "@/lib/ui/cn";
+import { ChatButton } from "@/components/chat/ChatButton";
 
 // Module-level cache to persist across component remounts
 // Use Map to track both "fetched" and "in-flight" states
@@ -164,6 +165,20 @@ export function EventCard({
         }
       }}
     >
+      {/* Image at the top - similar to NewsCard */}
+      {event.image_url ? (
+        <div className="-mx-5 -mt-4 mb-3 overflow-hidden rounded-t-2xl border-b border-border/50 bg-muted h-48" style={{ width: 'calc(100% + 2.5rem)' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={event.image_url}
+            alt={event.title}
+            loading="lazy"
+            className="block h-full w-full object-cover"
+            style={{ margin: 0, padding: 0, display: 'block' }}
+          />
+        </div>
+      ) : null}
+      
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
@@ -196,12 +211,23 @@ export function EventCard({
       {/* Emoji Reactions */}
       <div className="mt-4" onClick={(e) => e.stopPropagation()}>
         <ErrorBoundary>
-          <EmojiReactions
-            activityId={event.id}
-            reactions={reactions}
-            userReaction={userReaction}
-            onReactionToggle={handleReactionToggle}
-          />
+          <div className="flex items-center justify-between gap-2">
+            <EmojiReactions
+              activityId={event.id}
+              reactions={reactions}
+              userReaction={userReaction}
+              onReactionToggle={handleReactionToggle}
+            />
+            <ChatButton
+              contentType="event"
+              contentId={event.id}
+              title={event.title}
+              description={event.description || event.location_text || undefined}
+              variant="ghost"
+              size="sm"
+              showCount={true}
+            />
+          </div>
         </ErrorBoundary>
       </div>
 

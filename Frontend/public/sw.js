@@ -72,8 +72,16 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
-  const data = event.notification.data;
+  const data = event.notification.data || {};
   let url = '/';
+  const action = event.action;
+
+  // Handle action buttons
+  if (action === 'mark_read' && data.type === 'chat_message' && data.topic_id) {
+    // Mark as read - just close notification, don't navigate
+    // The app will handle marking as read when user visits the topic
+    return;
+  }
 
   // Determine URL based on notification type
   if (data.type === 'poll' && data.poll_id) {
@@ -82,15 +90,41 @@ self.addEventListener('notificationclick', (event) => {
     url = `/locations/${data.location_id}`;
   } else if (data.type === 'activity' && data.location_id) {
     url = `/locations/${data.location_id}`;
+  } else if (data.type === 'chat_message' && data.topic_id) {
+    url = `/chat/topic/${data.topic_id}`;
+    // Add message_id to URL hash for deep linking to specific message
+    if (data.message_id) {
+      url += `#message-${data.message_id}`;
+    }
   }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // If a window is already open, focus it
+        // Try to find existing window with matching URL pattern
+        const hashUrl = `#${url}`;
         for (const client of clientList) {
-          if (client.url === url && 'focus' in client) {
+          const clientUrl = new URL(client.url);
+          if (clientUrl.hash === hashUrl || clientUrl.pathname + clientUrl.hash === url) {
+            if ('focus' in client) {
+              return client.focus().then(() => client.navigate(url));
+            }
             return client.focus();
+          }
+        }
+        // If no matching window found, check if any window is open
+        if (clientList.length > 0) {
+          // Focus existing window and navigate
+          const client = clientList[0];
+          if ('focus' in client) {
+            return client.focus().then(() => {
+              if ('navigate' in client) {
+                return (client as any).navigate(url);
+              } else {
+                // Fallback: use postMessage to notify client to navigate
+                client.postMessage({ type: 'navigate', url });
+              }
+            });
           }
         }
         // Otherwise, open a new window

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.push_notification_preferences (
     poll_notifications BOOLEAN NOT NULL DEFAULT true,
     trending_notifications BOOLEAN NOT NULL DEFAULT false,
     activity_notifications BOOLEAN NOT NULL DEFAULT false,
+    chat_notifications BOOLEAN NOT NULL DEFAULT true,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

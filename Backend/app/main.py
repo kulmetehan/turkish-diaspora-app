@@ -80,6 +80,8 @@ from api.routers.authenticated_claims import router as authenticated_claims_rout
 from api.routers.admin_authenticated_claims import router as admin_authenticated_claims_router
 from api.routers.location_submissions import router as location_submissions_router
 from api.routers.admin_location_submissions import router as admin_location_submissions_router
+from api.routers.event_submissions import router as event_submissions_router
+from api.routers.admin_event_submissions import router as admin_event_submissions_router
 from api.routers.admin_outreach_contacts import router as admin_outreach_contacts_router
 from api.routers.admin_outreach_emails import router as admin_outreach_emails_router
 from api.routers.outreach_claims import router as outreach_claims_router
@@ -97,6 +99,7 @@ from api.routers.feed import router as feed_router
 from api.routers.ses_webhooks import router as ses_webhooks_router
 from api.routers.brevo_webhooks import router as brevo_webhooks_router
 from api.routers.outreach_tracking import router as outreach_tracking_router
+from api.routers.chat import router as chat_router
 
 # Import path prepared above for both `api.*` and `app.*`
 
@@ -299,6 +302,8 @@ api_v1_router.include_router(authenticated_claims_router)
 api_v1_router.include_router(admin_authenticated_claims_router)
 api_v1_router.include_router(location_submissions_router)
 api_v1_router.include_router(admin_location_submissions_router)
+api_v1_router.include_router(event_submissions_router)
+api_v1_router.include_router(admin_event_submissions_router)
 api_v1_router.include_router(admin_outreach_contacts_router)
 api_v1_router.include_router(admin_outreach_emails_router)
 api_v1_router.include_router(outreach_claims_router)
@@ -316,6 +321,7 @@ api_v1_router.include_router(feed_router)
 api_v1_router.include_router(ses_webhooks_router)
 api_v1_router.include_router(brevo_webhooks_router)
 api_v1_router.include_router(outreach_tracking_router)
+api_v1_router.include_router(chat_router)
 
 # Mount the versioned API once on the app
 app.include_router(api_v1_router)

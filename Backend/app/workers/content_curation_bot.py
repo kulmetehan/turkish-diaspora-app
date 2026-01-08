@@ -261,6 +261,7 @@ async def curate_events() -> Dict[str, Any]:
                 "category_key": original.category_key,
                 "location_text": original.location_text,
                 "url": original.url,
+                "image_url": original.image_url,
                 "source_key": original.source_key,
                 "relevance_score": ranked.relevance_score,
                 "reason": ranked.reason,

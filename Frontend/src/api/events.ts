@@ -19,6 +19,8 @@ export interface EventItem {
   source_key: string;
   summary_ai?: string | null;
   updated_at: string;
+  /** Event poster/flyer image URL */
+  image_url?: string | null;
   /** TODO(ES-0.8): backend to expose coordinates so markers can render. */
   lat?: number | null;
   lng?: number | null;

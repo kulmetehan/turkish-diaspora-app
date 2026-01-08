@@ -135,6 +135,7 @@ export const nl: TranslationKeys = {
   navigation: {
     feed: "FEED",
     news: "NIEUWS",
+    chat: "CHAT",
     map: "KAART",
     events: "Events",
   },

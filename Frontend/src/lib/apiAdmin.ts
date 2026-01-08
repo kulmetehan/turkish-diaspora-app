@@ -1,4 +1,5 @@
 import type { LocationSubmissionResponse } from "@/lib/api";
+import type { EventSubmissionResponse } from "@/lib/apiEvents";
 import { API_BASE, authFetch } from "@/lib/api";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -1467,5 +1468,44 @@ export async function rejectLocationSubmission(submissionId: number, reason?: st
             "Content-Type": "application/json",
         },
         body: JSON.stringify({ rejection_reason: reason }),
+    });
+}
+
+// Event Submission Admin API Functions
+export async function listEventSubmissionsAdmin(params: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<EventSubmissionResponse[]> {
+    const q = new URLSearchParams();
+    if (params.status) q.set("status", params.status);
+    if (params.limit) q.set("limit", String(params.limit));
+    if (params.offset) q.set("offset", String(params.offset));
+    return authFetch<EventSubmissionResponse[]>(`/api/v1/admin/event-submissions?${q.toString()}`);
+}
+
+export async function getEventSubmissionAdmin(submissionId: number): Promise<EventSubmissionResponse> {
+    return authFetch<EventSubmissionResponse>(`/api/v1/admin/event-submissions/${submissionId}`);
+}
+
+export async function approveEventSubmissionAdmin(submissionId: number): Promise<void> {
+    await authFetch(`/api/v1/admin/event-submissions/${submissionId}/approve`, {
+        method: "POST",
+    });
+}
+
+export async function rejectEventSubmissionAdmin(submissionId: number, reason?: string): Promise<void> {
+    await authFetch(`/api/v1/admin/event-submissions/${submissionId}/reject`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ rejection_reason: reason }),
+    });
+}
+
+export async function unpublishEventSubmissionAdmin(submissionId: number): Promise<void> {
+    await authFetch(`/api/v1/admin/event-submissions/${submissionId}/unpublish`, {
+        method: "POST",
     });
 }

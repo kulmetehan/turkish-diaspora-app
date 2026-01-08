@@ -8,6 +8,7 @@ import { useUserAuth } from "@/hooks/useUserAuth";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import stemmenBg from "@/assets/stemmen.png";
+import { ChatButton } from "@/components/chat/ChatButton";
 
 export interface PollCardProps {
   poll: Poll;
@@ -155,13 +156,24 @@ export function PollCard({
                 {option.option_text}
               </button>
             ))}
-            <Button
-              onClick={() => onSubmitVote?.(poll.id)}
-              disabled={!selectedOption || hasResponded || isSubmitting}
-              className="w-full"
-            >
-              {isSubmitting ? "Stemmen..." : "Stem"}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => onSubmitVote?.(poll.id)}
+                disabled={!selectedOption || hasResponded || isSubmitting}
+                className="flex-1"
+              >
+                {isSubmitting ? "Stemmen..." : "Stem"}
+              </Button>
+              <ChatButton
+                contentType="feed"
+                contentId={poll.id}
+                title={poll.title}
+                description={poll.question || undefined}
+                variant="outline"
+                size="sm"
+                showCount={true}
+              />
+            </div>
           </div>
         )}
       </div>

@@ -11,6 +11,11 @@ export const supabase = createClient(url, anon, {
     storage: typeof window !== "undefined" ? window.localStorage : undefined,
     storageKey: "supabase.auth.token",
   },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });
 
 

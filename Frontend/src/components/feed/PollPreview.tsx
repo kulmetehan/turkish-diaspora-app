@@ -4,6 +4,7 @@ import { getPoll, getPollStats, submitPollResponse, type Poll, type PollStats } 
 import { cn } from "@/lib/ui/cn";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ChatButton } from "@/components/chat/ChatButton";
 
 interface PollPreviewProps {
   pollId: number;
@@ -229,14 +230,27 @@ export function PollPreview({ pollId, className, hasResponded: propHasResponded 
               {option.option_text}
             </button>
           ))}
-          <Button
-            onClick={handleSubmitVote}
-            disabled={!selectedOption || propHasResponded || hasResponded || isSubmitting}
-            size="sm"
-            className="w-full text-xs"
-          >
-            {isSubmitting ? "Stemmen..." : "Stem"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleSubmitVote}
+              disabled={!selectedOption || propHasResponded || hasResponded || isSubmitting}
+              size="sm"
+              className="flex-1 text-xs"
+            >
+              {isSubmitting ? "Stemmen..." : "Stem"}
+            </Button>
+            {poll && (
+              <ChatButton
+                contentType="feed"
+                contentId={pollId}
+                title={poll.title}
+                description={poll.question || undefined}
+                variant="outline"
+                size="sm"
+                showCount={true}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>

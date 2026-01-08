@@ -21,6 +21,7 @@ class EventItem(BaseModel):
     source_key: str
     summary_ai: Optional[str] = None
     updated_at: datetime
+    image_url: Optional[str] = None  # Event poster/flyer image URL
     lat: Optional[float] = None
     lng: Optional[float] = None
     reactions: Optional[Dict[str, int]] = Field(

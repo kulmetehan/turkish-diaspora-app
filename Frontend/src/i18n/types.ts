@@ -134,6 +134,7 @@ export type TranslationKeys = {
   navigation: {
     feed: string;
     news: string;
+    chat: string;
     map: string;
     events: string;
   };

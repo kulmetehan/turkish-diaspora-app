@@ -1050,9 +1050,12 @@ export interface UserStats {
   favorites_count: number;
   reactions_count: number;
   polls_responded: number;
+  chats_count: number;
 }
 
 export interface UserProfileDetail {
+  memleket?: string[] | null;
+  license_plate?: string | null;
   user_id: string;
   display_name: string | null;
   avatar_url: string | null;
@@ -1155,6 +1158,8 @@ export interface ActivityItem {
     avatar_url: string | null;
     primary_role?: string | null;
     secondary_role?: string | null;
+    memleket?: string[] | null;
+    license_plate?: string | null;
   } | null;
   like_count: number;
   is_liked: boolean;
@@ -1523,6 +1528,8 @@ export async function getActiveCheckIns(params?: {
 
 // Mahallelisi
 export interface MahallelisiResponse {
+  memleket?: string[] | null;
+  license_plate?: string | null;
   user_id: string;
   name: string;
   check_in_count: number;
@@ -2235,6 +2242,8 @@ export interface PushPreferences {
   poll_notifications: boolean;
   trending_notifications: boolean;
   activity_notifications: boolean;
+  chat_notifications: boolean;
+  updated_at?: string | null;
 }
 
 export interface PushPreferencesUpdate {
@@ -2242,6 +2251,7 @@ export interface PushPreferencesUpdate {
   poll_notifications?: boolean;
   trending_notifications?: boolean;
   activity_notifications?: boolean;
+  chat_notifications?: boolean;
 }
 
 export interface DeviceTokenRegister {
@@ -2360,6 +2370,8 @@ export async function getMyRecognition(): Promise<RecognitionResponse> {
 // ============================================================================
 
 export interface LeaderboardUser {
+  memleket?: string[] | null;
+  license_plate?: string | null;
   user_id: string;
   name: string | null;
   avatar_url: string | null;
@@ -2736,6 +2748,41 @@ export async function getMySubmissions(status?: string): Promise<LocationSubmiss
 }
 
 // ============================================================================
+// Event Submissions API
+// ============================================================================
+
+import type {
+  EventSubmissionCreate,
+  EventSubmissionResponse,
+  GeocodeResponse as EventGeocodeResponse,
+} from "@/lib/apiEvents";
+
+export async function geocodeEventAddress(address: string): Promise<EventGeocodeResponse> {
+  return authFetch<EventGeocodeResponse>("/api/v1/events/submit/geocode", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ address }),
+  });
+}
+
+export async function submitEvent(submission: EventSubmissionCreate): Promise<EventSubmissionResponse> {
+  return authFetch<EventSubmissionResponse>("/api/v1/events/submit", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(submission),
+  });
+}
+
+export async function listMyEventSubmissions(status?: string): Promise<EventSubmissionResponse[]> {
+  const params = status ? `?status=${encodeURIComponent(status)}` : "";
+  return authFetch<EventSubmissionResponse[]>(`/api/v1/events/my-submissions${params}`);
+}
+
+// ============================================================================
 // Contact Form API
 // ============================================================================
 
@@ -2761,5 +2808,350 @@ export async function submitContactForm(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(data),
+  });
+}
+
+// ============================================================================
+// Chat API
+// ============================================================================
+
+export interface ChatTopic {
+  id: number;
+  content_type: string;
+  content_id: number;
+  title: string;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+  last_message_at?: string | null;
+  is_active: boolean;
+  image_url?: string | null;
+}
+
+export interface ChatTopicListResponse {
+  items: ChatTopic[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface ChatMessageUser {
+  id: string;
+  name?: string | null;
+  avatar_url?: string | null;
+  primary_role?: string | null;
+  secondary_role?: string | null;
+}
+
+export interface ChatMessage {
+  id: number;
+  topic_id: number;
+  user_id: string;
+  content: string;
+  parent_message_id?: number | null;
+  quoted_message_id?: number | null;
+  created_at: string;
+  updated_at: string;
+  is_edited: boolean;
+  is_deleted: boolean;
+  deleted_at?: string | null;
+  user?: ChatMessageUser | null;
+  reactions?: Record<string, number> | null;
+  user_reactions?: string[] | null;
+  parent_message?: ChatMessage | null;
+  quoted_message?: ChatMessage | null;
+}
+
+export interface ChatMessageListResponse {
+  items: ChatMessage[];
+  has_more: boolean;
+}
+
+export interface CreateChatTopicRequest {
+  content_type: string;
+  content_id: number;
+  title: string;
+  description?: string | null;
+}
+
+export interface CreateChatMessageRequest {
+  content: string;
+  parent_message_id?: number | null;
+  quoted_message_id?: number | null;
+}
+
+export interface EditChatMessageRequest {
+  content: string;
+}
+
+export interface ReactionRequest {
+  emoji: string;
+}
+
+export interface SubscriptionRequest {
+  notification_enabled?: boolean;
+}
+
+export interface ChatReactionsResponse {
+  reactions: Record<string, number>;
+}
+
+export interface ChatUnreadCountResponse {
+  unread_count: number;
+}
+
+/**
+ * Create a chat topic for a content item.
+ */
+export async function createChatTopic(
+  request: CreateChatTopicRequest
+): Promise<ChatTopic> {
+  return authFetch<ChatTopic>("/api/v1/chat/topics", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * List chat topics with optional filtering.
+ */
+export async function listChatTopics(
+  contentType?: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<ChatTopicListResponse> {
+  const params = new URLSearchParams();
+  if (contentType) params.set("content_type", contentType);
+  params.set("limit", limit.toString());
+  params.set("offset", offset.toString());
+
+  return authFetch<ChatTopicListResponse>(`/api/v1/chat/topics?${params.toString()}`);
+}
+
+/**
+ * Get a specific chat topic by ID.
+ */
+export async function getChatTopic(topicId: number): Promise<ChatTopic> {
+  return authFetch<ChatTopic>(`/api/v1/chat/topics/${topicId}`);
+}
+
+/**
+ * Get a specific message by ID.
+ */
+export async function getChatMessage(messageId: number): Promise<ChatMessage> {
+  return authFetch<ChatMessage>(`/api/v1/chat/messages/${messageId}`);
+}
+
+/**
+ * Get messages for a topic.
+ */
+export async function getChatMessages(
+  topicId: number,
+  limit: number = 50,
+  beforeId?: number
+): Promise<ChatMessageListResponse> {
+  const params = new URLSearchParams();
+  params.set("limit", limit.toString());
+  if (beforeId !== undefined) params.set("before_id", beforeId.toString());
+
+  return authFetch<ChatMessageListResponse>(
+    `/api/v1/chat/topics/${topicId}/messages?${params.toString()}`
+  );
+}
+
+/**
+ * Create a new message in a topic.
+ */
+export async function createChatMessage(
+  topicId: number,
+  request: CreateChatMessageRequest
+): Promise<ChatMessage> {
+  return authFetch<ChatMessage>(`/api/v1/chat/topics/${topicId}/messages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * Reply to a specific message.
+ */
+export async function replyToChatMessage(
+  messageId: number,
+  request: CreateChatMessageRequest
+): Promise<ChatMessage> {
+  return authFetch<ChatMessage>(`/api/v1/chat/messages/${messageId}/reply`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * Quote a message in a new message.
+ */
+export async function quoteChatMessage(
+  messageId: number,
+  request: CreateChatMessageRequest
+): Promise<ChatMessage> {
+  return authFetch<ChatMessage>(`/api/v1/chat/messages/${messageId}/quote`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * Edit a message (only by the author).
+ */
+export async function editChatMessage(
+  messageId: number,
+  request: EditChatMessageRequest
+): Promise<ChatMessage> {
+  return authFetch<ChatMessage>(`/api/v1/chat/messages/${messageId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+}
+
+/**
+ * Delete a message (only by the author, soft delete).
+ */
+export async function deleteChatMessage(messageId: number): Promise<{ success: boolean }> {
+  return authFetch<{ success: boolean }>(`/api/v1/chat/messages/${messageId}`, {
+    method: "DELETE",
+  });
+}
+
+/**
+ * Toggle a reaction on a message.
+ */
+export async function toggleChatReaction(
+  messageId: number,
+  emoji: string
+): Promise<ChatReactionsResponse> {
+  return authFetch<ChatReactionsResponse>(`/api/v1/chat/messages/${messageId}/reactions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ emoji }),
+  });
+}
+
+/**
+ * Subscribe to a topic (for notifications).
+ */
+export async function subscribeToChatTopic(
+  topicId: number,
+  notificationEnabled: boolean = true
+): Promise<{ success: boolean; subscription: any }> {
+  return authFetch<{ success: boolean; subscription: any }>(
+    `/api/v1/chat/topics/${topicId}/subscribe`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ notification_enabled: notificationEnabled }),
+    }
+  );
+}
+
+/**
+ * Mark a topic as read.
+ */
+export async function markChatTopicAsRead(
+  topicId: number,
+  messageId?: number
+): Promise<{ success: boolean }> {
+  const params = messageId !== undefined ? `?message_id=${messageId}` : "";
+  return authFetch<{ success: boolean }>(
+    `/api/v1/chat/topics/${topicId}/mark-read${params}`
+  );
+}
+
+/**
+ * Get unread message count for a topic.
+ */
+export async function getChatTopicUnreadCount(
+  topicId: number
+): Promise<ChatUnreadCountResponse> {
+  return authFetch<ChatUnreadCountResponse>(`/api/v1/chat/topics/${topicId}/unread-count`);
+}
+
+/**
+ * Get a chat topic by content_type and content_id (without creating).
+ * Returns null if topic doesn't exist yet.
+ */
+export async function getChatTopicByContent(
+  contentType: string,
+  contentId: number
+): Promise<ChatTopic | null> {
+  const params = new URLSearchParams();
+  params.set("content_type", contentType);
+  params.set("content_id", contentId.toString());
+  
+  try {
+    const response = await authFetch<ChatTopic>(
+      `/api/v1/chat/topics/by-content?${params.toString()}`
+    );
+    return response;
+  } catch (error: any) {
+    // If 404 or 422 (validation error), topic doesn't exist yet
+    const errorMessage = error?.message || "";
+    if (
+      error?.status === 404 || 
+      errorMessage.includes("404") || 
+      errorMessage.includes("422") ||
+      errorMessage.includes("Topic not found")
+    ) {
+      return null;
+    }
+    // Log other errors but don't throw - just return null
+    console.error("Failed to get chat topic by content:", error);
+    return null;
+  }
+}
+
+/**
+ * Get or create a chat topic for a content item.
+ */
+export async function getOrCreateChatTopic(
+  contentType: string,
+  contentId: number,
+  title: string,
+  description?: string
+): Promise<ChatTopic> {
+  try {
+    // Try to get existing topic
+    const existing = await getChatTopicByContent(contentType, contentId);
+    if (existing) {
+      return existing;
+    }
+  } catch (error) {
+    // If fetching fails, try to create anyway
+    console.debug("Failed to check for existing topic, creating new one", error);
+  }
+
+  // Create new topic
+  return createChatTopic({
+    content_type: contentType,
+    content_id: contentId,
+    title,
+    description: description || null,
   });
 }

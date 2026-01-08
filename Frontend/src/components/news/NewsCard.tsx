@@ -11,6 +11,7 @@ import { useTranslation } from "@/hooks/useTranslation";
 import newsEmojiCommentImage from "@/assets/newsemojicomment.png";
 import spotifyLogo from "@/assets/spotify.png";
 import turkbotmusicImage from "@/assets/turkbotmusic.png";
+import { ChatButton } from "@/components/chat/ChatButton";
 
 // Module-level cache to persist across component remounts
 // Use Map to track both "fetched" and "in-flight" states
@@ -356,13 +357,26 @@ export function NewsCard({
       )}
 
       {/* Emoji Reactions */}
-      <div className="mt-3 pt-2 px-3 pb-3" onClick={(e) => e.stopPropagation()}>
+      <div className="mt-3 pt-2 px-3 pb-3 flex items-center gap-2 relative" onClick={(e) => e.stopPropagation()}>
         <EmojiReactions
           activityId={item.id}
           reactions={reactions}
           userReaction={userReaction}
           onReactionToggle={handleReactionToggle}
         />
+        
+        {/* Chat Button - positioned left of mascot icon, aligned with emoji picker */}
+        <div className="absolute right-20 bottom-3 z-20" onClick={(e) => e.stopPropagation()}>
+        <ChatButton
+          contentType={isMusicTrack ? "music" : "news"}
+          contentId={item.id}
+          title={item.title}
+          description={item.snippet || undefined}
+          variant="outline"
+          size="sm"
+          showCount={true}
+        />
+        </div>
       </div>
       
       {/* Bot image pointing to emoji reactions - Hide for music tracks */}

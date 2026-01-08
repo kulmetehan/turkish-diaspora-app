@@ -104,6 +104,7 @@ function transformActivityItem(
       primary_role: item.user?.primary_role || null,
       secondary_role: item.user?.secondary_role || null,
       id: item.user?.id || null,
+      license_plate: item.user?.license_plate || null,
     },
     locationName: item.location_name || null,
     locationId: item.location_id || null,

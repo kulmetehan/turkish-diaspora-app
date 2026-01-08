@@ -1,0 +1,66 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Etkinliğiniz Reddedildi - {{ event_title }}{% elif language == 'en' %}Your Event Has Been Rejected - {{ event_title }}{% else %}Uw Event is Afgewezen - {{ event_title }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Event talebiniz reddedildi
+    {% elif language == 'en' %}
+        Your event submission has been rejected
+    {% else %}
+        Uw event inzending is afgewezen
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba {{ user_name }},</p>
+
+<p>Maalesef, <strong>{{ event_title }}</strong> için yaptığınız event inzending reddedildi.</p>
+
+{% if rejection_reason %}
+<p><strong>Red nedeni:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>Eğer bu karar hakkında sorularınız varsa of yeni bilgiler paylaşmak isterseniz, lütfen bizimle iletişime geçmekten çekinmeyin.</p>
+
+<p>Başka bir event için inzending yapabilirsiniz.</p>
+
+<p>Teşekkürler,<br>Turkspot Ekibi</p>
+
+{% elif language == 'en' %}
+<p>Hello {{ user_name }},</p>
+
+<p>Unfortunately, your event submission for <strong>{{ event_title }}</strong> has been rejected.</p>
+
+{% if rejection_reason %}
+<p><strong>Reason:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>If you have questions about this decision or would like to share additional information, please don't hesitate to reach out to us.</p>
+
+<p>You can submit another event.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi {{ user_name }},</p>
+
+<p>Helaas is uw event inzending voor <strong>{{ event_title }}</strong> afgewezen.</p>
+
+{% if rejection_reason %}
+<p><strong>Reden:</strong> {{ rejection_reason }}</p>
+{% endif %}
+
+<p>Als u vragen heeft over deze beslissing of aanvullende informatie wilt delen, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>U kunt een ander event indienen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

@@ -175,6 +175,13 @@ export const adminNavigation: NavGroup[] = [
         group: "moderation",
       },
       {
+        id: "event-submissions",
+        label: "Event Inzendingen",
+        icon: "Calendar",
+        path: "/admin/event-submissions",
+        group: "moderation",
+      },
+      {
         id: "bulletin",
         label: "Bulletin Moderation",
         icon: "MessageSquare",

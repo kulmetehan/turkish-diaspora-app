@@ -46,7 +46,7 @@ class PushService:
         
         Args:
             user_id: UUID of the user
-            notification_type: Type of notification ('poll', 'trending', 'activity', 'system')
+            notification_type: Type of notification ('poll', 'trending', 'activity', 'chat_message', 'system')
             title: Notification title
             body: Notification body
             data: Optional additional data payload
@@ -56,7 +56,7 @@ class PushService:
         """
         # Check user preferences
         prefs_sql = """
-            SELECT enabled, poll_notifications, trending_notifications, activity_notifications
+            SELECT enabled, poll_notifications, trending_notifications, activity_notifications, chat_notifications
             FROM push_notification_preferences
             WHERE user_id = $1::uuid
         """
@@ -68,12 +68,14 @@ class PushService:
             poll_notifications = True
             trending_notifications = False
             activity_notifications = False
+            chat_notifications = True
         else:
             prefs = prefs_rows[0]
             enabled = prefs.get("enabled", True)
             poll_notifications = prefs.get("poll_notifications", True)
             trending_notifications = prefs.get("trending_notifications", False)
             activity_notifications = prefs.get("activity_notifications", False)
+            chat_notifications = prefs.get("chat_notifications", True)
         
         # Check if this notification type is enabled
         if not enabled:
@@ -83,6 +85,7 @@ class PushService:
             "poll": poll_notifications,
             "trending": trending_notifications,
             "activity": activity_notifications,
+            "chat_message": chat_notifications,
             "system": True,  # System notifications always enabled if notifications are enabled
         }.get(notification_type, False)
         
