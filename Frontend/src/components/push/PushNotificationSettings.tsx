@@ -220,6 +220,20 @@ export function PushNotificationSettings() {
               onCheckedChange={(checked) => handleToggle("activity_notifications", checked)}
             />
           </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="chat">Chat Notificaties</Label>
+              <p className="text-sm text-muted-foreground">
+                Ontvang meldingen wanneer je nieuwe chat berichten krijgt
+              </p>
+            </div>
+            <Switch
+              id="chat"
+              checked={preferences.chat_notifications ?? true}
+              onCheckedChange={(checked) => handleToggle("chat_notifications", checked)}
+            />
+          </div>
         </>
       )}
 

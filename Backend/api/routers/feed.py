@@ -284,6 +284,7 @@ async def get_curated_events() -> CuratedEventsResponse:
                     source_key=item_data.get("source_key", ""),
                     summary_ai=item_data.get("summary_ai"),
                     updated_at=updated_at,
+                    image_url=item_data.get("image_url"),
                     lat=item_data.get("lat"),
                     lng=item_data.get("lng"),
                 )

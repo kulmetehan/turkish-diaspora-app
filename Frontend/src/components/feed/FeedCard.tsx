@@ -25,6 +25,7 @@ import { deleteAdminCheckIn, deleteAdminNote, deleteAdminPoll } from "@/lib/apiA
 import { labelDisplayName } from "@/lib/labelDisplay";
 import { roleDisplayName } from "@/lib/roleDisplay";
 import { cn } from "@/lib/ui/cn";
+import { LicensePlateTag } from "@/components/user/LicensePlateTag";
 import { Bookmark } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +34,7 @@ import { EmojiReactions } from "./EmojiReactions";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { EventBadge } from "./EventBadge";
 import { PollPreview } from "./PollPreview";
+import { ChatButton } from "@/components/chat/ChatButton";
 
 export interface FeedCardProps {
   id: number;
@@ -42,6 +44,8 @@ export interface FeedCardProps {
     primary_role?: string | null;
     secondary_role?: string | null;
     id?: string | null;
+    memleket?: string[] | null;
+    license_plate?: string | null;
   };
   locationName: string | null;
   locationId?: number | null;
@@ -293,6 +297,10 @@ export function FeedCard({
             >
               {user.name || t("feed.card.anonymousUser")}
             </button>
+            
+            {/* License Plate Tag */}
+            <LicensePlateTag licensePlate={user.license_plate} />
+            
             {user.primary_role && (
               <>
                 <span className="text-xs font-gilroy font-normal text-muted-foreground">·</span>
@@ -489,6 +497,20 @@ export function FeedCard({
             }
             return null;
           })()}
+
+          <ChatButton
+            contentType="feed"
+            contentId={pollId || id}
+            title={
+              type === "poll" && pollId
+                ? `Poll: ${contentText || `Poll ${pollId}`}`
+                : contentText || locationName || `Feed item ${id}`
+            }
+            description={noteContent || contentText || undefined}
+            variant="ghost"
+            size="sm"
+            showCount={true}
+          />
 
           <button
             type="button"

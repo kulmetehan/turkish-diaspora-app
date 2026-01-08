@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from app.core.feature_flags import require_feature
 from app.core.client_id import get_client_id
 from app.deps.auth import get_current_user, get_current_user_optional, User
+from app.models.turkish_city_plates import get_primary_license_plate
 from services.db_service import fetch, fetchrow, execute
 from services.xp_service import award_xp
 from services.badge_service import _award_badge
@@ -171,6 +172,7 @@ class UserStats(BaseModel):
     favorites_count: int = 0
     reactions_count: int = 0
     polls_responded: int = 0
+    chats_count: int = 0
 
 
 class UserProfileDetailResponse(BaseModel):
@@ -180,6 +182,8 @@ class UserProfileDetailResponse(BaseModel):
     city_key: Optional[str] = None
     primary_role: Optional[str] = None
     secondary_role: Optional[str] = None
+    memleket: Optional[List[str]] = None
+    license_plate: Optional[str] = None
     created_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
     stats: UserStats
@@ -213,6 +217,7 @@ async def get_user_profile_detail(
             up.display_name,
             up.avatar_url,
             up.city_key,
+            up.memleket,
             up.created_at,
             ur.primary_role,
             ur.secondary_role
@@ -242,7 +247,8 @@ async def get_user_profile_detail(
             (SELECT COUNT(*) FROM location_notes WHERE user_id = $1::uuid) as notes_count,
             (SELECT COUNT(*) FROM favorites WHERE user_id = $1::uuid) as favorites_count,
             (SELECT COUNT(*) FROM location_reactions WHERE user_id = $1::uuid) as reactions_count,
-            (SELECT COUNT(DISTINCT poll_id) FROM poll_responses WHERE user_id = $1::uuid) as polls_responded
+            (SELECT COUNT(DISTINCT poll_id) FROM poll_responses WHERE user_id = $1::uuid) as polls_responded,
+            (SELECT COUNT(*) FROM chat_messages WHERE user_id = $1::uuid) as chats_count
     """
     stats_rows = await fetch(stats_sql, user_id)
     stats_row = stats_rows[0] if stats_rows else {}
@@ -256,6 +262,10 @@ async def get_user_profile_detail(
     """
     social_rows = await fetch(social_sql, user_id)
     
+    # Calculate license plate from memleket
+    user_memleket = profile_row.get("memleket")
+    license_plate = get_primary_license_plate(user_memleket) if user_memleket else None
+    
     return UserProfileDetailResponse(
         user_id=str(profile_row["user_id"]),
         display_name=profile_row.get("display_name"),
@@ -263,6 +273,8 @@ async def get_user_profile_detail(
         city_key=profile_row.get("city_key"),
         primary_role=profile_row.get("primary_role"),
         secondary_role=profile_row.get("secondary_role"),
+        memleket=user_memleket,
+        license_plate=license_plate,
         created_at=profile_row.get("created_at"),
         last_seen_at=last_seen_at,
         stats=UserStats(
@@ -271,6 +283,7 @@ async def get_user_profile_detail(
             favorites_count=stats_row.get("favorites_count", 0) or 0,
             reactions_count=stats_row.get("reactions_count", 0) or 0,
             polls_responded=stats_row.get("polls_responded", 0) or 0,
+            chats_count=stats_row.get("chats_count", 0) or 0,
         ),
         social_accounts=[
             SocialAccount(

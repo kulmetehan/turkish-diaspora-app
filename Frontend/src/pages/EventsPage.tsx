@@ -22,6 +22,11 @@ import {
   type EventCategoryKey,
 } from "@/lib/routing/eventCategories";
 import { navigationActions, useEventsNavigation } from "@/state/navigation";
+import AddEventButton from "@/components/AddEventButton";
+import AddEventDialog from "@/components/AddEventDialog";
+import { LoginModal } from "@/components/auth/LoginModal";
+import { useUserAuth } from "@/hooks/useUserAuth";
+import { cn } from "@/lib/ui/cn";
 
 function categoriesAreEqual(a: EventCategoryKey[], b: EventCategoryKey[]) {
   if (a.length !== b.length) return false;
@@ -33,6 +38,19 @@ export default function EventsPage() {
   const [dateFrom, setDateFrom] = useState<string | null>(null);
   const [dateTo, setDateTo] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+
+  // User authentication state
+  const { isAuthenticated } = useUserAuth();
+
+  // Add event dialog state
+  const [addEventDialogOpen, setAddEventDialogOpen] = useState(false);
+  const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationSelectionMode, setLocationSelectionMode] = useState<"map" | "address" | null>(null);
+
+  // Login modal state
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  type PendingAction = "addEvent" | null;
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
   // Use navigation store for events state
   const eventsNavigation = useEventsNavigation();
@@ -178,6 +196,37 @@ export default function EventsPage() {
     console.log("Notification clicked");
   }, []);
 
+  // Handle location selection for add event
+  const handleLocationSelected = useCallback((lat: number, lng: number) => {
+    setSelectedLocationForAdd({ lat, lng });
+  }, []);
+
+  const handleLocationModeChange = useCallback((mode: "map" | "address") => {
+    setLocationSelectionMode(mode);
+  }, []);
+
+  // Handle add event button click
+  const handleAddEventClick = useCallback(() => {
+    if (!isAuthenticated) {
+      setPendingAction("addEvent");
+      setLoginModalOpen(true);
+      return;
+    }
+    setAddEventDialogOpen(true);
+    setSelectedLocationForAdd(null);
+  }, [isAuthenticated]);
+
+  // Handle login success - resume pending action
+  useEffect(() => {
+    if (isAuthenticated && pendingAction && !loginModalOpen) {
+      if (pendingAction === "addEvent") {
+        setAddEventDialogOpen(true);
+        setSelectedLocationForAdd(null);
+      }
+      setPendingAction(null);
+    }
+  }, [isAuthenticated, pendingAction, loginModalOpen]);
+
   // Restore scroll position on mount
   useEffect(() => {
     if (scrollRestoredRef.current || !scrollContainerRef.current || isLoading || items.length === 0) {
@@ -310,8 +359,39 @@ export default function EventsPage() {
             </div>
           )}
         </div>
+        {/* Add Event Button - positioned right bottom above FooterTabs */}
+        <div
+          className={cn(
+            "pointer-events-none fixed right-3 z-40 md:right-4",
+            !isAuthenticated && "opacity-90"
+          )}
+          style={{ bottom: "calc(var(--bottom-offset) + 1rem)" }}
+        >
+          <div className="pointer-events-auto">
+            <AddEventButton
+              onClick={handleAddEventClick}
+            />
+          </div>
+        </div>
         <FooterTabs />
       </div>
+      <AddEventDialog
+        open={addEventDialogOpen}
+        onOpenChange={setAddEventDialogOpen}
+        onLocationSelected={handleLocationSelected}
+        selectedLat={selectedLocationForAdd?.lat ?? null}
+        selectedLng={selectedLocationForAdd?.lng ?? null}
+        onLocationModeChange={handleLocationModeChange}
+      />
+      <LoginModal
+        open={loginModalOpen}
+        onOpenChange={(open) => {
+          setLoginModalOpen(open);
+          if (!open) {
+            setPendingAction(null);
+          }
+        }}
+      />
     </AppViewportShell>
     </>
   );

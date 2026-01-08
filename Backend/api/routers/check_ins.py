@@ -18,6 +18,7 @@ from app.deps.rate_limiting import require_rate_limit_factory
 from services.db_service import fetch, execute
 from services.xp_service import award_xp
 from services.activity_summary_service import update_user_activity_summary
+from app.models.turkish_city_plates import get_primary_license_plate
 
 router = APIRouter(prefix="/locations", tags=["check-ins"])
 
@@ -155,6 +156,8 @@ class MahallelisiResponse(BaseModel):
     check_in_count: int
     primary_role: Optional[str] = None
     secondary_role: Optional[str] = None
+    memleket: Optional[List[str]] = None
+    license_plate: Optional[str] = None
 
 
 @router.get("/{location_id}/mahallelisi", response_model=Optional[MahallelisiResponse])
@@ -171,6 +174,7 @@ async def get_location_mahallelisi(
             ci.user_id,
             COUNT(*) as check_in_count,
             up.display_name,
+            up.memleket,
             ur.primary_role,
             ur.secondary_role
         FROM check_ins ci
@@ -179,7 +183,7 @@ async def get_location_mahallelisi(
         WHERE ci.location_id = $1
           AND ci.user_id IS NOT NULL
           AND DATE_TRUNC('week', ci.created_at) = DATE_TRUNC('week', CURRENT_DATE)
-        GROUP BY ci.user_id, up.display_name, ur.primary_role, ur.secondary_role
+        GROUP BY ci.user_id, up.display_name, up.memleket, ur.primary_role, ur.secondary_role
         ORDER BY check_in_count DESC
         LIMIT 1
     """
@@ -192,12 +196,18 @@ async def get_location_mahallelisi(
     row = rows[0]
     display_name = row.get("display_name") or "Anonim"
     
+    # Calculate license plate from memleket
+    user_memleket = row.get("memleket")
+    license_plate = get_primary_license_plate(user_memleket) if user_memleket else None
+    
     return MahallelisiResponse(
         user_id=str(row["user_id"]),
         name=display_name,
         check_in_count=row.get("check_in_count", 0) or 0,
         primary_role=row.get("primary_role"),
         secondary_role=row.get("secondary_role"),
+        memleket=user_memleket,
+        license_plate=license_plate,
     )
 
 

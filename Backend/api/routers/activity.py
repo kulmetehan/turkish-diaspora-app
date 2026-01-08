@@ -11,6 +11,7 @@ import json
 from app.core.client_id import get_client_id
 from app.core.feature_flags import require_feature
 from app.deps.auth import get_current_user_optional, User
+from app.models.turkish_city_plates import get_primary_license_plate
 from services.db_service import fetch, execute
 
 router = APIRouter(prefix="/activity", tags=["activity"])
@@ -22,6 +23,8 @@ class ActivityUser(BaseModel):
     avatar_url: Optional[str] = None
     primary_role: Optional[str] = None
     secondary_role: Optional[str] = None
+    memleket: Optional[List[str]] = None  # Array of Turkish city keys
+    license_plate: Optional[str] = None  # License plate number (e.g., "34", "40")
 
 
 class ActivityItem(BaseModel):
@@ -195,6 +198,7 @@ async def get_own_activity(
             up.id as user_id,
             up.display_name as user_name,
             up.avatar_url as user_avatar_url,
+            up.memleket as user_memleket,
             ur.primary_role as user_primary_role,
             ur.secondary_role as user_secondary_role,
             COALESCE(like_counts.like_count, 0) as like_count,
@@ -240,7 +244,7 @@ async def get_own_activity(
         GROUP BY 
             ast.id, ast.activity_type, ast.location_id, ast.category_key, l.name, ast.payload, 
             ast.created_at, ast.media_url, up.id, up.display_name, 
-            up.avatar_url, ur.primary_role, ur.secondary_role,
+            up.avatar_url, up.memleket, ur.primary_role, ur.secondary_role,
             like_counts.like_count, al.id, ab.id, pl.id, pl.status, 
             pl.promotion_type, pl.starts_at, pl.ends_at
         ORDER BY is_promoted DESC, ast.created_at DESC
@@ -256,6 +260,9 @@ async def get_own_activity(
     for row in rows:
         parsed_reactions = _parse_reactions(row.get("reactions"))
         labels = _calculate_labels(row["activity_type"], parsed_reactions)
+        
+        user_memleket = row.get("user_memleket")
+        license_plate = get_primary_license_plate(user_memleket) if user_memleket else None
         
         result.append(
             ActivityItem(
@@ -274,6 +281,8 @@ async def get_own_activity(
                     avatar_url=row.get("user_avatar_url"),
                     primary_role=row.get("user_primary_role"),
                     secondary_role=row.get("user_secondary_role"),
+                    memleket=user_memleket,
+                    license_plate=license_plate,
                 ) if row.get("user_id") else None,
                 like_count=row.get("like_count", 0) or 0,
                 is_liked=row.get("is_liked", False) or False,
@@ -396,6 +405,7 @@ async def get_nearby_activity(
             up.id as user_id,
             up.display_name as user_name,
             up.avatar_url as user_avatar_url,
+            up.memleket as user_memleket,
             ur.primary_role as user_primary_role,
             ur.secondary_role as user_secondary_role,
             COALESCE(like_counts.like_count, 0) as like_count,
@@ -441,7 +451,7 @@ async def get_nearby_activity(
         GROUP BY 
             ast.id, ast.activity_type, ast.location_id, ast.category_key, l.name, ast.payload, 
             ast.created_at, ast.media_url, up.id, up.display_name, 
-            up.avatar_url, ur.primary_role, ur.secondary_role,
+            up.avatar_url, up.memleket, ur.primary_role, ur.secondary_role,
             like_counts.like_count, al.id, ab.id, pl.id, pl.status, 
             pl.promotion_type, pl.starts_at, pl.ends_at
         ORDER BY is_promoted DESC, ast.created_at DESC
@@ -455,6 +465,9 @@ async def get_nearby_activity(
     for row in rows:
         parsed_reactions = _parse_reactions(row.get("reactions"))
         labels = _calculate_labels(row["activity_type"], parsed_reactions)
+        
+        user_memleket = row.get("user_memleket")
+        license_plate = get_primary_license_plate(user_memleket) if user_memleket else None
         
         result.append(
             ActivityItem(
@@ -473,6 +486,8 @@ async def get_nearby_activity(
                     avatar_url=row.get("user_avatar_url"),
                     primary_role=row.get("user_primary_role"),
                     secondary_role=row.get("user_secondary_role"),
+                    memleket=user_memleket,
+                    license_plate=license_plate,
                 ) if row.get("user_id") else None,
                 like_count=row.get("like_count", 0) or 0,
                 is_liked=row.get("is_liked", False) or False,

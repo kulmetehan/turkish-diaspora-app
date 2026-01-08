@@ -33,6 +33,8 @@ import { roleDisplayName } from "@/lib/roleDisplay";
 import { labelDisplayName } from "@/lib/labelDisplay";
 import { useMascotteFeedback } from "@/hooks/useMascotteFeedback";
 import { useTranslation } from "@/hooks/useTranslation";
+import { LicensePlateTag } from "@/components/user/LicensePlateTag";
+import { RoleAvatar } from "@/components/user/RoleAvatar";
 
 type Props = {
     location: LocationMarker;
@@ -453,8 +455,12 @@ export default function LocationDetail({ location, onBackToList }: Props) {
                             <h3 className="font-medium text-sm mb-3">Bu haftanın Mahallelisi</h3>
                             {mahallelisi ? (
                                 <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
                                         <span className="font-medium">{mahallelisi.name}</span>
+                                        <LicensePlateTag licensePlate={mahallelisi.license_plate} />
+                                        {(mahallelisi.primary_role === "yeni_gelen" || mahallelisi.primary_role === "location_owner") && (
+                                            <RoleAvatar role={mahallelisi.primary_role} licensePlate={mahallelisi.license_plate} size="sm" />
+                                        )}
                                         {mahallelisi.primary_role && (
                                             <Badge variant="secondary" className="text-xs">
                                                 {roleDisplayName(mahallelisi.primary_role)}

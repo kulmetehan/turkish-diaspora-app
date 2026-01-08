@@ -144,6 +144,10 @@ export function LeaderboardCard({
                         {user.name}
                       </button>
                     )}
+                    <LicensePlateTag licensePlate={user.license_plate} />
+                    {(user.primary_role === "yeni_gelen" || user.primary_role === "location_owner") && (
+                      <RoleAvatar role={user.primary_role} licensePlate={user.license_plate} size="sm" />
+                    )}
                     {roleImage && (
                       <img
                         src={roleImage}

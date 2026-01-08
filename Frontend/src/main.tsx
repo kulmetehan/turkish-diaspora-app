@@ -43,6 +43,8 @@ const AdminPollsPage = React.lazy(() => import("@/pages/admin/AdminPollsPage"));
 const AdminReportsPage = React.lazy(() => import("@/pages/admin/AdminReportsPage"));
 const AdminLocationSubmissionsPage = React.lazy(() => import("@/pages/admin/AdminLocationSubmissionsPage"));
 const AdminLocationSubmissionDetailPage = React.lazy(() => import("@/pages/admin/AdminLocationSubmissionDetailPage"));
+const AdminEventSubmissionsPage = React.lazy(() => import("@/pages/admin/AdminEventSubmissionsPage"));
+const AdminEventSubmissionDetailPage = React.lazy(() => import("@/pages/admin/AdminEventSubmissionDetailPage"));
 const AdminBulletinModeration = React.lazy(() => import("@/pages/admin/AdminBulletinModeration"));
 const AdminAuthenticatedClaimsPage = React.lazy(() => import("@/pages/admin/AdminAuthenticatedClaimsPage"));
 const AdminOutreachContactsPage = React.lazy(() => import("@/pages/admin/AdminOutreachContactsPage"));
@@ -53,6 +55,8 @@ const PollDetailPage = React.lazy(() => import("@/pages/PollDetailPage"));
 const LocationDetailPage = React.lazy(() => import("@/pages/LocationDetailPage"));
 const ClaimPage = React.lazy(() => import("@/pages/ClaimPage"));
 const AccountPage = React.lazy(() => import("@/pages/AccountPage"));
+const ChatPage = React.lazy(() => import("@/pages/ChatPage"));
+const ChatTopicPage = React.lazy(() => import("@/pages/ChatTopicPage"));
 
 // Vite base path is configured in vite.config.ts (defaults to "/" for Render deployment)
 
@@ -99,6 +103,16 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route path="/news" element={<App initialTab="news" />} />
           <Route path="/events" element={<App initialTab="events" />} />
           <Route path="/feed" element={<App initialTab="feed" />} />
+          <Route path="/chat" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <ChatPage />
+            </Suspense>
+          } />
+          <Route path="/chat/topic/:id" element={
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <ChatTopicPage />
+            </Suspense>
+          } />
           <Route path="/account" element={
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AccountPage />
@@ -212,6 +226,20 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <AdminRouteWrapper>
             <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
               <AdminLocationSubmissionDetailPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/event-submissions" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminEventSubmissionsPage />
+            </Suspense>
+          </AdminRouteWrapper>
+        } />
+        <Route path="/admin/event-submissions/:id" element={
+          <AdminRouteWrapper>
+            <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+              <AdminEventSubmissionDetailPage />
             </Suspense>
           </AdminRouteWrapper>
         } />

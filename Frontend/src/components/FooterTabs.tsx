@@ -15,6 +15,7 @@ type TabConfig = {
 const tabConfigs: Array<{ to: string; icon: ComponentProps<typeof Icon>["name"]; labelKey: string; end?: boolean }> = [
   { to: "/feed", icon: "MoonStar", labelKey: "navigation.feed" },
   { to: "/news", icon: "Newspaper", labelKey: "navigation.news" },
+  { to: "/chat", icon: "MessageCircle", labelKey: "navigation.chat" },
   { to: "/map", icon: "Map", labelKey: "navigation.map", end: true },
   { to: "/events", icon: "CalendarCheck", labelKey: "navigation.events" },
 ];

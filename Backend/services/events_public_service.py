@@ -53,6 +53,7 @@ def _row_to_event_item(row: Any) -> EventItem:
         source_key=str(row["source_key"]),
         summary_ai=row.get("summary_ai"),
         updated_at=row["updated_at"],
+        image_url=row.get("image_url"),
         lat=lat,
         lng=lng,
         reactions=_parse_reactions(row.get("reactions")),
@@ -114,6 +115,7 @@ async def list_public_events(
             source_key,
             summary_ai,
             updated_at,
+            image_url,
             lat,
             lng,
             COALESCE(

@@ -4,7 +4,7 @@ import { type UserStats } from "@/lib/api";
 export function UserProfileStats({ stats }: { stats: UserStats }) {
   return (
     <Card className="p-3">
-      <div className="grid grid-cols-4 gap-4 text-center">
+      <div className="grid grid-cols-5 gap-4 text-center">
         <div>
           <div className="text-2xl font-bold text-red-500">{stats.check_ins_count}</div>
           <div className="text-xs text-muted-foreground">Check-ins</div>
@@ -20,6 +20,10 @@ export function UserProfileStats({ stats }: { stats: UserStats }) {
         <div>
           <div className="text-2xl font-bold text-red-500">{stats.reactions_count}</div>
           <div className="text-xs text-muted-foreground">Reacties</div>
+        </div>
+        <div>
+          <div className="text-2xl font-bold text-red-500">{stats.chats_count}</div>
+          <div className="text-xs text-muted-foreground">Chats</div>
         </div>
       </div>
     </Card>

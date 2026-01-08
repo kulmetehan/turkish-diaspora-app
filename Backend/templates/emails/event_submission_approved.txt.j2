@@ -1,0 +1,37 @@
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+Harika haber! {{ event_title }} için yaptığınız event inzending onaylandı. Event is nu toegevoegd aan de events lijst.
+
+Het event is nu zichtbaar voor alle gebruikers op de events pagina.
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Great news! Your event submission for {{ event_title }} has been approved. The event has now been added to the events list.
+
+The event is now visible for all users on the events page.
+
+If you have any questions, please don't hesitate to reach out to us.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Goed nieuws! Uw event inzending voor {{ event_title }} is goedgekeurd. Het event is nu toegevoegd aan de events lijst.
+
+Het event is nu zichtbaar voor alle gebruikers op de events pagina.
+
+Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

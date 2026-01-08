@@ -1,0 +1,54 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Etkinliğiniz Onaylandı - {{ event_title }}{% elif language == 'en' %}Your Event Has Been Approved - {{ event_title }}{% else %}Uw Event is Goedgekeurd - {{ event_title }}{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Event talebiniz onaylandı
+    {% elif language == 'en' %}
+        Your event submission has been approved
+    {% else %}
+        Uw event inzending is goedgekeurd
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Merhaba {{ user_name }},</p>
+
+<p>Harika haber! <strong>{{ event_title }}</strong> için yaptığınız event inzending onaylandı. Event is nu toegevoegd aan de events lijst.</p>
+
+<p>Het event is nu zichtbaar voor alle gebruikers op de events pagina.</p>
+
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+
+{% elif language == 'en' %}
+<p>Hello {{ user_name }},</p>
+
+<p>Great news! Your event submission for <strong>{{ event_title }}</strong> has been approved. The event has now been added to the events list.</p>
+
+<p>The event is now visible for all users on the events page.</p>
+
+<p>If you have any questions, please don't hesitate to reach out to us.</p>
+
+<p>Thank you,<br>The Turkspot Team</p>
+
+{% else %}
+<p>Hoi {{ user_name }},</p>
+
+<p>Goed nieuws! Uw event inzending voor <strong>{{ event_title }}</strong> is goedgekeurd. Het event is nu toegevoegd aan de events lijst.</p>
+
+<p>Het event is nu zichtbaar voor alle gebruikers op de events pagina.</p>
+
+<p>Als u vragen heeft, aarzel dan niet om contact met ons op te nemen.</p>
+
+<p>Bedankt,<br>Het Turkspot Team</p>
+{% endif %}
+{% endblock %}
+

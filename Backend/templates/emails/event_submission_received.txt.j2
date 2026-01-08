@@ -1,0 +1,31 @@
+{% if language == 'tr' %}
+Merhaba {{ user_name }},
+
+{{ event_title }} için yaptığınız event inzending başarıyla alındı. İncelenmesi için admin ekibimize iletildi.
+
+İnceleme süreci genellikle birkaç gün sürer. Sonuç hakkında size e-posta göndereceğiz.
+
+Teşekkürler,
+Turkspot Ekibi
+
+{% elif language == 'en' %}
+Hello {{ user_name }},
+
+Your event submission for {{ event_title }} has been successfully received and forwarded to our admin team for review.
+
+The review process usually takes a few days. We will send you an email about the result.
+
+Thank you,
+The Turkspot Team
+
+{% else %}
+Hoi {{ user_name }},
+
+Uw event inzending voor {{ event_title }} is succesvol ontvangen en doorgestuurd naar ons admin team voor beoordeling.
+
+Het beoordelingsproces duurt meestal een paar dagen. We sturen u een e-mail over het resultaat.
+
+Bedankt,
+Het Turkspot Team
+{% endif %}
+

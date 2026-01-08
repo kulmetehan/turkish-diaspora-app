@@ -4,6 +4,7 @@ import { Icon } from "@/components/Icon";
 import { type UserProfileDetail } from "@/lib/api";
 import { roleDisplayName } from "@/lib/roleDisplay";
 import { formatCityLabel } from "@/components/events/eventFormatters";
+import { LicensePlateTag } from "@/components/user/LicensePlateTag";
 
 function getInitials(name: string | null | undefined): string {
   if (!name) return "??";
@@ -55,7 +56,10 @@ export function UserProfileHeader({ profile }: { profile: UserProfileDetail }) {
       
       {/* Name */}
       <div className="text-center">
-        <h2 className="text-xl font-gilroy font-semibold text-foreground">{displayName}</h2>
+        <div className="flex items-center justify-center gap-2 flex-wrap">
+          <h2 className="text-xl font-gilroy font-semibold text-foreground">{displayName}</h2>
+          <LicensePlateTag licensePlate={profile.license_plate} />
+        </div>
         
         {/* Badges */}
         <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
@@ -80,6 +84,9 @@ export function UserProfileHeader({ profile }: { profile: UserProfileDetail }) {
     </div>
   );
 }
+
+
+
 
 
 

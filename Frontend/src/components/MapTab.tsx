@@ -25,10 +25,12 @@ import { toast } from "sonner";
 import AddLocationButton from "@/components/AddLocationButton";
 import AddLocationDialog from "@/components/AddLocationDialog";
 import CheckInsToggleButton from "@/components/CheckInsToggleButton";
+import { LoginModal } from "@/components/auth/LoginModal";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { SeoHead } from "@/lib/seo/SeoHead";
 import { useSeo } from "@/lib/seo/useSeo";
 import { useTranslation } from "@/hooks/useTranslation";
+import { cn } from "@/lib/ui/cn";
 
 export default function MapTab() {
     const { t } = useTranslation();
@@ -67,6 +69,11 @@ export default function MapTab() {
     const [addLocationDialogOpen, setAddLocationDialogOpen] = useState(false);
     const [selectedLocationForAdd, setSelectedLocationForAdd] = useState<{ lat: number; lng: number } | null>(null);
     const [locationSelectionMode, setLocationSelectionMode] = useState<"map" | "address" | null>(null);
+
+    // Login modal state
+    const [loginModalOpen, setLoginModalOpen] = useState(false);
+    type PendingAction = "addLocation" | "showCheckIns" | null;
+    const [pendingAction, setPendingAction] = useState<PendingAction>(null);
 
     // Effective detailId: use local state if set, otherwise null
     const effectiveDetailId = detailIdLocal;
@@ -160,6 +167,20 @@ export default function MapTab() {
             // #endregion
         }
     }, [showCheckInsMode]);
+
+    // Auto-execute pending action after successful login
+    useEffect(() => {
+        if (isAuthenticated && pendingAction && !loginModalOpen) {
+            // User just logged in and modal is closed
+            if (pendingAction === "addLocation") {
+                setAddLocationDialogOpen(true);
+                setSelectedLocationForAdd(null);
+            } else if (pendingAction === "showCheckIns") {
+                handleCheckInsToggle();
+            }
+            setPendingAction(null);
+        }
+    }, [isAuthenticated, pendingAction, loginModalOpen, handleCheckInsToggle]);
 
     // Fetch check-ins when entering check-ins mode
     useEffect(() => {
@@ -655,21 +676,27 @@ export default function MapTab() {
                 />
             </div>
             {/* Add Location Button - positioned above MapControls */}
-            {isAuthenticated && (
-                <div
-                    className="pointer-events-none fixed right-3 z-40 md:right-4"
-                    style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
-                >
-                    <div className="pointer-events-auto">
-                        <AddLocationButton
-                            onClick={() => {
-                                setAddLocationDialogOpen(true);
-                                setSelectedLocationForAdd(null);
-                            }}
-                        />
-                    </div>
+            <div
+                className={cn(
+                    "pointer-events-none fixed right-3 z-40 md:right-4",
+                    !isAuthenticated && "opacity-90"
+                )}
+                style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
+            >
+                <div className="pointer-events-auto">
+                    <AddLocationButton
+                        onClick={() => {
+                            if (!isAuthenticated) {
+                                setPendingAction("addLocation");
+                                setLoginModalOpen(true);
+                                return;
+                            }
+                            setAddLocationDialogOpen(true);
+                            setSelectedLocationForAdd(null);
+                        }}
+                    />
                 </div>
-            )}
+            </div>
         </div>
     );
 
@@ -716,21 +743,27 @@ export default function MapTab() {
                 )}
             </div>
             {/* Add Location Button - positioned above MapControls */}
-            {isAuthenticated && (
-                <div
-                    className="pointer-events-none fixed right-3 z-40 md:right-4"
-                    style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
-                >
-                    <div className="pointer-events-auto">
-                        <AddLocationButton
-                            onClick={() => {
-                                setAddLocationDialogOpen(true);
-                                setSelectedLocationForAdd(null);
-                            }}
-                        />
-                    </div>
+            <div
+                className={cn(
+                    "pointer-events-none fixed right-3 z-40 md:right-4",
+                    !isAuthenticated && "opacity-90"
+                )}
+                style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
+            >
+                <div className="pointer-events-auto">
+                    <AddLocationButton
+                        onClick={() => {
+                            if (!isAuthenticated) {
+                                setPendingAction("addLocation");
+                                setLoginModalOpen(true);
+                                return;
+                            }
+                            setAddLocationDialogOpen(true);
+                            setSelectedLocationForAdd(null);
+                        }}
+                    />
                 </div>
-            )}
+            </div>
         </div>
     );
 
@@ -815,36 +848,50 @@ export default function MapTab() {
                 </div>
             )}
             {/* Check-ins Toggle Button - positioned above Add Location Button */}
-            {isAuthenticated && (
-                <div
-                    className="pointer-events-none fixed right-3 z-40 md:right-4"
-                    style={{ bottom: "calc(var(--bottom-offset) + 11rem)" }}
-                >
-                    <div className="pointer-events-auto">
-                        <CheckInsToggleButton
-                            isCheckInsMode={showCheckInsMode}
-                            onToggle={handleCheckInsToggle}
-                            disabled={checkInsLoading}
-                        />
-                    </div>
+            <div
+                className={cn(
+                    "pointer-events-none fixed right-3 z-40 md:right-4",
+                    !isAuthenticated && "opacity-90"
+                )}
+                style={{ bottom: "calc(var(--bottom-offset) + 11rem)" }}
+            >
+                <div className="pointer-events-auto">
+                    <CheckInsToggleButton
+                        isCheckInsMode={showCheckInsMode}
+                        onToggle={() => {
+                            if (!isAuthenticated) {
+                                setPendingAction("showCheckIns");
+                                setLoginModalOpen(true);
+                                return;
+                            }
+                            handleCheckInsToggle();
+                        }}
+                        disabled={checkInsLoading}
+                    />
                 </div>
-            )}
+            </div>
             {/* Add Location Button - positioned above MapControls */}
-            {isAuthenticated && (
-                <div
-                    className="pointer-events-none fixed right-3 z-40 md:right-4"
-                    style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
-                >
-                    <div className="pointer-events-auto">
-                        <AddLocationButton
-                            onClick={() => {
-                                setAddLocationDialogOpen(true);
-                                setSelectedLocationForAdd(null);
-                            }}
-                        />
-                    </div>
+            <div
+                className={cn(
+                    "pointer-events-none fixed right-3 z-40 md:right-4",
+                    !isAuthenticated && "opacity-90"
+                )}
+                style={{ bottom: "calc(var(--bottom-offset) + 7rem)" }}
+            >
+                <div className="pointer-events-auto">
+                    <AddLocationButton
+                        onClick={() => {
+                            if (!isAuthenticated) {
+                                setPendingAction("addLocation");
+                                setLoginModalOpen(true);
+                                return;
+                            }
+                            setAddLocationDialogOpen(true);
+                            setSelectedLocationForAdd(null);
+                        }}
+                    />
                 </div>
-            )}
+            </div>
             {checkInsLoading && showCheckInsMode && (
                 <div className="absolute top-4 right-4 z-10 rounded-3xl border border-border bg-card px-4 py-2 text-sm text-foreground shadow-soft">
                     Check-ins worden geladen…
@@ -908,6 +955,18 @@ export default function MapTab() {
                     selectedLng={selectedLocationForAdd?.lng ?? null}
                     onLocationModeChange={(mode) => {
                         setLocationSelectionMode(mode);
+                    }}
+                />
+
+                {/* Login Modal */}
+                <LoginModal
+                    open={loginModalOpen}
+                    onOpenChange={(open) => {
+                        setLoginModalOpen(open);
+                        // Clear pending action if user closes modal without logging in
+                        if (!open && !isAuthenticated) {
+                            setPendingAction(null);
+                        }
                     }}
                 />
                 </AppViewportShell>
