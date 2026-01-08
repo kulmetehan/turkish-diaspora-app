@@ -14,6 +14,7 @@ import NewsPage from "@/pages/NewsPage";
 import { navigationActions, useActiveTab, type TabId } from "@/state/navigation";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
 import { getOnboardingStatus, type OnboardingStatus } from "@/lib/api";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 interface HomePageProps {
   initialTab?: TabId;
@@ -128,6 +129,7 @@ function HomePage({ initialTab }: HomePageProps) {
   return (
     <div className="relative h-[calc(100svh-var(--footer-height))] w-full overflow-hidden">
       {tabsContent}
+      <InstallPrompt />
     </div>
   );
 }

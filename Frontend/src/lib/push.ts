@@ -148,6 +148,8 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 /**
  * Initialize push notifications (register service worker and request permission).
+ * Note: Service worker is now registered automatically via pwa.ts, so this function
+ * primarily handles push subscription.
  */
 export async function initializePushNotifications(
   vapidPublicKey?: string
@@ -155,10 +157,24 @@ export async function initializePushNotifications(
   registration: ServiceWorkerRegistration | null;
   subscription: PushSubscription | null;
 }> {
-  // Register service worker
-  const registration = await registerServiceWorker();
-  if (!registration) {
+  // Get existing service worker registration (should already be registered by pwa.ts)
+  if (!("serviceWorker" in navigator)) {
+    console.warn("Service workers not supported");
     return { registration: null, subscription: null };
+  }
+
+  let registration: ServiceWorkerRegistration | null = null;
+  
+  try {
+    // Try to get existing registration
+    registration = await navigator.serviceWorker.ready;
+  } catch (error) {
+    // If no registration exists, register now (fallback)
+    console.warn("No service worker registration found, registering now...");
+    registration = await registerServiceWorker();
+    if (!registration) {
+      return { registration: null, subscription: null };
+    }
   }
 
   // Request permission
