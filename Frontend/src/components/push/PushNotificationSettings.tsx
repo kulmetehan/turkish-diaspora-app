@@ -56,29 +56,70 @@ export function PushNotificationSettings() {
       // Check browser support
       if (!("Notification" in window) || !("serviceWorker" in navigator)) {
         toast.error("Push notifications worden niet ondersteund in deze browser");
-        return;
-      }
-
-      // Request permission first
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        toast.error("Notificatie toestemming geweigerd");
+        console.error("Push notification support check failed:", {
+          hasNotification: "Notification" in window,
+          hasServiceWorker: "serviceWorker" in navigator,
+        });
         return;
       }
 
       // Get VAPID public key from environment
       const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
       if (!vapidPublicKey) {
-        toast.error("Push notifications zijn niet geconfigureerd");
+        toast.error("Push notifications zijn niet geconfigureerd (VAPID key ontbreekt)");
+        console.error("VAPID public key missing from environment variables");
         return;
       }
 
-      const { registration, subscription } = await initializePushNotifications(vapidPublicKey);
+      console.log("Starting push notification registration...");
+
+      // Check service worker registration first
+      let registration: ServiceWorkerRegistration | null = null;
+      try {
+        registration = await navigator.serviceWorker.ready;
+        console.log("Service worker ready:", registration.scope);
+      } catch (error) {
+        console.error("Service worker not ready, attempting to register:", error);
+        // Try to register service worker
+        const { registerServiceWorker } = await import("@/lib/push");
+        registration = await registerServiceWorker();
+        if (!registration) {
+          toast.error("Service worker kon niet worden geregistreerd. Probeer de pagina te vernieuwen.");
+          console.error("Service worker registration failed");
+          return;
+        }
+      }
+
+      // Request permission
+      console.log("Requesting notification permission...");
+      const permission = await Notification.requestPermission();
+      console.log("Notification permission:", permission);
+      
+      if (permission !== "granted") {
+        toast.error(`Notificatie toestemming geweigerd (status: ${permission})`);
+        return;
+      }
+
+      // Initialize push notifications
+      console.log("Initializing push notifications with VAPID key...");
+      const { registration: pushRegistration, subscription } = await initializePushNotifications(vapidPublicKey);
+
+      if (!pushRegistration) {
+        toast.error("Service worker kon niet worden gebruikt voor push notificaties");
+        console.error("Push registration failed: no service worker registration");
+        return;
+      }
 
       if (!subscription) {
         toast.error("Kon je niet abonneren op push notificaties");
+        console.error("Push subscription failed: no subscription returned");
         return;
       }
+
+      console.log("Push subscription created:", {
+        endpoint: subscription.endpoint.substring(0, 50) + "...",
+        hasKeys: !!subscription.keys,
+      });
 
       // Convert subscription to JSON for backend
       const subscriptionJson = JSON.stringify({
@@ -86,15 +127,29 @@ export function PushNotificationSettings() {
         keys: subscription.keys,
       });
 
+      console.log("Registering device token with backend...");
       await registerDeviceToken({
         token: subscriptionJson,
         platform: "web",
         user_agent: navigator.userAgent,
       });
 
-      toast.success("Push notifications ingeschakeld");
-      loadPreferences(); // Reload preferences
+      console.log("Device token registered successfully");
+      
+      // Automatically enable push notifications after successful registration
+      // This ensures the UI updates immediately and the button disappears
+      try {
+        const updated = await updatePushPreferences({ enabled: true });
+        setPreferences(updated);
+        toast.success("Push notifications ingeschakeld");
+      } catch (err) {
+        // If updating preferences fails, still reload them
+        console.warn("Failed to update preferences, reloading...", err);
+        await loadPreferences();
+        toast.success("Push notifications geregistreerd");
+      }
     } catch (err) {
+      console.error("Push notification registration error:", err);
       toast.error("Kon push notificaties niet registreren", {
         description: err instanceof Error ? err.message : "Onbekende fout",
       });
@@ -112,13 +167,24 @@ export function PushNotificationSettings() {
 
     if (!preferences) return;
 
+    // Optimistically update UI
+    const previousValue = preferences[field];
+    setPreferences({ ...preferences, [field]: value });
+
     const update = { [field]: value };
     try {
       const updated = await updatePushPreferences(update);
       setPreferences(updated);
-      toast.success("Voorkeuren bijgewerkt");
+      
+      // Only show toast for non-enabled toggles (enabled toggle is handled by registerForPush)
+      if (field !== "enabled") {
+        toast.success("Voorkeuren bijgewerkt");
+      }
     } catch (err) {
+      // Revert on error
+      setPreferences({ ...preferences, [field]: previousValue });
       toast.error("Kon voorkeuren niet bijwerken");
+      console.error("Failed to update push preferences:", err);
     }
   };
 
@@ -167,15 +233,27 @@ export function PushNotificationSettings() {
         <div>
           <Label htmlFor="enabled">Push notificaties inschakelen</Label>
           <p className="text-sm text-muted-foreground">
-            Ontvang meldingen op dit apparaat
+            {preferences.enabled 
+              ? "Push notifications zijn actief op dit apparaat" 
+              : "Ontvang meldingen op dit apparaat"}
           </p>
         </div>
         <Switch
           id="enabled"
           checked={preferences.enabled}
           onCheckedChange={(checked) => handleToggle("enabled", checked)}
+          disabled={registering}
         />
       </div>
+      
+      {preferences.enabled && (
+        <div className="flex items-center gap-2 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+          <Icon name="CheckCircle" className="h-5 w-5 text-green-500" />
+          <p className="text-sm text-green-700 dark:text-green-400">
+            Push notifications zijn actief. Je ontvangt meldingen op dit apparaat.
+          </p>
+        </div>
+      )}
 
       {preferences.enabled && (
         <>
@@ -238,8 +316,19 @@ export function PushNotificationSettings() {
       )}
 
       {!preferences.enabled && (
-        <Button onClick={registerForPush} disabled={registering} className="w-full">
-          {registering ? "Registreren..." : "Push Notificaties Inschakelen"}
+        <Button 
+          onClick={registerForPush} 
+          disabled={registering || loading} 
+          className="w-full"
+        >
+          {registering ? (
+            <>
+              <span className="animate-spin mr-2">⏳</span>
+              Registreren...
+            </>
+          ) : (
+            "Push Notificaties Inschakelen"
+          )}
         </Button>
       )}
     </div>

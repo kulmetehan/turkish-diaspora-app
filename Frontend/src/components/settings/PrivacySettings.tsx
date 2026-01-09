@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useUserAuth } from "@/hooks/useUserAuth";
 import { getPrivacySettings, updatePrivacySettings, type PrivacySettings as PrivacySettingsType } from "@/lib/api";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -20,6 +20,7 @@ export function PrivacySettings() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -30,6 +31,11 @@ export function PrivacySettings() {
   }, [isAuthenticated]);
 
   const loadSettings = async () => {
+    // Don't reload if we're currently saving a field
+    if (savingRef.current) {
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const data = await getPrivacySettings();
@@ -51,14 +57,18 @@ export function PrivacySettings() {
 
     const newSettings = { ...settings, [field]: value };
     setSettings(newSettings);
+    savingRef.current = field;
 
     try {
       setIsSaving(true);
-      await updatePrivacySettings({ [field]: value });
+      const updated = await updatePrivacySettings({ [field]: value });
+      setSettings(updated);
+      savingRef.current = null;
       toast.success("Privacy instellingen bijgewerkt");
     } catch (err) {
       // Revert on error
       setSettings(settings);
+      savingRef.current = null;
       const message = err instanceof Error ? err.message : "Kon privacy instellingen niet bijwerken";
 
       if (message.includes("Not authenticated") || message.includes("401")) {

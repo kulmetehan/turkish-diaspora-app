@@ -1933,7 +1933,9 @@ export interface PrivacySettingsUpdate {
 export async function getPrivacySettings(): Promise<PrivacySettings> {
   const clientId = getOrCreateClientId();
 
-  return apiFetch<PrivacySettings>(
+  // Use apiFetchWithOptionalAuth so auth token is sent if user is authenticated
+  // This ensures backend returns user-specific settings instead of defaults
+  return apiFetchWithOptionalAuth<PrivacySettings>(
     "/api/v1/privacy/settings",
     {
       headers: {

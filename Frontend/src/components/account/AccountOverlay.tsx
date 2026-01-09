@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
+import { DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 import { AccountLoginSection } from "@/components/account/AccountLoginSection";
 import { AccountTabs, type AccountTabKey } from "@/components/account/AccountTabs";
@@ -141,15 +142,15 @@ export function AccountOverlay({ open, onOpenChange }: AccountOverlayProps) {
             aria-labelledby="account-overlay-title"
           >
             <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
-              <DialogPrimitive.Title
+              <DialogTitle
                 id="account-overlay-title"
                 className="text-2xl font-semibold tracking-tight"
               >
                 Account
-              </DialogPrimitive.Title>
-              <DialogPrimitive.Description className="sr-only">
+              </DialogTitle>
+              <DialogDescription className="sr-only">
                 {t("account.tabs.general")}
-              </DialogPrimitive.Description>
+              </DialogDescription>
               <DialogPrimitive.Close className="rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary/30">
                 <X className="h-5 w-5" aria-label="Sluiten" />
               </DialogPrimitive.Close>

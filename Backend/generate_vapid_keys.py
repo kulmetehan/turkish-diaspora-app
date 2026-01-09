@@ -45,8 +45,10 @@ def main():
         )
         
         # Convert to base64 URL-safe format (what Web Push API expects)
+        # Note: This is old code, the code below uses a better approach
         private_key_b64 = base64.urlsafe_b64encode(private_key_raw).decode('utf-8').rstrip('=')
-        public_key_b64 = base64.urlsafe_b64encode(public_key_raw[1:]).decode('utf-8').rstrip('=')
+        # Keep the 0x04 prefix (uncompressed point indicator) - Web Push API expects it
+        public_key_b64 = base64.urlsafe_b64encode(public_key_raw).decode('utf-8').rstrip('=')
         
         # Actually, let's use the simpler approach - py-vapid has a method for this
         # Get the keys in the format that pywebpush expects
@@ -62,8 +64,9 @@ def main():
             encoding=serialization.Encoding.X962,
             format=serialization.PublicFormat.UncompressedPoint
         )
-        # Remove the 0x04 prefix (uncompressed point indicator) and encode
-        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes[1:]).decode('utf-8').rstrip('=')
+        # Keep the 0x04 prefix (uncompressed point indicator) - Web Push API expects it
+        # The frontend will handle both formats (with and without prefix) for backwards compatibility
+        public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
         
         print("✅ Keys generated successfully!\n")
         print("=" * 70)
@@ -112,8 +115,8 @@ def main():
                 encoding=serialization.Encoding.X962,
                 format=serialization.PublicFormat.UncompressedPoint
             )
-            # Remove 0x04 prefix and encode to base64 URL-safe
-            public_key_b64 = base64.urlsafe_b64encode(public_key_bytes[1:]).decode('utf-8').rstrip('=')
+            # Keep the 0x04 prefix (uncompressed point indicator) - Web Push API expects it
+            public_key_b64 = base64.urlsafe_b64encode(public_key_bytes).decode('utf-8').rstrip('=')
             
             print("✅ Keys generated successfully (alternative method)!\n")
             print("=" * 70)
