@@ -107,9 +107,9 @@ export function PushNotificationSettings() {
         return;
       }
 
-      // Initialize push notifications
+      // Initialize push notifications (skip permission check since we already did it)
       console.log("Initializing push notifications with VAPID key...");
-      const { registration: pushRegistration, subscription } = await initializePushNotifications(vapidPublicKey);
+      const { registration: pushRegistration, subscription } = await initializePushNotifications(vapidPublicKey, true);
 
       if (!pushRegistration) {
         toast.error("Service worker kon niet worden gebruikt voor push notificaties");
