@@ -344,48 +344,26 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Try to find existing window with matching URL pattern
-        const hashUrl = url.startsWith('#') ? url : `#${url}`;
-        for (const client of clientList) {
-          const clientUrl = new URL(client.url);
-          if (clientUrl.hash === hashUrl || clientUrl.pathname + clientUrl.hash === url) {
-            if ('focus' in client) {
-              return client.focus().then(() => {
-                // For HashRouter, navigate expects the path without the leading #
-                const pathForNavigate = url.startsWith('#') ? url.substring(1) : url;
-                if ('navigate' in client && typeof client.navigate === 'function') {
-                  // Use full URL with hash for navigate() API
-                  const baseUrl = new URL(client.url).origin + new URL(client.url).pathname;
-                  return client.navigate(baseUrl + hashUrl);
-                }
-              });
-            }
-            return client.focus();
-          }
-        }
-        // If no matching window found, check if any window is open
+        // Always use postMessage for navigation - most reliable for HashRouter
+        // Focus the window first, then send navigation message
         if (clientList.length > 0) {
-          // Focus existing window and navigate
+          // Focus existing window and navigate via postMessage
           const client = clientList[0];
           if ('focus' in client) {
-            return client.focus().then(() => {
-              if ('navigate' in client && typeof client.navigate === 'function') {
-                // Use full URL with hash for navigate() API
-                const baseUrl = new URL(client.url).origin + new URL(client.url).pathname;
-                return client.navigate(baseUrl + hashUrl);
-              } else {
-                // Fallback: use postMessage to notify client to navigate
-                client.postMessage({ type: 'navigate', url: hashUrl });
-              }
-            });
+            client.focus();
           }
-        }
-        // Otherwise, open a new window
-        // For HashRouter, we need to use the base URL + hash
-        const baseUrl = self.location.origin + self.location.pathname;
-        const fullUrl = url.startsWith('#') ? baseUrl + url : baseUrl + '#' + url;
-        if (clients.openWindow) {
-          return clients.openWindow(fullUrl);
+          // Send navigation message to all clients (in case multiple tabs are open)
+          clientList.forEach((client) => {
+            client.postMessage({ type: 'navigate', url: url });
+          });
+        } else {
+          // No window open - open a new one with the hash URL
+          // For HashRouter, we need to use the base URL + hash
+          const baseUrl = self.location.origin + self.location.pathname;
+          const fullUrl = url.startsWith('#') ? baseUrl + url : baseUrl + '#' + url;
+          if (clients.openWindow) {
+            return clients.openWindow(fullUrl);
+          }
         }
       })
   );
