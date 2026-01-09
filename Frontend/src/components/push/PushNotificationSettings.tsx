@@ -97,13 +97,40 @@ export function PushNotificationSettings() {
         }
       }
 
-      // Request permission
-      console.log("Requesting notification permission...");
-      const permission = await Notification.requestPermission();
-      console.log("Notification permission:", permission);
+      // Check current permission status first
+      console.log("Current notification permission:", Notification.permission);
+      
+      let permission: NotificationPermission;
+      
+      // If permission is already granted, use it
+      if (Notification.permission === "granted") {
+        console.log("Permission already granted, using existing permission");
+        permission = "granted";
+      } else if (Notification.permission === "denied") {
+        // Permission was denied, we can't request again
+        toast.error(
+          "Notificatie toestemming is geweigerd",
+          {
+            description: "Ga naar Instellingen > Turkspot > Notificaties om toestemming te geven",
+            duration: 8000,
+          }
+        );
+        return;
+      } else {
+        // Permission is "default", request it
+        console.log("Requesting notification permission...");
+        permission = await Notification.requestPermission();
+        console.log("Notification permission result:", permission);
+      }
       
       if (permission !== "granted") {
-        toast.error(`Notificatie toestemming geweigerd (status: ${permission})`);
+        toast.error(
+          "Notificatie toestemming geweigerd",
+          {
+            description: `Status: ${permission}. Controleer je instellingen.`,
+            duration: 8000,
+          }
+        );
         return;
       }
 

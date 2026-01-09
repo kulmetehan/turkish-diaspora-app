@@ -246,9 +246,11 @@ export async function initializePushNotifications(
       throw new Error(`Push notification permission denied (status: ${permission})`);
     }
   } else {
-    // Verify permission is still granted
-    if (Notification.permission !== "granted") {
-      throw new Error(`Push notification permission denied (status: ${Notification.permission})`);
+    // Verify permission is still granted - use Notification.permission directly
+    const currentPermission = Notification.permission;
+    console.log("Checking current permission status:", currentPermission);
+    if (currentPermission !== "granted") {
+      throw new Error(`Push notification permission denied (status: ${currentPermission})`);
     }
   }
 
