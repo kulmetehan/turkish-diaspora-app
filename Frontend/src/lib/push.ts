@@ -213,7 +213,8 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
  * primarily handles push subscription.
  */
 export async function initializePushNotifications(
-  vapidPublicKey?: string
+  vapidPublicKey?: string,
+  skipPermissionCheck: boolean = false
 ): Promise<{
   registration: ServiceWorkerRegistration | null;
   subscription: PushSubscription | null;
@@ -238,10 +239,19 @@ export async function initializePushNotifications(
     }
   }
 
-  // Request permission
-  const permission = await requestPushPermission();
-  if (permission !== "granted") {
-    throw new Error(`Push notification permission denied (status: ${permission})`);
+  // Only check permission if not already checked
+  if (!skipPermissionCheck) {
+    const permission = await requestPushPermission();
+    if (permission !== "granted") {
+      throw new Error(`Push notification permission denied (status: ${permission})`);
+    }
+  } else {
+    // Verify permission is still granted - use Notification.permission directly
+    const currentPermission = Notification.permission;
+    console.log("Checking current permission status:", currentPermission);
+    if (currentPermission !== "granted") {
+      throw new Error(`Push notification permission denied (status: ${currentPermission})`);
+    }
   }
 
   // Check for existing subscription
