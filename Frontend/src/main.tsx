@@ -92,25 +92,25 @@ function AppLayout() {
         const url = event.data.url;
         // Ensure URL starts with # for HashRouter
         const hashUrl = url.startsWith('#') ? url : `#${url}`;
-        console.log('[App] Navigating to:', hashUrl);
+        console.log('[App] Service worker navigation request to:', hashUrl);
         
-        // Update window.location.hash directly for HashRouter
-        // This is more reliable than using navigate() for deep links from notifications
-        if (window.location.hash !== hashUrl) {
-          window.location.hash = hashUrl;
-        } else {
-          // If already on the same hash, use navigate to trigger React Router update
-          const path = hashUrl.substring(1); // Remove leading #
-          navigate(path);
-        }
+        // Get the path without the leading #
+        const path = hashUrl.substring(1);
+        
+        // Use React Router's navigate() - this is the proper way for HashRouter
+        // It will update the hash and trigger all React Router hooks
+        navigate(path, { replace: false });
       }
     };
 
-    navigator.serviceWorker?.addEventListener('message', handleMessage);
-    
-    return () => {
-      navigator.serviceWorker?.removeEventListener('message', handleMessage);
-    };
+    // Listen for messages from service worker
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener('message', handleMessage);
+      
+      return () => {
+        navigator.serviceWorker?.removeEventListener('message', handleMessage);
+      };
+    }
   }, [navigate]);
 
   return (
