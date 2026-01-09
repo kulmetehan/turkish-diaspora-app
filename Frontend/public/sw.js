@@ -315,8 +315,13 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  // Determine URL based on notification type
-  if (data.type === 'poll' && data.poll_id) {
+  // Check for explicit URL in data first (highest priority)
+  // This allows system notifications and any notification type to specify a custom URL
+  if (data.url) {
+    url = data.url;
+  }
+  // Determine URL based on notification type (fallback for backward compatibility)
+  else if (data.type === 'poll' && data.poll_id) {
     url = `/polls/${data.poll_id}`;
   } else if (data.type === 'trending' && data.location_id) {
     url = `/locations/${data.location_id}`;

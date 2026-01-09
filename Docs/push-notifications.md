@@ -90,6 +90,12 @@ Existing schema in `Infra/supabase/033_push_notifications.sql`:
    - Default: Disabled
    - Content: Activity type and location
 
+4. **System Notifications**
+   - Trigger: Manual broadcast via script
+   - Default: Enabled (if notifications enabled)
+   - Content: Custom title and body
+   - Deep linking: Supports custom URLs via `url` field in data payload
+
 ## Implementation Steps
 
 1. Generate VAPID keys for Web Push
@@ -113,6 +119,58 @@ Existing schema in `Infra/supabase/033_push_notifications.sql`:
 - Monitor notification log for errors
 - Alert on high failure rates
 - Track user engagement (click-through rates)
+
+## Deep Linking
+
+Push notifications support deep linking to specific pages within the application. When a user clicks on a notification, they are automatically navigated to the specified URL.
+
+### Implementation
+
+The service worker checks for a `url` field in the notification data payload with highest priority. If present, it navigates to that URL. Otherwise, it falls back to type-specific routing for backward compatibility.
+
+### Usage
+
+#### System Notifications
+
+System notifications can include a custom URL in the data payload:
+
+```bash
+# Link to a specific location
+python scripts/send_system_notification.py \
+  --title "Nieuwe locatie" \
+  --body "Bekijk deze locatie!" \
+  --data '{"url": "/locations/123"}'
+
+# Link to feed page
+python scripts/send_system_notification.py \
+  --title "Update" \
+  --body "Bekijk de laatste updates" \
+  --data '{"url": "/feed"}'
+
+# Link to events page
+python scripts/send_system_notification.py \
+  --title "Evenement" \
+  --body "Nieuw evenement beschikbaar" \
+  --data '{"url": "/events/789"}'
+```
+
+#### URL Priority
+
+1. **Explicit URL** (`data.url`) - Highest priority, used if present
+2. **Type-specific routing** - Falls back to existing type-based routing (poll, trending, activity, chat_message)
+3. **Default** - Navigates to home page (`/`) if no URL is specified
+
+#### URL Format
+
+- Use relative paths (e.g., `/locations/123`, `/feed`, `/events/789`)
+- Hash fragments are supported (e.g., `/chat/topic/456#message-789`)
+- Absolute URLs are not recommended for internal navigation
+
+### Backward Compatibility
+
+- Existing notification types (poll, trending, activity, chat_message) continue to work as before
+- The `url` field is optional and only used when present
+- Type-specific routing remains as fallback for notifications without explicit URLs
 
 ## Future Enhancements
 
