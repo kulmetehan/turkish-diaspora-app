@@ -63,6 +63,13 @@ export function PushNotificationSettings() {
         return;
       }
 
+      // Check HTTPS (required for push notifications)
+      if (location.protocol !== "https:" && location.hostname !== "localhost") {
+        toast.error("Push notifications vereisen HTTPS. De app moet via HTTPS worden geladen.");
+        console.error("HTTPS required for push notifications");
+        return;
+      }
+
       // Get VAPID public key from environment
       const vapidPublicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
       if (!vapidPublicKey) {
@@ -150,7 +157,25 @@ export function PushNotificationSettings() {
       }
     } catch (err) {
       console.error("Push notification registration error:", err);
-      toast.error("Kon push notificaties niet registreren", {
+      
+      // Show more specific error messages
+      let errorMessage = "Kon push notificaties niet registreren";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+        
+        // Handle specific error types
+        if (err.name === "NotAllowedError" || err.message.includes("permission")) {
+          errorMessage = "Notificatie toestemming is geweigerd. Controleer je browser instellingen.";
+        } else if (err.message.includes("VAPID")) {
+          errorMessage = "VAPID key configuratie fout. Neem contact op met de beheerder.";
+        } else if (err.message.includes("Service worker")) {
+          errorMessage = "Service worker probleem. Probeer de pagina te vernieuwen.";
+        } else if (err.message.includes("HTTPS")) {
+          errorMessage = "Push notifications vereisen HTTPS.";
+        }
+      }
+      
+      toast.error(errorMessage, {
         description: err instanceof Error ? err.message : "Onbekende fout",
       });
     } finally {
