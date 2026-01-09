@@ -84,33 +84,82 @@ function AppLayout() {
   // Update HTML lang attribute based on i18n state
   useHtmlLang();
 
-  // Listen for navigation messages from service worker (for push notification deep linking)
+  // Listen for navigation requests from service worker (for push notification deep linking)
   useEffect(() => {
+    let lastNavigationUrl: string | null = null;
+    let navigationTimeout: number | null = null;
+    
+    const performNavigation = (url: string) => {
+      // Prevent duplicate navigations within 500ms
+      const now = Date.now();
+      if (lastNavigationUrl === url && navigationTimeout) {
+        return;
+      }
+      lastNavigationUrl = url;
+      
+      // Clear any pending navigation
+      if (navigationTimeout) {
+        clearTimeout(navigationTimeout);
+      }
+      
+      // Ensure URL starts with # for HashRouter
+      const hashUrl = url.startsWith('#') ? url : `#${url}`;
+      const path = hashUrl.substring(1);
+      
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        // Update hash directly - this triggers HashRouter navigation
+        if (window.location.hash !== hashUrl) {
+          window.location.hash = hashUrl;
+        } else {
+          // Already on the same hash, force React Router update
+          navigate(path, { replace: false });
+        }
+        
+        // Clear the navigation flag after a delay
+        navigationTimeout = window.setTimeout(() => {
+          lastNavigationUrl = null;
+        }, 500);
+      });
+    };
+    
+    // Listen for postMessage from service worker
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'navigate' && event.data.url) {
-        // Service worker sends URL with hash for HashRouter
-        const url = event.data.url;
-        // Ensure URL starts with # for HashRouter
-        const hashUrl = url.startsWith('#') ? url : `#${url}`;
-        console.log('[App] Service worker navigation request to:', hashUrl);
-        
-        // Get the path without the leading #
-        const path = hashUrl.substring(1);
-        
-        // Use React Router's navigate() - this is the proper way for HashRouter
-        // It will update the hash and trigger all React Router hooks
-        navigate(path, { replace: false });
+        performNavigation(event.data.url);
       }
     };
 
-    // Listen for messages from service worker
-    if (navigator.serviceWorker) {
-      navigator.serviceWorker.addEventListener('message', handleMessage);
+    // Set up message listeners on multiple channels for reliability
+    const serviceWorker = navigator.serviceWorker;
+    if (serviceWorker) {
+      // Primary listener
+      serviceWorker.addEventListener('message', handleMessage);
       
-      return () => {
-        navigator.serviceWorker?.removeEventListener('message', handleMessage);
-      };
+      // Backup listener on controller
+      if (serviceWorker.controller) {
+        serviceWorker.controller.addEventListener('message', handleMessage);
+      }
+      
+      // Also listen via the ready promise
+      serviceWorker.ready.then((registration) => {
+        if (registration.active) {
+          registration.active.addEventListener('message', handleMessage);
+        }
+      });
     }
+    
+    return () => {
+      if (navigationTimeout) {
+        clearTimeout(navigationTimeout);
+      }
+      if (serviceWorker) {
+        serviceWorker.removeEventListener('message', handleMessage);
+        if (serviceWorker.controller) {
+          serviceWorker.controller.removeEventListener('message', handleMessage);
+        }
+      }
+    };
   }, [navigate]);
 
   return (
