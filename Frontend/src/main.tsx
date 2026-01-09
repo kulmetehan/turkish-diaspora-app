@@ -1,8 +1,8 @@
 // Frontend/src/main.tsx
-import React, { Suspense } from "react";
+import React, { Suspense, useEffect } from "react";
 import ReactDOM from "react-dom/client";
 import { HelmetProvider } from "react-helmet-async";
-import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { HashRouter, Navigate, Outlet, Route, Routes, useNavigate } from "react-router-dom";
 
 import "leaflet/dist/leaflet.css";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -76,11 +76,33 @@ registerServiceWorker().catch((error) => {
 });
 
 function AppLayout() {
+  const navigate = useNavigate();
+
   // Track screen views on route changes
   useScreenTracking();
 
   // Update HTML lang attribute based on i18n state
   useHtmlLang();
+
+  // Listen for navigation messages from service worker (for push notification deep linking)
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'navigate' && event.data.url) {
+        // Service worker sends URL with hash for HashRouter
+        const url = event.data.url;
+        // Remove leading # if present (HashRouter's navigate expects path without #)
+        const path = url.startsWith('#') ? url.substring(1) : url;
+        console.log('[App] Navigating to:', path);
+        navigate(path);
+      }
+    };
+
+    navigator.serviceWorker?.addEventListener('message', handleMessage);
+
+    return () => {
+      navigator.serviceWorker?.removeEventListener('message', handleMessage);
+    };
+  }, [navigate]);
 
   return (
     <>

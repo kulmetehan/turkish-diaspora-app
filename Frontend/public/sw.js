@@ -335,18 +335,28 @@ self.addEventListener('notificationclick', (event) => {
     }
   }
 
+  // Convert URL to HashRouter format (add # if not present and not already a hash URL)
+  // HashRouter expects routes like /#/locations/123, not /locations/123
+  if (!url.startsWith('#') && url !== '/') {
+    url = `#${url}`;
+  }
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
         // Try to find existing window with matching URL pattern
-        const hashUrl = `#${url}`;
+        const hashUrl = url.startsWith('#') ? url : `#${url}`;
         for (const client of clientList) {
           const clientUrl = new URL(client.url);
           if (clientUrl.hash === hashUrl || clientUrl.pathname + clientUrl.hash === url) {
             if ('focus' in client) {
               return client.focus().then(() => {
+                // For HashRouter, navigate expects the path without the leading #
+                const pathForNavigate = url.startsWith('#') ? url.substring(1) : url;
                 if ('navigate' in client && typeof client.navigate === 'function') {
-                  return client.navigate(url);
+                  // Use full URL with hash for navigate() API
+                  const baseUrl = new URL(client.url).origin + new URL(client.url).pathname;
+                  return client.navigate(baseUrl + hashUrl);
                 }
               });
             }
@@ -360,17 +370,22 @@ self.addEventListener('notificationclick', (event) => {
           if ('focus' in client) {
             return client.focus().then(() => {
               if ('navigate' in client && typeof client.navigate === 'function') {
-                return client.navigate(url);
+                // Use full URL with hash for navigate() API
+                const baseUrl = new URL(client.url).origin + new URL(client.url).pathname;
+                return client.navigate(baseUrl + hashUrl);
               } else {
                 // Fallback: use postMessage to notify client to navigate
-                client.postMessage({ type: 'navigate', url });
+                client.postMessage({ type: 'navigate', url: hashUrl });
               }
             });
           }
         }
         // Otherwise, open a new window
+        // For HashRouter, we need to use the base URL + hash
+        const baseUrl = self.location.origin + self.location.pathname;
+        const fullUrl = url.startsWith('#') ? baseUrl + url : baseUrl + '#' + url;
         if (clients.openWindow) {
-          return clients.openWindow(url);
+          return clients.openWindow(fullUrl);
         }
       })
   );
