@@ -19,13 +19,15 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     console.log("Service worker registered:", registration.scope);
 
     // Check for updates periodically
+    let updatePromptShown = false;
     registration.addEventListener("updatefound", () => {
       const newWorker = registration.installing;
       if (newWorker) {
         newWorker.addEventListener("statechange", () => {
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller && !updatePromptShown) {
             // New service worker available, prompt user to refresh
             console.log("New service worker available. Refresh to update.");
+            updatePromptShown = true; // Prevent multiple prompts
             // Optionally show a notification to the user
             if (window.confirm("Nieuwe versie beschikbaar! Wil je de app bijwerken?")) {
               window.location.reload();

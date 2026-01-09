@@ -52,12 +52,27 @@ export async function subscribeToPush(
   vapidPublicKey?: string
 ): Promise<PushSubscription | null> {
   try {
+    if (!vapidPublicKey) {
+      console.error("VAPID public key is required for push subscription");
+      return null;
+    }
+
+    console.log("Converting VAPID key to Uint8Array...");
+    console.log("Key length:", vapidPublicKey.length);
+    console.log("Key (first 50 chars):", vapidPublicKey.substring(0, 50));
+    
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+    console.log("Converted key length:", applicationServerKey.length);
+    console.log("First byte:", `0x${applicationServerKey[0].toString(16)}`);
+
+    console.log("Subscribing to push notifications...");
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: vapidPublicKey 
-        ? urlBase64ToUint8Array(vapidPublicKey)
-        : undefined,
+      applicationServerKey: applicationServerKey,
     });
+
+    console.log("Push subscription successful!");
+    console.log("Endpoint:", subscription.endpoint);
 
     return {
       endpoint: subscription.endpoint,
@@ -68,6 +83,11 @@ export async function subscribeToPush(
     };
   } catch (error) {
     console.error("Push subscription failed:", error);
+    if (error instanceof Error) {
+      console.error("Error name:", error.name);
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     return null;
   }
 }
@@ -119,19 +139,58 @@ export async function unsubscribeFromPush(
 
 /**
  * Convert VAPID public key from URL-safe base64 to Uint8Array.
+ * The Web Push API expects the public key as a Uint8Array of 65 bytes:
+ * - 0x04 prefix (uncompressed point indicator)
+ * - 32 bytes X coordinate
+ * - 32 bytes Y coordinate
+ * 
+ * Note: Some key generators (like generate_vapid_keys.py) remove the 0x04 prefix,
+ * so we need to add it back if it's missing.
  */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  // Remove any whitespace
+  const cleanKey = base64String.trim();
   
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
+  // Add padding if needed (base64 URL-safe format)
+  const padding = "=".repeat((4 - (cleanKey.length % 4)) % 4);
+  const base64 = (cleanKey + padding)
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
   
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
+  try {
+    // Decode base64 to binary string
+    const rawData = window.atob(base64);
+    const decodedArray = new Uint8Array(rawData.length);
+    
+    for (let i = 0; i < rawData.length; ++i) {
+      decodedArray[i] = rawData.charCodeAt(i);
+    }
+    
+    // Check if we have 64 bytes (without 0x04 prefix) or 65 bytes (with prefix)
+    if (decodedArray.length === 64) {
+      // Key is missing the 0x04 prefix, add it
+      console.log("VAPID key missing 0x04 prefix, adding it...");
+      const outputArray = new Uint8Array(65);
+      outputArray[0] = 0x04; // Uncompressed point indicator
+      outputArray.set(decodedArray, 1);
+      return outputArray;
+    } else if (decodedArray.length === 65) {
+      // Key already has the prefix, validate it
+      if (decodedArray[0] !== 0x04) {
+        console.warn(`VAPID key has unexpected first byte: 0x${decodedArray[0].toString(16)}, expected 0x04`);
+        // Still return it, let the browser decide
+      }
+      return decodedArray;
+    } else {
+      console.error(`Invalid VAPID key length: expected 64 or 65 bytes, got ${decodedArray.length}`);
+      console.error(`Key (first 50 chars): ${cleanKey.substring(0, 50)}...`);
+      throw new Error(`Invalid VAPID public key length: expected 64 or 65 bytes, got ${decodedArray.length}`);
+    }
+  } catch (error) {
+    console.error("Error converting VAPID key:", error);
+    console.error("Key value:", cleanKey.substring(0, 50) + "...");
+    throw new Error(`Failed to convert VAPID public key: ${error instanceof Error ? error.message : String(error)}`);
   }
-  
-  return outputArray;
 }
 
 /**
@@ -194,10 +253,6 @@ export async function initializePushNotifications(
 
   return { registration, subscription };
 }
-
-
-
-
 
 
 

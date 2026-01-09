@@ -1,9 +1,10 @@
 // Frontend/public/sw.js
 // Service Worker for PWA and Push Notifications
+// Version: 2.0.0 (force update for notification debugging)
 
-const APP_SHELL_CACHE = 'tda-app-shell-v1';
-const STATIC_CACHE = 'tda-static-v1';
-const API_CACHE = 'tda-api-cache-v1';
+const APP_SHELL_CACHE = 'tda-app-shell-v2';
+const STATIC_CACHE = 'tda-static-v2';
+const API_CACHE = 'tda-api-cache-v2';
 
 // App shell files - core HTML, CSS, JS that make the app work
 const appShellFiles = [
@@ -188,9 +189,21 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// Track recent notifications to prevent duplicates
+const recentNotifications = new Map();
+const NOTIFICATION_DEDUP_WINDOW = 5000; // 5 seconds
+
 // Push event - handle incoming push notifications
 self.addEventListener('push', (event) => {
   console.log('[Service Worker] Push notification received');
+  
+  // Clean up old entries from recentNotifications
+  const now = Date.now();
+  for (const [key, timestamp] of recentNotifications.entries()) {
+    if (now - timestamp > NOTIFICATION_DEDUP_WINDOW) {
+      recentNotifications.delete(key);
+    }
+  }
   
   let data = {};
   if (event.data) {
@@ -202,21 +215,86 @@ self.addEventListener('push', (event) => {
   }
   
   const title = data.title || 'Turkish Diaspora App';
+  // Create unique tag to prevent duplicate notifications
+  // Use notification type + ID if available, otherwise use timestamp
+  const notificationKey = data.tag || data.data?.id 
+    ? `${data.tag || data.data?.type || 'notification'}-${data.data?.id || Date.now()}`
+    : `${data.title || 'notification'}-${data.body || ''}-${Date.now()}`;
+  
+  // Check if we've shown this notification recently (deduplication)
+  if (recentNotifications.has(notificationKey)) {
+    const lastShown = recentNotifications.get(notificationKey);
+    if (now - lastShown < NOTIFICATION_DEDUP_WINDOW) {
+      console.log('[Service Worker] Duplicate notification suppressed:', notificationKey);
+      return; // Skip showing duplicate notification
+    }
+  }
+  
+  // Mark this notification as shown
+  recentNotifications.set(notificationKey, now);
+  
+  const uniqueTag = notificationKey;
   const options = {
     body: data.body || 'You have a new notification',
     icon: '/icon-192x192.jpg',
     badge: '/icon-72x72.jpg',
     data: data.data || {},
-    tag: data.tag || 'default',
+    tag: uniqueTag,
     requireInteraction: false,
     vibrate: [200, 100, 200],
     timestamp: Date.now(),
   };
 
+  const minimalOptions = {
+    body: options.body,
+    data: options.data,
+    tag: options.tag,
+  };
+
   event.waitUntil(
-    self.registration.showNotification(title, options).catch((error) => {
-      console.error('[Service Worker] Failed to show notification:', error);
-    })
+    // Check service worker state and client visibility first
+    self.clients.matchAll({ includeUncontrolled: true })
+      .then(clients => {
+        return Promise.all(clients.map(async (client) => {
+          const focused = 'focused' in client ? client.focused : null;
+          const visibilityState = 'visibilityState' in client ? client.visibilityState : null;
+          return { focused, visibilityState, url: client.url };
+        }));
+      })
+      .then(clientCheck => {
+        const hasVisibleTab = clientCheck.some(c => c.visibilityState === 'visible');
+        const hasFocusedTab = clientCheck.some(c => c.focused === true);
+        
+        // If there's a visible tab, Chrome may suppress notifications
+        // Try with requireInteraction: true to force display
+        const notificationOptions = hasVisibleTab || hasFocusedTab 
+          ? { ...options, requireInteraction: true }
+          : options;
+        
+        // Try with adjusted options first
+        return self.registration.showNotification(title, notificationOptions)
+          .then(() => {
+            console.log('[Service Worker] showNotification promise resolved');
+          })
+          .catch((error) => {
+            console.error('[Service Worker] Failed to show notification:', error);
+            // Try minimal options as fallback (no icon/badge)
+            return self.registration.showNotification(title, minimalOptions)
+              .then(() => {
+                console.log('[Service Worker] showNotification promise resolved (minimal options fallback)');
+              })
+              .catch((fallbackError) => {
+                console.error('[Service Worker] Failed to show notification (minimal options):', fallbackError);
+              });
+          });
+      })
+      .catch((error) => {
+        console.error('[Service Worker] Client check failed:', error);
+        // Fallback: try notification anyway
+        return self.registration.showNotification(title, options).catch(err => {
+          console.error('[Service Worker] Fallback notification failed:', err);
+        });
+      })
   );
 });
 
@@ -262,8 +340,8 @@ self.addEventListener('notificationclick', (event) => {
           if (clientUrl.hash === hashUrl || clientUrl.pathname + clientUrl.hash === url) {
             if ('focus' in client) {
               return client.focus().then(() => {
-                if ('navigate' in client) {
-                  return (client as any).navigate(url);
+                if ('navigate' in client && typeof client.navigate === 'function') {
+                  return client.navigate(url);
                 }
               });
             }
@@ -276,8 +354,8 @@ self.addEventListener('notificationclick', (event) => {
           const client = clientList[0];
           if ('focus' in client) {
             return client.focus().then(() => {
-              if ('navigate' in client) {
-                return (client as any).navigate(url);
+              if ('navigate' in client && typeof client.navigate === 'function') {
+                return client.navigate(url);
               } else {
                 // Fallback: use postMessage to notify client to navigate
                 client.postMessage({ type: 'navigate', url });
@@ -305,8 +383,8 @@ self.addEventListener('message', (event) => {
     // Handle navigation requests from main thread
     clients.matchAll().then((clientList) => {
       clientList.forEach((client) => {
-        if ('navigate' in client) {
-          (client as any).navigate(event.data.url);
+        if ('navigate' in client && typeof client.navigate === 'function') {
+          client.navigate(event.data.url);
         }
       });
     });
