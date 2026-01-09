@@ -54,7 +54,7 @@ export async function subscribeToPush(
   try {
     if (!vapidPublicKey) {
       console.error("VAPID public key is required for push subscription");
-      return null;
+      throw new Error("VAPID public key is required for push subscription");
     }
 
     console.log("Converting VAPID key to Uint8Array...");
@@ -87,8 +87,10 @@ export async function subscribeToPush(
       console.error("Error name:", error.name);
       console.error("Error message:", error.message);
       console.error("Error stack:", error.stack);
+      // Re-throw the error so it can be caught and displayed to the user
+      throw error;
     }
-    return null;
+    throw new Error(`Push subscription failed: ${String(error)}`);
   }
 }
 
@@ -219,7 +221,7 @@ export async function initializePushNotifications(
   // Get existing service worker registration (should already be registered by pwa.ts)
   if (!("serviceWorker" in navigator)) {
     console.warn("Service workers not supported");
-    return { registration: null, subscription: null };
+    throw new Error("Service workers not supported in this browser");
   }
 
   let registration: ServiceWorkerRegistration | null = null;
@@ -232,15 +234,14 @@ export async function initializePushNotifications(
     console.warn("No service worker registration found, registering now...");
     registration = await registerServiceWorker();
     if (!registration) {
-      return { registration: null, subscription: null };
+      throw new Error("Service worker could not be registered");
     }
   }
 
   // Request permission
   const permission = await requestPushPermission();
   if (permission !== "granted") {
-    console.warn("Push notification permission denied");
-    return { registration, subscription: null };
+    throw new Error(`Push notification permission denied (status: ${permission})`);
   }
 
   // Check for existing subscription
