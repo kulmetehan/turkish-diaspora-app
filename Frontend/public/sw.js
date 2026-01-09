@@ -358,9 +358,14 @@ self.addEventListener('notificationclick', (event) => {
           });
         } else {
           // No window open - open a new one with the hash URL
-          // For HashRouter, we need to use the base URL + hash
-          const baseUrl = self.location.origin + self.location.pathname;
+          // Use the registration scope URL (app root) instead of self.location
+          // This ensures we open the app, not the service worker file
+          const registration = self.registration;
+          const scopeUrl = registration.scope;
+          // Remove trailing slash if present
+          const baseUrl = scopeUrl.endsWith('/') ? scopeUrl.slice(0, -1) : scopeUrl;
           const fullUrl = url.startsWith('#') ? baseUrl + url : baseUrl + '#' + url;
+          console.log('[Service Worker] Opening new window with URL:', fullUrl);
           if (clients.openWindow) {
             return clients.openWindow(fullUrl);
           }
