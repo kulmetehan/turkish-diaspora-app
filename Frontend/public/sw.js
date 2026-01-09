@@ -344,28 +344,40 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Always use postMessage for navigation - most reliable for HashRouter
-        // Focus the window first, then send navigation message
         if (clientList.length > 0) {
-          // Focus existing window and navigate via postMessage
+          // Focus existing window first
           const client = clientList[0];
           if ('focus' in client) {
             client.focus();
           }
-          // Send navigation message to all clients (in case multiple tabs are open)
-          clientList.forEach((client) => {
-            client.postMessage({ type: 'navigate', url: url });
-          });
+          
+          // Method 1: Try client.navigate() if available (Chrome 102+, most reliable)
+          if ('navigate' in client && typeof client.navigate === 'function') {
+            const clientUrl = new URL(client.url);
+            const baseUrl = clientUrl.origin + clientUrl.pathname;
+            const fullUrl = url.startsWith('#') ? baseUrl + url : baseUrl + '#' + url;
+            return client.navigate(fullUrl);
+          }
+          
+          // Method 2: Use postMessage - send to all clients with retry
+          // Send message multiple times with small delays to ensure it's received
+          const sendNavigation = (attempt = 0) => {
+            if (attempt < 3) {
+              clientList.forEach((c) => {
+                c.postMessage({ type: 'navigate', url: url, attempt: attempt });
+              });
+              if (attempt < 2) {
+                setTimeout(() => sendNavigation(attempt + 1), 50);
+              }
+            }
+          };
+          sendNavigation();
         } else {
           // No window open - open a new one with the hash URL
-          // Use the registration scope URL (app root) instead of self.location
-          // This ensures we open the app, not the service worker file
           const registration = self.registration;
           const scopeUrl = registration.scope;
-          // Remove trailing slash if present
           const baseUrl = scopeUrl.endsWith('/') ? scopeUrl.slice(0, -1) : scopeUrl;
           const fullUrl = url.startsWith('#') ? baseUrl + url : baseUrl + '#' + url;
-          console.log('[Service Worker] Opening new window with URL:', fullUrl);
           if (clients.openWindow) {
             return clients.openWindow(fullUrl);
           }
