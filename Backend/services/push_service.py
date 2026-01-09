@@ -128,7 +128,7 @@ class PushService:
                 
                 # Send notification
                 if platform == "web":
-                    await self._send_web_push(subscription, payload)
+                    await self._send_web_push(subscription, payload, device_token_id=device_token_id)
                 else:
                     # Future: FCM for mobile
                     logger.warning(
@@ -186,6 +186,7 @@ class PushService:
         self,
         subscription: Dict[str, Any],
         payload: Dict[str, Any],
+        device_token_id: Optional[int] = None,
     ) -> None:
         """
         Send Web Push notification using pywebpush.
@@ -210,6 +211,26 @@ class PushService:
             if "410" in str(e) or "Gone" in str(e):
                 # Subscription expired, mark as inactive
                 logger.info("subscription_expired", subscription=str(subscription.get("endpoint", "")))
+                
+                # Mark device token as inactive if we have the ID
+                if device_token_id:
+                    try:
+                        await execute(
+                            "UPDATE device_tokens SET is_active = false WHERE id = $1",
+                            device_token_id
+                        )
+                        logger.info(
+                            "device_token_marked_inactive",
+                            device_token_id=device_token_id,
+                            reason="subscription_expired_410"
+                        )
+                    except Exception as db_error:
+                        logger.error(
+                            "failed_to_mark_token_inactive",
+                            device_token_id=device_token_id,
+                            error=str(db_error),
+                            exc_info=True
+                        )
             raise
     
     async def _log_notification(
