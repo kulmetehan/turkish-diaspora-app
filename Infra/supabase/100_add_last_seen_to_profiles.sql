@@ -16,3 +16,4 @@ COMMENT ON COLUMN public.user_profiles.last_seen_at IS 'Last seen timestamp calc
 
 
 
+

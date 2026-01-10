@@ -102,6 +102,48 @@ async def create_poll(
         
         poll_id = poll_rows[0]["id"]
         
+        # Create activity_stream entry for poll
+        import json
+        activity_stream_sql = """
+            INSERT INTO activity_stream 
+            (actor_type, actor_id, client_id, activity_type, location_id, city_key, category_key, payload, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING id
+        """
+        # For admin-created polls, use 'business' actor_type with system UUID
+        # This satisfies the constraint requirement that business actor_type must have actor_id NOT NULL
+        system_uuid = "00000000-0000-0000-0000-000000000000"
+        payload = json.dumps({
+            "poll_id": poll_id,
+            "title": poll.title,
+            "question": poll.question
+        })
+
+        try:
+            await execute(
+                activity_stream_sql,
+                'business',  # actor_type
+                system_uuid,  # actor_id (system UUID for admin-created polls)
+                system_uuid,  # client_id (system UUID for admin-created polls)
+                'poll',  # activity_type
+                None,  # location_id (polls don't have locations)
+                poll.targeting_city_key,  # city_key from poll
+                None,  # category_key
+                payload,
+                datetime.now(),
+            )
+        except Exception as e:
+            # Log error but don't fail poll creation
+            from app.core.logging import get_logger
+            logger = get_logger()
+            logger.error(
+                "failed_to_create_poll_activity_stream",
+                poll_id=poll_id,
+                error=str(e),
+                error_type=type(e).__name__,
+                exc_info=True,
+            )
+        
         # Insert options
         options = []
         for opt in poll.options:

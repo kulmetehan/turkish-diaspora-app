@@ -41,6 +41,7 @@ const PrikbordPage = React.lazy(() => import("@/pages/PrikbordPage"));
 const CommunityGuidelinesPage = React.lazy(() => import("@/pages/CommunityGuidelinesPage"));
 const UserAuthPage = React.lazy(() => import("@/pages/UserAuthPage"));
 const AdminPollsPage = React.lazy(() => import("@/pages/admin/AdminPollsPage"));
+const AdminChatTopicsPage = React.lazy(() => import("@/pages/admin/AdminChatTopicsPage"));
 const AdminReportsPage = React.lazy(() => import("@/pages/admin/AdminReportsPage"));
 const AdminLocationSubmissionsPage = React.lazy(() => import("@/pages/admin/AdminLocationSubmissionsPage"));
 const AdminLocationSubmissionDetailPage = React.lazy(() => import("@/pages/admin/AdminLocationSubmissionDetailPage"));
@@ -88,7 +89,7 @@ function AppLayout() {
   useEffect(() => {
     let lastNavigationUrl: string | null = null;
     let navigationTimeout: number | null = null;
-    
+
     const performNavigation = (url: string) => {
       // Prevent duplicate navigations within 500ms
       const now = Date.now();
@@ -96,16 +97,16 @@ function AppLayout() {
         return;
       }
       lastNavigationUrl = url;
-      
+
       // Clear any pending navigation
       if (navigationTimeout) {
         clearTimeout(navigationTimeout);
       }
-      
+
       // Ensure URL starts with # for HashRouter
       const hashUrl = url.startsWith('#') ? url : `#${url}`;
       const path = hashUrl.substring(1);
-      
+
       // Use requestAnimationFrame to ensure DOM is ready
       requestAnimationFrame(() => {
         // Update hash directly - this triggers HashRouter navigation
@@ -115,14 +116,14 @@ function AppLayout() {
           // Already on the same hash, force React Router update
           navigate(path, { replace: false });
         }
-        
+
         // Clear the navigation flag after a delay
         navigationTimeout = window.setTimeout(() => {
           lastNavigationUrl = null;
         }, 500);
       });
     };
-    
+
     // Listen for postMessage from service worker
     const handleMessage = (event: MessageEvent) => {
       if (event.data && event.data.type === 'navigate' && event.data.url) {
@@ -135,12 +136,12 @@ function AppLayout() {
     if (serviceWorker) {
       // Primary listener
       serviceWorker.addEventListener('message', handleMessage);
-      
+
       // Backup listener on controller
       if (serviceWorker.controller) {
         serviceWorker.controller.addEventListener('message', handleMessage);
       }
-      
+
       // Also listen via the ready promise
       serviceWorker.ready.then((registration) => {
         if (registration.active) {
@@ -148,7 +149,7 @@ function AppLayout() {
         }
       });
     }
-    
+
     return () => {
       if (navigationTimeout) {
         clearTimeout(navigationTimeout);
@@ -291,6 +292,13 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <AdminRouteWrapper>
               <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
                 <AdminPollsPage />
+              </Suspense>
+            </AdminRouteWrapper>
+          } />
+          <Route path="/admin/chat-topics" element={
+            <AdminRouteWrapper>
+              <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Laden...</div>}>
+                <AdminChatTopicsPage />
               </Suspense>
             </AdminRouteWrapper>
           } />

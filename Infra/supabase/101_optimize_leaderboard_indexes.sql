@@ -30,3 +30,4 @@ COMMENT ON INDEX idx_leaderboard_entries_city_rank_period IS 'Optimized index fo
 
 
 
+

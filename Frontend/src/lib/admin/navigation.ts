@@ -154,6 +154,13 @@ export const adminNavigation: NavGroup[] = [
         path: "/admin/polls",
         group: "events",
       },
+      {
+        id: "chat-topics",
+        label: "Chat Topics",
+        icon: "MessageCircle",
+        path: "/admin/chat-topics",
+        group: "events",
+      },
     ],
   },
   {

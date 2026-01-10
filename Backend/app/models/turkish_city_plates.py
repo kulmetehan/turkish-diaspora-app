@@ -164,3 +164,4 @@ def get_primary_license_plate(memleket: list[str] | None) -> str | None:
 
 
 
+
