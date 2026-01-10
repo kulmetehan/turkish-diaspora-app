@@ -134,6 +134,17 @@ export function PollCard({
                 Resultaten worden geladen...
               </p>
             )}
+            <div className="pt-2">
+              <ChatButton
+                contentType="feed"
+                contentId={poll.id}
+                title={poll.title}
+                description={poll.question || undefined}
+                variant="outline"
+                size="sm"
+                showCount={true}
+              />
+            </div>
           </div>
         ) : (
           <div className="space-y-2 pt-2">

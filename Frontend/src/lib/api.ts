@@ -1,7 +1,7 @@
 // Frontend/src/lib/api.ts
+import type { LocationMarker } from "@/api/fetchLocations";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
-import type { LocationMarker } from "@/api/fetchLocations";
 
 /**
  * Normalize API base URL: remove /api/v1 if present, we add it in paths.
@@ -37,7 +37,7 @@ export function getFrontendBaseUrl(): string {
   if (envUrl) {
     return envUrl.replace(/\/+$/, ""); // Remove trailing slashes
   }
-  
+
   // Fallback to current origin (works for localhost and current domain)
   return window.location.origin;
 }
@@ -156,7 +156,7 @@ export async function apiFetch<T>(
               "/api/v1/polls", // Poll creation requires auth but shouldn't log out user on 401
             ];
             const isOptionalEndpoint = optionalAuthEndpoints.some(endpoint => path.startsWith(endpoint));
-            
+
             // Only sign out for admin endpoints or non-optional endpoints
             // and only on the final retry attempt to avoid signing out during
             // temporary token refresh issues or network errors
@@ -317,12 +317,12 @@ export async function apiFetchWithOptionalAuth<T>(
 ): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  
+
   const headers = {
     ...(init?.headers ?? {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
-  
+
   return apiFetch<T>(path, { ...init, headers }, timeoutMs);
 }
 
@@ -1093,7 +1093,7 @@ export async function getUserActivity(
   if (options?.limit) params.set('limit', options.limit.toString());
   if (options?.offset) params.set('offset', options.offset.toString());
   if (options?.activity_type) params.set('activity_type', options.activity_type);
-  
+
   return apiFetch<ActivityItem[]>(`/api/v1/users/${userId}/activity?${params}`);
 }
 
@@ -1519,10 +1519,10 @@ export async function getActiveCheckIns(params?: {
   if (params?.limit) {
     searchParams.append("limit", params.limit.toString());
   }
-  
+
   const queryString = searchParams.toString();
   const url = `/api/v1/locations/check-ins/active-users${queryString ? `?${queryString}` : ""}`;
-  
+
   return apiFetchWithOptionalAuth<ActiveCheckInsResponse>(url);
 }
 
@@ -2754,9 +2754,9 @@ export async function getMySubmissions(status?: string): Promise<LocationSubmiss
 // ============================================================================
 
 import type {
+  GeocodeResponse as EventGeocodeResponse,
   EventSubmissionCreate,
   EventSubmissionResponse,
-  GeocodeResponse as EventGeocodeResponse,
 } from "@/lib/apiEvents";
 
 export async function geocodeEventAddress(address: string): Promise<EventGeocodeResponse> {
@@ -2829,6 +2829,9 @@ export interface ChatTopic {
   last_message_at?: string | null;
   is_active: boolean;
   image_url?: string | null;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
+  topic_category?: string | null;
 }
 
 export interface ChatTopicListResponse {
@@ -2901,6 +2904,18 @@ export interface ChatReactionsResponse {
 
 export interface ChatUnreadCountResponse {
   unread_count: number;
+}
+
+export interface ContentItemPreview {
+  id: number;
+  title: string;
+  description?: string | null;
+  image_url?: string | null;
+  url?: string | null;
+  content_type: string; // 'news', 'event', 'feed', 'music'
+  activity_type?: string | null; // For feed items: 'poll', 'poll_response', 'check_in', etc.
+  poll_id?: number | null; // For poll activities
+  location_id?: number | null; // For check_in activities
 }
 
 /**
@@ -3096,6 +3111,15 @@ export async function getChatTopicUnreadCount(
 }
 
 /**
+ * Get content item data for a chat topic preview.
+ */
+export async function getContentItemPreview(
+  topicId: number
+): Promise<ContentItemPreview> {
+  return authFetch<ContentItemPreview>(`/api/v1/chat/topics/${topicId}/content-item`);
+}
+
+/**
  * Get a chat topic by content_type and content_id (without creating).
  * Returns null if topic doesn't exist yet.
  */
@@ -3106,7 +3130,7 @@ export async function getChatTopicByContent(
   const params = new URLSearchParams();
   params.set("content_type", contentType);
   params.set("content_id", contentId.toString());
-  
+
   try {
     const response = await authFetch<ChatTopic>(
       `/api/v1/chat/topics/by-content?${params.toString()}`
@@ -3116,8 +3140,8 @@ export async function getChatTopicByContent(
     // If 404 or 422 (validation error), topic doesn't exist yet
     const errorMessage = error?.message || "";
     if (
-      error?.status === 404 || 
-      errorMessage.includes("404") || 
+      error?.status === 404 ||
+      errorMessage.includes("404") ||
       errorMessage.includes("422") ||
       errorMessage.includes("Topic not found")
     ) {

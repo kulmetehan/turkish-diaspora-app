@@ -371,7 +371,7 @@ export function NewsCard({
           contentType={isMusicTrack ? "music" : "news"}
           contentId={item.id}
           title={item.title}
-          description={item.snippet || undefined}
+          description={isMusicTrack && item.url ? `${item.snippet || ""} ${item.url}`.trim() : (item.snippet || undefined)}
           variant="outline"
           size="sm"
           showCount={true}

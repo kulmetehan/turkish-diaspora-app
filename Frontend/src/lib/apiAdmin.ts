@@ -1,6 +1,6 @@
 import type { LocationSubmissionResponse } from "@/lib/api";
-import type { EventSubmissionResponse } from "@/lib/apiEvents";
 import { API_BASE, authFetch } from "@/lib/api";
+import type { EventSubmissionResponse } from "@/lib/apiEvents";
 import { supabase } from "@/lib/supabaseClient";
 
 export type AdminLocationListItem = {
@@ -1021,6 +1021,72 @@ export async function updateAdminPoll(id: number, payload: AdminPollUpdateReques
 export async function deleteAdminPoll(id: number): Promise<{ ok: boolean; poll_id: number }> {
     return authFetch<{ ok: boolean; poll_id: number }>(`/api/v1/admin/polls/${id}`, {
         method: "DELETE",
+    });
+}
+
+// ============================================================================
+// Admin Chat Topics API
+// ============================================================================
+
+import type { ChatTopic } from "@/lib/api";
+
+export type AdminChatTopic = ChatTopic;
+
+export type CreateGeneralTopicRequest = {
+    title: string;
+    description?: string | null;
+    topic_category?: string | null;
+    image_url?: string | null;
+};
+
+export type UpdateGeneralTopicRequest = {
+    title?: string;
+    description?: string | null;
+    topic_category?: string | null;
+    image_url?: string | null;
+};
+
+export async function listAdminChatTopics(params?: {
+    limit?: number;
+    offset?: number;
+}): Promise<AdminChatTopic[]> {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.offset) q.set("offset", String(params.offset));
+    return authFetch<AdminChatTopic[]>(`/api/v1/admin/chat/topics/general?${q.toString()}`);
+}
+
+export async function createAdminGeneralTopic(payload: CreateGeneralTopicRequest): Promise<AdminChatTopic> {
+    return authFetch<AdminChatTopic>("/api/v1/admin/chat/topics/general", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function updateAdminChatTopic(id: number, payload: UpdateGeneralTopicRequest): Promise<AdminChatTopic> {
+    return authFetch<AdminChatTopic>(`/api/v1/admin/chat/topics/general/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+    });
+}
+
+export async function deleteAdminChatTopic(id: number): Promise<{ ok: boolean; topic_id: number }> {
+    return authFetch<{ ok: boolean; topic_id: number }>(`/api/v1/admin/chat/topics/general/${id}`, {
+        method: "DELETE",
+    });
+}
+
+export async function pinChatTopic(id: number): Promise<{ ok: boolean; topic_id: number; pinned: boolean }> {
+    return authFetch<{ ok: boolean; topic_id: number; pinned: boolean }>(`/api/v1/admin/chat/topics/${id}/pin`, {
+        method: "POST",
+    });
+}
+
+export async function unpinChatTopic(id: number): Promise<{ ok: boolean; topic_id: number; pinned: boolean }> {
+    return authFetch<{ ok: boolean; topic_id: number; pinned: boolean }>(`/api/v1/admin/chat/topics/${id}/unpin`, {
+        method: "POST",
     });
 }
 

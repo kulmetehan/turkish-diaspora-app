@@ -129,12 +129,14 @@ async def get_own_activity(
     
     # Build WHERE clause - filter out anonymous users and unknown activity types
     # Only show activities from authenticated users (actor_type = 'user' AND actor_id IS NOT NULL)
+    # Exception: Allow business actor_type for polls (admin-created polls)
     conditions = []
     params = []
     param_num = 1
     
     # Filter out anonymous users - only show activities from authenticated users
-    conditions.append("ast.actor_type = 'user'")
+    # For polls, also allow business actor_type (admin-created polls)
+    conditions.append("(ast.actor_type = 'user' OR (ast.actor_type = 'business' AND ast.activity_type = 'poll'))")
     conditions.append("ast.actor_id IS NOT NULL")
     
     # Filter out unknown activity types - only show known types

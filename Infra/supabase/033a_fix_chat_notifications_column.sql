@@ -23,3 +23,4 @@ END $$;
 
 COMMENT ON COLUMN public.push_notification_preferences.chat_notifications IS 'Enable/disable chat message notifications';
 
+

@@ -36,29 +36,56 @@ class ChatService:
         """
         # Check if topic already exists
         existing_sql = """
-            SELECT id, content_type, content_id, title, description,
-                   created_at, updated_at, message_count, last_message_at, is_active
+            SELECT id, content_type, content_id, title, description, url,
+                   created_at, updated_at, message_count, last_message_at, is_active,
+                   COALESCE(is_pinned, FALSE) as is_pinned, 
+                   pinned_at, 
+                   topic_category, 
+                   image_url
             FROM chat_topics
             WHERE content_type = $1 AND content_id = $2
         """
         existing = await fetchrow(existing_sql, content_type, content_id)
         
         if existing:
-            return dict(existing)
+            existing_dict = dict(existing)
+            # Ensure new fields have default values
+            existing_dict["is_pinned"] = existing_dict.get("is_pinned", False)
+            existing_dict["pinned_at"] = existing_dict.get("pinned_at")
+            existing_dict["topic_category"] = existing_dict.get("topic_category")
+            return existing_dict
         
-        # Create new topic
+        # Parse URL from description for music items before storing
+        import re
+        url_from_description = None
+        if description:
+            # Extract URL from description (for music items)
+            url_match = re.search(r'https?://[^\s]+', description)
+            if url_match:
+                url_from_description = url_match.group(0).rstrip('.,;!?)')
+        
+        # Create new topic with URL if found
         insert_sql = """
-            INSERT INTO chat_topics (content_type, content_id, title, description, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, NOW(), NOW())
-            RETURNING id, content_type, content_id, title, description,
-                      created_at, updated_at, message_count, last_message_at, is_active
+            INSERT INTO chat_topics (content_type, content_id, title, description, url, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            RETURNING id, content_type, content_id, title, description, url,
+                      created_at, updated_at, message_count, last_message_at, is_active,
+                      COALESCE(is_pinned, FALSE) as is_pinned, 
+                      pinned_at, 
+                      topic_category, 
+                      image_url
         """
-        result = await fetchrow(insert_sql, content_type, content_id, title, description)
+        result = await fetchrow(insert_sql, content_type, content_id, title, description, url_from_description)
         
         if not result:
             raise RuntimeError("Failed to create chat topic")
         
-        return dict(result)
+        result_dict = dict(result)
+        # Ensure new fields have default values
+        result_dict["is_pinned"] = result_dict.get("is_pinned", False)
+        result_dict["pinned_at"] = result_dict.get("pinned_at")
+        result_dict["topic_category"] = result_dict.get("topic_category")
+        return result_dict
 
     async def list_topics(
         self,
@@ -104,27 +131,114 @@ class ChatService:
         
         limit_param = param_count + 1
         offset_param = param_count + 2
-        topics_sql = f"""
-            SELECT id, content_type, content_id, title, description,
-                   created_at, updated_at, message_count, last_message_at, is_active
-            FROM chat_topics
-            {where_clause}
-            ORDER BY last_message_at DESC NULLS LAST, created_at DESC
-            LIMIT ${limit_param} OFFSET ${offset_param}
-        """
-        params.extend([limit, offset])
         
-        topics = await fetch(topics_sql, *params)
+        # Try to query with new columns first, fallback if they don't exist
+        try:
+            # Use COALESCE for new columns in case they're NULL (they should exist after migration)
+            topics_sql = f"""
+                SELECT id, content_type, content_id, title, description, url,
+                       created_at, updated_at, message_count, last_message_at, is_active,
+                       COALESCE(is_pinned, FALSE) as is_pinned, 
+                       pinned_at, 
+                       topic_category, 
+                       image_url
+                FROM chat_topics
+                {where_clause}
+                ORDER BY COALESCE(is_pinned, FALSE) DESC, pinned_at DESC NULLS LAST, updated_at DESC, last_message_at DESC NULLS LAST, created_at DESC
+                LIMIT ${limit_param} OFFSET ${offset_param}
+            """
+            params_with_limit = params.copy()
+            params_with_limit.extend([limit, offset])
+            topics = await fetch(topics_sql, *params_with_limit)
+        except Exception as e:
+            # If query fails (e.g., columns don't exist), try without new columns
+            error_msg = str(e).lower()
+            error_type = type(e).__name__
+            # Check for column existence errors (multiple possible error formats)
+            # asyncpg raises UndefinedColumnError, but str(e) might be different
+            is_column_error = (
+                "column" in error_msg and 
+                ("does not exist" in error_msg or "doesn't exist" in error_msg or "undefined" in error_msg or "unknown" in error_msg)
+            ) or "undefined_column" in error_msg or "UndefinedColumnError" in error_type or "InvalidColumnName" in error_type
+            
+            if is_column_error:
+                logger.warning(
+                    "chat_topics_new_columns_not_found",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    message="New chat columns (is_pinned, pinned_at, topic_category, image_url) not found. Please run migration 105_chat_enhancements.sql"
+                )
+                # Fallback query without new columns - use literal values with proper casting
+                topics_sql_fallback = f"""
+                    SELECT id, content_type, content_id, title, description, url,
+                           created_at, updated_at, message_count, last_message_at, is_active,
+                           FALSE::boolean as is_pinned,
+                           NULL::timestamptz as pinned_at,
+                           NULL::varchar(50) as topic_category,
+                           NULL::text as image_url
+                    FROM chat_topics
+                    {where_clause}
+                    ORDER BY updated_at DESC, last_message_at DESC NULLS LAST, created_at DESC
+                    LIMIT ${limit_param} OFFSET ${offset_param}
+                """
+                params_with_limit = params.copy()
+                params_with_limit.extend([limit, offset])
+                topics = await fetch(topics_sql_fallback, *params_with_limit)
+            else:
+                # Log other errors for debugging
+                logger.error(
+                    "chat_topics_list_query_error",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    content_type=content_type,
+                    where_clause=where_clause,
+                    exc_info=True,
+                )
+                # Re-raise if it's not a column error
+                raise
         
         # Fetch image_url for each topic based on content_type and content_id
+        # For general topics, image_url is already in the SELECT (from database)
+        # For content-based topics, fetch from content item
         topics_with_images = []
         for topic in topics:
             topic_dict = dict(topic)
-            image_url = await self._get_content_image(
-                topic_dict["content_type"],
-                topic_dict["content_id"]
-            )
-            topic_dict["image_url"] = image_url
+            # Ensure new fields have default values (handle case where columns don't exist yet)
+            try:
+                topic_dict["is_pinned"] = topic_dict.get("is_pinned", False)
+                topic_dict["pinned_at"] = topic_dict.get("pinned_at")
+                topic_dict["topic_category"] = topic_dict.get("topic_category")
+            except KeyError:
+                # If columns don't exist in result, set defaults
+                topic_dict["is_pinned"] = False
+                topic_dict["pinned_at"] = None
+                topic_dict["topic_category"] = None
+            
+            if topic_dict.get("content_type") != "general":
+                # For content-based topics, fetch image from content item
+                # Override any existing image_url from DB with content item image
+                try:
+                    # Only fetch if content_id is valid (not negative for general topics)
+                    if topic_dict.get("content_id") and topic_dict.get("content_id") > 0:
+                        image_url = await self._get_content_image(
+                            topic_dict["content_type"],
+                            topic_dict["content_id"]
+                        )
+                        topic_dict["image_url"] = image_url
+                    else:
+                        # Invalid content_id, keep existing image_url or None
+                        topic_dict["image_url"] = topic_dict.get("image_url")
+                except Exception as e:
+                    # If image fetch fails, keep existing image_url or None
+                    logger.warning(
+                        "chat_service_get_image_error",
+                        content_type=topic_dict.get("content_type"),
+                        content_id=topic_dict.get("content_id"),
+                        error=str(e),
+                        error_type=type(e).__name__,
+                    )
+                    topic_dict["image_url"] = topic_dict.get("image_url")
+            # For general topics, image_url is already in topic_dict from SELECT (or None)
             topics_with_images.append(topic_dict)
         
         return topics_with_images, int(total) if total else 0
@@ -140,8 +254,12 @@ class ChatService:
             Topic data or None if not found
         """
         sql = """
-            SELECT id, content_type, content_id, title, description,
-                   created_at, updated_at, message_count, last_message_at, is_active
+            SELECT id, content_type, content_id, title, description, url,
+                   created_at, updated_at, message_count, last_message_at, is_active,
+                   COALESCE(is_pinned, FALSE) as is_pinned, 
+                   pinned_at, 
+                   topic_category, 
+                   image_url
             FROM chat_topics
             WHERE id = $1
         """
@@ -151,12 +269,20 @@ class ChatService:
             return None
         
         topic_dict = dict(result)
-        # Fetch image_url
-        image_url = await self._get_content_image(
-            topic_dict["content_type"],
-            topic_dict["content_id"]
-        )
-        topic_dict["image_url"] = image_url
+        # Ensure new fields have default values
+        topic_dict["is_pinned"] = topic_dict.get("is_pinned", False)
+        topic_dict["pinned_at"] = topic_dict.get("pinned_at")
+        topic_dict["topic_category"] = topic_dict.get("topic_category")
+        
+        # Fetch image_url (only for content-based topics, not general topics)
+        # General topics have image_url stored directly in the database
+        if topic_dict.get("content_type") != "general":
+            image_url = await self._get_content_image(
+                topic_dict["content_type"],
+                topic_dict["content_id"]
+            )
+            topic_dict["image_url"] = image_url
+        # For general topics, image_url is already in the result from database
         
         return topic_dict
 

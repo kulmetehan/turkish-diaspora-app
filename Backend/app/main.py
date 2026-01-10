@@ -50,6 +50,7 @@ from api.routers.admin_events import router as admin_events_router
 from api.routers.admin_ai_config import router as admin_ai_config_router
 from api.routers.admin_tasks import router as admin_tasks_router
 from api.routers.admin_polls import router as admin_polls_router
+from api.routers.admin_chat import router as admin_chat_router
 from api.routers.admin_bulletin import router as admin_bulletin_router
 from api.routers.admin_activity import router as admin_activity_router
 from api.routers.news import router as news_router
@@ -269,6 +270,7 @@ api_v1_router.include_router(admin_events_router)
 api_v1_router.include_router(admin_ai_config_router)
 api_v1_router.include_router(admin_tasks_router)
 api_v1_router.include_router(admin_polls_router)
+api_v1_router.include_router(admin_chat_router)
 api_v1_router.include_router(admin_bulletin_router)
 api_v1_router.include_router(admin_activity_router)
 api_v1_router.include_router(news_router)

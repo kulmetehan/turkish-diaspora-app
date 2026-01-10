@@ -26,6 +26,9 @@ class ChatTopic(BaseModel):
     last_message_at: Optional[datetime] = None
     is_active: bool
     image_url: Optional[str] = None
+    is_pinned: Optional[bool] = False
+    pinned_at: Optional[datetime] = None
+    topic_category: Optional[str] = None
 
 
 class ChatTopicListResponse(BaseModel):
@@ -137,9 +140,9 @@ async def list_topics(
     """List chat topics with optional filtering."""
     chat_service = get_chat_service()
     
-    # Validate content_type if provided
+    # Validate content_type if provided (allow 'general' for Turkchat)
     if content_type:
-        valid_types = ["feed", "news", "event", "music"]
+        valid_types = ["feed", "news", "event", "music", "general"]
         if content_type not in valid_types:
             raise HTTPException(
                 status_code=400,
@@ -160,6 +163,19 @@ async def list_topics(
             offset=offset,
         )
     except Exception as e:
+        from app.core.logging import get_logger
+        logger = get_logger()
+        logger.error(
+            "Failed to list chat topics",
+            extra={
+                "content_type": content_type,
+                "limit": limit,
+                "offset": offset,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+            exc_info=True,
+        )
         raise HTTPException(status_code=500, detail=f"Failed to list topics: {str(e)}")
 
 
@@ -187,15 +203,22 @@ async def get_topic_by_content(
         )
     
     try:
-        # Get existing topic if it exists
+        # Get existing topic if it exists - use chat_service instead of direct query
+        chat_service = get_chat_service()
+        # For get_topic_by_content, we need to find by content_type + content_id
+        # Use list_topics and filter, or better: extend chat_service to support this
+        from services.db_service import fetchrow
         existing_sql = """
-            SELECT id, content_type, content_id, title, description,
-                   created_at, updated_at, message_count, last_message_at, is_active
-            FROM chat_topics
+            SELECT id FROM chat_topics
             WHERE content_type = $1 AND content_id = $2 AND is_active = TRUE
         """
-        from services.db_service import fetchrow
-        topic = await fetchrow(existing_sql, content_type, content_id)
+        topic_row = await fetchrow(existing_sql, content_type, content_id)
+        
+        if not topic_row:
+            raise HTTPException(status_code=404, detail="Topic not found")
+        
+        topic_id = topic_row["id"]
+        topic = await chat_service.get_topic(topic_id)
         
         if not topic:
             raise HTTPException(status_code=404, detail="Topic not found")
@@ -206,6 +229,11 @@ async def get_topic_by_content(
         # Ensure message_count is an int (might come as Decimal from DB)
         if 'message_count' in topic_dict:
             topic_dict['message_count'] = int(topic_dict['message_count'])
+        
+        # Ensure new fields have default values
+        topic_dict['is_pinned'] = topic_dict.get('is_pinned', False)
+        topic_dict['pinned_at'] = topic_dict.get('pinned_at')
+        topic_dict['topic_category'] = topic_dict.get('topic_category')
         
         result = ChatTopic(**topic_dict)
         
@@ -858,4 +886,307 @@ async def get_unread_count(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get unread count: {str(e)}")
+
+
+class ContentItemPreview(BaseModel):
+    """Simplified content item data for chat preview."""
+    id: int
+    title: str
+    description: Optional[str] = None
+    image_url: Optional[str] = None
+    url: Optional[str] = None
+    content_type: str  # 'news', 'event', 'feed', 'music'
+    activity_type: Optional[str] = None  # For feed items: 'poll', 'poll_response', 'check_in', etc.
+    poll_id: Optional[int] = None  # For poll activities
+    location_id: Optional[int] = None  # For check_in activities
+
+
+@router.get("/topics/{topic_id}/content-item", response_model=ContentItemPreview)
+async def get_content_item_for_preview(
+    topic_id: int = Path(..., description="Topic ID"),
+    user: User = Depends(get_current_user),
+):
+    """Get content item data for a chat topic preview."""
+    from app.core.logging import get_logger
+    logger = get_logger()
+    
+    chat_service = get_chat_service()
+    
+    # Get topic to find content_type and content_id
+    topic = await chat_service.get_topic(topic_id)
+    if not topic:
+        raise HTTPException(status_code=404, detail="Topic not found")
+    
+    content_type = topic.get("content_type")
+    content_id = topic.get("content_id")
+    
+    logger.debug(
+        "content_item_preview_request",
+        topic_id=topic_id,
+        content_type=content_type,
+        content_id=content_id,
+    )
+    
+    # Don't fetch content for general topics
+    if content_type == "general":
+        raise HTTPException(status_code=400, detail="General topics don't have content items")
+    
+    try:
+        from services.db_service import fetchrow
+        
+        if content_type == "news" or content_type == "music":
+            # Fetch news item
+            # Use summary or first 280 chars of content for description
+            # For music, we might need to check if content_id matches a news item
+            # Music items are stored in raw_ingested_news but might have different IDs
+            news_sql = """
+                SELECT id, title, 
+                       COALESCE(summary, LEFT(content, 280)) as description,
+                       image_url, link as url,
+                       source_key
+                FROM raw_ingested_news
+                WHERE id = $1
+            """
+            news_row = await fetchrow(news_sql, content_id)
+            if not news_row:
+                # Fallback: Use topic data (especially for music items that aren't stored in raw_ingested_news)
+                # Music items have derived IDs from hash and may not exist in database
+                if content_type == "music":
+                    # For music, use topic title/description/image_url
+                    # URL retrieval priority: topic.url field → description parsing → news feed API
+                    import re
+                    description = topic.get("description") or ""
+                    
+                    # First, try to get URL from topic.url field (most reliable)
+                    url = topic.get("url")
+                    
+                    # If not in topic.url, try to extract URL from description
+                    if not url and description:
+                        url_match = re.search(r'https?://[^\s]+', description)
+                        if url_match:
+                            url = url_match.group(0).rstrip('.,;!?)')
+                    
+                    # If URL still not found, try to find the track in news feed by derived_id
+                    # This is a fallback since music tracks might not be in raw_ingested_news
+                    if not url:
+                        try:
+                            # Try to get from news API by content_id (derived_id)
+                            # Note: This might not work if the track is not in the current feed
+                            # but it's worth trying
+                            from services.news_service import list_news_by_feed, FeedType
+                            # Search in both NL and TR music feeds
+                            for country in ["nl", "tr"]:
+                                try:
+                                    feed_type = FeedType.NL if country == "nl" else FeedType.TR
+                                    items, _ = await list_news_by_feed(
+                                        feed_type,
+                                        limit=100,
+                                        offset=0,
+                                        categories=None,
+                                    )
+                                    # Find matching item by id
+                                    matching_item = next((item for item in items if item.id == content_id), None)
+                                    if matching_item and matching_item.url:
+                                        url = matching_item.url
+                                        break
+                                except Exception:
+                                    continue
+                        except Exception:
+                            pass  # If fetching fails, continue without URL
+                    
+                    if not url:
+                        logger.debug(
+                            "music_url_not_found",
+                            content_id=content_id,
+                            topic_has_url=bool(topic.get("url")),
+                            description_has_url=bool(re.search(r'https?://[^\s]+', description or "")),
+                        )
+                    
+                    return ContentItemPreview(
+                        id=content_id,  # Use the derived_id
+                        title=topic.get("title") or "",
+                        description=description,
+                        image_url=topic.get("image_url"),
+                        url=url,
+                        content_type="music",
+                    )
+                else:
+                    # For news items, this should not happen, but handle gracefully
+                    raise HTTPException(status_code=404, detail="News item not found")
+            
+            return ContentItemPreview(
+                id=news_row["id"],
+                title=news_row.get("title") or "",
+                description=news_row.get("description"),
+                image_url=news_row.get("image_url"),
+                url=news_row.get("url"),
+                content_type=content_type,
+            )
+        
+        elif content_type == "event":
+            # Fetch event from events_public view
+            event_sql = """
+                SELECT id, title, summary_ai as description, image_url, url
+                FROM events_public
+                WHERE id = $1
+            """
+            event_row = await fetchrow(event_sql, content_id)
+            if not event_row:
+                raise HTTPException(status_code=404, detail="Event not found")
+            
+            return ContentItemPreview(
+                id=event_row["id"],
+                title=event_row.get("title") or "",
+                description=event_row.get("description"),
+                image_url=event_row.get("image_url"),
+                url=event_row.get("url"),
+                content_type="event",
+            )
+        
+        elif content_type == "feed":
+            # CRITICAL FIX: Check if content_id is a poll_id FIRST to avoid ID collision
+            # Poll chat topics use poll_id as content_id, but activity_stream.id might 
+            # coincidentally match (e.g., check_in with same ID as poll_id)
+            # So we check polls table first, then fall back to activity_stream lookup
+            feed_row = None
+            
+            # First, check if content_id is a poll_id (highest priority for feed items)
+            # This prevents ID collision where poll_id matches an activity_stream.id
+            poll_check_sql = """
+                SELECT id, title, question, targeting_city_key
+                FROM polls
+                WHERE id = $1
+            """
+            poll_row = await fetchrow(poll_check_sql, content_id)
+            
+            if poll_row:
+                logger.debug(
+                    "poll_detected_for_feed_content",
+                    poll_id=poll_row["id"],
+                    content_id=content_id,
+                )
+                # This is a poll - return poll preview data directly
+                # NEVER use activity_stream.id lookup for polls to avoid ID collision
+                # with check_ins or other activities that might have the same ID
+                return ContentItemPreview(
+                    id=content_id,  # Use poll_id as id
+                    title=poll_row.get("title") or "Poll",
+                    description=poll_row.get("question"),
+                    image_url=None,  # Polls don't have images
+                    url=None,  # Polls don't have external URLs
+                    content_type="feed",
+                    activity_type="poll",
+                    poll_id=poll_row["id"],
+                    location_id=None,  # Polls NEVER have location_id - critical for avoiding location links
+                )
+            
+            # If not a poll, proceed with normal activity_stream.id lookup
+            feed_sql = """
+                SELECT 
+                    ast.id, 
+                    ast.activity_type,
+                    ast.location_id,
+                    ast.payload,
+                    l.name as location_name,
+                    COALESCE(
+                        ast.payload->>'title',
+                        ast.payload->>'content',
+                        CASE 
+                            WHEN ast.activity_type = 'check_in' AND l.name IS NOT NULL THEN l.name
+                            ELSE 'Activity'
+                        END
+                    ) as title,
+                    ast.payload->>'content' as description,
+                    ast.media_url as image_url
+                FROM activity_stream ast
+                LEFT JOIN locations l ON ast.location_id = l.id
+                WHERE ast.id = $1
+            """
+            feed_row = await fetchrow(feed_sql, content_id)
+            
+            if not feed_row:
+                logger.debug(
+                    "activity_stream_not_found",
+                    content_id=content_id,
+                    content_type=content_type,
+                    checking_activity_stream=True,
+                )
+                raise HTTPException(status_code=404, detail="Feed item not found")
+            
+            activity_type = feed_row.get("activity_type")
+            payload = feed_row.get("payload") or {}
+            location_name = feed_row.get("location_name")
+            
+            # Extract poll_id from payload if present (for poll_response activities)
+            poll_id = None
+            if isinstance(payload, dict):
+                poll_id = payload.get("poll_id")
+                if poll_id:
+                    try:
+                        poll_id = int(poll_id)
+                    except (ValueError, TypeError):
+                        poll_id = None
+            
+            # For poll_response activities, try to get poll title from polls table
+            title = feed_row.get("title") or "Activity"
+            if activity_type == "poll_response" and poll_id:
+                try:
+                    poll_sql = """
+                        SELECT title, question
+                        FROM polls
+                        WHERE id = $1
+                    """
+                    poll_data_row = await fetchrow(poll_sql, poll_id)
+                    if poll_data_row and poll_data_row.get("title"):
+                        title = poll_data_row.get("title")
+                        # Use poll question as description if available
+                        if poll_data_row.get("question") and not feed_row.get("description"):
+                            feed_row = dict(feed_row)
+                            feed_row["description"] = poll_data_row.get("question")
+                except Exception:
+                    pass  # Fallback to default title if poll not found
+            
+            # For check-ins, use location name as title if available
+            if activity_type == "check_in" and location_name:
+                title = location_name
+            
+            # Extract and convert location_id
+            # IMPORTANT: For polls and poll_responses, don't use location_id even if it exists
+            # Polls should not link to locations
+            location_id = None
+            if activity_type not in ("poll", "poll_response"):
+                location_id = feed_row.get("location_id")
+                try:
+                    location_id = int(location_id) if location_id else None
+                except (ValueError, TypeError):
+                    location_id = None
+            
+            return ContentItemPreview(
+                id=feed_row["id"],
+                title=title,
+                description=feed_row.get("description"),
+                image_url=feed_row.get("image_url"),
+                url=None,  # Feed items don't have external URLs
+                content_type="feed",
+                activity_type=activity_type,
+                poll_id=poll_id,
+                location_id=location_id,
+            )
+        
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported content_type: {content_type}")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        from app.core.logging import get_logger
+        logger = get_logger()
+        logger.error("Failed to get content item for preview", extra={
+            "topic_id": topic_id,
+            "content_type": content_type,
+            "content_id": content_id,
+            "error": str(e),
+            "error_type": type(e).__name__,
+        })
+        raise HTTPException(status_code=500, detail=f"Failed to get content item: {str(e)}")
 

@@ -12,9 +12,11 @@ interface PollPreviewProps {
   // Indicates that this poll is shown in the context of a poll_response activity
   // When true, the poll should always show results mode since the user has already responded
   hasResponded?: boolean;
+  // Hide chat button (e.g., when shown in chat preview context where user is already in the chat)
+  hideChatButton?: boolean;
 }
 
-export function PollPreview({ pollId, className, hasResponded: propHasResponded }: PollPreviewProps) {
+export function PollPreview({ pollId, className, hasResponded: propHasResponded, hideChatButton = false }: PollPreviewProps) {
   const [poll, setPoll] = useState<Poll | null>(null);
   const [stats, setStats] = useState<PollStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -208,6 +210,19 @@ export function PollPreview({ pollId, className, hasResponded: propHasResponded 
               Resultaten worden geladen...
             </p>
           )}
+          {poll && !hideChatButton && (
+            <div className="pt-2">
+              <ChatButton
+                contentType="feed"
+                contentId={pollId}
+                title={poll.title}
+                description={poll.question || undefined}
+                variant="outline"
+                size="sm"
+                showCount={true}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-1.5 pt-1">
@@ -239,7 +254,7 @@ export function PollPreview({ pollId, className, hasResponded: propHasResponded 
             >
               {isSubmitting ? "Stemmen..." : "Stem"}
             </Button>
-            {poll && (
+            {poll && !hideChatButton && (
               <ChatButton
                 contentType="feed"
                 contentId={pollId}
