@@ -7,14 +7,17 @@ Dit script stuurt een system notification naar alle gebruikers die:
 - Push notifications hebben ingeschakeld (enabled = true)
 
 Usage:
-    # Basis gebruik
+    # Basis gebruik (default title "Turkbot")
+    python scripts/send_system_notification.py --body "We hebben een nieuwe functie toegevoegd."
+
+    # Met custom title
     python scripts/send_system_notification.py --title "Belangrijke update!" --body "We hebben een nieuwe functie toegevoegd."
 
     # Met extra data (JSON)
-    python scripts/send_system_notification.py --title "Welkom!" --body "Bedankt voor het gebruiken van onze app." --data '{"type":"announcement","url":"/"}'
+    python scripts/send_system_notification.py --body "Bedankt voor het gebruiken van onze app." --data '{"type":"announcement","url":"/"}'
 
     # Dry run (test zonder te verzenden)
-    python scripts/send_system_notification.py --title "Test" --body "Dit is een test" --dry-run
+    python scripts/send_system_notification.py --body "Dit is een test" --dry-run
 """
 
 import argparse
@@ -45,20 +48,22 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic notification
-  python scripts/send_system_notification.py --title "Update!" --body "Nieuwe functie beschikbaar"
+  # Basic notification (default title "Turkbot")
+  python scripts/send_system_notification.py --body "Nieuwe functie beschikbaar"
+  
+  # With custom title
+  python scripts/send_system_notification.py --title "Belangrijke Update!" --body "Nieuwe functie beschikbaar"
   
   # With data payload
-  python scripts/send_system_notification.py --title "Event" --body "Nieuw evenement" --data '{"type":"event","id":123}'
+  python scripts/send_system_notification.py --body "Nieuw evenement" --data '{"type":"event","id":123}'
   
   # Dry run (test without sending)
-  python scripts/send_system_notification.py --title "Test" --body "Test bericht" --dry-run
+  python scripts/send_system_notification.py --body "Test bericht" --dry-run
         """
     )
     ap.add_argument(
         "--title",
-        required=True,
-        help="Notification title (required)"
+        help="Notification title (default: 'Turkbot')"
     )
     ap.add_argument(
         "--body",
@@ -80,7 +85,8 @@ Examples:
 async def main_async() -> None:
     args = parse_args()
     
-    title = args.title.strip()
+    # Default title is "Turkbot" if not provided
+    title = args.title.strip() if args.title else "Turkbot"
     body = args.body.strip()
     dry_run = args.dry_run
     

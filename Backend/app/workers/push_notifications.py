@@ -43,7 +43,7 @@ async def send_poll_notifications() -> Dict[str, Any]:
     """
     # Get recent polls (last hour)
     sql = """
-        SELECT id, question, created_at
+        SELECT id, title, question, created_at
         FROM polls
         WHERE created_at >= NOW() - INTERVAL '1 hour'
             AND created_at <= NOW()
@@ -66,14 +66,27 @@ async def send_poll_notifications() -> Dict[str, Any]:
     total_failed = 0
     
     for poll in polls:
+        # Prepare notification content (same format as poll_generator_bot.py)
+        notification_title = "Nieuwe Poll"
+        notification_body = poll["title"][:100]  # Max 100 chars
+        if len(poll["title"]) > 100:
+            notification_body = f"{poll['title'][:97]}..."
+        
+        # Deep link URL to feed with timeline filter and pollId
+        deep_link_url = f"/feed?filter=timeline&pollId={poll['id']}"
+        
         for user_row in users:
             user_id = user_row["user_id"]
             result = await push_service.send_notification(
                 user_id=str(user_id),
                 notification_type="poll",
-                title="New Poll Available",
-                body=poll["question"][:100],  # Truncate if too long
-                data={"poll_id": poll["id"], "type": "poll"},
+                title=notification_title,
+                body=notification_body,
+                data={
+                    "type": "poll",
+                    "poll_id": poll["id"],
+                    "url": deep_link_url,  # Deep link naar feed met timeline filter en pollId
+                },
             )
             total_sent += result.get("sent", 0)
             total_failed += result.get("failed", 0)
@@ -137,7 +150,7 @@ async def send_activity_notifications() -> Dict[str, Any]:
     # Get recent activity (last hour) on user's notes/reactions
     # This is a simplified version - in production, would track which users' content was interacted with
     activity_sql = """
-        SELECT DISTINCT n.user_id, a.activity_type, l.name as location_name
+        SELECT DISTINCT n.user_id, a.activity_type, l.name as location_name, a.location_id
         FROM activity_stream a
         INNER JOIN location_notes n ON n.location_id = a.location_id
         INNER JOIN locations l ON l.id = a.location_id
@@ -161,18 +174,23 @@ async def send_activity_notifications() -> Dict[str, Any]:
         user_id = activity["user_id"]
         activity_type = activity["activity_type"]
         location_name = activity["location_name"]
+        location_id = activity.get("location_id")
         
-        title_map = {
-            "reaction": "New Reaction",
-            "note": "New Note",
-        }
+        # Build deep link URL to location detail page
+        deep_link_url = f"/locations/{location_id}" if location_id else "/feed"
         
         result = await push_service.send_notification(
             user_id=str(user_id),
             notification_type="activity",
-            title=title_map.get(activity_type, "New Activity"),
-            body=f"Activity on {location_name}",
-            data={"activity_type": activity_type, "location_name": location_name},
+            title="Turkbot",
+            body=f"Er is nieuwe activiteit bij {location_name}",
+            data={
+                "type": "activity",
+                "activity_type": activity_type,
+                "location_name": location_name,
+                "location_id": location_id,
+                "url": deep_link_url,  # Deep link naar locatie detail pagina
+            },
         )
         total_sent += result.get("sent", 0)
         total_failed += result.get("failed", 0)

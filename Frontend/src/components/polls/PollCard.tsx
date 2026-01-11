@@ -57,7 +57,10 @@ export function PollCard({
   };
 
   return (
-    <Card className={cn("relative p-4 overflow-hidden", className)}>
+    <Card 
+      className={cn("relative p-4 overflow-hidden", className)}
+      data-poll-id={poll.id}
+    >
       {/* Background Image Overlay */}
       <div
         className="absolute inset-0 pointer-events-none"

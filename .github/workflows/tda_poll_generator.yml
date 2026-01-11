@@ -1,16 +1,16 @@
-name: TDA Poll Generator (Daily 06:00 UTC)
+name: TDA Poll Generator (Daily 07:59 UTC)
 
 # Poll Generator Worker
 #
 # Generates a new daily poll using AI for the Turkish diaspora community in the Netherlands.
 # Creates polls with 2-5 options that expire after 7 days.
 #
-# Frequency: Daily at 06:00 UTC
+# Frequency: Daily at 07:59 UTC
 # Timeout: 10 minutes
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # Daily at 06:00 UTC
+    - cron: "59 7 * * *"  # Daily at 07:59 UTC
   workflow_dispatch:
 
 permissions:

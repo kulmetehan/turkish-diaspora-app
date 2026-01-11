@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 # --- Uniform logging ---
@@ -46,6 +48,14 @@ from services.db_service import init_db_pool, fetch, execute
 # OpenAI Service
 # ---------------------------------------------------------------------------
 from services.openai_service import OpenAIService
+
+# ---------------------------------------------------------------------------
+# Push Notifications Service
+# ---------------------------------------------------------------------------
+from services.push_service import get_push_service
+
+# System UUID for business actor_type (admin/system-generated content)
+SYSTEM_UUID = UUID("00000000-0000-0000-0000-000000000000")
 
 
 class PollOptionModel(BaseModel):
@@ -345,13 +355,132 @@ Zorg dat:
                 datetime.now(timezone.utc),
             )
         
+        # Create activity_stream entry for poll
+        # This makes the poll visible in the timeline feed
+        try:
+            activity_stream_payload = json.dumps({
+                "poll_id": poll_id,
+                "title": poll_result.title,
+                "question": poll_result.question
+            })
+            
+            activity_stream_sql = """
+                INSERT INTO activity_stream 
+                (actor_type, actor_id, client_id, activity_type, location_id, city_key, category_key, payload, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING id
+            """
+            
+            await execute(
+                activity_stream_sql,
+                'business',  # actor_type
+                SYSTEM_UUID,  # actor_id (system UUID for generated polls)
+                SYSTEM_UUID,  # client_id (system UUID for generated polls)
+                'poll',  # activity_type
+                None,  # location_id (polls don't have locations)
+                None,  # city_key (polls don't have city targeting yet)
+                None,  # category_key
+                activity_stream_payload,
+                datetime.now(timezone.utc),
+            )
+            logger.info("poll_activity_stream_entry_created", poll_id=poll_id)
+        except Exception as e:
+            # Log error but don't fail poll creation if activity_stream entry fails
+            logger.error(
+                "failed_to_create_poll_activity_stream",
+                poll_id=poll_id,
+                error=str(e),
+                error_type=type(e).__name__,
+                exc_info=True,
+            )
+        
+        # Send push notifications to users with poll notifications enabled
+        # Only send if not dry_run
+        notification_count = 0
+        notification_failed = 0
+        
+        if not dry_run:
+            try:
+                push_service = get_push_service()
+                
+                # Get users with poll notifications enabled
+                users_sql = """
+                    SELECT DISTINCT user_id
+                    FROM push_notification_preferences
+                    WHERE enabled = true AND poll_notifications = true
+                """
+                users = await fetch(users_sql)
+                
+                if users:
+                    logger.info("sending_poll_notifications", poll_id=poll_id, user_count=len(users))
+                    
+                    # Prepare notification content
+                    notification_title = "Nieuwe Poll"
+                    
+                    notification_body = poll_result.title[:100]  # Max 100 chars
+                    if len(poll_result.title) > 100:
+                        notification_body = f"{poll_result.title[:97]}..."
+                    
+                    # Deep link URL to feed with timeline filter and pollId
+                    deep_link_url = f"/feed?filter=timeline&pollId={poll_id}"
+                    
+                    # Send notification to each user
+                    for user_row in users:
+                        user_id = user_row["user_id"]
+                        try:
+                            result = await push_service.send_notification(
+                                user_id=str(user_id),
+                                notification_type="poll",
+                                title=notification_title,
+                                body=notification_body,
+                                data={
+                                    "type": "poll",
+                                    "poll_id": poll_id,
+                                    "url": deep_link_url,  # Deep link naar feed met timeline filter en pollId
+                                },
+                            )
+                            notification_count += result.get("sent", 0)
+                            notification_failed += result.get("failed", 0)
+                        except Exception as e:
+                            logger.error(
+                                "failed_to_send_poll_notification",
+                                user_id=str(user_id),
+                                poll_id=poll_id,
+                                error=str(e),
+                                error_type=type(e).__name__,
+                                exc_info=True,
+                            )
+                            notification_failed += 1
+                    
+                    logger.info(
+                        "poll_notifications_sent",
+                        poll_id=poll_id,
+                        sent=notification_count,
+                        failed=notification_failed,
+                        total_users=len(users),
+                    )
+                else:
+                    logger.info("no_users_with_poll_notifications_enabled", poll_id=poll_id)
+                    
+            except Exception as e:
+                # Log error but don't fail poll creation if notifications fail
+                logger.error(
+                    "failed_to_send_poll_notifications",
+                    poll_id=poll_id,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    exc_info=True,
+                )
+        
         logger.info("poll_generation_complete", 
                    poll_id=poll_id,
                    title=poll_result.title,
                    options_count=len(poll_result.options),
                    topic_group=topic_group["name"],
                    rotation_index=rotation_index,
-                   recent_polls_checked=recent_polls_count)
+                   recent_polls_checked=recent_polls_count,
+                   notifications_sent=notification_count,
+                   notifications_failed=notification_failed)
         
         return {
             "ok": True,

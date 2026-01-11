@@ -265,6 +265,7 @@ export function FeedCard({
         "hover:border-border/30 hover:shadow-[0_2px_6px_rgba(15,23,42,0.02),0_1px_2px_rgba(15,23,42,0.01)]",
         className
       )}
+      {...(pollId ? { "data-poll-id": pollId } : {})}
     >
       {/* Header: Avatar + Name + Meta */}
       <div className="flex items-start gap-3 p-4">
