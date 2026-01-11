@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { AppHeader } from "@/components/feed/AppHeader";
+import { LoginPrompt } from "@/components/auth/LoginPrompt";
+import { LoginModal } from "@/components/auth/LoginModal";
 import { Icon } from "@/components/Icon";
 import { AppViewportShell } from "@/components/layout";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -71,17 +73,7 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [contentTypeFilter, setContentTypeFilter] = useState<string | undefined>("general"); // Default to Turkchat
-
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (authLoading) return;
-    if (!isAuthenticated) {
-      navigate("/auth", {
-        state: { from: { pathname: "/chat" } },
-        replace: true
-      });
-    }
-  }, [isAuthenticated, authLoading, navigate]);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
 
   // Load topics
   useEffect(() => {
@@ -143,26 +135,36 @@ export default function ChatPage() {
     navigate(`/chat/topic/${topicId}`);
   };
 
-  if (authLoading || !isAuthenticated) {
-    return (
-      <AppViewportShell>
-        <SeoHead {...seo} />
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-muted-foreground">Laden...</div>
-        </div>
-      </AppViewportShell>
-    );
-  }
-
   return (
-    <AppViewportShell>
+    <>
       <SeoHead {...seo} />
-      <AppHeader />
-      <div className="flex-1 overflow-y-auto px-4 pb-24">
+      <AppViewportShell variant="content">
+        <div className="flex flex-col h-full relative">
+          {/* Red gradient overlay */}
+          <div
+            className="absolute inset-x-0 top-0 pointer-events-none z-0"
+            style={{
+              height: '25%',
+              background: 'linear-gradient(180deg, hsl(var(--brand-red) / 0.10) 0%, hsl(var(--brand-red) / 0.03) 50%, transparent 100%)',
+            }}
+          />
+          <AppHeader />
+          <div className="flex-1 overflow-y-auto px-4 pb-24 relative z-10">
         <div className="max-w-3xl mx-auto py-4">
           <h1 className="text-2xl font-gilroy font-black px-4 py-1.5 mb-4">Praat nu mee...</h1>
 
-          {/* Filters */}
+          {/* Show login prompt if not authenticated */}
+          {!isAuthenticated && !authLoading && (
+            <div className="px-4 mb-4">
+              <LoginPrompt 
+                message="Log in om te chatten" 
+                onLoginClick={() => setLoginModalOpen(true)}
+              />
+            </div>
+          )}
+
+          {/* Filters - only show when authenticated */}
+          {isAuthenticated && (
           <div
             className="flex gap-2 mb-4 overflow-x-auto px-4 py-2"
             style={{
@@ -246,8 +248,11 @@ export default function ChatPage() {
               Muziek
             </button>
           </div>
+          )}
 
-          {/* Topics List */}
+          {/* Topics List - only show when authenticated */}
+          {isAuthenticated && (
+          <>
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">Laden...</div>
           ) : error ? (
@@ -320,9 +325,18 @@ export default function ChatPage() {
               ))}
             </div>
           )}
+          </>
+          )}
         </div>
       </div>
-    </AppViewportShell>
+        </div>
+      </AppViewportShell>
+      {/* Login modal for email/password login */}
+      <LoginModal
+        open={loginModalOpen}
+        onOpenChange={setLoginModalOpen}
+      />
+    </>
   );
 }
 

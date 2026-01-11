@@ -214,12 +214,26 @@ self.addEventListener('push', (event) => {
     }
   }
   
-  const title = data.title || 'Turkish Diaspora App';
+  // For chat notifications, use "Turkbot" as title (browser will add "from Turkspot")
+  // For other notifications, use normal title/body structure
+  let notificationTitle;
+  let notificationBody;
+  
+  if (data.type === 'chat_message') {
+    // For chat messages, use "Turkbot" as title - browser will show "Turkbot from Turkspot"
+    notificationTitle = data.title || 'Turkbot';
+    notificationBody = data.body || 'Je hebt een nieuw bericht ontvangen.';
+  } else {
+    // For other notification types, use normal title/body structure
+    notificationTitle = data.title || 'Turkspot';
+    notificationBody = data.body || 'You have a new notification';
+  }
+  
   // Create unique tag to prevent duplicate notifications
   // Use notification type + ID if available, otherwise use timestamp
   const notificationKey = data.tag || data.data?.id 
     ? `${data.tag || data.data?.type || 'notification'}-${data.data?.id || Date.now()}`
-    : `${data.title || 'notification'}-${data.body || ''}-${Date.now()}`;
+    : `${notificationTitle || 'notification'}-${notificationBody || ''}-${Date.now()}`;
   
   // Check if we've shown this notification recently (deduplication)
   if (recentNotifications.has(notificationKey)) {
@@ -235,7 +249,7 @@ self.addEventListener('push', (event) => {
   
   const uniqueTag = notificationKey;
   const options = {
-    body: data.body || 'You have a new notification',
+    body: notificationBody,
     icon: '/icon-192x192.jpg',
     badge: '/icon-72x72.jpg',
     data: data.data || {},
@@ -246,7 +260,7 @@ self.addEventListener('push', (event) => {
   };
 
   const minimalOptions = {
-    body: options.body,
+    body: notificationBody,
     data: options.data,
     tag: options.tag,
   };
@@ -272,14 +286,14 @@ self.addEventListener('push', (event) => {
           : options;
         
         // Try with adjusted options first
-        return self.registration.showNotification(title, notificationOptions)
+        return self.registration.showNotification(notificationTitle, notificationOptions)
           .then(() => {
             console.log('[Service Worker] showNotification promise resolved');
           })
           .catch((error) => {
             console.error('[Service Worker] Failed to show notification:', error);
             // Try minimal options as fallback (no icon/badge)
-            return self.registration.showNotification(title, minimalOptions)
+            return self.registration.showNotification(notificationTitle, minimalOptions)
               .then(() => {
                 console.log('[Service Worker] showNotification promise resolved (minimal options fallback)');
               })
@@ -291,7 +305,7 @@ self.addEventListener('push', (event) => {
       .catch((error) => {
         console.error('[Service Worker] Client check failed:', error);
         // Fallback: try notification anyway
-        return self.registration.showNotification(title, options).catch(err => {
+        return self.registration.showNotification(notificationTitle, options).catch(err => {
           console.error('[Service Worker] Fallback notification failed:', err);
         });
       })

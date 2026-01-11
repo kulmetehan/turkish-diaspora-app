@@ -150,10 +150,35 @@ export default function FeedPage() {
     }
     return null;
   };
+  
+  // Read pollId from hash params (for deep linking to specific poll)
+  const getPollIdFromHash = (): number | null => {
+    if (typeof window === "undefined") return null;
+    const hash = window.location.hash ?? "";
+    const queryIndex = hash.indexOf("?");
+    if (queryIndex < 0) return null;
+    const query = hash.slice(queryIndex + 1);
+    const params = new URLSearchParams(query);
+    const pollIdStr = params.get("pollId");
+    if (pollIdStr) {
+      const pollId = parseInt(pollIdStr, 10);
+      if (!isNaN(pollId) && pollId > 0) {
+        return pollId;
+      }
+    }
+    return null;
+  };
+  
   const hashFilter = getFilterFromHash();
+  const hashPollId = getPollIdFromHash();
   const stateFilter = (location.state as { filter?: ActivityFilter })?.filter;
-  const initialFilter = hashFilter || stateFilter || "all";
+  
+  // If pollId is present, force filter to "timeline" for deep linking
+  const initialFilter = hashPollId ? "timeline" : (hashFilter || stateFilter || "all");
   const [activeFilter, setActiveFilter] = useState<ActivityFilter>(initialFilter);
+  
+  // State for target poll ID (for scroll targeting)
+  const [targetPollId, setTargetPollId] = useState<number | null>(hashPollId);
   const [feedItems, setFeedItems] = useState<ActivityItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -352,6 +377,76 @@ export default function FeedPage() {
       setFavoriteFilter("mijn");
     }
   }, [activeFilter]);
+
+  // Scroll to target poll when pollId parameter is present and feed is loaded
+  // This works for both activity_stream polls (in feedItems) and TimelineFeed polls (rendered via PollCard)
+  useEffect(() => {
+    if (!targetPollId || isLoading || activeFilter !== "timeline") return;
+    
+    const scrollToPoll = () => {
+      const pollElement = document.querySelector(`[data-poll-id="${targetPollId}"]`);
+      if (pollElement) {
+        pollElement.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTargetPollId(null); // Clear after scroll
+        // Clear pollId from URL hash to prevent re-scrolling on navigation
+        const hash = window.location.hash ?? "";
+        const queryIndex = hash.indexOf("?");
+        if (queryIndex >= 0) {
+          const query = hash.slice(queryIndex + 1);
+          const params = new URLSearchParams(query);
+          params.delete("pollId");
+          const newQuery = params.toString();
+          const newHash = newQuery 
+            ? `${hash.slice(0, queryIndex + 1)}${newQuery}`
+            : hash.slice(0, queryIndex);
+          window.history.replaceState({}, "", newHash || window.location.pathname);
+        }
+        return true;
+      }
+      return false;
+    };
+    
+    // Small delay to ensure DOM is ready after feed loads (TimelineFeed or activity feed)
+    // TimelineFeed has its own loading state, so we give it time to render
+    const timeoutId = setTimeout(() => {
+      // Try to find poll in feedItems first (activity_stream entries with activity_type='poll')
+      const pollItem = feedItems.find(
+        (item) => item.activity_type === "poll" && 
+        (item.payload?.poll_id as number) === targetPollId
+      );
+      
+      if (pollItem) {
+        // Poll found in feedItems - try to scroll (will work if FeedCard is rendered)
+        if (!scrollToPoll()) {
+          // Element not yet in DOM, retry after a short delay
+          const retryId = setTimeout(() => {
+            if (!scrollToPoll()) {
+              setTargetPollId(null); // Clear if still not found
+            }
+          }, 500);
+          return () => clearTimeout(retryId);
+        }
+      } else {
+        // Poll not found in feedItems - might be in TimelineFeed (separate API call)
+        // TimelineFeed polls are rendered via PollCard which now has data-poll-id
+        // Give TimelineFeed time to load and render, then try scrolling
+        let retryCount = 0;
+        const maxRetries = 5; // More retries for TimelineFeed which has separate loading
+        const checkInterval = setInterval(() => {
+          retryCount++;
+          if (scrollToPoll() || retryCount >= maxRetries) {
+            clearInterval(checkInterval);
+            if (retryCount >= maxRetries && !scrollToPoll()) {
+              setTargetPollId(null); // Clear after max retries
+            }
+          }
+        }, 500);
+        return () => clearInterval(checkInterval);
+      }
+    }, 300); // Initial delay for TimelineFeed to start loading
+    
+    return () => clearTimeout(timeoutId);
+  }, [targetPollId, isLoading, activeFilter, feedItems]); // Removed hasMore, isLoadingMore, handleLoadMore from deps
 
   // Handle reaction toggle
   const handleReactionToggle = useCallback(async (activityId: number, reactionType: ReactionType) => {

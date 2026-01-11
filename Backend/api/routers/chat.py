@@ -517,22 +517,14 @@ async def create_message(
             from services.db_service import fetch
             subscribers = await fetch(subscribers_sql, topic_id, str(user.user_id))
             
-            # Get user profile for notification
-            user_profile_sql = """
-                SELECT display_name FROM user_profiles WHERE id = $1::uuid
-            """
-            from services.db_service import fetchrow
-            user_profile = await fetchrow(user_profile_sql, str(user.user_id))
-            sender_name = user_profile.get("display_name") if user_profile else "Iemand"
-            
             # Send push notifications to subscribers
-            preview = request.content[:100] + ("..." if len(request.content) > 100 else "")
+            # For chat messages, use "Turkbot" as title
             for sub in subscribers:
                 await push_service.send_notification(
                     user_id=str(sub["user_id"]),
                     notification_type="chat_message",
-                    title=f"Nieuwe chat: {topic['title']}",
-                    body=f"{sender_name}: {preview}",
+                    title="Turkbot",
+                    body="Je hebt een nieuw bericht ontvangen.",
                     data={
                         "type": "chat_message",
                         "topic_id": topic_id,
