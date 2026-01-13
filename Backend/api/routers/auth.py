@@ -260,6 +260,29 @@ async def send_welcome_email(
                 email=user.email,
                 language=language,
             )
+            
+            # Send admin notification (non-blocking)
+            try:
+                from services.admin_notification_service import send_admin_notification
+                from datetime import datetime, timezone
+                
+                await send_admin_notification(
+                    action_type="account_created",
+                    context={
+                        "user_email": user.email,
+                        "user_id": str(user.user_id),
+                        "display_name": display_name,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                    language="nl",
+                )
+            except Exception as e:
+                logger.warning(
+                    "admin_notification_account_created_failed",
+                    user_id=str(user.user_id),
+                    error=str(e),
+                )
+            
             return {
                 "ok": True,
                 "message": "Welcome email sent successfully",

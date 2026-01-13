@@ -1,0 +1,62 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Yeni Hesap Oluşturuldu{% elif language == 'en' %}New Account Created{% else %}Nieuw Account Aangemaakt{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Yeni kullanıcı kaydı
+    {% elif language == 'en' %}
+        New user registration
+    {% else %}
+        Nieuwe gebruiker registratie
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Yeni bir kullanıcı hesabı oluşturuldu:</p>
+
+<ul>
+    <li><strong>E-posta:</strong> {{ user_email }}</li>
+    <li><strong>Kullanıcı ID:</strong> {{ user_id }}</li>
+    {% if display_name %}
+    <li><strong>Görünen Ad:</strong> {{ display_name }}</li>
+    {% endif %}
+    <li><strong>Oluşturulma Tarihi:</strong> {{ created_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Admin Dashboard'a Git</a></p>
+
+{% elif language == 'en' %}
+<p>A new user account has been created:</p>
+
+<ul>
+    <li><strong>Email:</strong> {{ user_email }}</li>
+    <li><strong>User ID:</strong> {{ user_id }}</li>
+    {% if display_name %}
+    <li><strong>Display Name:</strong> {{ display_name }}</li>
+    {% endif %}
+    <li><strong>Created At:</strong> {{ created_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Go to Admin Dashboard</a></p>
+
+{% else %}
+<p>Er is een nieuw gebruikersaccount aangemaakt:</p>
+
+<ul>
+    <li><strong>E-mail:</strong> {{ user_email }}</li>
+    <li><strong>Gebruiker ID:</strong> {{ user_id }}</li>
+    {% if display_name %}
+    <li><strong>Weergavenaam:</strong> {{ display_name }}</li>
+    {% endif %}
+    <li><strong>Aangemaakt op:</strong> {{ created_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Ga naar Admin Dashboard</a></p>
+{% endif %}
+{% endblock %}

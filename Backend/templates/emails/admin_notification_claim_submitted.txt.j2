@@ -1,0 +1,37 @@
+{% if language == 'tr' %}
+Yeni bir locatie claim inzendingi alındı:
+
+Locatie: {{ location_name }} (ID: {{ location_id }})
+Bedrijf Account: {{ business_account_name }}
+Claim ID: {{ claim_id }}
+Gebruiker: {{ user_email }} ({{ user_id }})
+{% if verification_notes %}Verificatie Notities: {{ verification_notes }}{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% elif language == 'en' %}
+A new location claim submission has been received:
+
+Location: {{ location_name }} (ID: {{ location_id }})
+Business Account: {{ business_account_name }}
+Claim ID: {{ claim_id }}
+User: {{ user_email }} ({{ user_id }})
+{% if verification_notes %}Verification Notes: {{ verification_notes }}{% endif %}
+Submitted At: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% else %}
+Er is een nieuwe locatie claim inzending ontvangen:
+
+Locatie: {{ location_name }} (ID: {{ location_id }})
+Bedrijf Account: {{ business_account_name }}
+Claim ID: {{ claim_id }}
+Gebruiker: {{ user_email }} ({{ user_id }})
+{% if verification_notes %}Verificatie Notities: {{ verification_notes }}{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% endif %}

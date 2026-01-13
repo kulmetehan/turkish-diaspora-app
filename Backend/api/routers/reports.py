@@ -132,6 +132,47 @@ async def create_report(
         client_id=client_id,
     )
     
+    # Send admin notification (non-blocking)
+    try:
+        from services.admin_notification_service import send_admin_notification
+        
+        # Get user email if authenticated
+        user_email = None
+        if user:
+            user_email_sql = "SELECT email FROM auth.users WHERE id = $1"
+            user_email_rows = await fetch(user_email_sql, user.user_id)
+            user_email = user_email_rows[0]["email"] if user_email_rows else None
+        
+        # Get target name if location report
+        target_name = None
+        if report.report_type == "location":
+            location_sql = "SELECT name FROM locations WHERE id = $1"
+            location_rows = await fetch(location_sql, report.target_id)
+            target_name = location_rows[0]["name"] if location_rows else None
+        
+        await send_admin_notification(
+            action_type="report_submitted",
+            context={
+                "user_email": user_email,
+                "user_id": str(user.user_id) if user else None,
+                "client_id": client_id if not user else None,
+                "report_type": report.report_type,
+                "target_id": report.target_id,
+                "target_name": target_name,
+                "reason": report.reason,
+                "details": report.details,
+                "report_id": row["id"],
+                "submitted_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
+            },
+            language="nl",
+        )
+    except Exception as e:
+        logger.warning(
+            "admin_notification_report_submitted_failed",
+            report_id=row["id"],
+            error=str(e),
+        )
+    
     return ReportResponse(**row)
 
 

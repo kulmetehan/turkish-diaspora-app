@@ -107,3 +107,22 @@ def require_allowed_admin_emails() -> list[str]:
             f"in Backend/.env (bron: {ENV_FILE})."
         )
     return allowed
+
+
+def get_admin_notification_emails() -> list[str]:
+    """
+    Get admin email addresses for notifications.
+    Falls back to ALLOWED_ADMIN_EMAILS if ADMIN_NOTIFICATION_EMAILS not set.
+    
+    Returns:
+        List of admin email addresses (lowercase, trimmed)
+    """
+    admin_notification_emails = os.getenv("ADMIN_NOTIFICATION_EMAILS")
+    if admin_notification_emails:
+        return [
+            email.strip().lower()
+            for email in admin_notification_emails.split(",")
+            if email.strip()
+        ]
+    # Fallback to ALLOWED_ADMIN_EMAILS
+    return get_allowed_admin_emails()

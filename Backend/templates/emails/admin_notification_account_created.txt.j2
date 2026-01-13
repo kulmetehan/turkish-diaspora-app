@@ -1,0 +1,31 @@
+{% if language == 'tr' %}
+Yeni bir kullanıcı hesabı oluşturuldu:
+
+E-posta: {{ user_email }}
+Kullanıcı ID: {{ user_id }}
+{% if display_name %}Görünen Ad: {{ display_name }}{% endif %}
+Oluşturulma Tarihi: {{ created_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% elif language == 'en' %}
+A new user account has been created:
+
+Email: {{ user_email }}
+User ID: {{ user_id }}
+{% if display_name %}Display Name: {{ display_name }}{% endif %}
+Created At: {{ created_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% else %}
+Er is een nieuw gebruikersaccount aangemaakt:
+
+E-mail: {{ user_email }}
+Gebruiker ID: {{ user_id }}
+{% if display_name %}Weergavenaam: {{ display_name }}{% endif %}
+Aangemaakt op: {{ created_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% endif %}

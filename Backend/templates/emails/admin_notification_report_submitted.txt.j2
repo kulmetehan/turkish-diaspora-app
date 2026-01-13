@@ -1,0 +1,43 @@
+{% if language == 'tr' %}
+Yeni bir report inzendingi alındı:
+
+Report Type: {{ report_type }}
+Target ID: {{ target_id }}
+{% if target_name %}Target Naam: {{ target_name }}{% endif %}
+Reden: {{ reason }}
+{% if details %}Details: {{ details }}{% endif %}
+Report ID: {{ report_id }}
+{% if user_email %}Gebruiker: {{ user_email }} ({{ user_id }}){% elif client_id %}Client ID: {{ client_id }}{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% elif language == 'en' %}
+A new report submission has been received:
+
+Report Type: {{ report_type }}
+Target ID: {{ target_id }}
+{% if target_name %}Target Name: {{ target_name }}{% endif %}
+Reason: {{ reason }}
+{% if details %}Details: {{ details }}{% endif %}
+Report ID: {{ report_id }}
+{% if user_email %}User: {{ user_email }} ({{ user_id }}){% elif client_id %}Client ID: {{ client_id }}{% endif %}
+Submitted At: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% else %}
+Er is een nieuwe report inzending ontvangen:
+
+Report Type: {{ report_type }}
+Target ID: {{ target_id }}
+{% if target_name %}Target Naam: {{ target_name }}{% endif %}
+Reden: {{ reason }}
+{% if details %}Details: {{ details }}{% endif %}
+Report ID: {{ report_id }}
+{% if user_email %}Gebruiker: {{ user_email }} ({{ user_id }}){% elif client_id %}Client ID: {{ client_id }}{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% endif %}

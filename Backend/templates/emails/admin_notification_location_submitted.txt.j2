@@ -1,0 +1,43 @@
+{% if language == 'tr' %}
+Yeni bir locatie inzendingi alındı:
+
+Locatie Naam: {{ location_name }}
+{% if location_address %}Adres: {{ location_address }}{% endif %}
+Categorie: {{ category }}
+Inzending ID: {{ submission_id }}
+Gebruiker: {{ user_email }} ({{ user_id }})
+{% if user_name %}Gebruikersnaam: {{ user_name }}{% endif %}
+{% if is_owner %}Eigenaar: Ja, gebruiker is eigenaar{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% elif language == 'en' %}
+A new location submission has been received:
+
+Location Name: {{ location_name }}
+{% if location_address %}Address: {{ location_address }}{% endif %}
+Category: {{ category }}
+Submission ID: {{ submission_id }}
+User: {{ user_email }} ({{ user_id }})
+{% if user_name %}User Name: {{ user_name }}{% endif %}
+{% if is_owner %}Owner: Yes, user is owner{% endif %}
+Submitted At: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% else %}
+Er is een nieuwe locatie inzending ontvangen:
+
+Locatie Naam: {{ location_name }}
+{% if location_address %}Adres: {{ location_address }}{% endif %}
+Categorie: {{ category }}
+Inzending ID: {{ submission_id }}
+Gebruiker: {{ user_email }} ({{ user_id }})
+{% if user_name %}Gebruikersnaam: {{ user_name }}{% endif %}
+{% if is_owner %}Eigenaar: Ja, gebruiker is eigenaar{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% endif %}

@@ -1,0 +1,68 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Yeni Konum Talebi Gönderildi{% elif language == 'en' %}New Location Claim Submitted{% else %}Nieuwe Locatie Claim Ingediend{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Yeni konum talebi bekliyor
+    {% elif language == 'en' %}
+        New location claim pending review
+    {% else %}
+        Nieuwe locatie claim wacht op beoordeling
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Yeni bir locatie claim inzendingi alındı:</p>
+
+<ul>
+    <li><strong>Locatie:</strong> {{ location_name }} (ID: {{ location_id }})</li>
+    <li><strong>Bedrijf Account:</strong> {{ business_account_name }}</li>
+    <li><strong>Claim ID:</strong> {{ claim_id }}</li>
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if verification_notes %}
+    <li><strong>Verificatie Notities:</strong> {{ verification_notes }}</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Admin Dashboard'a Git</a></p>
+
+{% elif language == 'en' %}
+<p>A new location claim submission has been received:</p>
+
+<ul>
+    <li><strong>Location:</strong> {{ location_name }} (ID: {{ location_id }})</li>
+    <li><strong>Business Account:</strong> {{ business_account_name }}</li>
+    <li><strong>Claim ID:</strong> {{ claim_id }}</li>
+    <li><strong>User:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if verification_notes %}
+    <li><strong>Verification Notes:</strong> {{ verification_notes }}</li>
+    {% endif %}
+    <li><strong>Submitted At:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Go to Admin Dashboard</a></p>
+
+{% else %}
+<p>Er is een nieuwe locatie claim inzending ontvangen:</p>
+
+<ul>
+    <li><strong>Locatie:</strong> {{ location_name }} (ID: {{ location_id }})</li>
+    <li><strong>Bedrijf Account:</strong> {{ business_account_name }}</li>
+    <li><strong>Claim ID:</strong> {{ claim_id }}</li>
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if verification_notes %}
+    <li><strong>Verificatie Notities:</strong> {{ verification_notes }}</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Ga naar Admin Dashboard</a></p>
+{% endif %}
+{% endblock %}

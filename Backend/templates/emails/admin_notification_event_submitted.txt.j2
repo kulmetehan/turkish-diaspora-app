@@ -1,0 +1,46 @@
+{% if language == 'tr' %}
+Yeni bir event inzendingi alındı:
+
+Event Titel: {{ event_title }}
+{% if event_description %}Beschrijving: {{ event_description }}{% endif %}
+Start Tijd: {{ event_start_time }}
+{% if event_location %}Locatie: {{ event_location }}{% endif %}
+{% if category_key %}Categorie: {{ category_key }}{% endif %}
+Inzending ID: {{ submission_id }}
+Gebruiker: {{ user_email }} ({{ user_id }})
+{% if user_name %}Gebruikersnaam: {{ user_name }}{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% elif language == 'en' %}
+A new event submission has been received:
+
+Event Title: {{ event_title }}
+{% if event_description %}Description: {{ event_description }}{% endif %}
+Start Time: {{ event_start_time }}
+{% if event_location %}Location: {{ event_location }}{% endif %}
+{% if category_key %}Category: {{ category_key }}{% endif %}
+Submission ID: {{ submission_id }}
+User: {{ user_email }} ({{ user_id }})
+{% if user_name %}User Name: {{ user_name }}{% endif %}
+Submitted At: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% else %}
+Er is een nieuwe event inzending ontvangen:
+
+Event Titel: {{ event_title }}
+{% if event_description %}Beschrijving: {{ event_description }}{% endif %}
+Start Tijd: {{ event_start_time }}
+{% if event_location %}Locatie: {{ event_location }}{% endif %}
+{% if category_key %}Categorie: {{ category_key }}{% endif %}
+Inzending ID: {{ submission_id }}
+Gebruiker: {{ user_email }} ({{ user_id }})
+{% if user_name %}Gebruikersnaam: {{ user_name }}{% endif %}
+Ingediend op: {{ submitted_at }}
+
+Admin Dashboard: {{ admin_dashboard_url }}
+
+{% endif %}
