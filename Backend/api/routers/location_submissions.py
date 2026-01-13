@@ -241,6 +241,32 @@ async def submit_location(
             error=str(e),
         )
     
+    # Send admin notification (non-blocking)
+    try:
+        from services.admin_notification_service import send_admin_notification
+        
+        await send_admin_notification(
+            action_type="location_submitted",
+            context={
+                "user_email": user_email if user_rows and user_rows[0].get("email") else None,
+                "user_id": str(user.user_id),
+                "user_name": user_name if user_rows and user_rows[0].get("email") else None,
+                "location_name": submission.name,
+                "location_address": submission.address,
+                "category": submission.category,
+                "submission_id": row["id"],
+                "submitted_at": row["submitted_at"].isoformat() if hasattr(row["submitted_at"], "isoformat") else str(row["submitted_at"]),
+                "is_owner": submission.is_owner,
+            },
+            language="nl",
+        )
+    except Exception as e:
+        logger.warning(
+            "admin_notification_location_submitted_failed",
+            submission_id=row["id"],
+            error=str(e),
+        )
+    
     return LocationSubmissionResponse(
         id=row["id"],
         name=row["name"],

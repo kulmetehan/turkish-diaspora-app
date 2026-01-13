@@ -246,6 +246,33 @@ async def submit_event(
             error=str(e),
         )
     
+    # Send admin notification (non-blocking)
+    try:
+        from services.admin_notification_service import send_admin_notification
+        
+        await send_admin_notification(
+            action_type="event_submitted",
+            context={
+                "user_email": user_email if user_rows and user_rows[0].get("email") else None,
+                "user_id": str(user.user_id),
+                "user_name": user_name if user_rows and user_rows[0].get("email") else None,
+                "event_title": submission.title,
+                "event_description": submission.description,
+                "event_start_time": submission.start_time_utc.isoformat() if hasattr(submission.start_time_utc, "isoformat") else str(submission.start_time_utc),
+                "event_location": submission.location_text,
+                "category_key": submission.category_key,
+                "submission_id": row["id"],
+                "submitted_at": row["submitted_at"].isoformat() if hasattr(row["submitted_at"], "isoformat") else str(row["submitted_at"]),
+            },
+            language="nl",
+        )
+    except Exception as e:
+        logger.warning(
+            "admin_notification_event_submitted_failed",
+            submission_id=row["id"],
+            error=str(e),
+        )
+    
     return EventSubmissionResponse(
         id=row["id"],
         title=row["title"],

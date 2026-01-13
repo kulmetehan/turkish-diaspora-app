@@ -1,0 +1,86 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Yeni Konum Gönderildi{% elif language == 'en' %}New Location Submitted{% else %}Nieuwe Locatie Ingediend{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Yeni konum incelemesi bekliyor
+    {% elif language == 'en' %}
+        New location pending review
+    {% else %}
+        Nieuwe locatie wacht op beoordeling
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Yeni bir locatie inzendingi alındı:</p>
+
+<ul>
+    <li><strong>Locatie Naam:</strong> {{ location_name }}</li>
+    {% if location_address %}
+    <li><strong>Adres:</strong> {{ location_address }}</li>
+    {% endif %}
+    <li><strong>Categorie:</strong> {{ category }}</li>
+    <li><strong>Inzending ID:</strong> {{ submission_id }}</li>
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if user_name %}
+    <li><strong>Gebruikersnaam:</strong> {{ user_name }}</li>
+    {% endif %}
+    {% if is_owner %}
+    <li><strong>Eigenaar:</strong> Ja, gebruiker is eigenaar</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Admin Dashboard'a Git</a></p>
+
+{% elif language == 'en' %}
+<p>A new location submission has been received:</p>
+
+<ul>
+    <li><strong>Location Name:</strong> {{ location_name }}</li>
+    {% if location_address %}
+    <li><strong>Address:</strong> {{ location_address }}</li>
+    {% endif %}
+    <li><strong>Category:</strong> {{ category }}</li>
+    <li><strong>Submission ID:</strong> {{ submission_id }}</li>
+    <li><strong>User:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if user_name %}
+    <li><strong>User Name:</strong> {{ user_name }}</li>
+    {% endif %}
+    {% if is_owner %}
+    <li><strong>Owner:</strong> Yes, user is owner</li>
+    {% endif %}
+    <li><strong>Submitted At:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Go to Admin Dashboard</a></p>
+
+{% else %}
+<p>Er is een nieuwe locatie inzending ontvangen:</p>
+
+<ul>
+    <li><strong>Locatie Naam:</strong> {{ location_name }}</li>
+    {% if location_address %}
+    <li><strong>Adres:</strong> {{ location_address }}</li>
+    {% endif %}
+    <li><strong>Categorie:</strong> {{ category }}</li>
+    <li><strong>Inzending ID:</strong> {{ submission_id }}</li>
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if user_name %}
+    <li><strong>Gebruikersnaam:</strong> {{ user_name }}</li>
+    {% endif %}
+    {% if is_owner %}
+    <li><strong>Eigenaar:</strong> Ja, gebruiker is eigenaar</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Ga naar Admin Dashboard</a></p>
+{% endif %}
+{% endblock %}

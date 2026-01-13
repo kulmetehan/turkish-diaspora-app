@@ -1,0 +1,95 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Yeni Etkinlik Gönderildi{% elif language == 'en' %}New Event Submitted{% else %}Nieuw Event Ingediend{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Yeni etkinlik incelemesi bekliyor
+    {% elif language == 'en' %}
+        New event pending review
+    {% else %}
+        Nieuw event wacht op beoordeling
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Yeni bir event inzendingi alındı:</p>
+
+<ul>
+    <li><strong>Event Titel:</strong> {{ event_title }}</li>
+    {% if event_description %}
+    <li><strong>Beschrijving:</strong> {{ event_description }}</li>
+    {% endif %}
+    <li><strong>Start Tijd:</strong> {{ event_start_time }}</li>
+    {% if event_location %}
+    <li><strong>Locatie:</strong> {{ event_location }}</li>
+    {% endif %}
+    {% if category_key %}
+    <li><strong>Categorie:</strong> {{ category_key }}</li>
+    {% endif %}
+    <li><strong>Inzending ID:</strong> {{ submission_id }}</li>
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if user_name %}
+    <li><strong>Gebruikersnaam:</strong> {{ user_name }}</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Admin Dashboard'a Git</a></p>
+
+{% elif language == 'en' %}
+<p>A new event submission has been received:</p>
+
+<ul>
+    <li><strong>Event Title:</strong> {{ event_title }}</li>
+    {% if event_description %}
+    <li><strong>Description:</strong> {{ event_description }}</li>
+    {% endif %}
+    <li><strong>Start Time:</strong> {{ event_start_time }}</li>
+    {% if event_location %}
+    <li><strong>Location:</strong> {{ event_location }}</li>
+    {% endif %}
+    {% if category_key %}
+    <li><strong>Category:</strong> {{ category_key }}</li>
+    {% endif %}
+    <li><strong>Submission ID:</strong> {{ submission_id }}</li>
+    <li><strong>User:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if user_name %}
+    <li><strong>User Name:</strong> {{ user_name }}</li>
+    {% endif %}
+    <li><strong>Submitted At:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Go to Admin Dashboard</a></p>
+
+{% else %}
+<p>Er is een nieuwe event inzending ontvangen:</p>
+
+<ul>
+    <li><strong>Event Titel:</strong> {{ event_title }}</li>
+    {% if event_description %}
+    <li><strong>Beschrijving:</strong> {{ event_description }}</li>
+    {% endif %}
+    <li><strong>Start Tijd:</strong> {{ event_start_time }}</li>
+    {% if event_location %}
+    <li><strong>Locatie:</strong> {{ event_location }}</li>
+    {% endif %}
+    {% if category_key %}
+    <li><strong>Categorie:</strong> {{ category_key }}</li>
+    {% endif %}
+    <li><strong>Inzending ID:</strong> {{ submission_id }}</li>
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% if user_name %}
+    <li><strong>Gebruikersnaam:</strong> {{ user_name }}</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Ga naar Admin Dashboard</a></p>
+{% endif %}
+{% endblock %}

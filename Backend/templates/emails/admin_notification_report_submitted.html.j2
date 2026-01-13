@@ -1,0 +1,92 @@
+{% extends "base.html.j2" %}
+
+{% block title %}
+{% if language == 'tr' %}Yeni Rapor Gönderildi{% elif language == 'en' %}New Report Submitted{% else %}Nieuw Report Ingediend{% endif %}
+{% endblock %}
+
+{% block header_subtitle %}
+<p>
+    {% if language == 'tr' %}
+        Yeni rapor bekliyor
+    {% elif language == 'en' %}
+        New report pending review
+    {% else %}
+        Nieuw report wacht op beoordeling
+    {% endif %}
+</p>
+{% endblock %}
+
+{% block content %}
+{% if language == 'tr' %}
+<p>Yeni bir report inzendingi alındı:</p>
+
+<ul>
+    <li><strong>Report Type:</strong> {{ report_type }}</li>
+    <li><strong>Target ID:</strong> {{ target_id }}</li>
+    {% if target_name %}
+    <li><strong>Target Naam:</strong> {{ target_name }}</li>
+    {% endif %}
+    <li><strong>Reden:</strong> {{ reason }}</li>
+    {% if details %}
+    <li><strong>Details:</strong> {{ details }}</li>
+    {% endif %}
+    <li><strong>Report ID:</strong> {{ report_id }}</li>
+    {% if user_email %}
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% elif client_id %}
+    <li><strong>Client ID:</strong> {{ client_id }}</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Admin Dashboard'a Git</a></p>
+
+{% elif language == 'en' %}
+<p>A new report submission has been received:</p>
+
+<ul>
+    <li><strong>Report Type:</strong> {{ report_type }}</li>
+    <li><strong>Target ID:</strong> {{ target_id }}</li>
+    {% if target_name %}
+    <li><strong>Target Name:</strong> {{ target_name }}</li>
+    {% endif %}
+    <li><strong>Reason:</strong> {{ reason }}</li>
+    {% if details %}
+    <li><strong>Details:</strong> {{ details }}</li>
+    {% endif %}
+    <li><strong>Report ID:</strong> {{ report_id }}</li>
+    {% if user_email %}
+    <li><strong>User:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% elif client_id %}
+    <li><strong>Client ID:</strong> {{ client_id }}</li>
+    {% endif %}
+    <li><strong>Submitted At:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Go to Admin Dashboard</a></p>
+
+{% else %}
+<p>Er is een nieuwe report inzending ontvangen:</p>
+
+<ul>
+    <li><strong>Report Type:</strong> {{ report_type }}</li>
+    <li><strong>Target ID:</strong> {{ target_id }}</li>
+    {% if target_name %}
+    <li><strong>Target Naam:</strong> {{ target_name }}</li>
+    {% endif %}
+    <li><strong>Reden:</strong> {{ reason }}</li>
+    {% if details %}
+    <li><strong>Details:</strong> {{ details }}</li>
+    {% endif %}
+    <li><strong>Report ID:</strong> {{ report_id }}</li>
+    {% if user_email %}
+    <li><strong>Gebruiker:</strong> {{ user_email }} ({{ user_id }})</li>
+    {% elif client_id %}
+    <li><strong>Client ID:</strong> {{ client_id }}</li>
+    {% endif %}
+    <li><strong>Ingediend op:</strong> {{ submitted_at }}</li>
+</ul>
+
+<p><a href="{{ admin_dashboard_url }}" class="button">Ga naar Admin Dashboard</a></p>
+{% endif %}
+{% endblock %}

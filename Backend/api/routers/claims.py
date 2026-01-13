@@ -142,6 +142,34 @@ async def submit_location_claim(
         user_id=str(user.user_id),
     )
     
+    # Send admin notification (non-blocking)
+    try:
+        from services.admin_notification_service import send_admin_notification
+        
+        location_name = location_rows[0]["name"]
+        business_account_name = business_account["company_name"]
+        
+        await send_admin_notification(
+            action_type="claim_submitted",
+            context={
+                "user_email": user.email,
+                "user_id": str(user.user_id),
+                "business_account_name": business_account_name,
+                "location_name": location_name,
+                "location_id": location_id,
+                "claim_id": row["id"],
+                "verification_notes": claim.verification_notes,
+                "submitted_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
+            },
+            language="nl",
+        )
+    except Exception as e:
+        logger.warning(
+            "admin_notification_claim_submitted_failed",
+            claim_id=row["id"],
+            error=str(e),
+        )
+    
     return LocationClaimResponse(
         id=row["id"],
         location_id=row["location_id"],
