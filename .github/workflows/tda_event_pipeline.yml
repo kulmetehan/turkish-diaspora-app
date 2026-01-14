@@ -93,7 +93,7 @@ jobs:
           PYTHONPATH: .
           PYTHONUNBUFFERED: "1"
         run: |
-          python -m app.workers.event_ai_extractor_bot --limit 20
+          python -m app.workers.event_ai_extractor_bot --limit 5
 
   # DISABLED: event-scraper - nog geen selectors geconfigureerd voor bekendere sites
   # event-scraper:
