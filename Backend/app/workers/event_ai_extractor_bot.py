@@ -35,6 +35,7 @@ logger = get_logger().bind(worker="event_ai_extractor_bot")
 
 DEFAULT_LIMIT = 20
 DEFAULT_CHUNK_SIZE = 16000
+DEFAULT_MAX_DETAIL_PAGES = 10
 AI_PAGE_SOURCE_KEYS: set[str] = {
     "sahmeran_events",
     "ajda_events",
@@ -78,6 +79,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Optional OpenAI model override.",
+    )
+    parser.add_argument(
+        "--max-detail-pages",
+        type=int,
+        default=DEFAULT_MAX_DETAIL_PAGES,
+        help="Maximum number of detail pages to fetch per run (default: 10).",
     )
     parser.add_argument(
         "--worker-run-id",
@@ -279,6 +286,7 @@ async def _enrich_events_with_detail_pages(
     extraction_service: EventExtractionService,
     source: EventSource,
     counters: Dict[str, int],
+    max_detail_pages: Optional[int],
     event_raw_ids: Dict[Tuple[str, str], int],  # Maps (title_lower, event_url_lower) -> event_raw_id
 ) -> None:
     """
@@ -289,6 +297,8 @@ async def _enrich_events_with_detail_pages(
     Then extract missing data and update the corresponding event_raw records.
     """
     for event in events:
+        if max_detail_pages is not None and counters.get("detail_pages_fetched", 0) >= max_detail_pages:
+            return
         if not event.event_url:
             continue
         
@@ -394,6 +404,7 @@ async def _process_page(
     extraction_service: EventExtractionService,
     source_cache: Dict[int, EventSource],
     counters: Dict[str, int],
+    max_detail_pages: Optional[int],
 ) -> None:
     source = await _get_source_cached(page.event_source_id, source_cache)
     if source is None:
@@ -518,6 +529,7 @@ async def _process_page(
         extraction_service=extraction_service,
         source=source,
         counters=counters,
+        max_detail_pages=max_detail_pages,
         event_raw_ids=event_raw_ids,
     )
 
@@ -537,6 +549,7 @@ async def run_extractor(
     chunk_size: int,
     model: Optional[str],
     worker_run_id: Optional[UUID],
+    max_detail_pages: Optional[int],
 ) -> int:
     run_id = worker_run_id or await start_worker_run(bot="event_ai_extractor", city=None, category=None)
     await mark_worker_run_running(run_id)
@@ -578,6 +591,7 @@ async def run_extractor(
                 extraction_service=extraction_service,
                 source_cache=source_cache,
                 counters=counters,
+                max_detail_pages=max_detail_pages,
             )
 
         await finish_worker_run(run_id, "finished", 100, counters, None)
@@ -596,6 +610,7 @@ async def main_async() -> int:
             chunk_size=max(1, args.chunk_size),
             model=args.model,
             worker_run_id=args.worker_run_id,
+            max_detail_pages=max(0, args.max_detail_pages),
         )
 
 
